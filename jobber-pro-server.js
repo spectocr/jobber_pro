@@ -1960,6 +1960,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     break;
                 case 'this-month':
                     startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month
                     break;
                 case 'last-month':
                     startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
