@@ -530,22 +530,26 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     const jobs = await db.collection('jobs').find().toArray();
     const clients = await db.collection('clients').find().toArray();
 
+    // Map _id to id for frontend compatibility
+    const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
+    const clientsWithId = clients.map(c => ({ ...c, id: c._id.toString() }));
+
     const today = new Date().toISOString().split('T')[0];
     const thisMonth = new Date().toISOString().slice(0, 7);
 
     const stats = {
-        totalClients: clients.length,
-        totalJobs: jobs.length,
-        jobsToday: jobs.filter(j => j.scheduledDate === today).length,
-        jobsThisMonth: jobs.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
-        scheduled: jobs.filter(j => j.status === 'scheduled').length,
-        inProgress: jobs.filter(j => j.status === 'in_progress').length,
-        completed: jobs.filter(j => j.status === 'completed').length,
-        invoiced: jobs.filter(j => j.status === 'invoiced').length,
-        revenueThisMonth: jobs
+        totalClients: clientsWithId.length,
+        totalJobs: jobsWithId.length,
+        jobsToday: jobsWithId.filter(j => j.scheduledDate === today).length,
+        jobsThisMonth: jobsWithId.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
+        scheduled: jobsWithId.filter(j => j.status === 'scheduled').length,
+        inProgress: jobsWithId.filter(j => j.status === 'in_progress').length,
+        completed: jobsWithId.filter(j => j.status === 'completed').length,
+        invoiced: jobsWithId.filter(j => j.status === 'invoiced').length,
+        revenueThisMonth: jobsWithId
             .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
             .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
-        upcomingJobs: jobs
+        upcomingJobs: jobsWithId
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))
             .slice(0, 5)
@@ -556,7 +560,9 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
 
 app.get('/api/clients', isAuthenticated, async (req, res) => {
     const clients = await db.collection('clients').find().toArray();
-    res.json(clients);
+    // Map _id to id for frontend compatibility
+    const clientsWithId = clients.map(c => ({ ...c, id: c._id.toString() }));
+    res.json(clientsWithId);
 });
 
 app.post('/api/clients', isAuthenticated, async (req, res) => {
@@ -581,7 +587,14 @@ app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
 
 app.get('/api/jobs', isAuthenticated, async (req, res) => {
     const jobs = await db.collection('jobs').find().toArray();
-    res.json(jobs);
+    // Map _id to id and ObjectId references to strings for frontend compatibility
+    const jobsWithId = jobs.map(j => ({
+        ...j,
+        id: j._id.toString(),
+        clientId: j.clientId ? j.clientId.toString() : j.clientId,
+        assignedTo: j.assignedTo ? j.assignedTo.toString() : j.assignedTo
+    }));
+    res.json(jobsWithId);
 });
 
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
@@ -613,7 +626,9 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
 
 app.get('/api/team', isAuthenticated, async (req, res) => {
     const team = await db.collection('team').find().toArray();
-    res.json(team);
+    // Map _id to id for frontend compatibility
+    const teamWithId = team.map(t => ({ ...t, id: t._id.toString() }));
+    res.json(teamWithId);
 });
 
 app.post('/api/team', isAuthenticated, async (req, res) => {
@@ -663,7 +678,14 @@ app.get('/api/calendar', isAuthenticated, async (req, res) => {
     const data = await db.collection('jobs').find({
         scheduledDate: { $regex: `^${monthStr}` }
     }).toArray();
-    res.json(data);
+    // Map _id to id and ObjectId references to strings for frontend compatibility
+    const dataWithId = data.map(j => ({
+        ...j,
+        id: j._id.toString(),
+        clientId: j.clientId ? j.clientId.toString() : j.clientId,
+        assignedTo: j.assignedTo ? j.assignedTo.toString() : j.assignedTo
+    }));
+    res.json(dataWithId);
 });
 
 // Invoice generation (protected)
