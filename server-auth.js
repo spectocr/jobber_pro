@@ -537,19 +537,27 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const thisMonth = new Date().toISOString().slice(0, 7);
 
+    // Map jobs with proper ID conversion
+    const jobsMapped = jobsWithId.map(j => ({
+        ...j,
+        id: j._id.toString(),
+        clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
+        assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
+    }));
+
     const stats = {
         totalClients: clientsWithId.length,
-        totalJobs: jobsWithId.length,
-        jobsToday: jobsWithId.filter(j => j.scheduledDate === today).length,
-        jobsThisMonth: jobsWithId.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
-        scheduled: jobsWithId.filter(j => j.status === 'scheduled').length,
-        inProgress: jobsWithId.filter(j => j.status === 'in_progress').length,
-        completed: jobsWithId.filter(j => j.status === 'completed').length,
-        invoiced: jobsWithId.filter(j => j.status === 'invoiced').length,
-        revenueThisMonth: jobsWithId
+        totalJobs: jobsMapped.length,
+        jobsToday: jobsMapped.filter(j => j.scheduledDate === today).length,
+        jobsThisMonth: jobsMapped.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
+        scheduled: jobsMapped.filter(j => j.status === 'scheduled').length,
+        inProgress: jobsMapped.filter(j => j.status === 'in_progress').length,
+        completed: jobsMapped.filter(j => j.status === 'completed').length,
+        invoiced: jobsMapped.filter(j => j.status === 'invoiced').length,
+        revenueThisMonth: jobsMapped
             .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
             .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
-        upcomingJobs: jobsWithId
+        upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))
             .slice(0, 5)
@@ -591,19 +599,27 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
     const jobsWithId = jobs.map(j => ({
         ...j,
         id: j._id.toString(),
-        clientId: j.clientId ? j.clientId.toString() : j.clientId,
-        assignedTo: j.assignedTo ? j.assignedTo.toString() : j.assignedTo
+        clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
+        assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
     }));
     res.json(jobsWithId);
 });
 
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
-    if (job.clientId && typeof job.clientId === 'string' && job.clientId.length === 24) {
+
+    // Convert clientId to ObjectId or remove if invalid
+    if (job.clientId && job.clientId !== 'undefined' && typeof job.clientId === 'string' && job.clientId.length === 24) {
         job.clientId = new ObjectId(job.clientId);
+    } else if (!job.clientId || job.clientId === 'undefined' || job.clientId === '') {
+        delete job.clientId;
     }
-    if (job.assignedTo && typeof job.assignedTo === 'string' && job.assignedTo.length === 24) {
+
+    // Convert assignedTo to ObjectId or remove if invalid
+    if (job.assignedTo && job.assignedTo !== 'undefined' && typeof job.assignedTo === 'string' && job.assignedTo.length === 24) {
         job.assignedTo = new ObjectId(job.assignedTo);
+    } else if (!job.assignedTo || job.assignedTo === 'undefined' || job.assignedTo === '') {
+        delete job.assignedTo;
     }
 
     if (job._id) {
@@ -682,8 +698,8 @@ app.get('/api/calendar', isAuthenticated, async (req, res) => {
     const dataWithId = data.map(j => ({
         ...j,
         id: j._id.toString(),
-        clientId: j.clientId ? j.clientId.toString() : j.clientId,
-        assignedTo: j.assignedTo ? j.assignedTo.toString() : j.assignedTo
+        clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
+        assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
     }));
     res.json(dataWithId);
 });
