@@ -1046,6 +1046,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let jobs = [];
         let team = [];
         let hasUnsavedChanges = false;
+        let currentUserRole = 'user'; // Default to user, updated on load
+        let isAdmin = false;
 
         // Track form changes
         function markFormDirty() {
@@ -1118,6 +1120,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentEditingClientId = null;
 
         function editClient(clientId) {
+            if (!isAdmin) {
+                alert('You do not have permission to edit clients.');
+                return;
+            }
             const client = clients.find(c => c.id == clientId || c._id == clientId);
             if (client) {
                 openClientModal(client);
@@ -1125,6 +1131,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function openClientModal(client = null) {
+            if (!isAdmin) {
+                alert('You do not have permission to create or edit clients.');
+                return;
+            }
+
             const form = document.getElementById('clientForm');
             currentEditingClientId = null;
 
@@ -1150,6 +1161,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentEditingJobId = null;
 
         function editJob(jobId) {
+            if (!isAdmin) {
+                alert('You do not have permission to edit jobs.');
+                return;
+            }
             // Try to find in jobs array first, then upcomingJobs
             let job = jobs.find(j => j.id == jobId || j._id == jobId);
             if (!job && window.upcomingJobs) {
@@ -1163,6 +1178,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function openJobModal(job = null) {
+            if (!isAdmin) {
+                alert('You do not have permission to create or edit jobs.');
+                return;
+            }
+
             const form = document.getElementById('jobForm');
 
             // Populate dropdowns FIRST
@@ -1205,6 +1225,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentEditingTeamId = null;
 
         function editTeamMember(teamId) {
+            if (!isAdmin) {
+                alert('You do not have permission to edit team members.');
+                return;
+            }
             const member = team.find(t => t.id == teamId || t._id == teamId);
             if (member) {
                 openTeamModal(member);
@@ -1212,6 +1236,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function openTeamModal(member = null) {
+            if (!isAdmin) {
+                alert('You do not have permission to create or edit team members.');
+                return;
+            }
+
             const form = document.getElementById('teamForm');
             currentEditingTeamId = null;
 
@@ -1497,8 +1526,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td>\${c.phone}</td>
                     <td>\${(c.address || '-').substring(0, 30)}</td>
                     <td onclick="event.stopPropagation()">
-                        <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')">Edit</button>
-                        <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')">Delete</button>
+                        <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                     </td>
                 </tr>\`).join('') +
                 '</tbody></table>';
@@ -1623,9 +1652,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         <td>\${j.total ? '$' + parseFloat(j.total).toFixed(2) : '-'}</td>
                         <td>
-                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
+                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>
-                            <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')">Delete</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                         </td>
                     </tr>\`;
                 }).join('') +
@@ -1661,8 +1690,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td>\${t.email || '-'}</td>
                     <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
                     <td onclick="event.stopPropagation()">
-                        <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')">Edit</button>
-                        <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')">Delete</button>
+                        <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                     </td>
                 </tr>\`).join('') +
                 '</tbody></table>';
@@ -1953,12 +1982,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Delete functions
         async function deleteClient(id) {
+            if (!isAdmin) {
+                alert('You do not have permission to delete clients.');
+                return;
+            }
             if (!confirm('Delete this client?')) return;
             await fetch(\`/api/clients/\${id}\`, { method: 'DELETE' });
             loadClients();
         }
 
         async function deleteJob(id) {
+            if (!isAdmin) {
+                alert('You do not have permission to delete jobs.');
+                return;
+            }
             if (!confirm('Delete this job?')) return;
             await fetch(\`/api/jobs/\${id}\`, { method: 'DELETE' });
             loadJobs();
@@ -1966,6 +2003,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function deleteTeamMember(id) {
+            if (!isAdmin) {
+                alert('You do not have permission to delete team members.');
+                return;
+            }
             if (!confirm('Delete this team member?')) return;
             await fetch(\`/api/team/\${id}\`, { method: 'DELETE' });
             loadTeam();
@@ -2081,14 +2122,46 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const user = await response.json();
                 document.getElementById('currentUserName').textContent = user.name;
 
+                // Set user role
+                currentUserRole = user.role || 'user';
+                isAdmin = currentUserRole === 'admin';
+
                 if (user.lastLogin) {
                     const lastLogin = new Date(user.lastLogin);
                     document.getElementById('lastLoginTime').textContent = lastLogin.toLocaleString();
                 } else {
                     document.getElementById('lastLoginTime').textContent = 'First login';
                 }
+
+                // Apply permissions after loading user
+                applyPermissions();
             } catch (error) {
                 console.error('Error loading user info:', error);
+            }
+        }
+
+        function applyPermissions() {
+            if (!isAdmin) {
+                // Hide all create/add buttons
+                document.querySelectorAll('.btn-primary').forEach(btn => {
+                    if (btn.textContent.includes('+') || btn.textContent.includes('Create') || btn.textContent.includes('Add')) {
+                        btn.style.display = 'none';
+                    }
+                });
+
+                // Disable all edit/delete buttons
+                document.querySelectorAll('.btn-secondary, .btn-danger').forEach(btn => {
+                    if (btn.textContent.includes('Edit') || btn.textContent.includes('Delete') || btn.textContent.includes('Save')) {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    }
+                });
+
+                // Hide Clear Filters button is okay to keep
+                // Hide user management section
+                const userMgmt = document.getElementById('userManagementSection');
+                if (userMgmt) userMgmt.style.display = 'none';
             }
         }
 
