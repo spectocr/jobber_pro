@@ -355,6 +355,12 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
+        // Update last login time
+        await db.collection('users').updateOne(
+            { _id: user._id },
+            { $set: { lastLogin: new Date() } }
+        );
+
         req.session.userId = user._id;
         req.session.userEmail = user.email;
         req.session.userName = user.name;

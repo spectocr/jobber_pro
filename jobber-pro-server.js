@@ -591,6 +591,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <p>Field Service Management System</p>
             </div>
         </div>
+        <div style="text-align: right; color: white; font-size: 0.9rem;">
+            <div style="font-weight: 600; margin-bottom: 0.25rem;" id="currentUserName">Loading...</div>
+            <div style="font-size: 0.8rem; opacity: 0.9;">Last Login: <span id="lastLoginTime">--</span></div>
+            <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;" id="currentDateTime">--</div>
+            <button onclick="logout()" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Logout</button>
+        </div>
     </div>
 
     <div class="nav">
@@ -1912,14 +1918,60 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        // Load current user info
+        async function loadCurrentUser() {
+            try {
+                const response = await fetch('/api/auth/me');
+                const user = await response.json();
+                document.getElementById('currentUserName').textContent = user.name;
+
+                if (user.lastLogin) {
+                    const lastLogin = new Date(user.lastLogin);
+                    document.getElementById('lastLoginTime').textContent = lastLogin.toLocaleString();
+                } else {
+                    document.getElementById('lastLoginTime').textContent = 'First login';
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        // Update current date/time
+        function updateDateTime() {
+            const now = new Date();
+            const options = {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            };
+            document.getElementById('currentDateTime').textContent = now.toLocaleString('en-US', options);
+        }
+
+        // Logout function
+        async function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/login';
+            }
+        }
+
         // Initial load
         Promise.all([
             fetch('/api/clients').then(r => r.json()).then(data => clients = data),
             fetch('/api/team').then(r => r.json()).then(data => team = data),
-            loadHeaderLogo()
+            loadHeaderLogo(),
+            loadCurrentUser()
         ]).then(() => {
             loadDashboard();
         });
+
+        // Update clock every second
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
 
         // Auto-refresh dashboard every 30 seconds
         setInterval(() => {
