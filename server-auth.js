@@ -265,6 +265,9 @@ const REGISTER_HTML = LOGIN_HTML.replace('Sign in to your account', 'Create your
 // Start Express app
 const app = express();
 
+// Trust proxy (Heroku uses load balancer)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -320,7 +323,14 @@ app.post('/api/auth/register', async (req, res) => {
         req.session.userEmail = email;
         req.session.userName = name;
 
-        res.json({ success: true });
+        // Save session before responding
+        req.session.save((err) => {
+            if (err) {
+                console.error('Session save error:', err);
+                return res.status(500).json({ error: 'Registration failed' });
+            }
+            res.json({ success: true });
+        });
     } catch (error) {
         console.error('Registration error:', error);
         res.status(500).json({ error: 'Registration failed' });
@@ -349,7 +359,14 @@ app.post('/api/auth/login', async (req, res) => {
         req.session.userEmail = user.email;
         req.session.userName = user.name;
 
-        res.json({ success: true });
+        // Save session before responding
+        req.session.save((err) => {
+            if (err) {
+                console.error('Session save error:', err);
+                return res.status(500).json({ error: 'Login failed' });
+            }
+            res.json({ success: true });
+        });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'Login failed' });
