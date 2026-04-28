@@ -847,7 +847,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div id="clientModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add Client</h2>
+                <h2 id="clientModalTitle">Add Client</h2>
                 <button class="close-btn" onclick="closeModal('clientModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -957,7 +957,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div id="teamModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add Team Member</h2>
+                <h2 id="teamModalTitle">Add Team Member</h2>
                 <button class="close-btn" onclick="closeModal('teamModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -1099,8 +1099,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         });
 
         // Modals
-        function openClientModal() {
-            document.getElementById('clientForm').reset();
+        let currentEditingClientId = null;
+
+        function editClient(clientId) {
+            const client = clients.find(c => c.id == clientId || c._id == clientId);
+            if (client) {
+                openClientModal(client);
+            }
+        }
+
+        function openClientModal(client = null) {
+            const form = document.getElementById('clientForm');
+            currentEditingClientId = null;
+
+            if (client) {
+                document.getElementById('clientModalTitle').textContent = 'Edit Client';
+                currentEditingClientId = client._id || client.id;
+
+                // Populate form fields
+                Object.keys(client).forEach(key => {
+                    const input = form.elements[key];
+                    if (input) {
+                        input.value = client[key] || '';
+                    }
+                });
+            } else {
+                document.getElementById('clientModalTitle').textContent = 'Add Client';
+                form.reset();
+            }
+
             document.getElementById('clientModal').classList.add('active');
         }
 
@@ -1159,8 +1186,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('jobModal').classList.add('active');
         }
 
-        function openTeamModal() {
-            document.getElementById('teamForm').reset();
+        let currentEditingTeamId = null;
+
+        function editTeamMember(teamId) {
+            const member = team.find(t => t.id == teamId || t._id == teamId);
+            if (member) {
+                openTeamModal(member);
+            }
+        }
+
+        function openTeamModal(member = null) {
+            const form = document.getElementById('teamForm');
+            currentEditingTeamId = null;
+
+            if (member) {
+                document.getElementById('teamModalTitle').textContent = 'Edit Team Member';
+                currentEditingTeamId = member._id || member.id;
+
+                // Populate form fields
+                Object.keys(member).forEach(key => {
+                    const input = form.elements[key];
+                    if (input) {
+                        input.value = member[key] || '';
+                    }
+                });
+            } else {
+                document.getElementById('teamModalTitle').textContent = 'Add Team Member';
+                form.reset();
+            }
+
             document.getElementById('teamModal').classList.add('active');
         }
 
@@ -1191,6 +1245,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const form = document.getElementById('clientForm');
             const formData = new FormData(form);
             const client = Object.fromEntries(formData);
+
+            // If editing, include the _id
+            if (currentEditingClientId) {
+                client._id = currentEditingClientId;
+            }
 
             const response = await fetch('/api/clients', {
                 method: 'POST',
@@ -1348,6 +1407,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const formData = new FormData(form);
             const member = Object.fromEntries(formData);
 
+            // If editing, include the _id
+            if (currentEditingTeamId) {
+                member._id = currentEditingTeamId;
+            }
+
             const response = await fetch('/api/team', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1417,6 +1481,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td>\${c.phone}</td>
                     <td>\${(c.address || '-').substring(0, 30)}</td>
                     <td onclick="event.stopPropagation()">
+                        <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')">Edit</button>
                         <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')">Delete</button>
                     </td>
                 </tr>\`).join('') +
@@ -1531,6 +1596,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td>\${t.email || '-'}</td>
                     <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
                     <td onclick="event.stopPropagation()">
+                        <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')">Edit</button>
                         <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')">Delete</button>
                     </td>
                 </tr>\`).join('') +
