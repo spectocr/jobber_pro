@@ -600,12 +600,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
 
     <div class="nav">
-        <button class="nav-btn active" onclick="showView('dashboard')">📊 Dashboard</button>
-        <button class="nav-btn" onclick="showView('clients')">👥 Clients</button>
+        <button class="nav-btn active" onclick="showView('dashboard')" data-admin-only>📊 Dashboard</button>
+        <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
         <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
-        <button class="nav-btn" onclick="showView('team')">👷 Team</button>
-        <button class="nav-btn" onclick="showView('settings')">⚙️ Settings</button>
+        <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
+        <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
     </div>
 
     <div class="container">
@@ -1060,6 +1060,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Navigation
         function showView(viewName) {
+            // Check permissions - users can only access jobs and calendar
+            const adminOnlyViews = ['dashboard', 'clients', 'team', 'settings'];
+            if (!isAdmin && adminOnlyViews.includes(viewName)) {
+                alert('You do not have permission to access this section.');
+                return;
+            }
+
             // Check for unsaved changes
             if (hasUnsavedChanges) {
                 if (!confirm('You have unsaved changes. Do you want to discard them?')) {
@@ -1072,7 +1079,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
             document.getElementById(viewName).classList.add('active');
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
 
             if (viewName === 'dashboard') loadDashboard();
             if (viewName === 'clients') loadClients();
@@ -2142,6 +2151,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function applyPermissions() {
             if (!isAdmin) {
+                // Hide all admin-only navigation tabs
+                document.querySelectorAll('[data-admin-only]').forEach(btn => {
+                    btn.style.display = 'none';
+                });
+
+                // Hide all admin-only views
+                document.getElementById('dashboard').style.display = 'none';
+                document.getElementById('clients').style.display = 'none';
+                document.getElementById('team').style.display = 'none';
+                document.getElementById('settings').style.display = 'none';
+
+                // Show jobs view by default for users
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.getElementById('jobs').classList.add('active');
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelector('[onclick="showView(\'jobs\')"]').classList.add('active');
+
                 // Hide all create/add buttons
                 document.querySelectorAll('.btn-primary').forEach(btn => {
                     if (btn.textContent.includes('+') || btn.textContent.includes('Create') || btn.textContent.includes('Add')) {
@@ -2149,16 +2175,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     }
                 });
 
-                // Disable all edit/delete buttons
-                document.querySelectorAll('.btn-secondary, .btn-danger').forEach(btn => {
-                    if (btn.textContent.includes('Edit') || btn.textContent.includes('Delete') || btn.textContent.includes('Save')) {
-                        btn.disabled = true;
-                        btn.style.opacity = '0.5';
-                        btn.style.cursor = 'not-allowed';
-                    }
-                });
-
-                // Hide Clear Filters button is okay to keep
                 // Hide user management section
                 const userMgmt = document.getElementById('userManagementSection');
                 if (userMgmt) userMgmt.style.display = 'none';
