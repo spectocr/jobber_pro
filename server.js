@@ -239,6 +239,10 @@ try {
     if (htmlStart !== -1 && htmlEnd !== -1) {
         // Extract from after the backtick to before </html>`;
         HTML_TEMPLATE = originalFile.substring(htmlStart + templateStart.length, htmlEnd + 7); // +7 for </html>
+
+        // Unescape template literals that were escaped for the outer template
+        HTML_TEMPLATE = HTML_TEMPLATE.replace(/\\`/g, '`').replace(/\\\$/g, '$');
+
         console.log('HTML template loaded from jobber-pro-server.js (' + HTML_TEMPLATE.length + ' chars)');
     } else {
         throw new Error('Template markers not found');
