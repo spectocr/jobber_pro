@@ -1999,8 +1999,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function generateReports() {
+            console.log('generateReports called');
             try {
+                console.log('Jobs array:', jobs);
                 const { startDate, endDate, label } = getReportDateRange();
+                console.log('Date range:', startDate, 'to', endDate, label);
                 const clientFilter = document.getElementById('report-filter-client').value;
                 const teamFilter = document.getElementById('report-filter-team').value;
                 const statusFilter = document.getElementById('report-filter-status').value;
@@ -2079,12 +2082,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function generateJobsByStatus(filteredJobs) {
+            if (!filteredJobs || filteredJobs.length === 0) {
+                document.getElementById('jobs-status-report').innerHTML = '<p style="padding: 1rem; color: #718096;">No jobs found for the selected period.</p>';
+                return;
+            }
+
             const statusCounts = {
                 scheduled: filteredJobs.filter(j => j.status === 'scheduled').length,
                 in_progress: filteredJobs.filter(j => j.status === 'in_progress').length,
                 completed: filteredJobs.filter(j => j.status === 'completed').length,
                 invoiced: filteredJobs.filter(j => j.status === 'invoiced').length
             };
+
+            const total = filteredJobs.length;
 
             document.getElementById('jobs-status-report').innerHTML = \`
                 <table style="width: 100%; border-collapse: collapse;">
@@ -2096,17 +2106,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Scheduled</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.scheduled}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.scheduled / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
-                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">In Progress</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.in_progress}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.in_progress / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
-                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Completed</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.completed}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.completed / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
-                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Invoiced</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.invoiced}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.invoiced / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
-                        <tr style="background: #f8f9fa; font-weight: 600;"><td style="padding: 0.75rem;">Total</td><td style="padding: 0.75rem; text-align: right;">\${filteredJobs.length}</td><td style="padding: 0.75rem; text-align: right;">100%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Scheduled</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.scheduled}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.scheduled / total) * 100).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">In Progress</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.in_progress}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.in_progress / total) * 100).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Completed</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.completed}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.completed / total) * 100).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Invoiced</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.invoiced}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.invoiced / total) * 100).toFixed(1)}%</td></tr>
+                        <tr style="background: #f8f9fa; font-weight: 600;"><td style="padding: 0.75rem;">Total</td><td style="padding: 0.75rem; text-align: right;">\${total}</td><td style="padding: 0.75rem; text-align: right;">100%</td></tr>
                     </tbody>
                 </table>
             \`;
         }
 
         function generateTopClients(filteredJobs) {
+            if (!filteredJobs || filteredJobs.length === 0) {
+                document.getElementById('top-clients-report').innerHTML = '<p style="padding: 1rem; color: #718096;">No jobs found for the selected period.</p>';
+                return;
+            }
+
             const clientStats = {};
 
             filteredJobs.forEach(j => {
@@ -2125,6 +2140,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const topClients = Object.entries(clientStats)
                 .sort((a, b) => b[1].revenue - a[1].revenue)
                 .slice(0, 10);
+
+            if (topClients.length === 0) {
+                document.getElementById('top-clients-report').innerHTML = '<p style="padding: 1rem; color: #718096;">No client data available.</p>';
+                return;
+            }
 
             document.getElementById('top-clients-report').innerHTML = \`
                 <table style="width: 100%; border-collapse: collapse;">
