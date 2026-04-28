@@ -493,6 +493,58 @@ app.post('/api/users', isAuthenticated, async (req, res) => {
     }
 });
 
+// Update user (admin only)
+app.put('/api/users/:id', isAuthenticated, async (req, res) => {
+    try {
+        const currentUser = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
+
+        if (currentUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const userIdToUpdate = req.params.id;
+        const { name, email, password, role } = req.body;
+
+        if (!name || !email) {
+            return res.status(400).json({ error: 'Name and email are required' });
+        }
+
+        // Check if email is being changed to one that already exists
+        const existing = await db.collection('users').findOne({
+            email: email.toLowerCase(),
+            _id: { $ne: new ObjectId(userIdToUpdate) }
+        });
+        if (existing) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+
+        const updateData = {
+            name,
+            email: email.toLowerCase(),
+            role: role || 'user',
+            updatedAt: new Date()
+        };
+
+        // Only update password if provided
+        if (password) {
+            if (password.length < 6) {
+                return res.status(400).json({ error: 'Password must be at least 6 characters' });
+            }
+            updateData.password = await bcrypt.hash(password, 10);
+        }
+
+        await db.collection('users').updateOne(
+            { _id: new ObjectId(userIdToUpdate) },
+            { $set: updateData }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Update user error:', error);
+        res.status(500).json({ error: 'Failed to update user' });
+    }
+});
+
 // Delete user (admin only)
 app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
     try {

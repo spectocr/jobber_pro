@@ -1139,8 +1139,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div id="addUserModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add User</h2>
-                <button class="close-btn" onclick="closeModal('addUserModal')">&times;</button>
+                <h2 id="addUserModalTitle">Add User</h2>
+                <button class="close-btn" onclick="closeUserModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
@@ -1167,8 +1167,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('addUserModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="saveNewUser()">Add User</button>
+                <button class="btn btn-secondary" onclick="closeUserModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveUser()">Add User</button>
             </div>
         </div>
     </div>
@@ -2438,6 +2438,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         // User management
+        let currentEditingUserId = null;
+
         async function loadUsers() {
             const response = await fetch('/api/users');
             if (response.ok) {
@@ -2455,7 +2457,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 Created: \${new Date(user.createdAt).toLocaleDateString()}
                             </div>
                         </div>
-                        <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id}')">Delete</button>
+                        <div>
+                            <button class="btn btn-primary btn-small" onclick="editUser('\${user._id}')" style="margin-right: 0.5rem;">Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id}')">Delete</button>
+                        </div>
                     </div>
                 \`).join('');
                 document.getElementById('userManagementSection').style.display = 'block';
@@ -2463,33 +2468,84 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function showAddUserModal() {
+            currentEditingUserId = null;
+            document.getElementById('addUserModalTitle').textContent = 'Add User';
             document.getElementById('addUserForm').reset();
+            // Show password field for new users
+            document.getElementById('addUserForm').elements.password.parentElement.style.display = 'block';
+            document.getElementById('addUserForm').elements.password.required = true;
             document.getElementById('addUserModal').style.display = 'flex';
         }
 
-        async function saveNewUser() {
+        async function editUser(userId) {
+            const response = await fetch('/api/users');
+            if (response.ok) {
+                const users = await response.json();
+                const user = users.find(u => u._id === userId);
+                if (user) {
+                    currentEditingUserId = userId;
+                    document.getElementById('addUserModalTitle').textContent = 'Edit User';
+                    const form = document.getElementById('addUserForm');
+                    form.elements.name.value = user.name;
+                    form.elements.email.value = user.email;
+                    form.elements.role.value = user.role;
+                    // Hide password field for editing, make it optional
+                    form.elements.password.parentElement.style.display = 'block';
+                    form.elements.password.required = false;
+                    form.elements.password.value = '';
+                    form.elements.password.placeholder = 'Leave blank to keep current password';
+                    document.getElementById('addUserModal').style.display = 'flex';
+                }
+            }
+        }
+
+        function closeUserModal() {
+            currentEditingUserId = null;
+            document.getElementById('addUserModal').style.display = 'none';
+        }
+
+        async function saveUser() {
             const form = document.getElementById('addUserForm');
             const userData = {
                 name: form.elements.name.value,
                 email: form.elements.email.value,
-                password: form.elements.password.value,
                 role: form.elements.role.value
             };
 
-            const response = await fetch('/api/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData)
-            });
+            // Only include password if it's provided
+            if (form.elements.password.value) {
+                userData.password = form.elements.password.value;
+            }
+
+            let response;
+            if (currentEditingUserId) {
+                // Update existing user
+                response = await fetch(\`/api/users/\${currentEditingUserId}\`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+            } else {
+                // Create new user
+                if (!userData.password) {
+                    alert('Password is required for new users');
+                    return;
+                }
+                response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+            }
 
             const data = await response.json();
 
             if (response.ok) {
-                alert('User created successfully!');
-                closeModal('addUserModal');
+                alert(currentEditingUserId ? 'User updated successfully!' : 'User created successfully!');
+                closeUserModal();
                 loadUsers();
             } else {
-                alert(data.error || 'Failed to create user');
+                alert(data.error || 'Failed to save user');
             }
         }
 
