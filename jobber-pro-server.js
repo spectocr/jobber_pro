@@ -491,6 +491,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             margin-bottom: 0.5rem;
         }
 
+        /* Report Styles */
+        .report-section {
+            margin-bottom: 3rem;
+            page-break-inside: avoid;
+        }
+
+        .report-section h3 {
+            color: #667eea;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            margin-bottom: 1rem;
+        }
+
+        @media print {
+            .no-print, .card-header, .nav, .header button, #reports .card > div:first-child {
+                display: none !important;
+            }
+            .report-section {
+                page-break-inside: avoid;
+            }
+            body {
+                background: white;
+            }
+            .card {
+                box-shadow: none;
+                border: none;
+            }
+        }
+
         /* Calendar Styles */
         .calendar-day-header {
             background: #667eea;
@@ -605,6 +635,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
         <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
+        <button class="nav-btn" onclick="showView('reports')" data-admin-only>📈 Reports</button>
         <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
     </div>
 
@@ -763,6 +794,107 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div>
                         <h3 style="margin-bottom: 1rem; color: #667eea;">Assigned Jobs</h3>
                         <div id="team-detail-jobs"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports View -->
+        <div id="reports" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Business Reports</h2>
+                </div>
+                <div style="padding: 1.5rem; background: #f8f9fa; border-radius: 8px; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">Filters</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Date Range</label>
+                            <select id="report-date-range" onchange="updateReportDateRange()" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="this-week">This Week</option>
+                                <option value="last-week">Last Week</option>
+                                <option value="this-month" selected>This Month</option>
+                                <option value="last-month">Last Month</option>
+                                <option value="this-quarter">This Quarter</option>
+                                <option value="last-quarter">Last Quarter</option>
+                                <option value="this-year">This Year</option>
+                                <option value="last-year">Last Year</option>
+                                <option value="all-time">All Time</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div id="custom-date-range" style="display: none; grid-column: span 2;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">From</label>
+                            <input type="date" id="report-date-from" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 0.5rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">To</label>
+                            <input type="date" id="report-date-to" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Client</label>
+                            <select id="report-filter-client" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                                <option value="">All Clients</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Team Member</label>
+                            <select id="report-filter-team" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                                <option value="">All Team Members</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Status</label>
+                            <select id="report-filter-status" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                                <option value="">All Statuses</option>
+                                <option value="scheduled">Scheduled</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="invoiced">Invoiced</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="generateReports()" style="flex: 1;">Generate Reports</button>
+                            <button class="btn btn-secondary" onclick="printReports()">🖨️ Print</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="reports-container">
+                    <!-- Revenue Summary Report -->
+                    <div class="report-section">
+                        <h3>📊 Revenue Summary</h3>
+                        <div id="revenue-report"></div>
+                    </div>
+
+                    <!-- Jobs by Status Report -->
+                    <div class="report-section">
+                        <h3>📋 Jobs by Status</h3>
+                        <div id="jobs-status-report"></div>
+                    </div>
+
+                    <!-- Top Clients Report -->
+                    <div class="report-section">
+                        <h3>👥 Top Clients</h3>
+                        <div id="top-clients-report"></div>
+                    </div>
+
+                    <!-- Team Performance Report -->
+                    <div class="report-section">
+                        <h3>👷 Team Performance</h3>
+                        <div id="team-performance-report"></div>
+                    </div>
+
+                    <!-- Revenue Trend Report -->
+                    <div class="report-section">
+                        <h3>📈 Revenue by Month</h3>
+                        <div id="revenue-trend-report"></div>
+                    </div>
+
+                    <!-- Detailed Jobs List -->
+                    <div class="report-section">
+                        <h3>📝 Detailed Jobs List</h3>
+                        <div id="jobs-detail-report"></div>
                     </div>
                 </div>
             </div>
@@ -1061,7 +1193,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Navigation
         function showView(viewName) {
             // Check permissions - users can only access jobs and calendar
-            const adminOnlyViews = ['dashboard', 'clients', 'team', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'team', 'reports', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewName)) {
                 alert('You do not have permission to access this section.');
                 return;
@@ -1088,6 +1220,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'jobs') loadJobs();
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
+            if (viewName === 'reports') loadReports();
             if (viewName === 'settings') {
                 loadSettings();
                 loadUsers();
@@ -1789,6 +1922,348 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 '</tbody></table>';
         }
 
+        // Report functions
+        function updateReportDateRange() {
+            const range = document.getElementById('report-date-range').value;
+            const customDiv = document.getElementById('custom-date-range');
+
+            if (range === 'custom') {
+                customDiv.style.display = 'block';
+            } else {
+                customDiv.style.display = 'none';
+            }
+        }
+
+        function getReportDateRange() {
+            const range = document.getElementById('report-date-range').value;
+            const today = new Date();
+            let startDate, endDate = new Date();
+
+            switch(range) {
+                case 'today':
+                    startDate = new Date(today);
+                    break;
+                case 'yesterday':
+                    startDate = new Date(today);
+                    startDate.setDate(startDate.getDate() - 1);
+                    endDate = new Date(startDate);
+                    break;
+                case 'this-week':
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - today.getDay());
+                    break;
+                case 'last-week':
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - today.getDay() - 7);
+                    endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + 6);
+                    break;
+                case 'this-month':
+                    startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    break;
+                case 'last-month':
+                    startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                    break;
+                case 'this-quarter':
+                    const quarter = Math.floor(today.getMonth() / 3);
+                    startDate = new Date(today.getFullYear(), quarter * 3, 1);
+                    break;
+                case 'last-quarter':
+                    const lastQuarter = Math.floor(today.getMonth() / 3) - 1;
+                    startDate = new Date(today.getFullYear(), lastQuarter * 3, 1);
+                    endDate = new Date(today.getFullYear(), lastQuarter * 3 + 3, 0);
+                    break;
+                case 'this-year':
+                    startDate = new Date(today.getFullYear(), 0, 1);
+                    break;
+                case 'last-year':
+                    startDate = new Date(today.getFullYear() - 1, 0, 1);
+                    endDate = new Date(today.getFullYear() - 1, 11, 31);
+                    break;
+                case 'custom':
+                    startDate = new Date(document.getElementById('report-date-from').value);
+                    endDate = new Date(document.getElementById('report-date-to').value);
+                    break;
+                case 'all-time':
+                default:
+                    startDate = new Date('2000-01-01');
+                    break;
+            }
+
+            return {
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                label: range.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+            };
+        }
+
+        async function generateReports() {
+            const { startDate, endDate, label } = getReportDateRange();
+            const clientFilter = document.getElementById('report-filter-client').value;
+            const teamFilter = document.getElementById('report-filter-team').value;
+            const statusFilter = document.getElementById('report-filter-status').value;
+
+            // Filter jobs based on criteria
+            let filteredJobs = jobs.filter(j => {
+                if (j.scheduledDate < startDate || j.scheduledDate > endDate) return false;
+                if (clientFilter && j.clientId !== clientFilter) return false;
+                if (teamFilter && j.assignedTo !== teamFilter) return false;
+                if (statusFilter && j.status !== statusFilter) return false;
+                return true;
+            });
+
+            const settings = await fetch('/api/settings').then(r => r.json());
+
+            // Generate Revenue Summary
+            generateRevenueSummary(filteredJobs, settings, label);
+
+            // Generate Jobs by Status
+            generateJobsByStatus(filteredJobs);
+
+            // Generate Top Clients
+            generateTopClients(filteredJobs);
+
+            // Generate Team Performance
+            generateTeamPerformance(filteredJobs);
+
+            // Generate Revenue Trend
+            generateRevenueTrend(filteredJobs);
+
+            // Generate Detailed Jobs List
+            generateDetailedJobsList(filteredJobs);
+        }
+
+        function generateRevenueSummary(filteredJobs, settings, period) {
+            const completedJobs = filteredJobs.filter(j => j.status === 'completed' || j.status === 'invoiced');
+            const subtotal = completedJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+            const tax = subtotal * (settings.taxRate || 0.06625);
+            const total = subtotal + tax;
+
+            const laborTotal = completedJobs.reduce((sum, j) => {
+                return sum + (j.laborItems || []).reduce((s, item) => s + (item.hours * item.rate), 0);
+            }, 0);
+
+            const materialTotal = completedJobs.reduce((sum, j) => {
+                return sum + (j.materialItems || []).reduce((s, item) => s + (item.quantity * item.price), 0);
+            }, 0);
+
+            document.getElementById('revenue-report').innerHTML = \`
+                <div style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    ${settings.companyLogo ? \`<img src="\${settings.companyLogo}" alt="Logo" style="max-height: 60px; margin-bottom: 1rem;">\` : ''}
+                    <h4 style="margin-bottom: 0.5rem; color: #2d3748;">Revenue Summary - \${period}</h4>
+                    <table style="width: 100%; margin-top: 1rem;">
+                        <tr><td style="padding: 0.5rem;">Total Jobs:</td><td style="text-align: right; font-weight: 600;">\${completedJobs.length}</td></tr>
+                        <tr><td style="padding: 0.5rem;">Labor Revenue:</td><td style="text-align: right;">$\${laborTotal.toFixed(2)}</td></tr>
+                        <tr><td style="padding: 0.5rem;">Material Revenue:</td><td style="text-align: right;">$\${materialTotal.toFixed(2)}</td></tr>
+                        <tr style="border-top: 2px solid #e2e8f0;"><td style="padding: 0.5rem; font-weight: 600;">Subtotal:</td><td style="text-align: right; font-weight: 600;">$\${subtotal.toFixed(2)}</td></tr>
+                        <tr><td style="padding: 0.5rem;">Tax (\${((settings.taxRate || 0.06625) * 100).toFixed(3)}%):</td><td style="text-align: right;">$\${tax.toFixed(2)}</td></tr>
+                        <tr style="border-top: 2px solid #667eea; color: #667eea;"><td style="padding: 0.5rem; font-weight: 700; font-size: 1.2rem;">Total Revenue:</td><td style="text-align: right; font-weight: 700; font-size: 1.2rem;">$\${total.toFixed(2)}</td></tr>
+                    </table>
+                </div>
+            \`;
+        }
+
+        function generateJobsByStatus(filteredJobs) {
+            const statusCounts = {
+                scheduled: filteredJobs.filter(j => j.status === 'scheduled').length,
+                in_progress: filteredJobs.filter(j => j.status === 'in_progress').length,
+                completed: filteredJobs.filter(j => j.status === 'completed').length,
+                invoiced: filteredJobs.filter(j => j.status === 'invoiced').length
+            };
+
+            document.getElementById('jobs-status-report').innerHTML = \`
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: #667eea; color: white;">
+                        <tr>
+                            <th style="padding: 1rem; text-align: left;">Status</th>
+                            <th style="padding: 1rem; text-align: right;">Count</th>
+                            <th style="padding: 1rem; text-align: right;">Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Scheduled</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.scheduled}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.scheduled / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">In Progress</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.in_progress}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.in_progress / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Completed</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.completed}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.completed / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Invoiced</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.invoiced}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.invoiced / filteredJobs.length) * 100 || 0).toFixed(1)}%</td></tr>
+                        <tr style="background: #f8f9fa; font-weight: 600;"><td style="padding: 0.75rem;">Total</td><td style="padding: 0.75rem; text-align: right;">\${filteredJobs.length}</td><td style="padding: 0.75rem; text-align: right;">100%</td></tr>
+                    </tbody>
+                </table>
+            \`;
+        }
+
+        function generateTopClients(filteredJobs) {
+            const clientStats = {};
+
+            filteredJobs.forEach(j => {
+                const client = clients.find(c => c.id === j.clientId);
+                const clientName = client ? client.name : 'Unknown';
+
+                if (!clientStats[clientName]) {
+                    clientStats[clientName] = { count: 0, revenue: 0 };
+                }
+                clientStats[clientName].count++;
+                if (j.status === 'completed' || j.status === 'invoiced') {
+                    clientStats[clientName].revenue += parseFloat(j.total) || 0;
+                }
+            });
+
+            const topClients = Object.entries(clientStats)
+                .sort((a, b) => b[1].revenue - a[1].revenue)
+                .slice(0, 10);
+
+            document.getElementById('top-clients-report').innerHTML = \`
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: #667eea; color: white;">
+                        <tr>
+                            <th style="padding: 1rem; text-align: left;">Client</th>
+                            <th style="padding: 1rem; text-align: right;">Jobs</th>
+                            <th style="padding: 1rem; text-align: right;">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${topClients.map(([name, stats]) => \`
+                            <tr>
+                                <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${name}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${stats.count}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${stats.revenue.toFixed(2)}</td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            \`;
+        }
+
+        function generateTeamPerformance(filteredJobs) {
+            const teamStats = {};
+
+            filteredJobs.forEach(j => {
+                const member = team.find(t => t.id === j.assignedTo);
+                const memberName = member ? member.name : 'Unassigned';
+
+                if (!teamStats[memberName]) {
+                    teamStats[memberName] = { count: 0, revenue: 0 };
+                }
+                teamStats[memberName].count++;
+                if (j.status === 'completed' || j.status === 'invoiced') {
+                    teamStats[memberName].revenue += parseFloat(j.total) || 0;
+                }
+            });
+
+            const sortedTeam = Object.entries(teamStats)
+                .sort((a, b) => b[1].revenue - a[1].revenue);
+
+            document.getElementById('team-performance-report').innerHTML = \`
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: #667eea; color: white;">
+                        <tr>
+                            <th style="padding: 1rem; text-align: left;">Team Member</th>
+                            <th style="padding: 1rem; text-align: right;">Jobs Completed</th>
+                            <th style="padding: 1rem; text-align: right;">Revenue Generated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${sortedTeam.map(([name, stats]) => \`
+                            <tr>
+                                <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${name}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${stats.count}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${stats.revenue.toFixed(2)}</td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            \`;
+        }
+
+        function generateRevenueTrend(filteredJobs) {
+            const monthlyRevenue = {};
+
+            filteredJobs.forEach(j => {
+                if (j.status === 'completed' || j.status === 'invoiced') {
+                    const month = j.scheduledDate.substring(0, 7); // YYYY-MM
+                    if (!monthlyRevenue[month]) monthlyRevenue[month] = 0;
+                    monthlyRevenue[month] += parseFloat(j.total) || 0;
+                }
+            });
+
+            const sortedMonths = Object.entries(monthlyRevenue).sort((a, b) => a[0].localeCompare(b[0]));
+
+            document.getElementById('revenue-trend-report').innerHTML = \`
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: #667eea; color: white;">
+                        <tr>
+                            <th style="padding: 1rem; text-align: left;">Month</th>
+                            <th style="padding: 1rem; text-align: right;">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${sortedMonths.map(([month, revenue]) => \`
+                            <tr>
+                                <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${revenue.toFixed(2)}</td>
+                            </tr>
+                        \`).join('')}
+                        <tr style="background: #f8f9fa; font-weight: 600;">
+                            <td style="padding: 0.75rem;">Total</td>
+                            <td style="padding: 0.75rem; text-align: right;">$\${sortedMonths.reduce((sum, [_, rev]) => sum + rev, 0).toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            \`;
+        }
+
+        function generateDetailedJobsList(filteredJobs) {
+            document.getElementById('jobs-detail-report').innerHTML = \`
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                    <thead style="background: #667eea; color: white;">
+                        <tr>
+                            <th style="padding: 0.75rem; text-align: left;">Date</th>
+                            <th style="padding: 0.75rem; text-align: left;">Client</th>
+                            <th style="padding: 0.75rem; text-align: left;">Job</th>
+                            <th style="padding: 0.75rem; text-align: left;">Assigned To</th>
+                            <th style="padding: 0.75rem; text-align: left;">Status</th>
+                            <th style="padding: 0.75rem; text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${filteredJobs.map(j => {
+                            const client = clients.find(c => c.id === j.clientId);
+                            const member = team.find(t => t.id === j.assignedTo);
+                            return \`
+                                <tr>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.scheduledDate}</td>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${client ? client.name : 'Unknown'}</td>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.title}</td>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${member ? member.name : 'Unassigned'}</td>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.status.replace('_', ' ')}</td>
+                                    <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${(parseFloat(j.total) || 0).toFixed(2)}</td>
+                                </tr>
+                            \`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            \`;
+        }
+
+        function printReports() {
+            window.print();
+        }
+
+        async function loadReports() {
+            // Populate filter dropdowns
+            const clientFilter = document.getElementById('report-filter-client');
+            const teamFilter = document.getElementById('report-filter-team');
+
+            clientFilter.innerHTML = '<option value="">All Clients</option>' +
+                clients.map(c => \`<option value="\${c.id}">\${c.name}</option>\`).join('');
+
+            teamFilter.innerHTML = '<option value="">All Team Members</option>' +
+                team.map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+
+            // Generate reports with default filters
+            await generateReports();
+        }
+
         async function loadSettings() {
             const response = await fetch('/api/settings');
             const settings = await response.json();
@@ -2160,6 +2635,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('dashboard').style.display = 'none';
                 document.getElementById('clients').style.display = 'none';
                 document.getElementById('team').style.display = 'none';
+                document.getElementById('reports').style.display = 'none';
                 document.getElementById('settings').style.display = 'none';
 
                 // Show jobs view by default for users
