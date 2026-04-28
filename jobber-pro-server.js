@@ -800,6 +800,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </form>
             </div>
+
+            <!-- Password Change Section -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h2>Change Password</h2>
+                </div>
+                <form id="passwordForm" style="max-width: 600px;">
+                    <div class="form-group">
+                        <label>Current Password</label>
+                        <input type="password" id="currentPassword" required>
+                    </div>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" id="newPassword" required minlength="6">
+                        <small style="color: #718096; display: block; margin-top: 0.5rem;">Minimum 6 characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" id="confirmPassword" required minlength="6">
+                    </div>
+                    <div style="margin-top: 2rem;">
+                        <button type="button" class="btn btn-primary" onclick="changePassword()">Change Password</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- User Management Section (Admin Only) -->
+            <div class="card" id="userManagementSection" style="margin-top: 2rem; display: none;">
+                <div class="card-header">
+                    <h2>User Management</h2>
+                    <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+                </div>
+                <div id="usersList"></div>
+            </div>
         </div>
     </div>
 
@@ -947,6 +981,44 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add User</h2>
+                <button class="close-btn" onclick="closeModal('addUserModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password *</label>
+                        <input type="password" name="password" required minlength="6">
+                        <small style="color: #718096; display: block; margin-top: 0.5rem;">Minimum 6 characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Role *</label>
+                        <select name="role" required>
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addUserModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveNewUser()">Add User</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let clients = [];
         let jobs = [];
@@ -983,7 +1055,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'jobs') loadJobs();
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
-            if (viewName === 'settings') loadSettings();
+            if (viewName === 'settings') {
+                loadSettings();
+                loadUsers();
+            }
         }
 
         // Add change listeners to all forms
@@ -1601,6 +1676,116 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 alert('Settings saved successfully!');
                 // Update header logo
                 loadHeaderLogo();
+            }
+        }
+
+        // Password change
+        async function changePassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                alert('All password fields are required');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                alert('New passwords do not match');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                alert('New password must be at least 6 characters');
+                return;
+            }
+
+            const response = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword, newPassword })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('Password changed successfully!');
+                document.getElementById('passwordForm').reset();
+            } else {
+                alert(data.error || 'Password change failed');
+            }
+        }
+
+        // User management
+        async function loadUsers() {
+            const response = await fetch('/api/users');
+            if (response.ok) {
+                const users = await response.json();
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = users.map(user => \`
+                    <div style="padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>\${user.name}</strong>
+                            <div style="color: #718096; font-size: 0.9rem;">
+                                \${user.email} •
+                                <span style="color: \${user.role === 'admin' ? '#667eea' : '#48bb78'}; font-weight: 600;">\${user.role.toUpperCase()}</span>
+                            </div>
+                            <div style="color: #a0aec0; font-size: 0.8rem;">
+                                Created: \${new Date(user.createdAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                        <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id}')">Delete</button>
+                    </div>
+                \`).join('');
+                document.getElementById('userManagementSection').style.display = 'block';
+            }
+        }
+
+        function showAddUserModal() {
+            document.getElementById('addUserForm').reset();
+            document.getElementById('addUserModal').style.display = 'flex';
+        }
+
+        async function saveNewUser() {
+            const form = document.getElementById('addUserForm');
+            const userData = {
+                name: form.elements.name.value,
+                email: form.elements.email.value,
+                password: form.elements.password.value,
+                role: form.elements.role.value
+            };
+
+            const response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('User created successfully!');
+                closeModal('addUserModal');
+                loadUsers();
+            } else {
+                alert(data.error || 'Failed to create user');
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Delete this user? This action cannot be undone.')) return;
+
+            const response = await fetch(\`/api/users/\${userId}\`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('User deleted successfully');
+                loadUsers();
+            } else {
+                alert(data.error || 'Failed to delete user');
             }
         }
 

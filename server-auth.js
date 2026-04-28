@@ -390,6 +390,127 @@ app.get('/api/auth/me', isAuthenticated, async (req, res) => {
     res.json(user);
 });
 
+// Change password
+app.post('/api/auth/change-password', isAuthenticated, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Current and new password are required' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+
+        const user = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
+
+        const validPassword = await bcrypt.compare(currentPassword, user.password);
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await db.collection('users').updateOne(
+            { _id: new ObjectId(req.session.userId) },
+            { $set: { password: hashedPassword, updatedAt: new Date() } }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Password change error:', error);
+        res.status(500).json({ error: 'Password change failed' });
+    }
+});
+
+// Get all users (admin only)
+app.get('/api/users', isAuthenticated, async (req, res) => {
+    try {
+        const currentUser = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
+
+        if (currentUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const users = await db.collection('users')
+            .find({}, { projection: { password: 0 } })
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        res.json(users);
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+// Create new user (admin only)
+app.post('/api/users', isAuthenticated, async (req, res) => {
+    try {
+        const currentUser = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
+
+        if (currentUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const { name, email, password, role } = req.body;
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: 'Name, email, and password are required' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        }
+
+        const existing = await db.collection('users').findOne({ email: email.toLowerCase() });
+        if (existing) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await db.collection('users').insertOne({
+            name,
+            email: email.toLowerCase(),
+            password: hashedPassword,
+            role: role || 'user',
+            createdAt: new Date()
+        });
+
+        res.json({
+            success: true,
+            userId: result.insertedId
+        });
+    } catch (error) {
+        console.error('Create user error:', error);
+        res.status(500).json({ error: 'Failed to create user' });
+    }
+});
+
+// Delete user (admin only)
+app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
+    try {
+        const currentUser = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
+
+        if (currentUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const userIdToDelete = req.params.id;
+
+        // Prevent self-deletion
+        if (userIdToDelete === req.session.userId.toString()) {
+            return res.status(400).json({ error: 'Cannot delete your own account' });
+        }
+
+        await db.collection('users').deleteOne({ _id: new ObjectId(userIdToDelete) });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete user error:', error);
+        res.status(500).json({ error: 'Failed to delete user' });
+    }
+});
+
 // Main app (protected)
 app.get('/', (req, res) => {
     if (!req.session || !req.session.userId) {
