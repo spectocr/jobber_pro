@@ -696,7 +696,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="card">
                 <div class="card-header">
                     <h2>Jobs</h2>
-                    <button class="btn btn-primary" onclick="openJobModal()">+ Create Job</button>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <select id="filter-status" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
+                            <option value="">All Statuses</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="invoiced">Invoiced</option>
+                        </select>
+                        <select id="filter-client" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
+                            <option value="">All Clients</option>
+                        </select>
+                        <select id="filter-assigned" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
+                            <option value="">All Team Members</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="clearJobFilters()" style="margin-left: auto;">Clear Filters</button>
+                        <button class="btn btn-primary" onclick="openJobModal()">+ Create Job</button>
+                    </div>
                 </div>
                 <div id="jobs-list"></div>
             </div>
@@ -1551,14 +1567,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const response = await fetch('/api/jobs');
             jobs = await response.json();
 
+            // Populate filter dropdowns
+            const clientFilter = document.getElementById('filter-client');
+            const assignedFilter = document.getElementById('filter-assigned');
+
+            // Preserve current selections
+            const currentClient = clientFilter.value;
+            const currentAssigned = assignedFilter.value;
+
+            clientFilter.innerHTML = '<option value="">All Clients</option>' +
+                clients.map(c => \`<option value="\${c.id}">\${c.name}</option>\`).join('');
+            clientFilter.value = currentClient;
+
+            assignedFilter.innerHTML = '<option value="">All Team Members</option>' +
+                team.map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+            assignedFilter.value = currentAssigned;
+
+            renderJobsTable();
+        }
+
+        function renderJobsTable() {
             const container = document.getElementById('jobs-list');
+
             if (jobs.length === 0) {
                 container.innerHTML = '<div class="empty-state"><h3>No jobs yet</h3><p>Create your first job to get started</p></div>';
                 return;
             }
 
+            // Apply filters
+            const statusFilter = document.getElementById('filter-status').value;
+            const clientFilter = document.getElementById('filter-client').value;
+            const assignedFilter = document.getElementById('filter-assigned').value;
+
+            const filteredJobs = jobs.filter(j => {
+                if (statusFilter && j.status !== statusFilter) return false;
+                if (clientFilter && j.clientId !== clientFilter) return false;
+                if (assignedFilter && j.assignedTo !== assignedFilter) return false;
+                return true;
+            });
+
+            if (filteredJobs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>No jobs match filters</h3><p>Try adjusting your filters</p></div>';
+                return;
+            }
+
             container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
-                jobs.map(j => {
+                filteredJobs.map(j => {
                     const client = clients.find(c => c.id == j.clientId);
                     const assigned = team.find(t => t.id == j.assignedTo);
                     return \`<tr>
@@ -1576,6 +1630,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+        }
+
+        function filterJobs() {
+            renderJobsTable();
+        }
+
+        function clearJobFilters() {
+            document.getElementById('filter-status').value = '';
+            document.getElementById('filter-client').value = '';
+            document.getElementById('filter-assigned').value = '';
+            renderJobsTable();
         }
 
         async function loadTeam() {
