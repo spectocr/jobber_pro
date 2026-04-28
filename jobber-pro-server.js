@@ -1999,39 +1999,53 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function generateReports() {
-            const { startDate, endDate, label } = getReportDateRange();
-            const clientFilter = document.getElementById('report-filter-client').value;
-            const teamFilter = document.getElementById('report-filter-team').value;
-            const statusFilter = document.getElementById('report-filter-status').value;
+            try {
+                const { startDate, endDate, label } = getReportDateRange();
+                const clientFilter = document.getElementById('report-filter-client').value;
+                const teamFilter = document.getElementById('report-filter-team').value;
+                const statusFilter = document.getElementById('report-filter-status').value;
 
-            // Filter jobs based on criteria
-            let filteredJobs = jobs.filter(j => {
-                if (j.scheduledDate < startDate || j.scheduledDate > endDate) return false;
-                if (clientFilter && j.clientId !== clientFilter) return false;
-                if (teamFilter && j.assignedTo !== teamFilter) return false;
-                if (statusFilter && j.status !== statusFilter) return false;
-                return true;
-            });
+                // Ensure jobs are loaded
+                if (!jobs || jobs.length === 0) {
+                    alert('No jobs data available. Please wait for data to load.');
+                    return;
+                }
 
-            const settings = await fetch('/api/settings').then(r => r.json());
+                // Filter jobs based on criteria
+                let filteredJobs = jobs.filter(j => {
+                    if (!j.scheduledDate) return false;
+                    if (j.scheduledDate < startDate || j.scheduledDate > endDate) return false;
+                    if (clientFilter && j.clientId !== clientFilter) return false;
+                    if (teamFilter && j.assignedTo !== teamFilter) return false;
+                    if (statusFilter && j.status !== statusFilter) return false;
+                    return true;
+                });
 
-            // Generate Revenue Summary
-            generateRevenueSummary(filteredJobs, settings, label);
+                const settings = await fetch('/api/settings').then(r => r.json()).catch(() => ({}));
 
-            // Generate Jobs by Status
-            generateJobsByStatus(filteredJobs);
+                // Generate Revenue Summary
+                generateRevenueSummary(filteredJobs, settings, label);
 
-            // Generate Top Clients
-            generateTopClients(filteredJobs);
+                // Generate Jobs by Status
+                generateJobsByStatus(filteredJobs);
 
-            // Generate Team Performance
-            generateTeamPerformance(filteredJobs);
+                // Generate Top Clients
+                generateTopClients(filteredJobs);
 
-            // Generate Revenue Trend
-            generateRevenueTrend(filteredJobs);
+                // Generate Team Performance
+                generateTeamPerformance(filteredJobs);
 
-            // Generate Detailed Jobs List
-            generateDetailedJobsList(filteredJobs);
+                // Generate Revenue Trend
+                generateRevenueTrend(filteredJobs);
+
+                // Generate Detailed Jobs List
+                generateDetailedJobsList(filteredJobs);
+
+                console.log('Reports generated successfully');
+            } catch (error) {
+                console.error('Error generating reports:', error);
+                alert('Error generating reports: ' + error.message);
+            }
         }
 
         function generateRevenueSummary(filteredJobs, settings, period) {
@@ -2250,18 +2264,29 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function loadReports() {
-            // Populate filter dropdowns
-            const clientFilter = document.getElementById('report-filter-client');
-            const teamFilter = document.getElementById('report-filter-team');
+            try {
+                // Load jobs if not already loaded
+                if (!jobs || jobs.length === 0) {
+                    const response = await fetch('/api/jobs');
+                    jobs = await response.json();
+                }
 
-            clientFilter.innerHTML = '<option value="">All Clients</option>' +
-                clients.map(c => \`<option value="\${c.id}">\${c.name}</option>\`).join('');
+                // Populate filter dropdowns
+                const clientFilter = document.getElementById('report-filter-client');
+                const teamFilter = document.getElementById('report-filter-team');
 
-            teamFilter.innerHTML = '<option value="">All Team Members</option>' +
-                team.map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+                clientFilter.innerHTML = '<option value="">All Clients</option>' +
+                    clients.map(c => \`<option value="\${c.id}">\${c.name}</option>\`).join('');
 
-            // Generate reports with default filters
-            await generateReports();
+                teamFilter.innerHTML = '<option value="">All Team Members</option>' +
+                    team.map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+
+                // Generate reports with default filters
+                await generateReports();
+            } catch (error) {
+                console.error('Error loading reports:', error);
+                alert('Error loading reports: ' + error.message);
+            }
         }
 
         async function loadSettings() {
