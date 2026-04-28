@@ -719,8 +719,146 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     const tax = subtotal * (settings.taxRate || 0.06625);
     const total = subtotal + tax;
 
-    // (Invoice HTML would be here - same as before, just with protected route)
-    res.send('<h1>Invoice</h1><p>Invoice generation - add full HTML here</p>');
+    const invoiceHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice #${job._id.toString().slice(-6)}</title>
+    <style>
+        @media print { .no-print { display: none !important; } }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: white; }
+        .invoice-header { display: flex; justify-content: space-between; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #667eea; }
+        .company-info h1 { color: #667eea; font-size: 2em; margin-bottom: 10px; }
+        .company-info p { line-height: 1.6; color: #666; }
+        .invoice-meta { text-align: right; }
+        .invoice-meta h2 { font-size: 2em; color: #333; margin-bottom: 10px; }
+        .invoice-meta p { line-height: 1.8; color: #666; }
+        .bill-to { margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+        .bill-to h3 { color: #667eea; margin-bottom: 10px; }
+        .bill-to p { line-height: 1.6; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        thead { background: #667eea; color: white; }
+        th { padding: 15px; text-align: left; font-weight: 600; }
+        td { padding: 15px; border-bottom: 1px solid #e2e8f0; }
+        .totals { margin-left: auto; width: 300px; }
+        .totals-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+        .totals-row.total { font-size: 1.3em; font-weight: 700; border-top: 2px solid #333; border-bottom: 3px double #333; margin-top: 10px; padding-top: 15px; }
+        .footer { margin-top: 50px; padding-top: 20px; border-top: 2px solid #e2e8f0; text-align: center; color: #999; font-size: 0.9em; }
+        .print-button { position: fixed; top: 20px; right: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .print-button:hover { background: #5568d3; }
+        .status-badge { display: inline-block; padding: 5px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600; text-transform: uppercase; }
+        .status-invoiced { background: #e9d8fd; color: #553c9a; }
+        .status-completed { background: #c6f6d5; color: #22543d; }
+        .status-in_progress { background: #feebc8; color: #7c2d12; }
+        .status-scheduled { background: #bee3f8; color: #2c5282; }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">🖨️ Print Invoice</button>
+
+    <div class="invoice-header">
+        <div class="company-info">
+            ${settings.companyLogo ? `<img src="${settings.companyLogo}" alt="Company Logo" style="max-width: 200px; max-height: 80px; margin-bottom: 1rem;">` : ''}
+            <h1>${settings.companyName || 'Your Company'}</h1>
+            <p>${(settings.companyAddress || 'Add company address in settings').replace(/\n/g, '<br>')}</p>
+            <p>Phone: ${settings.companyPhone || 'Add phone'}</p>
+            <p>Email: ${settings.companyEmail || 'Add email'}</p>
+        </div>
+        <div class="invoice-meta">
+            <h2>INVOICE</h2>
+            <p><strong>Invoice #:</strong> ${job._id.toString().slice(-6)}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+            <p><strong>Status:</strong> <span class="status-badge status-${job.status}">${job.status.replace('_', ' ')}</span></p>
+        </div>
+    </div>
+
+    <div class="bill-to">
+        <h3>Bill To:</h3>
+        <p><strong>${client ? client.name : 'Unknown Client'}</strong></p>
+        ${client && client.address ? `<p>${client.address.replace(/\n/g, '<br>')}</p>` : ''}
+        ${client && client.phone ? `<p>Phone: ${client.phone}</p>` : ''}
+        ${client && client.email ? `<p>Email: ${client.email}</p>` : ''}
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <p><strong>Job:</strong> ${job.title}</p>
+        <p><strong>Description:</strong> ${job.description || 'N/A'}</p>
+        <p><strong>Date:</strong> ${job.scheduledDate || ''} ${job.scheduledTime || ''}</p>
+        <p><strong>Technician:</strong> ${assigned ? assigned.name : 'Unassigned'}</p>
+    </div>
+
+    ${(job.laborItems && job.laborItems.length > 0) ? `
+    <h3 style="color: #667eea; margin-top: 30px; margin-bottom: 15px;">Labor</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th style="text-align: center;">Hours</th>
+                <th style="text-align: right;">Rate</th>
+                <th style="text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${job.laborItems.map(item => `
+            <tr>
+                <td>${item.description}</td>
+                <td style="text-align: center;">${item.hours}</td>
+                <td style="text-align: right;">$${parseFloat(item.rate).toFixed(2)}</td>
+                <td style="text-align: right;">$${(item.hours * item.rate).toFixed(2)}</td>
+            </tr>
+            `).join('')}
+        </tbody>
+    </table>
+    ` : ''}
+
+    ${(job.materialItems && job.materialItems.length > 0) ? `
+    <h3 style="color: #667eea; margin-top: 30px; margin-bottom: 15px;">Materials</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th style="text-align: center;">Quantity</th>
+                <th style="text-align: right;">Price</th>
+                <th style="text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${job.materialItems.map(item => `
+            <tr>
+                <td>${item.description}</td>
+                <td style="text-align: center;">${item.quantity}</td>
+                <td style="text-align: right;">$${parseFloat(item.price).toFixed(2)}</td>
+                <td style="text-align: right;">$${(item.quantity * item.price).toFixed(2)}</td>
+            </tr>
+            `).join('')}
+        </tbody>
+    </table>
+    ` : ''}
+
+    <div class="totals">
+        <div class="totals-row">
+            <span>Subtotal:</span>
+            <span>$${subtotal.toFixed(2)}</span>
+        </div>
+        <div class="totals-row">
+            <span>Tax (${((settings.taxRate || 0.06625) * 100).toFixed(3)}%):</span>
+            <span>$${tax.toFixed(2)}</span>
+        </div>
+        <div class="totals-row total">
+            <span>Total:</span>
+            <span>$${total.toFixed(2)}</span>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Thank you for your business!</p>
+        <p>Please remit payment within 30 days.</p>
+    </div>
+</body>
+</html>`;
+
+    res.send(invoiceHTML);
 });
 } // End setupRoutes
 
