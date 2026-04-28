@@ -230,11 +230,16 @@ const path = require('path');
 let HTML_TEMPLATE = '';
 try {
     const originalFile = fs.readFileSync(path.join(__dirname, 'jobber-pro-server.js'), 'utf8');
-    const htmlStart = originalFile.indexOf('const HTML_TEMPLATE = `');
-    const htmlEnd = originalFile.indexOf('`;', htmlStart + 24);
+    const templateStart = 'const HTML_TEMPLATE = `';
+    const templateEnd = '</html>`;\n\n// API Routes';
+
+    const htmlStart = originalFile.indexOf(templateStart);
+    const htmlEnd = originalFile.indexOf(templateEnd);
+
     if (htmlStart !== -1 && htmlEnd !== -1) {
-        HTML_TEMPLATE = originalFile.substring(htmlStart + 23, htmlEnd);
-        console.log('HTML template loaded from jobber-pro-server.js');
+        // Extract from after the backtick to before </html>`;
+        HTML_TEMPLATE = originalFile.substring(htmlStart + templateStart.length, htmlEnd + 7); // +7 for </html>
+        console.log('HTML template loaded from jobber-pro-server.js (' + HTML_TEMPLATE.length + ' chars)');
     } else {
         throw new Error('Template markers not found');
     }
