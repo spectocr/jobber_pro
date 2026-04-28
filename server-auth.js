@@ -269,6 +269,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Function to setup routes (called after session middleware is ready)
+function setupRoutes() {
 // Routes
 app.get('/login', (req, res) => {
     if (req.session.userId) {
@@ -535,6 +537,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     // (Invoice HTML would be here - same as before, just with protected route)
     res.send('<h1>Invoice</h1><p>Invoice generation - add full HTML here</p>');
 });
+} // End setupRoutes
 
 // Start server
 connectDB().then(() => {
@@ -554,6 +557,9 @@ connectDB().then(() => {
             secure: process.env.NODE_ENV === 'production'
         }
     }));
+
+    // Setup routes after session middleware
+    setupRoutes();
 
     app.listen(PORT, () => {
         console.log('='.repeat(60));
