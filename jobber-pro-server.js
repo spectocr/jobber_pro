@@ -1411,13 +1411,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th><th>Actions</th></tr></thead><tbody>' +
-                clients.map(c => \`<tr style="cursor: pointer;" onclick="viewClientDetail(\${c.id})">
+                clients.map(c => \`<tr style="cursor: pointer;" onclick="viewClientDetail('\${c.id}')">
                     <td><strong>\${c.name}</strong></td>
                     <td>\${c.email || '-'}</td>
                     <td>\${c.phone}</td>
                     <td>\${(c.address || '-').substring(0, 30)}</td>
                     <td onclick="event.stopPropagation()">
-                        <button class="btn btn-danger btn-small" onclick="deleteClient(\${c.id})">Delete</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')">Delete</button>
                     </td>
                 </tr>\`).join('') +
                 '</tbody></table>';
@@ -1524,14 +1524,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             container.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
-                team.map(t => \`<tr style="cursor: pointer;" onclick="viewTeamDetail(\${t.id})">
+                team.map(t => \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
                     <td><strong>\${t.name}</strong></td>
                     <td>\${t.role}</td>
                     <td>\${t.phone || '-'}</td>
                     <td>\${t.email || '-'}</td>
                     <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
                     <td onclick="event.stopPropagation()">
-                        <button class="btn btn-danger btn-small" onclick="deleteTeamMember(\${t.id})">Delete</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')">Delete</button>
                     </td>
                 </tr>\`).join('') +
                 '</tbody></table>';
