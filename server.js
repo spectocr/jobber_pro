@@ -225,12 +225,24 @@ console.log('Reading HTML template...');
 
 // Read the HTML template from the original file
 const fs = require('fs');
-const originalFile = fs.readFileSync(__dirname + '/jobber-pro-server.js', 'utf8');
-const htmlStart = originalFile.indexOf('const HTML_TEMPLATE = `');
-const htmlEnd = originalFile.indexOf('`;', htmlStart);
-const HTML_TEMPLATE = originalFile.substring(htmlStart + 23, htmlEnd);
+const path = require('path');
 
-console.log('HTML template loaded');
+let HTML_TEMPLATE = '';
+try {
+    const originalFile = fs.readFileSync(path.join(__dirname, 'jobber-pro-server.js'), 'utf8');
+    const htmlStart = originalFile.indexOf('const HTML_TEMPLATE = `');
+    const htmlEnd = originalFile.indexOf('`;', htmlStart + 24);
+    if (htmlStart !== -1 && htmlEnd !== -1) {
+        HTML_TEMPLATE = originalFile.substring(htmlStart + 23, htmlEnd);
+        console.log('HTML template loaded from jobber-pro-server.js');
+    } else {
+        throw new Error('Template markers not found');
+    }
+} catch (error) {
+    console.error('Error reading template file:', error.message);
+    console.log('Template file path:', path.join(__dirname, 'jobber-pro-server.js'));
+    process.exit(1);
+}
 
 // Request Handler
 const handleRequest = async (req, res) => {
