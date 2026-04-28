@@ -1,0 +1,21 @@
+{
+  "name": "jobber-pro",
+  "version": "1.0.0",
+  "description": "Lightweight field service management system with no dependencies",
+  "main": "jobber-pro-server.js",
+  "scripts": {
+    "start": "node jobber-pro-server.js"
+  },
+  "keywords": [
+    "field-service",
+    "job-management",
+    "invoice",
+    "crm",
+    "scheduling"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
