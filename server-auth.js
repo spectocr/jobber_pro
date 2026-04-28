@@ -374,7 +374,10 @@ app.get('/api/auth/me', isAuthenticated, async (req, res) => {
 });
 
 // Main app (protected)
-app.get('/', isAuthenticated, (req, res) => {
+app.get('/', (req, res) => {
+    if (!req.session || !req.session.userId) {
+        return res.redirect('/login');
+    }
     res.send(HTML_TEMPLATE);
 });
 
