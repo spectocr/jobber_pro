@@ -1,10 +1,11 @@
 {
   "name": "jobber-pro",
-  "version": "1.0.0",
-  "description": "Lightweight field service management system with no dependencies",
-  "main": "jobber-pro-server.js",
+  "version": "2.0.0",
+  "description": "Cloud-ready field service management system with MongoDB",
+  "main": "server.js",
   "scripts": {
-    "start": "node jobber-pro-server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "keywords": [
     "field-service",
@@ -17,5 +18,12 @@
   "license": "MIT",
   "engines": {
     "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "mongodb": "^6.3.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }

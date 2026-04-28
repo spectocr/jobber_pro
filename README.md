@@ -1,162 +1,275 @@
 # Jobber Pro - Field Service Management System
 
-A lightweight, self-hosted field service management system built with Node.js. No database required - uses JSON file storage for simplicity and portability.
+A cloud-ready field service management system built with Node.js and MongoDB. Professional invoicing, scheduling, and client management for service businesses.
 
-## Features
+## 🌟 Features
 
-- **Dashboard** - Overview of jobs, clients, revenue, and upcoming work
-- **Client Management** - Track customer information and job history
-- **Job Management** - Create and manage service jobs with line items
+- **Dashboard** - Real-time overview of jobs, revenue, and business metrics
+- **Client Management** - Complete customer database with job history
+- **Job Management** - Create detailed jobs with line items
   - Separate Labor and Materials sections
   - Multiple line items per job
-  - Automatic total calculation
-- **Team Management** - Manage technicians and assign jobs
-- **Calendar View** - Visual monthly calendar with job scheduling
-- **Invoice Generation** - Professional invoices with company branding
+  - Automatic calculations
+- **Team Management** - Manage technicians and job assignments
+- **Calendar View** - Visual scheduling with color-coded statuses
+- **Professional Invoicing** - Branded invoices with itemization
   - Custom logo support
   - Itemized labor and materials
-  - Tax calculation (configurable rate)
-- **Settings** - Configure company info, tax rates, and branding
-- **Unsaved Changes Protection** - Warns before losing form data
+  - Configurable tax rates
+- **Cloud Storage** - MongoDB database for scalability
+- **Unsaved Changes Protection** - Never lose form data
 
-## Installation
+## 🚀 Quick Start
 
-### Prerequisites
-- Node.js v14 or higher
+### Local Development
 
-### Quick Start
-
-1. Clone this repository:
+1. **Clone the repository:**
 ```bash
-git clone <your-repo-url>
-cd <repo-name>
+git clone https://github.com/spectocr/jobber_pro.git
+cd jobber_pro
+git checkout mongodb-cloud
 ```
 
-2. Run the server:
+2. **Install dependencies:**
 ```bash
-node jobber-pro-server.js
+npm install
 ```
 
-3. Open your browser to `http://localhost:3000`
+3. **Set up environment variables:**
+```bash
+cp .env.example .env
+# Edit .env with your MongoDB connection string
+```
 
-That's it! No npm install, no dependencies, no database setup required.
+4. **Run the server:**
+```bash
+npm start
+```
 
-## Data Storage
+5. **Open your browser:**
+```
+http://localhost:3000
+```
 
-All data is stored in JSON files in the `~/.jobber-pro/` directory:
-- `clients.json` - Customer data
-- `jobs.json` - Job records with line items
-- `team.json` - Team member information
-- `settings.json` - Company settings and configuration
+### Cloud Deployment
 
-## Usage
+See [DEPLOY.md](DEPLOY.md) for detailed deployment instructions to:
+- Heroku
+- Railway
+- Render
+- DigitalOcean
+- AWS/Azure/GCP
 
-### First Time Setup
-1. Go to Settings and configure your company information
-2. Upload your company logo (optional)
-3. Set your tax rate (default is 6.625% for NJ)
-4. Add team members
-5. Add clients
-6. Create jobs with labor and material line items
+## 📦 What's Included
 
-### Creating Jobs with Line Items
-- Click "Create Job" from Jobs or Dashboard
-- Fill in basic job details
+### Two Versions Available
+
+**Main Branch** (Local JSON storage):
+- `jobber-pro-server.js` - Single-file app with JSON storage
+- Zero dependencies
+- Perfect for local/offline use
+- Simple setup
+
+**MongoDB-Cloud Branch** (This branch):
+- `server.js` - Cloud-ready with MongoDB
+- Scalable database
+- Production-ready
+- Multi-user capable
+
+## 🗄️ Database Structure
+
+MongoDB Collections:
+- `clients` - Customer records
+- `jobs` - Job records with line items
+- `team` - Team member information
+- `settings` - Company configuration
+
+## 🔧 Technology Stack
+
+- **Backend**: Node.js (native HTTP server)
+- **Database**: MongoDB (Atlas or self-hosted)
+- **Frontend**: Vanilla JavaScript, HTML5, CSS3
+- **Deployment**: Heroku/Railway/Render compatible
+
+## 📝 Configuration
+
+### Environment Variables
+
+Create a `.env` file:
+
+```env
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/jobber_pro
+PORT=3000
+NODE_ENV=production
+```
+
+### MongoDB Atlas Setup
+
+1. Create free account at https://mongodb.com/cloud/atlas
+2. Create a cluster (M0 free tier)
+3. Get connection string
+4. Add to `.env` file
+
+## 🎯 Usage
+
+### First-Time Setup
+1. Navigate to Settings
+2. Configure company information
+3. Upload company logo (optional)
+4. Set tax rate
+5. Add team members
+6. Add clients
+7. Create jobs with line items
+
+### Creating Jobs
+- Select client and team member
 - Add labor items (description, hours, rate)
 - Add material items (description, quantity, price)
-- Total is calculated automatically
-- Assign to team member and set status
+- Totals calculate automatically
 
 ### Generating Invoices
-- Click the 📄 button next to any job
-- Invoice includes all line items
-- Print directly from the invoice page
-- Professional formatting with your logo
+- Click 📄 button next to any job
+- Professional invoice with all line items
+- Print-ready format
 
-## Configuration
+## 🔒 Security Notes
 
-### Tax Rate
-Edit in Settings or directly in `~/.jobber-pro/settings.json`:
-```json
-{
-  "taxRate": 0.06625
-}
+**Current Status**: No authentication (use in trusted environment)
+
+**For Production Use**:
+- [ ] Add user authentication
+- [ ] Implement role-based access
+- [ ] Enable HTTPS
+- [ ] Add rate limiting
+- [ ] Set up MongoDB IP whitelist
+- [ ] Implement session management
+
+See [DEPLOY.md](DEPLOY.md) for security recommendations.
+
+## 📊 Scalability
+
+### Free Tier Limits
+- MongoDB Atlas: 512MB storage
+- ~100 concurrent users
+- Perfect for small businesses
+
+### Production Recommendations
+- MongoDB Atlas M10+ cluster
+- Upgrade cloud platform tier
+- Add Redis for caching
+- Implement CDN for static assets
+
+## 🛠️ Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode with auto-reload
+npm run dev
+
+# Run in production mode
+npm start
 ```
 
-### Port Number
-Default is 3000. To change, edit line 5 in `jobber-pro-server.js`:
-```javascript
-const PORT = 3000;
-```
-
-## Technology Stack
-
-- **Backend**: Native Node.js HTTP server (no Express)
-- **Storage**: JSON files (no database)
-- **Frontend**: Vanilla JavaScript, HTML5, CSS3
-- **Architecture**: Single-file application
-
-## File Structure
+## 📁 Project Structure
 
 ```
-.
-├── jobber-pro-server.js    # Main application (server + frontend)
-└── ~/.jobber-pro/           # Data directory
-    ├── clients.json
-    ├── jobs.json
-    ├── team.json
-    └── settings.json
+jobber_pro/
+├── server.js              # MongoDB version (cloud-ready)
+├── jobber-pro-server.js   # JSON version (local)
+├── package.json           # Dependencies
+├── .env.example           # Environment template
+├── Procfile              # Heroku deployment
+├── README.md             # This file
+├── DEPLOY.md             # Deployment guide
+└── SETUP.md              # Setup instructions
 ```
 
-## Browser Compatibility
+## 🌐 Deployment Options
 
-Works in all modern browsers:
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
+| Platform | Cost | Difficulty | Auto-scaling |
+|----------|------|------------|--------------|
+| Heroku | Free/$7+/mo | Easy | Yes |
+| Railway | $5/mo credit | Easy | Yes |
+| Render | Free/$7+/mo | Easy | Yes |
+| DigitalOcean | $5+/mo | Medium | Manual |
+| AWS/Azure/GCP | Variable | Hard | Yes |
 
-## Security Notes
+Detailed instructions in [DEPLOY.md](DEPLOY.md)
 
-This is designed for **local network use** or **trusted environments**:
-- No authentication system
-- No encryption
-- Simple file-based storage
-- Runs on localhost by default
+## 🆚 JSON vs MongoDB Version
 
-**For production use**, consider:
-- Adding authentication
-- Using HTTPS
-- Implementing proper database
-- Adding user roles/permissions
+### Use JSON Version (main branch) if:
+- Running locally only
+- Single user
+- Don't need cloud access
+- Want zero dependencies
 
-## Future Enhancements
+### Use MongoDB Version (mongodb-cloud branch) if:
+- Need cloud/remote access
+- Multiple users
+- Want scalability
+- Need better performance
 
-Potential features for future development:
-- Multi-user support with authentication
-- Database migration (PostgreSQL, MySQL, MongoDB)
-- Email notifications
-- SMS reminders
-- Payment processing
-- Mobile app
-- Cloud deployment
-- Backup/restore functionality
+## 🤝 Contributing
 
-## Contributing
-
-This is a self-contained single-file application. To contribute:
 1. Fork the repository
-2. Make your changes to `jobber-pro-server.js`
-3. Test thoroughly
-4. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 📄 License
 
-MIT License - feel free to use and modify for your needs.
+MIT License - see LICENSE file for details
 
-## Support
+## 🆘 Support
 
-For issues or questions, please open a GitHub issue.
+- **Issues**: Open a GitHub issue
+- **Deployment Help**: See [DEPLOY.md](DEPLOY.md)
+- **Setup Help**: See [SETUP.md](SETUP.md)
+
+## 🗺️ Roadmap
+
+- [ ] User authentication
+- [ ] Multi-tenant support
+- [ ] Email notifications
+- [ ] SMS reminders
+- [ ] Payment processing (Stripe integration)
+- [ ] Mobile app (React Native)
+- [ ] Recurring jobs
+- [ ] Estimates/Quotes
+- [ ] Time tracking
+- [ ] Reporting & analytics
+
+## 💰 Cost Breakdown
+
+### Development (FREE)
+- MongoDB Atlas M0: Free
+- Local development: Free
+- Railway/Render free tier: Free
+
+### Small Business (~$10-15/month)
+- MongoDB Atlas M0: Free
+- Heroku Hobby: $7/month
+- Custom domain: $3/month
+
+### Growing Business (~$60-80/month)
+- MongoDB Atlas M10: $57/month
+- Heroku Standard: $25/month
+- CDN/Assets: $5-10/month
+
+## 📸 Screenshots
+
+Coming soon...
+
+## ⭐ Star History
+
+If you find this project useful, please consider giving it a star!
 
 ---
 
-**Note**: This is a lightweight solution for small businesses and personal use. For enterprise needs, consider dedicated field service management platforms.
+**Built with ❤️ for small service businesses**
+
+[GitHub](https://github.com/spectocr/jobber_pro) | [Report Bug](https://github.com/spectocr/jobber_pro/issues) | [Request Feature](https://github.com/spectocr/jobber_pro/issues)
