@@ -269,23 +269,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware
-app.use(session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({
-        client: client,
-        dbName: DB_NAME,
-        touchAfter: 24 * 3600
-    }),
-    cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production'
-    }
-}));
-
 // Routes
 app.get('/login', (req, res) => {
     if (req.session.userId) {
@@ -555,6 +538,23 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
 
 // Start server
 connectDB().then(() => {
+    // Setup session middleware after DB connection
+    app.use(session({
+        secret: SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        store: MongoStore.create({
+            client: client,
+            dbName: DB_NAME,
+            touchAfter: 24 * 3600
+        }),
+        cookie: {
+            maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production'
+        }
+    }));
+
     app.listen(PORT, () => {
         console.log('='.repeat(60));
         console.log('🚀 Jobber Pro - Authenticated Cloud Version');
