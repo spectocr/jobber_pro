@@ -1104,6 +1104,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('clientModal').classList.add('active');
         }
 
+        let currentEditingJobId = null;
+
+        function editJob(jobId) {
+            // Try to find in jobs array first, then upcomingJobs
+            let job = jobs.find(j => j.id == jobId || j._id == jobId);
+            if (!job && window.upcomingJobs) {
+                job = window.upcomingJobs.find(j => j.id == jobId || j._id == jobId);
+            }
+            if (job) {
+                openJobModal(job);
+            } else {
+                console.error('Job not found:', jobId);
+            }
+        }
+
         function openJobModal(job = null) {
             const form = document.getElementById('jobForm');
 
@@ -1113,9 +1128,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Reset line items
             laborItems = [];
             materialItems = [];
+            currentEditingJobId = null;
 
             if (job) {
                 document.getElementById('jobModalTitle').textContent = 'Edit Job';
+                currentEditingJobId = job._id || job.id;
+
                 // Set all form values including dropdowns
                 Object.keys(job).forEach(key => {
                     const input = form.elements[key];
@@ -1297,6 +1315,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const formData = new FormData(form);
             const job = Object.fromEntries(formData);
 
+            // If editing, include the _id
+            if (currentEditingJobId) {
+                job._id = currentEditingJobId;
+            }
+
             // Add line items
             job.laborItems = laborItems;
             job.materialItems = materialItems;
@@ -1356,12 +1379,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Upcoming jobs
             const upcomingList = document.getElementById('upcoming-jobs-list');
             if (stats.upcomingJobs && stats.upcomingJobs.length > 0) {
+                // Store upcoming jobs for later lookup
+                window.upcomingJobs = stats.upcomingJobs;
+
                 upcomingList.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th></tr></thead><tbody>' +
                     stats.upcomingJobs.map(j => {
                         const client = clients.find(c => c.id == j.clientId);
                         const assigned = team.find(t => t.id == j.assignedTo);
-                        const jobJSON = JSON.stringify(j).replace(/'/g, "&apos;");
-                        return \`<tr style="cursor: pointer;" onclick='openJobModal(\${jobJSON})'>
+                        return \`<tr style="cursor: pointer;" onclick="editJob('\${j.id}')">
                             <td>\${j.scheduledDate} \${j.scheduledTime || ''}</td>
                             <td>\${client ? client.name : 'Unknown'}</td>
                             <td>\${j.title}</td>
@@ -1479,9 +1504,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         <td>\${j.total ? '$' + parseFloat(j.total).toFixed(2) : '-'}</td>
                         <td>
-                            <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
+                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>
-                            <button class="btn btn-danger btn-small" onclick="deleteJob(\${j.id})">Delete</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')">Delete</button>
                         </td>
                     </tr>\`;
                 }).join('') +
