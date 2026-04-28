@@ -1090,7 +1090,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
-                        <h3>Total: $<span id="jobTotalDisplay">0.00</span></h3>
+                        <h3>Total Billed: $<span id="jobTotalDisplay">0.00</span></h3>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">Payments Received</h3>
+                        <div id="paymentItems"></div>
+                        <button type="button" class="btn btn-secondary" onclick="addPaymentItem()" style="margin-top: 0.5rem;">+ Add Payment</button>
+
+                        <div style="margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <strong>Total Billed:</strong>
+                                <span>$<span id="totalBilledSummary">0.00</span></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <strong>Total Paid:</strong>
+                                <span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;">
+                                <strong>Balance Owed:</strong>
+                                <strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -1333,6 +1354,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Reset line items
             laborItems = [];
             materialItems = [];
+            paymentItems = [];
             currentEditingJobId = null;
 
             if (job) {
@@ -1355,6 +1377,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Load line items if they exist
                 if (job.laborItems) laborItems = [...job.laborItems];
                 if (job.materialItems) materialItems = [...job.materialItems];
+                if (job.payments) paymentItems = [...job.payments];
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
@@ -1453,6 +1476,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         let laborItems = [];
         let materialItems = [];
+        let paymentItems = [];
 
         function addLaborItem() {
             const id = Date.now();
@@ -1464,6 +1488,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function addMaterialItem() {
             const id = Date.now();
             materialItems.push({ id, description: '', quantity: 0, price: 0 });
+            renderLineItems();
+            markFormDirty();
+        }
+
+        function addPaymentItem() {
+            const id = Date.now();
+            const today = new Date().toISOString().split('T')[0];
+            paymentItems.push({ id, date: today, amount: 0, method: 'cash', notes: '' });
             renderLineItems();
             markFormDirty();
         }
@@ -1480,9 +1512,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             markFormDirty();
         }
 
+        function removePaymentItem(id) {
+            paymentItems = paymentItems.filter(item => item.id !== id);
+            renderLineItems();
+            markFormDirty();
+        }
+
         function renderLineItems() {
             const laborContainer = document.getElementById('laborItems');
             const materialContainer = document.getElementById('materialItems');
+            const paymentContainer = document.getElementById('paymentItems');
 
             laborContainer.innerHTML = laborItems.map(item => \`
                 <div class="line-item" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
@@ -1528,6 +1567,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
             \`).join('');
 
+            paymentContainer.innerHTML = paymentItems.map(item => \`
+                <div class="line-item" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr 2fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.85rem;">Date</label>
+                        <input type="date" value="\${item.date}" onchange="updatePaymentItem(\${item.id}, 'date', this.value)">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.85rem;">Amount ($)</label>
+                        <input type="number" value="\${item.amount}" onchange="updatePaymentItem(\${item.id}, 'amount', this.value)" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.85rem;">Method</label>
+                        <select value="\${item.method}" onchange="updatePaymentItem(\${item.id}, 'method', this.value)">
+                            <option value="cash" \${item.method === 'cash' ? 'selected' : ''}>Cash</option>
+                            <option value="check" \${item.method === 'check' ? 'selected' : ''}>Check</option>
+                            <option value="venmo" \${item.method === 'venmo' ? 'selected' : ''}>Venmo</option>
+                            <option value="credit_card" \${item.method === 'credit_card' ? 'selected' : ''}>Credit Card</option>
+                            <option value="other" \${item.method === 'other' ? 'selected' : ''}>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.85rem;">Notes\${item.method === 'other' ? ' *' : ''}</label>
+                        <input type="text" value="\${item.notes || ''}" onchange="updatePaymentItem(\${item.id}, 'notes', this.value)" placeholder="\${item.method === 'other' ? 'Required for Other' : 'Optional notes'}">
+                    </div>
+                    <button type="button" onclick="removePaymentItem(\${item.id})" style="background: #dc3545; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; height: 38px;">×</button>
+                </div>
+            \`).join('');
+
             updateJobTotal();
         }
 
@@ -1549,11 +1616,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function updatePaymentItem(id, field, value) {
+            const item = paymentItems.find(i => i.id === id);
+            if (item) {
+                if (field === 'amount') {
+                    item[field] = parseFloat(value) || 0;
+                } else {
+                    item[field] = value;
+                }
+                renderLineItems();
+                markFormDirty();
+            }
+        }
+
         function updateJobTotal() {
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
             const total = laborTotal + materialTotal;
             document.getElementById('jobTotalDisplay').textContent = total.toFixed(2);
+
+            const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+            const balance = total - paymentTotal;
+
+            document.getElementById('totalBilledSummary').textContent = total.toFixed(2);
+            document.getElementById('totalPaidSummary').textContent = paymentTotal.toFixed(2);
+            document.getElementById('balanceOwedSummary').textContent = balance.toFixed(2);
         }
 
         async function saveJob() {
@@ -1566,14 +1653,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 job._id = currentEditingJobId;
             }
 
-            // Add line items
+            // Add line items and payments
             job.laborItems = laborItems;
             job.materialItems = materialItems;
+            job.payments = paymentItems;
 
-            // Calculate total from line items
+            // Calculate totals
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
             job.total = laborTotal + materialTotal;
+
+            const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+            job.totalPaid = paymentTotal;
+            job.balanceOwed = job.total - paymentTotal;
 
             const response = await fetch('/api/jobs', {
                 method: 'POST',
@@ -1782,17 +1874,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
+            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th><th>Billed / Paid / Owed</th><th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
                     const client = clients.find(c => c.id == j.clientId);
                     const assigned = team.find(t => t.id == j.assignedTo);
+                    const total = j.total ? parseFloat(j.total) : 0;
+                    const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
+                    const owed = j.balanceOwed !== undefined ? parseFloat(j.balanceOwed) : total;
+                    const paymentStatus = owed === 0 ? '✓' : owed < total ? '◐' : '';
                     return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
                         <td>\${client ? client.name : 'Unknown'}</td>
                         <td><strong>\${j.title}</strong><br><small>\${j.description || ''}</small></td>
                         <td>\${assigned ? assigned.name : 'Unassigned'}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                        <td>\${j.total ? '$' + parseFloat(j.total).toFixed(2) : '-'}</td>
+                        <td>
+                            <div style="font-size: 0.9rem;">
+                                <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${owed === 0 ? '#48bb78' : '#e53e3e'};">$\${owed.toFixed(2)}</span> \${paymentStatus}</div>
+                            </div>
+                        </td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>
