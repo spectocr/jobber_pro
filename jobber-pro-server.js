@@ -4839,7 +4839,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 const adminButtons = isAdmin ? '<div style="display: flex; gap: 0.25rem;">' +
                     '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit">✏️</button>' +
-                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' +
+                    '<button class="btn-icon" onclick="deleteTimeEntry(\'' + entry.id + '\')" title="Delete">🗑️</button>' +
                     '</div>' : '';
 
                 return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' + borderColor + ';">' +
@@ -4933,7 +4933,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '</div></div>' +
                     '<div style="display: flex; gap: 0.25rem;">' +
                     '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit">✏️</button>' +
-                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' +
+                    '<button class="btn-icon" onclick="deleteTimeEntry(\'' + entry.id + '\')" title="Delete">🗑️</button>' +
                     '</div>' +
                     '</div></div>';
             }).join('');
@@ -4947,15 +4947,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            if (!confirm('⚠️ WARNING: Delete this time entry?\n\nThis action cannot be undone and will permanently remove this time record.')) return;
+            if (!confirm('⚠️ WARNING: Delete this time entry?\\n\\nThis action cannot be undone and will permanently remove this time record.')) return;
 
-            await fetch('/api/timeentries/' + id, {
-                method: 'DELETE'
-            });
+            try {
+                const response = await fetch('/api/timeentries/' + id, {
+                    method: 'DELETE'
+                });
 
-            loadTodayTimeEntries();
-            loadApprovalQueue();
-            loadAllTimeEntries();
+                if (!response.ok) {
+                    const error = await response.text();
+                    alert('Failed to delete: ' + error);
+                    return;
+                }
+
+                loadTodayTimeEntries();
+                loadApprovalQueue();
+                loadAllTimeEntries();
+            } catch (error) {
+                alert('Error deleting time entry: ' + error.message);
+            }
         }
 
         let currentEditingTimeEntry = null;
@@ -5096,7 +5106,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '</div>' +
                     '<div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">' +
                     '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit" style="flex: 1; padding: 0.25rem;">✏️ Edit</button>' +
-                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete" style="flex: 1; padding: 0.25rem;">🗑️ Delete</button>' +
+                    '<button class="btn-icon" onclick="deleteTimeEntry(\'' + entry.id + '\')" title="Delete" style="flex: 1; padding: 0.25rem;">🗑️ Delete</button>' +
                     '</div></div>' +
                     '</div></div>';
             }).join('');
