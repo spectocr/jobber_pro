@@ -602,17 +602,29 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         totalJobs: jobsMapped.length,
         jobsToday: jobsMapped.filter(j => j.scheduledDate === today).length,
         jobsThisMonth: jobsMapped.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
+        prospecting: jobsMapped.filter(j => j.status === 'prospecting').length,
         scheduled: jobsMapped.filter(j => j.status === 'scheduled').length,
         inProgress: jobsMapped.filter(j => j.status === 'in_progress').length,
         completed: jobsMapped.filter(j => j.status === 'completed').length,
         invoiced: jobsMapped.filter(j => j.status === 'invoiced').length,
+        bidLost: jobsMapped.filter(j => j.status === 'bid_lost').length,
         revenueThisMonth: jobsMapped
             .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
             .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
         upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
-            .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))
-            .slice(0, 5)
+            .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
+        inProgressJobs: jobsMapped
+            .filter(j => j.status === 'in_progress')
+            .sort((a, b) => (b.scheduledDate || '').localeCompare(a.scheduledDate || '')),
+        completedLast30Days: jobsMapped
+            .filter(j => j.status === 'completed' || j.status === 'invoiced')
+            .sort((a, b) => {
+                const aDate = a.completedDate || a.scheduledDate || '';
+                const bDate = b.completedDate || b.scheduledDate || '';
+                return bDate.localeCompare(aDate);
+            })
+            .slice(0, 20)
     };
 
     res.json(stats);
