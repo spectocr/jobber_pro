@@ -889,8 +889,8 @@ app.get('/api/timeentries', isAuthenticated, async (req, res) => {
 app.post('/api/timeentries/clockin', isAuthenticated, async (req, res) => {
     const { jobId, jobName } = req.body;
     const entry = {
-        userId: req.session.userId,
-        userName: req.session.user.name,
+        userId: req.session.userId.toString(),
+        userName: req.session.userName,
         jobId: jobId,
         jobName: jobName,
         clockIn: new Date(),
