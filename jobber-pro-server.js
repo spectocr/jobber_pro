@@ -120,9 +120,17 @@ class DataManager {
                 .sort((a, b) => (b.scheduledDate || '').localeCompare(a.scheduledDate || '')),
 
             completedLast30Days: jobs
-                .filter(j => (j.status === 'completed' || j.status === 'invoiced') &&
-                            j.completedDate && j.completedDate >= thirtyDaysAgoStr)
-                .sort((a, b) => (b.completedDate || '').localeCompare(a.completedDate || ''))
+                .filter(j => {
+                    if (j.status !== 'completed' && j.status !== 'invoiced') return false;
+                    // Check completedDate first, fall back to scheduledDate
+                    const dateToCheck = j.completedDate || j.scheduledDate;
+                    return dateToCheck && dateToCheck >= thirtyDaysAgoStr;
+                })
+                .sort((a, b) => {
+                    const aDate = a.completedDate || a.scheduledDate || '';
+                    const bDate = b.completedDate || b.scheduledDate || '';
+                    return bDate.localeCompare(aDate);
+                })
         };
 
         return stats;
