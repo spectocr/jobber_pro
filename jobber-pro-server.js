@@ -1463,6 +1463,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h2>User Management</h2>
                     <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
                 </div>
+                <div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>⚠️ Important:</strong> User's full name must exactly match their Team Member name for Time Clock job assignments to work.
+                </div>
                 <div id="usersList"></div>
             </div>
         </div>
@@ -1872,10 +1875,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="close-btn" onclick="closeUserModal()">&times;</button>
             </div>
             <div class="modal-body">
+                <div style="padding: 0.75rem; background: #e3f2fd; border-left: 4px solid #2196f3; margin-bottom: 1rem;">
+                    <small><strong>Note:</strong> Full name must match Team Member name exactly (First Last) for Time Clock assignments.</small>
+                </div>
                 <form id="addUserForm">
                     <div class="form-group">
                         <label>Full Name *</label>
-                        <input type="text" name="name" required>
+                        <input type="text" name="name" required placeholder="e.g. Matt Smith">
                     </div>
                     <div class="form-group">
                         <label>Email *</label>
@@ -4514,7 +4520,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Get team members to find the one matching current user's name
                 const teamResponse = await fetch('/api/team');
                 const teamMembers = await teamResponse.json();
-                const matchingTeamMember = teamMembers.find(t => t.name && t.name.toLowerCase() === currentUser.name.toLowerCase());
+                const matchingTeamMember = teamMembers.find(t =>
+                    t.name && t.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()
+                );
 
                 if (matchingTeamMember) {
                     // Filter jobs to only those assigned to this team member
