@@ -1115,15 +1115,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label>City</label>
-                            <input type="text" name="city">
+                            <input type="text" name="city" id="clientCity">
                         </div>
                         <div class="form-group">
                             <label>State</label>
-                            <input type="text" name="state" list="statesList" maxlength="2" style="text-transform: uppercase;">
+                            <input type="text" name="state" id="clientState" list="statesList" maxlength="2" style="text-transform: uppercase;">
                         </div>
                         <div class="form-group">
                             <label>ZIP</label>
-                            <input type="text" name="zipCode" maxlength="10">
+                            <input type="text" name="zipCode" id="clientZipCode" maxlength="10" oninput="prefillStateFromZip(this)">
                         </div>
                     </div>
                     <datalist id="statesList">
@@ -2189,6 +2189,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         let serviceLocations = [];
         let expandedLocations = new Set();
+
+        async function prefillStateFromZip(zipInput) {
+            const zip = zipInput.value.trim();
+            if (zip.length < 5) return;
+
+            const zipCode = zip.substring(0, 5);
+            const stateInput = document.getElementById('clientState');
+            const cityInput = document.getElementById('clientCity');
+
+            // Only prefill if state is empty
+            if (stateInput.value) return;
+
+            try {
+                const response = await fetch(\`https://api.zippopotam.us/us/\${zipCode}\`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.places && data.places.length > 0) {
+                        stateInput.value = data.places[0]['state abbreviation'];
+                        if (!cityInput.value) {
+                            cityInput.value = data.places[0]['place name'];
+                        }
+                    }
+                }
+            } catch (err) {
+                // Silently fail if API is unavailable
+            }
+        }
 
         function togglePropertyManagementFields() {
             const checkbox = document.getElementById('isPropertyManagementCheckbox');
