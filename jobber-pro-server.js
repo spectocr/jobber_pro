@@ -1266,6 +1266,45 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Email</label>
                         <input type="email" name="email">
                     </div>
+                    <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Address</h3>
+                    <div class="form-group">
+                        <label>Street Line 1</label>
+                        <input type="text" name="addressLine1">
+                    </div>
+                    <div class="form-group">
+                        <label>Street Line 2</label>
+                        <input type="text" name="addressLine2">
+                    </div>
+                    <div class="form-group">
+                        <label>Street Line 3</label>
+                        <input type="text" name="addressLine3">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" name="city">
+                        </div>
+                        <div class="form-group">
+                            <label>State</label>
+                            <input type="text" name="state" list="statesListTeam" maxlength="2" style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group">
+                            <label>ZIP</label>
+                            <input type="text" name="zipCode" maxlength="10">
+                        </div>
+                    </div>
+                    <datalist id="statesListTeam">
+                        <option value="AL"><option value="AK"><option value="AZ"><option value="AR"><option value="CA">
+                        <option value="CO"><option value="CT"><option value="DE"><option value="FL"><option value="GA">
+                        <option value="HI"><option value="ID"><option value="IL"><option value="IN"><option value="IA">
+                        <option value="KS"><option value="KY"><option value="LA"><option value="ME"><option value="MD">
+                        <option value="MA"><option value="MI"><option value="MN"><option value="MS"><option value="MO">
+                        <option value="MT"><option value="NE"><option value="NV"><option value="NH"><option value="NJ">
+                        <option value="NM"><option value="NY"><option value="NC"><option value="ND"><option value="OH">
+                        <option value="OK"><option value="OR"><option value="PA"><option value="RI"><option value="SC">
+                        <option value="SD"><option value="TN"><option value="TX"><option value="UT"><option value="VT">
+                        <option value="VA"><option value="WA"><option value="WV"><option value="WI"><option value="WY">
+                    </datalist>
                 </form>
             </div>
             <div class="modal-footer">
@@ -2093,18 +2132,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
-                team.map(t => \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
-                    <td><strong>\${t.name}</strong></td>
-                    <td>\${t.role}</td>
-                    <td>\${t.phone || '-'}</td>
-                    <td>\${t.email || '-'}</td>
-                    <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
-                    <td onclick="event.stopPropagation()">
-                        <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
-                        <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
-                    </td>
-                </tr>\`).join('') +
+            container.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>City, State</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+                team.map(t => {
+                    const cityState = [t.city, t.state].filter(x => x).join(', ') || '-';
+                    return \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
+                        <td><strong>\${t.name}</strong></td>
+                        <td>\${t.role}</td>
+                        <td>\${t.phone || '-'}</td>
+                        <td>\${t.email || '-'}</td>
+                        <td>\${cityState}</td>
+                        <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
+                        <td onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
+                        </td>
+                    </tr>\`;
+                }).join('') +
                 '</tbody></table>';
         }
 
