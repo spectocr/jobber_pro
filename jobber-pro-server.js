@@ -1817,6 +1817,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Hourly Rate ($)</label>
                         <input type="number" name="hourlyRate" step="0.01" min="0" placeholder="75.00">
                     </div>
+
+                    <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">User Login Access</h3>
+                    <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="createUserLogin" onchange="toggleLoginFields()" style="margin-right: 0.5rem;">
+                            <span>Create user login for this team member</span>
+                        </label>
+                        <small style="color: #666; display: block; margin-top: 0.5rem;">Allow this team member to log in and clock in/out on jobs</small>
+                    </div>
+
+                    <div id="loginFields" style="display: none;">
+                        <div class="form-group">
+                            <label>Login Email *</label>
+                            <input type="email" id="loginEmail" placeholder="user@example.com">
+                            <small style="color: #666;">This will be their username</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Password *</label>
+                            <input type="password" id="loginPassword" placeholder="Minimum 6 characters">
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm Password *</label>
+                            <input type="password" id="loginPasswordConfirm" placeholder="Re-enter password">
+                        </div>
+                    </div>
+
                     <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Address</h3>
                     <div class="form-group">
                         <label>Street Line 1</label>
@@ -2763,6 +2789,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function toggleLoginFields() {
+            const checkbox = document.getElementById('createUserLogin');
+            const loginFields = document.getElementById('loginFields');
+            loginFields.style.display = checkbox.checked ? 'block' : 'none';
+        }
+
         async function saveTeamMember() {
             const form = document.getElementById('teamForm');
             const formData = new FormData(form);
@@ -2773,6 +2805,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 member._id = currentEditingTeamId;
             }
 
+            // Check if user login creation is requested
+            const createLogin = document.getElementById('createUserLogin').checked;
+            if (createLogin) {
+                const loginEmail = document.getElementById('loginEmail').value.trim();
+                const loginPassword = document.getElementById('loginPassword').value;
+                const loginPasswordConfirm = document.getElementById('loginPasswordConfirm').value;
+
+                if (!loginEmail || !loginPassword || !loginPasswordConfirm) {
+                    alert('Please fill in all login fields');
+                    return;
+                }
+
+                if (loginPassword !== loginPasswordConfirm) {
+                    alert('Passwords do not match');
+                    return;
+                }
+
+                if (loginPassword.length < 6) {
+                    alert('Password must be at least 6 characters');
+                    return;
+                }
+
+                member.createUserLogin = true;
+                member.loginEmail = loginEmail;
+                member.loginPassword = loginPassword;
+            }
+
             const response = await fetch('/api/team', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2780,9 +2839,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
 
             if (response.ok) {
+                const result = await response.json();
                 markFormClean();
                 closeModal('teamModal');
                 loadTeam();
+
+                if (createLogin && result.userCreated) {
+                    alert('Team member saved and user login created!\\n\\nEmail: ' + loginEmail + '\\nThey can now log in to clock in/out.');
+                }
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'Failed to save team member'));
             }
         }
 

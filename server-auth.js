@@ -840,6 +840,36 @@ app.get('/api/team', isAuthenticated, async (req, res) => {
 
 app.post('/api/team', isAuthenticated, async (req, res) => {
     const member = req.body;
+    let userCreated = false;
+
+    // Handle user login creation
+    if (member.createUserLogin && member.loginEmail && member.loginPassword) {
+        // Check if email already exists
+        const existingUser = await db.collection('users').findOne({ email: member.loginEmail });
+        if (existingUser) {
+            return res.status(400).json({ error: 'A user with this email already exists' });
+        }
+
+        // Create user account
+        const hashedPassword = await bcrypt.hash(member.loginPassword, 10);
+        const newUser = {
+            name: member.name,
+            email: member.loginEmail,
+            password: hashedPassword,
+            isAdmin: false,
+            createdAt: new Date(),
+            createdBy: req.session.userName
+        };
+
+        await db.collection('users').insertOne(newUser);
+        userCreated = true;
+
+        // Remove login fields from member object before saving
+        delete member.createUserLogin;
+        delete member.loginEmail;
+        delete member.loginPassword;
+    }
+
     if (member._id) {
         const { _id, ...updateData } = member;
         await db.collection('team').updateOne(
@@ -851,7 +881,7 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
         member.active = true;
         await db.collection('team').insertOne(member);
     }
-    res.json({ success: true });
+    res.json({ success: true, userCreated: userCreated });
 });
 
 app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
