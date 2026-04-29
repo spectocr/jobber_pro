@@ -753,6 +753,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h2>Clients</h2>
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <input type="text" id="client-search" placeholder="🔍 Search clients..." style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 250px;" oninput="filterClients()">
+                        <button class="btn btn-secondary" onclick="exportClientsToExcel()">📊 Export to Excel</button>
                         <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
                     </div>
                 </div>
@@ -2075,6 +2076,59 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const text = row.textContent.toLowerCase();
                 row.style.display = text.includes(searchTerm) ? '' : 'none';
             });
+        }
+
+        function exportClientsToExcel() {
+            // Apply current search filter
+            const searchTerm = document.getElementById('client-search').value.toLowerCase();
+
+            const filteredClients = clients.filter(c => {
+                if (!searchTerm) return true;
+                const searchText = `${c.name} ${c.email || ''} ${c.phone || ''} ${c.addressLine1 || ''} ${c.city || ''} ${c.state || ''}`.toLowerCase();
+                return searchText.includes(searchTerm);
+            });
+
+            if (filteredClients.length === 0) {
+                alert('No clients to export');
+                return;
+            }
+
+            // Create CSV content
+            const headers = ['Name', 'Email', 'Phone', 'Address Line 1', 'Address Line 2', 'Address Line 3', 'City', 'State', 'ZIP Code', 'Marketing Channel', 'Notes', 'Date Added'];
+            const rows = filteredClients.map(c => {
+                return [
+                    c.name || '',
+                    c.email || '',
+                    formatPhoneNumber(c.phone) || '',
+                    c.addressLine1 || '',
+                    c.addressLine2 || '',
+                    c.addressLine3 || '',
+                    c.city || '',
+                    c.state || '',
+                    c.zipCode || '',
+                    c.marketingChannel || '',
+                    (c.notes || '').replace(/"/g, '""'), // Escape quotes
+                    c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''
+                ];
+            });
+
+            // Build CSV
+            let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+
+            // Create download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `clients_export_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         async function viewClientDetail(clientId) {
