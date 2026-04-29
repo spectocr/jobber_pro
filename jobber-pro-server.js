@@ -777,7 +777,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <h3>Client Distribution - New Jersey</h3>
                     </div>
                     <div style="position: relative; height: 600px; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
-                        <svg id="nj-map" viewBox="0 0 400 600" style="width: 100%; height: 100%;">
+                        <svg id="nj-map" viewBox="0 0 300 600" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 100%;">
                             <!-- NJ state outline will be drawn here -->
                         </svg>
                         <div id="map-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 0.5rem; border-radius: 4px; font-size: 0.875rem; display: none; pointer-events: none;"></div>
@@ -2121,7 +2121,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const svg = document.getElementById('nj-map');
 
-            // Real New Jersey state outline - accurate geographic boundaries
+            // New Jersey - proper shape based on actual geography
             svg.innerHTML = `
                 <defs>
                     <linearGradient id="njGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -2129,21 +2129,45 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
                     </linearGradient>
                 </defs>
-                <!-- New Jersey actual state boundaries -->
-                <path d="M 200,40 L 210,42 220,45 228,50 234,58 238,68 240,80
-                         L 242,95 244,110 246,128 248,148 250,170 252,194 254,220
-                         L 256,248 258,278 260,310 262,344 263,380 264,418 264,458
-                         L 263,498 260,535 254,565 245,588 232,605 215,615 195,620
-                         L 172,618 150,610 130,598 112,582 98,564 88,544 80,522
-                         L 74,498 70,472 68,445 67,417 67,389 68,361 70,333
-                         L 73,305 77,277 82,249 88,221 95,193 103,165 112,137
-                         L 122,109 133,84 145,62 158,45 172,32 186,25 200,22 Z
-                         M 240,80 C 245,85 248,92 250,100 251,110 250,120 248,130 245,140 242,148 238,155
-                         M 250,170 C 255,175 258,182 260,190 261,200 260,210 258,220 255,230 252,238 248,245
-                         M 67,389 C 62,394 58,400 55,408 53,418 53,428 55,438 58,448 62,456 67,463"
+                <!-- New Jersey state shape -->
+                <path d="M 150,20
+                         C 155,22 158,25 160,30
+                         L 162,40 164,52 166,66 168,82 170,100
+                         C 171,115 172,130 173,147
+                         L 174,165 175,185 176,206 177,228
+                         C 178,250 179,273 180,297
+                         L 181,322 182,348 183,375 184,403
+                         C 185,431 185,460 185,489
+                         L 184,515 182,538 178,558
+                         C 173,573 165,585 154,593
+                         L 140,599 124,602 107,602
+                         C 90,600 75,595 63,587
+                         L 53,577 46,565 41,551
+                         C 38,537 36,522 35,506
+                         L 35,489 36,472 38,455
+                         C 40,437 43,420 47,403
+                         L 52,386 58,369 65,352
+                         C 72,335 80,318 89,301
+                         L 99,284 110,267 122,250
+                         C 134,233 146,216 158,199
+                         L 170,182 182,165 193,148
+                         C 203,131 212,114 220,97
+                         L 227,80 233,63 237,46
+                         C 240,35 242,25 243,17
+                         L 240,12 235,9 228,8
+                         C 221,8 214,9 207,11
+                         L 198,14 188,18 178,23
+                         C 168,29 159,36 151,44
+                         L 150,40 150,30 Z
+
+                         M 162,40 C 165,42 167,45 169,50 170,57 170,65 169,74 167,83 164,91 160,98
+                         M 170,100 C 173,103 175,108 176,114 177,122 177,131 175,140 173,148 170,155 166,161
+                         M 180,297 C 183,300 185,305 186,311 187,319 186,327 184,335 181,342 178,348 174,353
+                         M 47,403 C 44,408 42,414 41,421 41,429 42,437 45,444 48,451 52,457 57,462
+                         M 63,587 C 59,583 56,578 54,572 53,565 53,558 55,551 57,544 60,538 64,533"
                       fill="url(#njGradient)"
                       stroke="#2563eb"
-                      stroke-width="2.5"
+                      stroke-width="2"
                       stroke-linejoin="round"
                       filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.15))"/>
             `;
