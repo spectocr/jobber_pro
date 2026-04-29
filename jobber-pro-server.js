@@ -243,6 +243,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             display: block;
         }
 
+        .calendar-view.active {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 200px);
+        }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -820,7 +826,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
 
         <!-- Calendar View -->
-        <div id="calendar" class="view" style="height: calc(100vh - 200px); display: flex; flex-direction: column;">
+        <div id="calendar" class="view calendar-view">
             <div class="card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
                     <h2>Calendar</h2>
