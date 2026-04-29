@@ -677,9 +677,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h3>Jobs Today</h3>
                     <div class="value" id="stat-jobs-today">0</div>
                 </div>
-            </div>
-
-            <div class="stats-grid">
                 <div class="stat-card" style="border-left-color: #f56565;">
                     <h3>Prospecting</h3>
                     <div class="value" id="stat-prospecting">0</div>
