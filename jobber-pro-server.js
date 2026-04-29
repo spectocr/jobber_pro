@@ -120,17 +120,13 @@ class DataManager {
                 .sort((a, b) => (b.scheduledDate || '').localeCompare(a.scheduledDate || '')),
 
             completedLast30Days: jobs
-                .filter(j => {
-                    if (j.status !== 'completed' && j.status !== 'invoiced') return false;
-                    // Check completedDate first, fall back to scheduledDate
-                    const dateToCheck = j.completedDate || j.scheduledDate;
-                    return dateToCheck && dateToCheck >= thirtyDaysAgoStr;
-                })
+                .filter(j => j.status === 'completed' || j.status === 'invoiced')
                 .sort((a, b) => {
                     const aDate = a.completedDate || a.scheduledDate || '';
                     const bDate = b.completedDate || b.scheduledDate || '';
                     return bDate.localeCompare(aDate);
                 })
+                .slice(0, 20) // Show last 20 completed jobs
         };
 
         return stats;
@@ -740,10 +736,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div id="in-progress-jobs-list"></div>
                 </div>
 
-                <!-- Completed Last 30 Days Tile -->
+                <!-- Completed Jobs Tile -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>✅ Completed (30d)</h2>
+                        <h2>✅ Completed</h2>
                     </div>
                     <div id="completed-jobs-list"></div>
                 </div>
