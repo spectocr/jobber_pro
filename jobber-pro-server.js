@@ -1521,7 +1521,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!phone) return '';
             const cleaned = phone.replace(/\D/g, '');
             if (cleaned.length === 10) {
-                return `(${cleaned.slice(0,3)})${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+                return '(' + cleaned.slice(0,3) + ')' + cleaned.slice(3,6) + '-' + cleaned.slice(6);
             }
             return phone;
         }
@@ -1530,11 +1530,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             let value = input.value.replace(/\D/g, '');
             if (value.length > 10) value = value.slice(0, 10);
             if (value.length >= 6) {
-                input.value = `(${value.slice(0,3)})${value.slice(3,6)}-${value.slice(6)}`;
+                input.value = '(' + value.slice(0,3) + ')' + value.slice(3,6) + '-' + value.slice(6);
             } else if (value.length >= 3) {
-                input.value = `(${value.slice(0,3)})${value.slice(3)}`;
+                input.value = '(' + value.slice(0,3) + ')' + value.slice(3);
             } else if (value.length > 0) {
-                input.value = `(${value}`;
+                input.value = '(' + value;
             }
         }
 
@@ -2221,17 +2221,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             window.completedJobs = stats.completedLast30Days || [];
 
             // Upcoming jobs
-            document.getElementById('upcoming-count').textContent = `(${stats.upcomingJobs?.length || 0})`;
+            document.getElementById('upcoming-count').textContent = '(' + (stats.upcomingJobs?.length || 0) + ')';
             document.getElementById('upcoming-jobs-list').innerHTML =
                 renderJobList(stats.upcomingJobs, 'No upcoming jobs');
 
             // In Progress jobs
-            document.getElementById('in-progress-count').textContent = `(${stats.inProgressJobs?.length || 0})`;
+            document.getElementById('in-progress-count').textContent = '(' + (stats.inProgressJobs?.length || 0) + ')';
             document.getElementById('in-progress-jobs-list').innerHTML =
                 renderJobList(stats.inProgressJobs, 'No jobs in progress');
 
             // Completed last 30 days
-            document.getElementById('completed-count').textContent = `(${stats.completedLast30Days?.length || 0})`;
+            document.getElementById('completed-count').textContent = '(' + (stats.completedLast30Days?.length || 0) + ')';
             document.getElementById('completed-jobs-list').innerHTML =
                 renderJobList(stats.completedLast30Days, 'No completed jobs');
         }
@@ -2446,18 +2446,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 sortedZips.map(([zip, count]) => {
                     const percentage = (count / maxCount) * 100;
                     const city = zipCities[zip] || 'Unknown';
-                    return `
+                    return \`
                         <div style="padding: 1rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                <strong style="color: #667eea;">${zip}</strong>
-                                <span style="font-weight: 600; color: #2d3748;">${count} client${count !== 1 ? 's' : ''}</span>
+                                <strong style="color: #667eea;">\${zip}</strong>
+                                <span style="font-weight: 600; color: #2d3748;">\${count} client\${count !== 1 ? 's' : ''}</span>
                             </div>
-                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">${city}</div>
+                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">\${city}</div>
                             <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
-                                <div style="background: #667eea; height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                                <div style="background: #667eea; height: 100%; width: \${percentage}%; transition: width 0.3s;"></div>
                             </div>
                         </div>
-                    `;
+                    \`;
                 }).join('') +
                 '</div>';
         }
