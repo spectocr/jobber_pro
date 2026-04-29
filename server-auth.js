@@ -794,6 +794,37 @@ app.get('/api/calendar', isAuthenticated, async (req, res) => {
     res.json(dataWithId);
 });
 
+// Expenses endpoints
+app.get('/api/expenses', isAuthenticated, async (req, res) => {
+    const expenses = await db.collection('expenses').find().toArray();
+    const expensesWithId = expenses.map(e => ({ ...e, id: e._id.toString() }));
+    res.json(expensesWithId);
+});
+
+app.post('/api/expenses', isAuthenticated, isAdmin, async (req, res) => {
+    const expense = req.body;
+
+    if (expense._id) {
+        // Update existing
+        const { _id, ...updateData } = expense;
+        await db.collection('expenses').updateOne(
+            { _id: new ObjectId(_id) },
+            { $set: updateData }
+        );
+        res.json({ success: true });
+    } else {
+        // Create new
+        delete expense._id;
+        const result = await db.collection('expenses').insertOne(expense);
+        res.json({ success: true, id: result.insertedId });
+    }
+});
+
+app.delete('/api/expenses/:id', isAuthenticated, isAdmin, async (req, res) => {
+    await db.collection('expenses').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+});
+
 // Invoice generation (protected)
 app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.jobId) });
