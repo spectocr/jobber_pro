@@ -1151,8 +1151,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <!-- Admin Approval Queue (Admin Only) -->
             <div class="card" id="approvalQueueCard" style="display: none;">
                 <div class="card-header">
-                    <h2>⏳ Pending Approval Queue</h2>
-                    <span id="pendingCount" style="background: #ffc107; color: #000; padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: 600;">0</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <h2>⏳ Pending Approval Queue</h2>
+                            <span id="pendingCount" style="background: #ffc107; color: #000; padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: 600;">0</span>
+                        </div>
+                        <select id="approvalEmployeeFilter" onchange="loadApprovalQueue()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
+                            <option value="">All Employees</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="approvalQueue"></div>
             </div>
@@ -1160,8 +1167,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <!-- Recent Time Entries (Admin Only) -->
             <div class="card" id="allTimeEntriesCard" style="display: none;">
                 <div class="card-header">
-                    <h2>Recent Time Entries (All Team)</h2>
-                    <button class="btn btn-secondary" onclick="exportTimeEntries()">📊 Export</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                        <h2>Recent Time Entries (All Team)</h2>
+                        <div style="display: flex; gap: 1rem;">
+                            <select id="entriesEmployeeFilter" onchange="loadAllTimeEntries()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
+                                <option value="">All Employees</option>
+                            </select>
+                            <select id="entriesStatusFilter" onchange="loadAllTimeEntries()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
+                            <button class="btn btn-secondary" onclick="exportTimeEntries()">📊 Export</button>
+                        </div>
+                    </div>
                 </div>
                 <div id="allTimeEntries"></div>
             </div>
@@ -4736,18 +4757,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function loadAllTimeEntries() {
             const response = await fetch('/api/timeentries');
-            const entries = await response.json();
+            let entries = await response.json();
+
+            // Populate employee filter
+            const employeeFilter = document.getElementById('entriesEmployeeFilter');
+            const uniqueEmployees = [...new Set(entries.map(e => e.userName))].sort();
+            if (employeeFilter.options.length === 1) { // Only populate once
+                uniqueEmployees.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    employeeFilter.appendChild(option);
+                });
+            }
+
+            // Apply filters
+            const selectedEmployee = employeeFilter.value;
+            const selectedStatus = document.getElementById('entriesStatusFilter').value;
+
+            if (selectedEmployee) {
+                entries = entries.filter(e => e.userName === selectedEmployee);
+            }
+            if (selectedStatus) {
+                entries = entries.filter(e => e.status === selectedStatus);
+            }
 
             entries.sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn));
 
             const container = document.getElementById('allTimeEntries');
 
             if (entries.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>No time entries yet</p></div>';
+                container.innerHTML = '<div class="empty-state"><p>No entries match filters</p></div>';
                 return;
             }
 
-            const html = entries.slice(0, 50).map(entry => {
+            const html = entries.slice(0, 100).map(entry => {
                 const clockIn = new Date(entry.clockIn);
                 const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
                 const duration = entry.duration ? formatDuration(entry.duration) : 'In Progress';
@@ -4816,7 +4860,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const response = await fetch('/api/timeentries');
             const entries = await response.json();
 
-            const pending = entries.filter(e => e.approvalStatus === 'pending' || e.status === 'pending');
+            // Populate employee filter
+            const employeeFilter = document.getElementById('approvalEmployeeFilter');
+            const uniqueEmployees = [...new Set(entries.map(e => e.userName))].sort();
+            if (employeeFilter.options.length === 1) { // Only populate once
+                uniqueEmployees.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    employeeFilter.appendChild(option);
+                });
+            }
+
+            // Filter by employee
+            const selectedEmployee = employeeFilter.value;
+            let pending = entries.filter(e => e.approvalStatus === 'pending' || e.status === 'pending');
+            if (selectedEmployee) {
+                pending = pending.filter(e => e.userName === selectedEmployee);
+            }
             pending.sort((a, b) => new Date(b.clockOut) - new Date(a.clockOut));
 
             document.getElementById('pendingCount').textContent = pending.length;
