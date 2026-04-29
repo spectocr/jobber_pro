@@ -1074,9 +1074,56 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Phone *</label>
                         <input type="tel" name="phone" required>
                     </div>
+                    <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Address</h3>
                     <div class="form-group">
-                        <label>Address</label>
-                        <textarea name="address"></textarea>
+                        <label>Street Line 1</label>
+                        <input type="text" name="addressLine1">
+                    </div>
+                    <div class="form-group">
+                        <label>Street Line 2</label>
+                        <input type="text" name="addressLine2">
+                    </div>
+                    <div class="form-group">
+                        <label>Street Line 3</label>
+                        <input type="text" name="addressLine3">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" name="city">
+                        </div>
+                        <div class="form-group">
+                            <label>State</label>
+                            <input type="text" name="state" list="statesList" maxlength="2" style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group">
+                            <label>ZIP</label>
+                            <input type="text" name="zipCode" maxlength="10">
+                        </div>
+                    </div>
+                    <datalist id="statesList">
+                        <option value="AL"><option value="AK"><option value="AZ"><option value="AR"><option value="CA">
+                        <option value="CO"><option value="CT"><option value="DE"><option value="FL"><option value="GA">
+                        <option value="HI"><option value="ID"><option value="IL"><option value="IN"><option value="IA">
+                        <option value="KS"><option value="KY"><option value="LA"><option value="ME"><option value="MD">
+                        <option value="MA"><option value="MI"><option value="MN"><option value="MS"><option value="MO">
+                        <option value="MT"><option value="NE"><option value="NV"><option value="NH"><option value="NJ">
+                        <option value="NM"><option value="NY"><option value="NC"><option value="ND"><option value="OH">
+                        <option value="OK"><option value="OR"><option value="PA"><option value="RI"><option value="SC">
+                        <option value="SD"><option value="TN"><option value="TX"><option value="UT"><option value="VT">
+                        <option value="VA"><option value="WA"><option value="WV"><option value="WI"><option value="WY">
+                    </datalist>
+                    <div class="form-group">
+                        <label>Marketing Channel</label>
+                        <select name="marketingChannel">
+                            <option value="">Select...</option>
+                            <option value="referral">Referral</option>
+                            <option value="google">Google Search</option>
+                            <option value="social">Social Media</option>
+                            <option value="website">Website</option>
+                            <option value="repeat">Repeat Customer</option>
+                            <option value="other">Other</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Notes</label>
@@ -1392,6 +1439,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         input.value = client[key] || '';
                     }
                 });
+
+                // Migrate old address field to new structured fields if needed
+                if (client.address && !client.addressLine1) {
+                    form.elements.addressLine1.value = client.address;
+                }
             } else {
                 document.getElementById('clientModalTitle').textContent = 'Add Client';
                 form.reset();
@@ -1866,17 +1918,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th><th>Actions</th></tr></thead><tbody>' +
-                clients.map(c => \`<tr style="cursor: pointer;" onclick="viewClientDetail('\${c.id}')">
-                    <td><strong>\${c.name}</strong></td>
-                    <td>\${c.email || '-'}</td>
-                    <td>\${c.phone}</td>
-                    <td>\${(c.address || '-').substring(0, 30)}</td>
-                    <td onclick="event.stopPropagation()">
-                        <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
-                        <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
-                    </td>
-                </tr>\`).join('') +
+            container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City, State</th><th>Marketing Channel</th><th>Actions</th></tr></thead><tbody>' +
+                clients.map(c => {
+                    const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '-');
+                    return \`<tr style="cursor: pointer;" onclick="viewClientDetail('\${c.id}')">
+                        <td><strong>\${c.name}</strong></td>
+                        <td>\${c.email || '-'}</td>
+                        <td>\${c.phone}</td>
+                        <td>\${cityState}</td>
+                        <td>\${c.marketingChannel || '-'}</td>
+                        <td onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
+                        </td>
+                    </tr>\`;
+                }).join('') +
                 '</tbody></table>';
         }
 
