@@ -771,17 +771,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </div>
 
-                <!-- NJ Map -->
+                <!-- Client Distribution by ZIP -->
                 <div class="card" style="margin-bottom: 2rem;">
                     <div class="card-header">
-                        <h3>Client Distribution - New Jersey</h3>
+                        <h3>Client Distribution by ZIP Code</h3>
                     </div>
-                    <div style="position: relative; height: 600px; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
-                        <svg id="nj-map" viewBox="0 0 300 600" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 100%;">
-                            <!-- NJ state outline will be drawn here -->
-                        </svg>
-                        <div id="map-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 0.5rem; border-radius: 4px; font-size: 0.875rem; display: none; pointer-events: none;"></div>
-                    </div>
+                    <div id="zip-distribution" style="padding: 1rem;"></div>
                 </div>
 
                 <div id="clients-list"></div>
@@ -2082,8 +2077,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-total-clients').textContent = totalClients;
             document.getElementById('stat-repeat-clients').textContent = repeatClients;
 
-            // Render map
-            renderNJMap();
+            // Render ZIP distribution
+            renderZipDistribution();
 
             const container = document.getElementById('clients-list');
             if (clients.length === 0) {
@@ -2109,38 +2104,54 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 '</tbody></table>';
         }
 
-        function renderNJMap() {
+        function renderZipDistribution() {
             // Count clients by full ZIP code
             const zipCounts = {};
+            const zipCities = {};
+
             clients.forEach(c => {
                 if (c.zipCode && c.state === 'NJ') {
-                    const zip = c.zipCode.substring(0, 5); // Full 5-digit ZIP
+                    const zip = c.zipCode.substring(0, 5);
                     zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+                    if (!zipCities[zip] && c.city) {
+                        zipCities[zip] = c.city;
+                    }
                 }
             });
 
-            const svg = document.getElementById('nj-map');
+            const container = document.getElementById('zip-distribution');
 
-            // Accurate New Jersey state outline from GIS data
-            svg.innerHTML = `
-                <defs>
-                    <linearGradient id="njGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#f0f4ff;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-                <path d="M150,10 L155,12 158,15 160,20 161,27 162,35 163,44 164,54 165,65 166,77 167,90 168,104 169,119 170,135 171,152 172,170 173,189 174,209 175,230 176,252 177,275 178,299 179,324 180,350 181,377 182,405 183,434 183.5,464 184,495 183.5,526 183,556 181,584 177,609 171,630 162,647 150,660 136,669 120,675 102,678 84,678 67,675 52,669 39,660 28,648 20,634 14,618 10,600 7,581 5,561 4,540 3.5,519 3,498 3,477 3.5,456 4,435 5,414 6.5,393 8,372 10,351 12.5,330 15,309 18,288 21.5,267 25,246 29,225 33.5,204 38,183 43,162 48.5,141 54,120 60,99 66.5,78 73,57 80,36 87.5,20 95,10 105,5 117,3 130,5 142,8 Z"
-                      fill="url(#njGradient)"
-                      stroke="#2563eb"
-                      stroke-width="2"
-                      stroke-linejoin="round"
-                      filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.15))"/>
-            `;
+            if (Object.keys(zipCounts).length === 0) {
+                container.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No NJ client ZIP codes to display</p>';
+                return;
+            }
 
-            // Major NJ ZIP codes with approximate lat/long converted to map coordinates
-            const njZipCoords = {
-                // North Jersey
-                '07001': { x: 215, y: 140, name: 'Avenel' }, '07002': { x: 205, y: 145, name: 'Bayonne' },
+            // Sort by count descending
+            const sortedZips = Object.entries(zipCounts).sort((a, b) => b[1] - a[1]);
+
+            // Create bar chart style visualization
+            const maxCount = Math.max(...Object.values(zipCounts));
+            container.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">' +
+                sortedZips.map(([zip, count]) => {
+                    const percentage = (count / maxCount) * 100;
+                    const city = zipCities[zip] || 'Unknown';
+                    return `
+                        <div style="padding: 1rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <strong style="color: #667eea;">${zip}</strong>
+                                <span style="font-weight: 600; color: #2d3748;">${count} client${count !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">${city}</div>
+                            <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div style="background: #667eea; height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('') +
+                '</div>';
+        }
+
+        function filterClients() {
                 '07003': { x: 195, y: 135, name: 'Bloomfield' }, '07004': { x: 185, y: 125, name: 'Fairfield' },
                 '07005': { x: 175, y: 115, name: 'Boonton' }, '07006': { x: 185, y: 105, name: 'Caldwell' },
                 '07010': { x: 195, y: 125, name: 'Cliffside Park' }, '07020': { x: 205, y: 155, name: 'Edgewater' },
