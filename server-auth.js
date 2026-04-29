@@ -1034,6 +1034,11 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     const tax = taxWaived ? 0 : subtotal * (settings.taxRate || 0.06625);
     const total = subtotal + tax;
 
+    // Calculate if paid in full
+    const totalPaid = (job.payments || []).reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+    const balance = total - totalPaid;
+    const isPaidInFull = Math.abs(balance) < 0.01; // Consider paid if balance is less than 1 cent
+
     // Format phone numbers
     const formatPhone = (phone) => {
         if (!phone) return '';
@@ -1052,7 +1057,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     <style>
         @media print { .no-print { display: none !important; } }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: white; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: white; position: relative; }
         .invoice-header { display: flex; justify-content: space-between; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #667eea; }
         .company-info h1 { color: #667eea; font-size: 2em; margin-bottom: 10px; }
         .company-info p { line-height: 1.6; color: #666; }
@@ -1077,9 +1082,12 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         .status-completed { background: #c6f6d5; color: #22543d; }
         .status-in_progress { background: #feebc8; color: #7c2d12; }
         .status-scheduled { background: #bee3f8; color: #2c5282; }
+        .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 8em; font-weight: 900; color: rgba(72, 187, 120, 0.15); z-index: -1; white-space: nowrap; pointer-events: none; letter-spacing: 0.1em; }
+        @media print { .watermark { color: rgba(72, 187, 120, 0.1); } }
     </style>
 </head>
 <body>
+    ${isPaidInFull ? '<div class="watermark">PAID IN FULL</div>' : ''}
     <button class="print-button no-print" onclick="window.print()">🖨️ Print Invoice</button>
 
     <div class="invoice-header">
