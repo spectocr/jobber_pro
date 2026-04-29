@@ -4503,17 +4503,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         async function loadTimeClock() {
             const response = await fetch('/api/jobs');
             const jobs = await response.json();
-            const activeJobs = jobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress');
+            let activeJobs = jobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress');
+
+            // Non-admins can only see jobs assigned to them
+            if (!isAdmin) {
+                // Get current user's info to find matching team member
+                const userResponse = await fetch('/api/auth/me');
+                const currentUser = await userResponse.json();
+
+                // Get team members to find the one matching current user's email
+                const teamResponse = await fetch('/api/team');
+                const teamMembers = await teamResponse.json();
+                const matchingTeamMember = teamMembers.find(t => t.email && t.email.toLowerCase() === currentUser.email.toLowerCase());
+
+                if (matchingTeamMember) {
+                    // Filter jobs to only those assigned to this team member
+                    activeJobs = activeJobs.filter(j => j.assignedTo && j.assignedTo === matchingTeamMember.id);
+                } else {
+                    // User not linked to team member - show no jobs
+                    activeJobs = [];
+                }
+            }
 
             const select = document.getElementById('clockInJobSelect');
             select.innerHTML = '<option value="">Select a job to clock in...</option>';
-            activeJobs.forEach(job => {
-                const option = document.createElement('option');
-                option.value = job.id;
-                option.textContent = job.title + ' - ' + (job.clientName || 'Client');
-                option.dataset.jobName = job.title;
-                select.appendChild(option);
-            });
+
+            if (activeJobs.length === 0 && !isAdmin) {
+                select.innerHTML = '<option value="">No jobs assigned to you</option>';
+            } else {
+                activeJobs.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job.id;
+                    option.textContent = job.title + ' - ' + (job.clientName || 'Client');
+                    option.dataset.jobName = job.title;
+                    select.appendChild(option);
+                });
+            }
 
             const entriesResponse = await fetch('/api/timeentries');
             const entries = await entriesResponse.json();
