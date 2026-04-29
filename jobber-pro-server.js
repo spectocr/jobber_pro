@@ -2106,9 +2106,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function openJobModal(job = null) {
-            // Non-admins can view jobs but not create new ones
-            if (!isAdmin && !job) {
-                alert('You do not have permission to create jobs.');
+            if (!isAdmin) {
+                alert('You do not have permission to create or edit jobs.');
                 return;
             }
 
@@ -2167,21 +2166,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             renderLineItems();
             renderTouchPoints();
-
-            // Make form read-only for non-admins viewing jobs
-            if (!isAdmin && job) {
-                form.querySelectorAll('input, select, textarea, button[type="button"]').forEach(el => {
-                    el.disabled = true;
-                    el.style.opacity = '0.7';
-                    el.style.cursor = 'not-allowed';
-                });
-                // Hide the save button
-                const saveBtn = form.querySelector('button[type="submit"]');
-                if (saveBtn) saveBtn.style.display = 'none';
-
-                document.getElementById('jobModalTitle').textContent = 'View Job (Read-Only)';
-            }
-
             document.getElementById('jobModal').classList.add('active');
         }
 
@@ -2234,19 +2218,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
                 hasUnsavedChanges = false;
             }
-
-            // Re-enable form fields (in case they were disabled for read-only view)
-            if (modalId === 'jobModal') {
-                const form = document.getElementById('jobForm');
-                form.querySelectorAll('input, select, textarea, button').forEach(el => {
-                    el.disabled = false;
-                    el.style.opacity = '';
-                    el.style.cursor = '';
-                });
-                const saveBtn = form.querySelector('button.btn-primary');
-                if (saveBtn) saveBtn.style.display = '';
-            }
-
             document.getElementById(modalId).classList.remove('active');
         }
 
