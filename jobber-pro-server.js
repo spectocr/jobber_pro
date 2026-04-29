@@ -1261,10 +1261,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <script>
         let clients = [];
         let jobs = [];
+        let settings = {};
         let team = [];
         let hasUnsavedChanges = false;
         let currentUserRole = 'user'; // Default to user, updated on load
         let isAdmin = false;
+
+        // Helper function to calculate total with tax
+        function calculateTotalWithTax(subtotal) {
+            const taxRate = settings.taxRate || 0.06625;
+            return subtotal * (1 + taxRate);
+        }
 
         // Track form changes
         function markFormDirty() {
@@ -1908,7 +1915,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <small>\${(j.description || '').substring(0, 50)}</small>
                         </td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                        <td>\${j.total ? '$' + parseFloat(j.total).toFixed(2) : '-'}</td>
+                        <td>\${j.total ? '$' + calculateTotalWithTax(parseFloat(j.total)).toFixed(2) : '-'}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
@@ -2104,7 +2111,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         <td>\${j.hours || 0}</td>
-                        <td>\${j.total ? '$' + parseFloat(j.total).toFixed(2) : '-'}</td>
+                        <td>\${j.total ? '$' + calculateTotalWithTax(parseFloat(j.total)).toFixed(2) : '-'}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
@@ -2465,7 +2472,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.title}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${member ? member.name : 'Unassigned'}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.status.replace('_', ' ')}</td>
-                                    <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${(parseFloat(j.total) || 0).toFixed(2)}</td>
+                                    <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${calculateTotalWithTax(parseFloat(j.total) || 0).toFixed(2)}</td>
                                 </tr>
                             \`;
                         }).join('')}
@@ -2986,6 +2993,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         Promise.all([
             fetch('/api/clients').then(r => r.json()).then(data => clients = data),
             fetch('/api/team').then(r => r.json()).then(data => team = data),
+            fetch('/api/settings').then(r => r.json()).then(data => settings = data),
             loadHeaderLogo(),
             loadCurrentUser()
         ]).then(() => {
