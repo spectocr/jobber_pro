@@ -2131,24 +2131,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const zipCities = {};
 
             console.log('ZIP Distribution - Total clients:', clients.length);
-            console.log('Sample client data:', clients.slice(0, 3).map(c => ({
-                name: c.name,
-                zipCode: c.zipCode,
-                state: c.state,
-                city: c.city
-            })));
+            console.log('All clients with ZIP/state data:');
+            clients.forEach(c => {
+                console.log(`  ${c.name}: ZIP=${c.zipCode}, State=${c.state}, City=${c.city}`);
+            });
 
             clients.forEach(c => {
-                if (c.zipCode && c.state === 'NJ') {
+                if (c.zipCode) {
                     const zip = c.zipCode.substring(0, 5);
-                    zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-                    if (!zipCities[zip] && c.city) {
-                        zipCities[zip] = c.city;
+                    if (c.state === 'NJ') {
+                        zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+                        if (!zipCities[zip] && c.city) {
+                            zipCities[zip] = c.city;
+                        }
+                    } else {
+                        console.log(`  ⚠️ Skipping ${c.name} - ZIP ${zip} but state is '${c.state}' not 'NJ'`);
                     }
+                } else {
+                    console.log(`  ⚠️ Skipping ${c.name} - No ZIP code`);
                 }
             });
 
-            console.log('ZIP Counts:', zipCounts);
+            console.log('Final ZIP Counts:', zipCounts);
 
             const container = document.getElementById('zip-distribution');
 
