@@ -1072,7 +1072,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div class="form-group">
                         <label>Phone *</label>
-                        <input type="tel" name="phone" required>
+                        <input type="tel" name="phone" required placeholder="(555)555-5555" oninput="maskPhoneInput(this)">
                     </div>
                     <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Address</h3>
                     <div class="form-group">
@@ -1260,7 +1260,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div class="form-group">
                         <label>Phone</label>
-                        <input type="tel" name="phone">
+                        <input type="tel" name="phone" placeholder="(555)555-5555" oninput="maskPhoneInput(this)">
                     </div>
                     <div class="form-group">
                         <label>Email</label>
@@ -1365,6 +1365,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function calculateTotalWithTax(subtotal) {
             const taxRate = settings.taxRate || 0.06625;
             return subtotal * (1 + taxRate);
+        }
+
+        // Phone number formatting
+        function formatPhoneNumber(phone) {
+            if (!phone) return '';
+            const cleaned = phone.replace(/\D/g, '');
+            if (cleaned.length === 10) {
+                return `(${cleaned.slice(0,3)})${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+            }
+            return phone;
+        }
+
+        function maskPhoneInput(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value.length > 10) value = value.slice(0, 10);
+            if (value.length >= 6) {
+                input.value = `(${value.slice(0,3)})${value.slice(3,6)}-${value.slice(6)}`;
+            } else if (value.length >= 3) {
+                input.value = `(${value.slice(0,3)})${value.slice(3)}`;
+            } else if (value.length > 0) {
+                input.value = `(${value}`;
+            }
         }
 
         // Track form changes
@@ -1963,7 +1985,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return \`<tr style="cursor: pointer;" onclick="viewClientDetail('\${c.id}')">
                         <td><strong>\${c.name}</strong></td>
                         <td>\${c.email || '-'}</td>
-                        <td>\${c.phone}</td>
+                        <td>\${formatPhoneNumber(c.phone)}</td>
                         <td>\${cityState}</td>
                         <td>\${c.marketingChannel || '-'}</td>
                         <td onclick="event.stopPropagation()">
@@ -1999,7 +2021,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('client-detail-name').textContent = client.name;
             document.getElementById('client-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${client.email || 'N/A'}</p>
-                <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${client.phone || 'N/A'}</p>
+                <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(client.phone) || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Address:</strong><br>\${(client.address || 'N/A').replace(/\\n/g, '<br>')}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Notes:</strong><br>\${client.notes || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem; color: #718096; font-size: 0.875rem;"><strong>Added:</strong> \${new Date(client.createdAt).toLocaleDateString()}</p>
@@ -2138,7 +2160,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
                         <td><strong>\${t.name}</strong></td>
                         <td>\${t.role}</td>
-                        <td>\${t.phone || '-'}</td>
+                        <td>\${formatPhoneNumber(t.phone) || '-'}</td>
                         <td>\${t.email || '-'}</td>
                         <td>\${cityState}</td>
                         <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
@@ -2175,7 +2197,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('team-detail-name').textContent = member.name;
             document.getElementById('team-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Role:</strong> \${member.role}</p>
-                <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${member.phone || 'N/A'}</p>
+                <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(member.phone) || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${member.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Status:</strong> <span class="status-badge \${member.active ? 'status-completed' : 'status-scheduled'}">\${member.active ? 'Active' : 'Inactive'}</span></p>
             \`;

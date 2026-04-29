@@ -794,6 +794,16 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     const tax = subtotal * (settings.taxRate || 0.06625);
     const total = subtotal + tax;
 
+    // Format phone numbers
+    const formatPhone = (phone) => {
+        if (!phone) return '';
+        const cleaned = phone.replace(/\D/g, '');
+        if (cleaned.length === 10) {
+            return `(${cleaned.slice(0,3)})${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+        }
+        return phone;
+    };
+
     const invoiceHTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -837,7 +847,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             ${settings.companyLogo ? `<img src="${settings.companyLogo}" alt="Company Logo" style="max-width: 200px; max-height: 80px; margin-bottom: 1rem;">` : ''}
             <h1>${settings.companyName || 'Your Company'}</h1>
             <p>${(settings.companyAddress || 'Add company address in settings').replace(/\n/g, '<br>')}</p>
-            <p>Phone: ${settings.companyPhone || 'Add phone'}</p>
+            <p>Phone: ${formatPhone(settings.companyPhone) || 'Add phone'}</p>
             <p>Email: ${settings.companyEmail || 'Add email'}</p>
         </div>
         <div class="invoice-meta">
@@ -852,7 +862,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         <h3>Bill To:</h3>
         <p><strong>${client ? client.name : 'Unknown Client'}</strong></p>
         ${client && client.address ? `<p>${client.address.replace(/\n/g, '<br>')}</p>` : ''}
-        ${client && client.phone ? `<p>Phone: ${client.phone}</p>` : ''}
+        ${client && client.phone ? `<p>Phone: ${formatPhone(client.phone)}</p>` : ''}
         ${client && client.email ? `<p>Email: ${client.email}</p>` : ''}
     </div>
 
