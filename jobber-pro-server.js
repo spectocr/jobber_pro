@@ -2121,7 +2121,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const svg = document.getElementById('nj-map');
 
-            // Accurate NJ state outline (recognizable shape)
+            // New Jersey state outline - simplified but recognizable
             svg.innerHTML = `
                 <defs>
                     <linearGradient id="njGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -2129,26 +2129,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
                     </linearGradient>
                 </defs>
-                <!-- New Jersey State Outline - Accurate Shape -->
-                <path d="M 200 30
-                         L 210 32 L 220 35 L 228 40 L 235 48 L 240 58 L 243 70
-                         L 245 85 L 247 100 L 248 115 L 250 130 L 252 145
-                         L 254 160 L 256 175 L 258 190 L 260 205 L 262 220
-                         L 265 240 L 268 260 L 271 280 L 274 300 L 276 320
-                         L 278 340 L 280 360 L 281 380 L 282 400 L 282 420
-                         L 281 440 L 279 460 L 276 480 L 272 500 L 266 518
-                         L 258 535 L 248 548 L 236 558 L 222 565 L 206 570
-                         L 188 572 L 170 571 L 152 568 L 135 562 L 120 554
-                         L 106 543 L 94 530 L 84 515 L 76 498 L 70 480
-                         L 66 460 L 63 440 L 61 420 L 60 400 L 60 380
-                         L 61 360 L 63 340 L 66 320 L 70 300 L 75 280
-                         L 81 260 L 88 240 L 96 220 L 105 200 L 115 180
-                         L 126 160 L 138 140 L 150 120 L 162 100 L 174 82
-                         L 185 66 L 194 52 L 200 40 Z"
+                <!-- New Jersey - narrow top, wide bottom, Hudson River indent on east -->
+                <path d="M 150,20
+                         L 160,25 165,35 168,50 170,70
+                         C 172,90 174,110 176,130
+                         L 178,150 180,170 182,190
+                         C 185,220 188,250 190,280
+                         L 192,310 194,340 196,370
+                         C 198,400 199,430 200,460
+                         L 200,490 198,515 195,535
+                         C 190,550 180,560 165,565
+                         L 145,567 125,565 110,560
+                         C 95,553 85,543 78,530
+                         L 72,515 68,495 65,470
+                         C 63,445 62,420 62,395
+                         L 62,370 63,345 65,320
+                         C 68,290 72,260 78,230
+                         L 85,200 93,170 102,140
+                         C 110,115 120,90 130,70
+                         L 138,50 144,35 148,25 Z
+                         M 170,70 L 175,75 178,85 180,100 181,120 180,140 178,155 175,165 170,170
+                         M 178,150 L 183,155 186,165 188,180 189,200 188,220 185,235 182,245 178,250"
                       fill="url(#njGradient)"
-                      stroke="#667eea"
-                      stroke-width="3"
-                      filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.1))"/>
+                      stroke="#2563eb"
+                      stroke-width="2"
+                      stroke-linejoin="round"
+                      filter="drop-shadow(1px 1px 3px rgba(0,0,0,0.2))"/>
             `;
 
             // Major NJ ZIP codes with approximate lat/long converted to map coordinates
