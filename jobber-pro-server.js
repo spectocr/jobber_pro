@@ -2084,6 +2084,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
 
             console.log('Client job counts:', clientJobCounts);
+            console.log('Full job counts breakdown:');
+            Object.entries(clientJobCounts).forEach(([id, count]) => {
+                const client = clients.find(c => c.id === id);
+                console.log(`  ${client ? client.name : 'Unknown'} (${id}): ${count} job(s)`);
+            });
             console.log('Clients with multiple jobs:', Object.entries(clientJobCounts).filter(([id, count]) => count > 1));
 
             const repeatClients = Object.values(clientJobCounts).filter(count => count > 1).length;
