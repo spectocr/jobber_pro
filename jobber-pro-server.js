@@ -773,8 +773,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 <!-- Client Distribution by ZIP -->
                 <div class="card" style="margin-bottom: 2rem;">
-                    <div class="card-header">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleZipDistribution()">
                         <h3>Client Distribution by ZIP Code</h3>
+                        <span id="zip-toggle-icon" style="font-size: 1.5rem; user-select: none;">▼</span>
                     </div>
                     <div id="zip-distribution" style="padding: 1rem;"></div>
                 </div>
@@ -2108,6 +2109,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+        }
+
+        function toggleZipDistribution() {
+            const container = document.getElementById('zip-distribution');
+            const icon = document.getElementById('zip-toggle-icon');
+
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                container.style.display = 'none';
+                icon.textContent = '▶';
+            }
         }
 
         function renderZipDistribution() {
