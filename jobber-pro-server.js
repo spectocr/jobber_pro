@@ -4822,6 +4822,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     statusBadge = '<span style="background: #e53e3e; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">✗ Rejected</span>';
                 }
 
+                const adminButtons = isAdmin ? '<div style="display: flex; gap: 0.25rem;">' +
+                    '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit">✏️</button>' +
+                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' +
+                    '</div>' : '';
+
                 return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' + borderColor + ';">' +
                     '<div style="display: flex; justify-content: space-between; align-items: start;">' +
                     '<div style="flex: 1;">' +
@@ -4833,6 +4838,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div>⏰ In: ' + clockIn.toLocaleTimeString() + ' ' + clockOutText + '</div>' +
                     '<div>⏱️ Duration: ' + duration + '</div>' +
                     '</div></div>' +
+                    adminButtons +
                     '</div></div>';
             }).join('');
 
@@ -4910,7 +4916,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' ' + timeText + '</div>' +
                     '<div>⏱️ Duration: ' + duration + '</div>' +
                     '</div></div>' +
+                    '<div style="display: flex; gap: 0.25rem;">' +
+                    '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit">✏️</button>' +
                     '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' +
+                    '</div>' +
                     '</div></div>';
             }).join('');
 
@@ -5069,6 +5078,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div style="display: flex; gap: 0.5rem;">' +
                     '<button class="btn btn-primary btn-small" onclick="approveTimeEntry(\'' + entry.id + '\')" style="flex: 1;">✓ Approve</button>' +
                     '<button class="btn btn-danger btn-small" onclick="rejectTimeEntry(\'' + entry.id + '\')" style="flex: 1;">✗ Reject</button>' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">' +
+                    '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit" style="flex: 1; padding: 0.25rem;">✏️ Edit</button>' +
+                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete" style="flex: 1; padding: 0.25rem;">🗑️ Delete</button>' +
                     '</div></div>' +
                     '</div></div>';
             }).join('');
