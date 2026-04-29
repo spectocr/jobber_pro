@@ -1916,6 +1916,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Edit Time Entry Modal -->
+    <div id="editTimeEntryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✏️ Edit Time Entry</h2>
+                <button class="close-btn" onclick="closeModal('editTimeEntryModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editTimeEntryId">
+
+                <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div><strong>Job:</strong> <span id="editTimeJobName"></span></div>
+                    <div><strong>Worker:</strong> <span id="editTimeUserName"></span></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Clock In Time *</label>
+                    <input type="datetime-local" id="editClockIn" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Clock Out Time *</label>
+                    <input type="datetime-local" id="editClockOut" required>
+                </div>
+
+                <div style="background: #fff3cd; padding: 0.75rem; border-radius: 4px; margin-top: 1rem;">
+                    <small><strong>Note:</strong> Duration will be automatically recalculated based on the times.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('editTimeEntryModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTimeEntryEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <!-- SMS Modal -->
     <div id="smsModal" class="modal">
         <div class="modal-content">
@@ -3031,7 +3067,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const filteredClients = clients.filter(c => {
                 if (!searchTerm) return true;
-                const searchText = `${c.name} ${c.email || ''} ${c.phone || ''} ${c.addressLine1 || ''} ${c.city || ''} ${c.state || ''}`.toLowerCase();
+                const searchText = (c.name + ' ' + (c.email || '') + ' ' + (c.phone || '') + ' ' + (c.addressLine1 || '') + ' ' + (c.city || '') + ' ' + (c.state || '')).toLowerCase();
                 return searchText.includes(searchTerm);
             });
 
@@ -3060,9 +3096,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
 
             // Build CSV
-            let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+            let csv = headers.map(h => '"' + h + '"').join(',') + '\\n';
             rows.forEach(row => {
-                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+                csv += row.map(cell => '"' + cell + '"').join(',') + '\\n';
             });
 
             // Create download
@@ -3266,9 +3302,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
 
             // Build CSV
-            let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+            let csv = headers.map(h => '"' + h + '"').join(',') + '\\n';
             rows.forEach(row => {
-                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+                csv += row.map(cell => '"' + cell + '"').join(',') + '\\n';
             });
 
             // Create download
@@ -4882,16 +4918,90 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function deleteTimeEntry(id) {
-            if (!confirm('Delete this time entry?')) return;
+            if (!isAdmin) {
+                alert('Only admins can delete time entries');
+                return;
+            }
+
+            if (!confirm('⚠️ WARNING: Delete this time entry?\n\nThis action cannot be undone and will permanently remove this time record.')) return;
 
             await fetch('/api/timeentries/' + id, {
                 method: 'DELETE'
             });
 
             loadTodayTimeEntries();
-            if (isAdmin) {
-                loadAllTimeEntries();
+            loadApprovalQueue();
+            loadAllTimeEntries();
+        }
+
+        let currentEditingTimeEntry = null;
+
+        function editTimeEntry(entry) {
+            if (!isAdmin) {
+                alert('Only admins can edit time entries');
+                return;
             }
+
+            currentEditingTimeEntry = entry;
+
+            // Populate the modal
+            document.getElementById('editTimeEntryId').value = entry.id;
+            document.getElementById('editTimeJobName').textContent = entry.jobName;
+            document.getElementById('editTimeUserName').textContent = entry.userName;
+
+            // Format dates for datetime-local inputs
+            const clockIn = new Date(entry.clockIn);
+            const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+
+            document.getElementById('editClockIn').value = formatDateTimeLocal(clockIn);
+            if (clockOut) {
+                document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
+            }
+
+            // Show modal
+            document.getElementById('editTimeEntryModal').classList.add('active');
+        }
+
+        function formatDateTimeLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+        }
+
+        async function saveTimeEntryEdit() {
+            const id = document.getElementById('editTimeEntryId').value;
+            const clockIn = new Date(document.getElementById('editClockIn').value);
+            const clockOut = new Date(document.getElementById('editClockOut').value);
+
+            if (!clockIn || !clockOut) {
+                alert('Please provide both clock in and clock out times');
+                return;
+            }
+
+            if (clockOut <= clockIn) {
+                alert('Clock out time must be after clock in time');
+                return;
+            }
+
+            const duration = Math.round((clockOut - clockIn) / 1000); // seconds
+
+            await fetch('/api/timeentries/' + id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clockIn: clockIn.toISOString(),
+                    clockOut: clockOut.toISOString(),
+                    duration: duration
+                })
+            });
+
+            closeModal('editTimeEntryModal');
+            loadTodayTimeEntries();
+            loadApprovalQueue();
+            loadAllTimeEntries();
         }
 
         function formatDuration(seconds) {

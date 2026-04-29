@@ -934,7 +934,30 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
     }
 });
 
-app.delete('/api/timeentries/:id', isAuthenticated, async (req, res) => {
+// Edit time entry (admin only)
+app.put('/api/timeentries/:id', isAdmin, async (req, res) => {
+    const { clockIn, clockOut, duration, jobId, jobName } = req.body;
+
+    const updates = {
+        updatedAt: new Date()
+    };
+
+    if (clockIn) updates.clockIn = new Date(clockIn);
+    if (clockOut) updates.clockOut = new Date(clockOut);
+    if (duration !== undefined) updates.duration = duration;
+    if (jobId) updates.jobId = jobId;
+    if (jobName) updates.jobName = jobName;
+
+    await db.collection('timeentries').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: updates }
+    );
+
+    const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ...updated, id: updated._id.toString() });
+});
+
+app.delete('/api/timeentries/:id', isAdmin, async (req, res) => {
     await db.collection('timeentries').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
 });
