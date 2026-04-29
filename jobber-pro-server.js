@@ -2130,6 +2130,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const zipCounts = {};
             const zipCities = {};
 
+            console.log('ZIP Distribution - Total clients:', clients.length);
+            console.log('Sample client data:', clients.slice(0, 3).map(c => ({
+                name: c.name,
+                zipCode: c.zipCode,
+                state: c.state,
+                city: c.city
+            })));
+
             clients.forEach(c => {
                 if (c.zipCode && c.state === 'NJ') {
                     const zip = c.zipCode.substring(0, 5);
@@ -2139,6 +2147,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     }
                 }
             });
+
+            console.log('ZIP Counts:', zipCounts);
 
             const container = document.getElementById('zip-distribution');
 
