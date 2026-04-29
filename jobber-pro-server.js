@@ -5000,12 +5000,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Format dates for datetime-local inputs
             const clockIn = new Date(entry.clockIn);
-            const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+            const clockOut = entry.clockOut ? new Date(entry.clockOut) : new Date();
 
             document.getElementById('editClockIn').value = formatDateTimeLocal(clockIn);
-            if (clockOut) {
-                document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
-            }
+            document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
 
             // Set status and payment amount
             document.getElementById('editStatus').value = entry.status || 'pending';
@@ -5026,17 +5024,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function saveTimeEntryEdit() {
             const id = document.getElementById('editTimeEntryId').value;
-            const clockIn = new Date(document.getElementById('editClockIn').value);
-            const clockOut = new Date(document.getElementById('editClockOut').value);
+            const clockInValue = document.getElementById('editClockIn').value;
+            const clockOutValue = document.getElementById('editClockOut').value;
             const status = document.getElementById('editStatus').value;
             const paymentAmount = parseFloat(document.getElementById('editPaymentAmount').value) || null;
 
-            if (!clockIn || !clockOut) {
+            if (!clockInValue || !clockOutValue) {
                 alert('Please provide both clock in and clock out times');
                 return;
             }
 
-            if (clockOut <= clockIn) {
+            const clockIn = new Date(clockInValue);
+            const clockOut = new Date(clockOutValue);
+
+            // Validate times
+            if (isNaN(clockIn.getTime()) || isNaN(clockOut.getTime())) {
+                alert('Invalid date/time values');
+                return;
+            }
+
+            if (clockOut.getTime() <= clockIn.getTime()) {
                 alert('Clock out time must be after clock in time');
                 return;
             }
@@ -5047,7 +5054,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            const duration = Math.round((clockOut - clockIn) / 1000); // seconds
+            const duration = Math.round((clockOut.getTime() - clockIn.getTime()) / 1000); // seconds
 
             const updates = {
                 clockIn: clockIn.toISOString(),
