@@ -4511,19 +4511,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const userResponse = await fetch('/api/auth/me');
                 const currentUser = await userResponse.json();
 
-                // Get team members to find the one matching current user's email
+                // Get team members to find the one matching current user's name
                 const teamResponse = await fetch('/api/team');
                 const teamMembers = await teamResponse.json();
-                const matchingTeamMember = teamMembers.find(t => t.email && t.email.toLowerCase() === currentUser.email.toLowerCase());
+                const matchingTeamMember = teamMembers.find(t => t.name && t.name.toLowerCase() === currentUser.name.toLowerCase());
 
                 if (matchingTeamMember) {
                     // Filter jobs to only those assigned to this team member
                     // Use loose comparison to handle string/number ID differences
                     activeJobs = activeJobs.filter(j => j.assignedTo && String(j.assignedTo) === String(matchingTeamMember.id));
 
-                    console.log('User:', currentUser.email, 'Team Member ID:', matchingTeamMember.id, 'Found jobs:', activeJobs.length);
+                    console.log('User:', currentUser.name, 'Team Member ID:', matchingTeamMember.id, 'Found jobs:', activeJobs.length);
                 } else {
-                    console.log('No matching team member found for user:', currentUser.email);
+                    console.log('No matching team member found for user:', currentUser.name);
                     // User not linked to team member - show no jobs
                     activeJobs = [];
                 }
