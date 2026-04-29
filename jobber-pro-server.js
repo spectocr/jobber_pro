@@ -1314,6 +1314,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </div>
                         </div>
                     </div>
+
+                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                        <h3 style="margin-bottom: 1rem;">Touch Points</h3>
+                        <div id="touchPointsList" style="margin-bottom: 1rem;">
+                            <!-- Touch points will be rendered here -->
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="newTouchPoint" placeholder="Add a note..." style="flex: 1; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px;">
+                            <button type="button" class="btn btn-primary" onclick="addTouchPoint()">Add Note</button>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -1720,6 +1731,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             laborItems = [];
             materialItems = [];
             paymentItems = [];
+            touchPoints = [];
             currentEditingJobId = null;
 
             if (job) {
@@ -1747,6 +1759,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (job.laborItems) laborItems = [...job.laborItems];
                 if (job.materialItems) materialItems = [...job.materialItems];
                 if (job.payments) paymentItems = [...job.payments];
+                if (job.touchPoints) touchPoints = [...job.touchPoints];
 
                 // Trigger client change to populate service locations
                 handleClientChange();
@@ -1763,6 +1776,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             renderLineItems();
+            renderTouchPoints();
             document.getElementById('jobModal').classList.add('active');
         }
 
@@ -1864,6 +1878,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let laborItems = [];
         let materialItems = [];
         let paymentItems = [];
+        let touchPoints = [];
 
         function addLaborItem() {
             const id = Date.now();
@@ -2108,6 +2123,62 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             balanceElement.style.color = isPaidInFull ? '#48bb78' : '#e53e3e';
         }
 
+        function addTouchPoint() {
+            const input = document.getElementById('newTouchPoint');
+            const noteText = input.value.trim();
+
+            if (!noteText) {
+                alert('Please enter a note');
+                return;
+            }
+
+            const touchPoint = {
+                id: Date.now(),
+                note: noteText,
+                timestamp: new Date().toISOString(),
+                user: document.getElementById('currentUserName').textContent
+            };
+
+            touchPoints.push(touchPoint);
+            input.value = '';
+            renderTouchPoints();
+            markFormDirty();
+        }
+
+        function removeTouchPoint(id) {
+            if (confirm('Remove this touch point?')) {
+                touchPoints = touchPoints.filter(tp => tp.id !== id);
+                renderTouchPoints();
+                markFormDirty();
+            }
+        }
+
+        function renderTouchPoints() {
+            const container = document.getElementById('touchPointsList');
+
+            if (touchPoints.length === 0) {
+                container.innerHTML = '<p style="color: #718096; font-style: italic;">No touch points yet. Add notes to track communications and updates.</p>';
+                return;
+            }
+
+            container.innerHTML = touchPoints.slice().reverse().map(tp => {
+                const date = new Date(tp.timestamp);
+                const formattedDate = date.toLocaleString();
+
+                return \`
+                    <div style="background: #f7fafc; border-left: 3px solid #667eea; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                            <div style="font-size: 0.85rem; color: #4a5568;">
+                                <strong>\${tp.user}</strong> · \${formattedDate}
+                            </div>
+                            <button type="button" onclick="removeTouchPoint(\${tp.id})" style="background: transparent; border: none; color: #e53e3e; cursor: pointer; padding: 0; font-size: 1.2rem; line-height: 1;">&times;</button>
+                        </div>
+                        <div style="color: #1a202c;">\${tp.note}</div>
+                    </div>
+                \`;
+            }).join('');
+        }
+
         async function saveJob() {
             const form = document.getElementById('jobForm');
             const formData = new FormData(form);
@@ -2118,10 +2189,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 job._id = currentEditingJobId;
             }
 
-            // Add line items and payments
+            // Add line items, payments, and touch points
             job.laborItems = laborItems;
             job.materialItems = materialItems;
             job.payments = paymentItems;
+            job.touchPoints = touchPoints;
 
             // Handle checkbox - it won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
