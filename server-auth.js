@@ -599,7 +599,8 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
     }));
 
-    const subtotalRevenue = jobsMapped
+    // job.total is already stored WITH tax included (or without if taxWaived)
+    const totalRevenue = jobsMapped
         .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
         .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
 
@@ -614,7 +615,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         completed: jobsMapped.filter(j => j.status === 'completed').length,
         invoiced: jobsMapped.filter(j => j.status === 'invoiced').length,
         bidLost: jobsMapped.filter(j => j.status === 'bid_lost').length,
-        revenueThisMonth: subtotalRevenue * (1 + taxRate),
+        revenueThisMonth: totalRevenue,
         upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
@@ -668,13 +669,15 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
 
     // Map _id to id and ObjectId references to strings for frontend compatibility
     const jobsWithId = jobs.map(j => {
-        const subtotal = parseFloat(j.total) || 0;
+        // job.total is already stored WITH tax included (or without if taxWaived)
+        // So totalWithTax should just be the stored total
+        const totalWithTax = parseFloat(j.total) || 0;
         return {
             ...j,
             id: j._id.toString(),
             clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
             assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null,
-            totalWithTax: subtotal * (1 + taxRate)
+            totalWithTax: totalWithTax
         };
     });
     res.json(jobsWithId);
@@ -790,8 +793,14 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     const assigned = await db.collection('team').findOne({ _id: job.assignedTo });
     const settings = await db.collection('settings').findOne() || {};
 
-    const subtotal = parseFloat(job.total) || 0;
-    const tax = subtotal * (settings.taxRate || 0.06625);
+    // Calculate subtotal from line items
+    const laborSubtotal = (job.laborItems || []).reduce((sum, item) => sum + (item.hours * item.rate), 0);
+    const materialSubtotal = (job.materialItems || []).reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    const subtotal = laborSubtotal + materialSubtotal;
+
+    // Calculate tax (0 if waived)
+    const taxWaived = job.taxWaived || false;
+    const tax = taxWaived ? 0 : subtotal * (settings.taxRate || 0.06625);
     const total = subtotal + tax;
 
     // Format phone numbers
@@ -923,7 +932,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             <span>$${subtotal.toFixed(2)}</span>
         </div>
         <div class="totals-row">
-            <span>Tax (${((settings.taxRate || 0.06625) * 100).toFixed(3)}%):</span>
+            <span>Tax ${taxWaived ? '(EXEMPT)' : `(${((settings.taxRate || 0.06625) * 100).toFixed(3)}%)`}:</span>
             <span>$${tax.toFixed(2)}</span>
         </div>
         <div class="totals-row total">

@@ -1188,6 +1188,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </select>
                     </div>
 
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="taxWaived" id="taxWaivedCheckbox" onchange="updateJobTotal()" style="width: auto; cursor: pointer;">
+                            <span>Tax Exempt / Waive Tax</span>
+                        </label>
+                    </div>
+
                     <div style="margin-top: 2rem;">
                         <h3 style="margin-bottom: 1rem;">Labor</h3>
                         <div id="laborItems"></div>
@@ -1366,9 +1373,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let isAdmin = false;
 
         // Helper function to calculate total with tax
-        function calculateTotalWithTax(subtotal) {
-            const taxRate = settings.taxRate || 0.06625;
-            return subtotal * (1 + taxRate);
+        function calculateTotalWithTax(total) {
+            // job.total is already stored WITH tax included (or without if taxWaived)
+            // So just return it as-is
+            return total;
         }
 
         // Phone number formatting
@@ -1567,8 +1575,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 Object.keys(job).forEach(key => {
                     const input = form.elements[key];
                     if (input) {
+                        // For checkboxes, set the checked property
+                        if (input.type === 'checkbox') {
+                            input.checked = job[key] || false;
+                        }
                         // For select dropdowns, ensure the value exists in options before setting
-                        if (input.tagName === 'SELECT') {
+                        else if (input.tagName === 'SELECT') {
                             input.value = job[key] || '';
                         } else {
                             input.value = job[key] || '';
@@ -1872,8 +1884,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
             const subtotal = laborTotal + materialTotal;
+
+            const taxWaived = document.getElementById('taxWaivedCheckbox')?.checked || false;
             const taxRate = settings.taxRate || 0.06625;
-            const tax = subtotal * taxRate;
+            const tax = taxWaived ? 0 : subtotal * taxRate;
             const totalWithTax = subtotal + tax;
 
             document.getElementById('jobTotalDisplay').textContent = totalWithTax.toFixed(2);
@@ -1903,12 +1917,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             job.materialItems = materialItems;
             job.payments = paymentItems;
 
+            // Handle checkbox - it won't be in formData if unchecked
+            job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
+
             // Calculate totals
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
             const subtotal = laborTotal + materialTotal;
             const taxRate = settings.taxRate || 0.06625;
-            job.total = subtotal * (1 + taxRate);
+            const taxAmount = job.taxWaived ? 0 : subtotal * taxRate;
+            job.total = subtotal + taxAmount;
 
             const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
             job.totalPaid = paymentTotal;
