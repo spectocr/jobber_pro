@@ -1894,12 +1894,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
             const balance = totalWithTax - paymentTotal;
+            const isPaidInFull = Math.abs(balance) < 0.01;
 
             document.getElementById('subtotalSummary').textContent = subtotal.toFixed(2);
             document.getElementById('taxSummary').textContent = tax.toFixed(2);
             document.getElementById('totalBilledSummary').textContent = totalWithTax.toFixed(2);
             document.getElementById('totalPaidSummary').textContent = paymentTotal.toFixed(2);
             document.getElementById('balanceOwedSummary').textContent = balance.toFixed(2);
+
+            // Update balance color based on payment status
+            const balanceElement = document.getElementById('balanceOwedSummary').parentElement;
+            balanceElement.style.color = isPaidInFull ? '#48bb78' : '#e53e3e';
         }
 
         async function saveJob() {
@@ -2172,7 +2177,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                     const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
                     const owed = total - paid;
-                    const paymentStatus = owed === 0 ? '✓' : owed < total ? '◐' : '';
+                    const isPaidInFull = Math.abs(owed) < 0.01;
+                    const paymentStatus = isPaidInFull ? '✓' : owed < total ? '◐' : '';
                     return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
                         <td>\${client ? client.name : 'Unknown'}</td>
@@ -2181,7 +2187,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         <td>
                             <div style="font-size: 0.9rem;">
-                                <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${owed === 0 ? '#48bb78' : '#e53e3e'};">$\${owed.toFixed(2)}</span> \${paymentStatus}</div>
+                                <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${isPaidInFull ? '#48bb78' : '#e53e3e'};">$\${owed.toFixed(2)}</span> \${paymentStatus}</div>
                             </div>
                         </td>
                         <td>
