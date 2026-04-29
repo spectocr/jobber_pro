@@ -959,7 +959,13 @@ app.get('/api/sms/status', isAuthenticated, (req, res) => {
 });
 
 // Send appointment reminders (can be called manually or by cron)
-app.post('/api/sms/reminders', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/api/sms/reminders', isAuthenticated, async (req, res) => {
+    // Check if user is admin
+    console.log('SMS reminders - User role:', req.session.userRole, 'User ID:', req.session.userId);
+    if (req.session.userRole !== 'admin') {
+        console.log('Access denied - not admin');
+        return res.status(403).json({ error: 'Admin access required', role: req.session.userRole });
+    }
     try {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
