@@ -974,6 +974,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
 
                 <div id="reports-container">
+                    <!-- Tax Reconciliation Report -->
+                    <div class="report-section" style="background: #f0f9ff; border: 2px solid #667eea; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                        <h3 style="color: #667eea; margin-bottom: 1rem;">💰 Tax Reconciliation</h3>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Tax Year</label>
+                            <select id="tax-year-select" onchange="generateTaxReconciliation()" style="padding: 0.5rem; border: 2px solid #667eea; border-radius: 8px; min-width: 200px;">
+                                <option value="current">Current Year</option>
+                            </select>
+                        </div>
+                        <div id="tax-reconciliation-report"></div>
+                    </div>
+
                     <!-- Revenue Summary Report -->
                     <div class="report-section">
                         <h3>📊 Revenue Summary</h3>
@@ -2992,6 +3004,161 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             };
         }
 
+        async function generateTaxReconciliation() {
+            try {
+                const yearSelect = document.getElementById('tax-year-select');
+                const selectedYear = yearSelect.value;
+
+                let startDate, endDate, yearLabel;
+
+                if (selectedYear === 'current') {
+                    const currentYear = new Date().getFullYear();
+                    startDate = currentYear + '-01-01';
+                    endDate = currentYear + '-12-31';
+                    yearLabel = currentYear.toString();
+                } else {
+                    startDate = selectedYear + '-01-01';
+                    endDate = selectedYear + '-12-31';
+                    yearLabel = selectedYear;
+                }
+
+                // Get completed/invoiced jobs for the year
+                const yearJobs = jobs.filter(j => {
+                    if (!j.scheduledDate) return false;
+                    if (j.status !== 'completed' && j.status !== 'invoiced') return false;
+                    return j.scheduledDate >= startDate && j.scheduledDate <= endDate;
+                });
+
+                // Calculate total revenue
+                const totalRevenue = yearJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+
+                // Calculate material costs from jobs
+                const materialCosts = yearJobs.reduce((sum, j) => {
+                    if (j.materialItems && Array.isArray(j.materialItems)) {
+                        return sum + j.materialItems.reduce((mSum, item) =>
+                            mSum + ((item.quantity || 0) * (item.price || 0)), 0);
+                    }
+                    return sum;
+                }, 0);
+
+                // Get expenses for the year
+                let expenses = [];
+                try {
+                    const expenseResponse = await fetch('/api/expenses');
+                    expenses = await expenseResponse.json();
+                } catch (err) {
+                    console.error('Error loading expenses:', err);
+                }
+
+                const yearExpenses = expenses.filter(e => {
+                    if (!e.date) return false;
+                    return e.date >= startDate && e.date <= endDate;
+                });
+
+                const totalExpenses = yearExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
+                // Calculate net income
+                const netIncome = totalRevenue - materialCosts - totalExpenses;
+
+                // Breakdown by category
+                const expensesByCategory = {};
+                yearExpenses.forEach(e => {
+                    const cat = e.category || 'other';
+                    expensesByCategory[cat] = (expensesByCategory[cat] || 0) + (parseFloat(e.amount) || 0);
+                });
+
+                const categoryLabels = {
+                    vehicle: 'Vehicle & Fuel',
+                    tools: 'Tools & Equipment',
+                    materials: 'Materials & Supplies',
+                    office: 'Office Expenses',
+                    utilities: 'Utilities',
+                    insurance: 'Insurance',
+                    marketing: 'Marketing & Advertising',
+                    meals: 'Meals & Entertainment',
+                    travel: 'Travel',
+                    professional: 'Professional Services',
+                    other: 'Other'
+                };
+
+                let categoryBreakdown = '';
+                Object.keys(expensesByCategory).forEach(cat => {
+                    categoryBreakdown += '<tr><td style="padding: 0.5rem; padding-left: 2rem; color: #4a5568;">' +
+                        (categoryLabels[cat] || cat) + ':</td><td style="text-align: right;">$' +
+                        expensesByCategory[cat].toFixed(2) + '</td></tr>';
+                });
+
+                document.getElementById('tax-reconciliation-report').innerHTML = \`
+                    <div style="background: white; padding: 1.5rem; border-radius: 8px; border: 2px solid #667eea;">
+                        <h4 style="margin-bottom: 1rem; color: #667eea; font-size: 1.3rem;">Tax Year \${yearLabel}</h4>
+                        <table style="width: 100%; margin-top: 1rem; font-size: 1rem;">
+                            <tr style="background: #f0f9ff;">
+                                <td style="padding: 0.75rem; font-weight: 600; font-size: 1.1rem;">Gross Revenue</td>
+                                <td style="text-align: right; font-weight: 600; font-size: 1.1rem; color: #48bb78;">$\${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            </tr>
+                            <tr><td colspan="2" style="padding: 0.25rem;"></td></tr>
+                            <tr style="background: #fff5f5;">
+                                <td style="padding: 0.5rem; font-weight: 600;">Less: Material Costs</td>
+                                <td style="text-align: right; color: #e53e3e;">($\${materialCosts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
+                            </tr>
+                            <tr style="background: #fff5f5;">
+                                <td style="padding: 0.5rem; font-weight: 600;">Less: Business Expenses</td>
+                                <td style="text-align: right; color: #e53e3e;">($\${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
+                            </tr>
+                            \${categoryBreakdown}
+                            <tr><td colspan="2" style="padding: 0.25rem;"></td></tr>
+                            <tr style="border-top: 3px solid #667eea; background: #667eea; color: white;">
+                                <td style="padding: 1rem; font-weight: 700; font-size: 1.3rem;">Net Income</td>
+                                <td style="text-align: right; font-weight: 700; font-size: 1.3rem;">$\${netIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            </tr>
+                        </table>
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 4px;">
+                            <p style="margin: 0; color: #78350f; font-size: 0.9rem;">
+                                <strong>Note:</strong> This is a preliminary calculation for tax planning purposes.
+                                Consult with a qualified tax professional for final tax preparation.
+                                Additional deductions may be available based on your business structure and situation.
+                            </p>
+                        </div>
+                        <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                            <button class="btn btn-primary" onclick="printTaxReconciliation()">🖨️ Print Report</button>
+                            <button class="btn btn-secondary" onclick="exportTaxReconciliation()">📊 Export to CSV</button>
+                        </div>
+                    </div>
+                \`;
+
+            } catch (error) {
+                console.error('Error generating tax reconciliation:', error);
+                document.getElementById('tax-reconciliation-report').innerHTML =
+                    '<p style="color: #e53e3e; padding: 1rem;">Error generating tax reconciliation: ' + error.message + '</p>';
+            }
+        }
+
+        function printTaxReconciliation() {
+            const content = document.getElementById('tax-reconciliation-report').innerHTML;
+            const printWindow = window.open('', '', 'width=800,height=600');
+            printWindow.document.write('<html><head><title>Tax Reconciliation</title>');
+            printWindow.document.write('<style>body { font-family: Arial, sans-serif; padding: 20px; } table { width: 100%; border-collapse: collapse; }</style>');
+            printWindow.document.write('</head><body>');
+            printWindow.document.write(content);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        function exportTaxReconciliation() {
+            const yearSelect = document.getElementById('tax-year-select');
+            const selectedYear = yearSelect.value === 'current' ? new Date().getFullYear() : yearSelect.value;
+
+            const content = document.getElementById('tax-reconciliation-report').innerText;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Tax_Reconciliation_' + selectedYear + '.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
         async function generateReports() {
             console.log('generateReports called');
             try {
@@ -3287,6 +3454,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     jobs = await response.json();
                 }
 
+                // Populate tax year dropdown
+                const currentYear = new Date().getFullYear();
+                const taxYearSelect = document.getElementById('tax-year-select');
+                let yearOptions = '<option value="current">Current Year (' + currentYear + ')</option>';
+                for (let i = 1; i <= 5; i++) {
+                    const year = currentYear - i;
+                    yearOptions += '<option value="' + year + '">' + year + '</option>';
+                }
+                taxYearSelect.innerHTML = yearOptions;
+
                 // Populate filter dropdowns
                 const clientFilter = document.getElementById('report-filter-client');
                 const teamFilter = document.getElementById('report-filter-team');
@@ -3296,6 +3473,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 teamFilter.innerHTML = '<option value="">All Team Members</option>' +
                     team.map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+
+                // Generate tax reconciliation first
+                await generateTaxReconciliation();
 
                 // Generate reports with default filters
                 await generateReports();
