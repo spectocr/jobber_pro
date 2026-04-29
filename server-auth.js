@@ -417,6 +417,7 @@ app.post('/api/auth/login', async (req, res) => {
         req.session.userId = user._id;
         req.session.userEmail = user.email;
         req.session.userName = user.name;
+        req.session.userRole = user.role || 'user';
 
         // Save session before responding
         req.session.save((err) => {
