@@ -1082,9 +1082,8 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         .status-completed { background: #c6f6d5; color: #22543d; }
         .status-in_progress { background: #feebc8; color: #7c2d12; }
         .status-scheduled { background: #bee3f8; color: #2c5282; }
-        .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 8em; font-weight: 900; color: rgba(72, 187, 120, 0.25); z-index: 1; white-space: nowrap; pointer-events: none; letter-spacing: 0.1em; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
-        body > * { position: relative; z-index: 10; }
-        @media print { .watermark { color: rgba(72, 187, 120, 0.2); } }
+        .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 7em; font-weight: 900; color: rgba(72, 187, 120, 0.4); z-index: 999; white-space: nowrap; pointer-events: none; letter-spacing: 0.15em; border: 8px solid rgba(72, 187, 120, 0.3); padding: 40px 80px; border-radius: 20px; }
+        @media print { .watermark { color: rgba(72, 187, 120, 0.35); border-color: rgba(72, 187, 120, 0.25); } }
     </style>
 </head>
 <body>
