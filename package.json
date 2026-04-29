@@ -25,7 +25,8 @@
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "bcrypt": "^5.1.1",
-    "connect-mongo": "^5.1.0"
+    "connect-mongo": "^5.1.0",
+    "twilio": "^5.3.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

@@ -13,11 +13,25 @@ const { MongoClient, ObjectId } = require('mongodb');
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const twilio = require('twilio');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const DB_NAME = 'jobber_pro';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-in-production';
+
+// Twilio setup
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
+
+let twilioClient = null;
+if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER) {
+    twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    console.log('✅ Twilio SMS enabled');
+} else {
+    console.log('⚠️  Twilio not configured - SMS features disabled');
+}
 
 let db = null;
 let client = null;
@@ -93,6 +107,38 @@ function isAdmin(req, res, next) {
         return next();
     }
     res.status(403).json({ error: 'Forbidden - Admin access required' });
+}
+
+// SMS Helper Function
+async function sendSMS(to, message) {
+    if (!twilioClient) {
+        console.log('SMS not sent (Twilio not configured):', to, message);
+        return { success: false, error: 'Twilio not configured' };
+    }
+
+    try {
+        // Format phone number
+        let phoneNumber = to.replace(/\D/g, '');
+        if (phoneNumber.length === 10) {
+            phoneNumber = '+1' + phoneNumber;
+        } else if (phoneNumber.length === 11 && phoneNumber.startsWith('1')) {
+            phoneNumber = '+' + phoneNumber;
+        } else if (!phoneNumber.startsWith('+')) {
+            phoneNumber = '+' + phoneNumber;
+        }
+
+        const result = await twilioClient.messages.create({
+            body: message,
+            from: TWILIO_PHONE_NUMBER,
+            to: phoneNumber
+        });
+
+        console.log('✅ SMS sent to', phoneNumber, '- SID:', result.sid);
+        return { success: true, sid: result.sid };
+    } catch (error) {
+        console.error('❌ SMS error:', error.message);
+        return { success: false, error: error.message };
+    }
 }
 
 // Load HTML template
@@ -704,6 +750,13 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
 
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
+    let isUpdate = !!job._id;
+    let oldJob = null;
+
+    // Get old job data if updating (for status change detection)
+    if (isUpdate) {
+        oldJob = await db.collection('jobs').findOne({ _id: new ObjectId(job._id) });
+    }
 
     // Convert clientId to ObjectId or remove if invalid
     if (job.clientId && job.clientId !== 'undefined' && typeof job.clientId === 'string' && job.clientId.length === 24) {
@@ -729,6 +782,46 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         job.createdAt = new Date();
         await db.collection('jobs').insertOne(job);
     }
+
+    // Send SMS notifications
+    try {
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+
+        if (client && client.phone) {
+            const settings = await db.collection('settings').findOne({});
+            const companyName = settings?.companyName || 'Jobber Pro';
+
+            // New job scheduled
+            if (!isUpdate && job.status === 'scheduled') {
+                const date = new Date(job.scheduledDate).toLocaleDateString();
+                const time = job.scheduledTime || 'TBD';
+                await sendSMS(client.phone,
+                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
+            }
+
+            // Status changed
+            if (isUpdate && oldJob && oldJob.status !== job.status) {
+                if (job.status === 'scheduled') {
+                    const date = new Date(job.scheduledDate).toLocaleDateString();
+                    await sendSMS(client.phone,
+                        companyName + ': Job "' + job.title + '" scheduled for ' + date + '.');
+                } else if (job.status === 'in_progress') {
+                    await sendSMS(client.phone,
+                        companyName + ': We\'re starting work on "' + job.title + '" now.');
+                } else if (job.status === 'completed') {
+                    await sendSMS(client.phone,
+                        companyName + ': Job "' + job.title + '" is complete! Invoice will follow shortly.');
+                } else if (job.status === 'invoiced') {
+                    await sendSMS(client.phone,
+                        companyName + ': Invoice ready for "' + job.title + '". Total: $' + (job.total || 0).toFixed(2) + '.');
+                }
+            }
+        }
+    } catch (smsError) {
+        console.error('SMS notification error:', smsError);
+        // Don't fail the job save if SMS fails
+    }
+
     res.json({ success: true });
 });
 
@@ -830,6 +923,87 @@ app.post('/api/expenses', isAuthenticated, isAdmin, async (req, res) => {
 app.delete('/api/expenses/:id', isAuthenticated, isAdmin, async (req, res) => {
     await db.collection('expenses').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
+});
+
+// SMS API Endpoints
+app.post('/api/sms/send', isAuthenticated, async (req, res) => {
+    const { to, message, clientId, jobId } = req.body;
+
+    if (!to || !message) {
+        return res.status(400).json({ error: 'Phone number and message required' });
+    }
+
+    const result = await sendSMS(to, message);
+
+    // Log the SMS
+    if (result.success) {
+        await db.collection('sms_log').insertOne({
+            to,
+            message,
+            clientId: clientId ? new ObjectId(clientId) : null,
+            jobId: jobId ? new ObjectId(jobId) : null,
+            sentBy: req.session.userId,
+            sentAt: new Date(),
+            sid: result.sid
+        });
+    }
+
+    res.json(result);
+});
+
+app.get('/api/sms/status', isAuthenticated, (req, res) => {
+    res.json({
+        enabled: !!twilioClient,
+        configured: !!(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER)
+    });
+});
+
+// Send appointment reminders (can be called manually or by cron)
+app.post('/api/sms/reminders', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+        const jobs = await db.collection('jobs').find({
+            scheduledDate: tomorrowStr,
+            status: 'scheduled'
+        }).toArray();
+
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Jobber Pro';
+        let sentCount = 0;
+
+        for (const job of jobs) {
+            if (job.clientId) {
+                const client = await db.collection('clients').findOne({ _id: job.clientId });
+                if (client && client.phone) {
+                    const time = job.scheduledTime || 'TBD';
+                    const message = companyName + ' Reminder: Your appointment "' + job.title +
+                        '" is tomorrow at ' + time + '. Reply CONFIRM or call us if you need to reschedule.';
+
+                    const result = await sendSMS(client.phone, message);
+                    if (result.success) {
+                        sentCount++;
+                        await db.collection('sms_log').insertOne({
+                            to: client.phone,
+                            message,
+                            clientId: job.clientId,
+                            jobId: job._id,
+                            type: 'reminder',
+                            sentAt: new Date(),
+                            sid: result.sid
+                        });
+                    }
+                }
+            }
+        }
+
+        res.json({ success: true, sent: sentCount, total: jobs.length });
+    } catch (error) {
+        console.error('Error sending reminders:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Invoice generation (protected)

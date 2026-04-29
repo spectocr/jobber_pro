@@ -1079,6 +1079,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">These terms will be displayed at the bottom of all invoices</small>
                     </div>
 
+                    <h3 style="margin: 2rem 0 1rem 0; color: #667eea;">SMS / Text Messaging</h3>
+                    <div id="smsConfigStatus" style="padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <p style="margin: 0;">Loading SMS status...</p>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <button type="button" class="btn btn-secondary" onclick="sendAppointmentReminders()">📱 Send Tomorrow's Appointment Reminders</button>
+                    </div>
+                    <small style="color: #718096; display: block;">
+                        SMS automatically sends when:<br>
+                        • Job is scheduled (appointment confirmation)<br>
+                        • Status changes (in progress, completed, invoiced)<br>
+                        • Payment is recorded (receipt confirmation)<br>
+                        Use the 📱 button next to clients to send custom messages.
+                    </small>
+
                     <div style="margin-top: 2rem;">
                         <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
                     </div>
@@ -1485,6 +1500,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('expenseModal')">Cancel</button>
                 <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SMS Modal -->
+    <div id="smsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📱 Send Text Message</h2>
+                <button class="close-btn" onclick="closeModal('smsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>To</label>
+                    <input type="tel" id="smsTo" readonly style="background: #f5f5f5;">
+                </div>
+                <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="smsMessage" rows="5" placeholder="Type your message here..." maxlength="160"></textarea>
+                    <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                        <span id="smsCharCount">0</span>/160 characters
+                    </small>
+                </div>
+                <div id="smsStatus" style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('smsModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="sendManualSMS()">Send Message</button>
             </div>
         </div>
     </div>
@@ -2367,6 +2410,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>\${cityState}</td>
                         <td>\${c.marketingChannel || '-'}</td>
                         <td onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary btn-small" onclick="openSMSModal('\${c.phone}', '\${c.id}', null)" title="Send text message">📱</button>
                             <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                         </td>
@@ -3507,6 +3551,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('remove-logo').style.display = 'inline-block';
             }
 
+            // Check SMS status
+            const smsStatus = await fetch('/api/sms/status').then(r => r.json()).catch(() => ({ enabled: false }));
+            const statusDiv = document.getElementById('smsConfigStatus');
+            if (smsStatus.enabled) {
+                statusDiv.innerHTML = '<p style="margin: 0; color: #48bb78;"><strong>✓ SMS Enabled</strong> - Text messaging is active</p>';
+                statusDiv.style.background = '#f0fff4';
+                statusDiv.style.border = '2px solid #9ae6b4';
+            } else {
+                statusDiv.innerHTML = '<p style="margin: 0; color: #e53e3e;"><strong>⚠ SMS Not Configured</strong> - Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER environment variables on Heroku to enable text messaging.</p>';
+                statusDiv.style.background = '#fff5f5';
+                statusDiv.style.border = '2px solid #fc8181';
+            }
+
             // Mark form as clean after loading
             markFormClean();
         }
@@ -3949,6 +4006,95 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        // SMS Functions
+        let currentSMSClientId = null;
+        let currentSMSJobId = null;
+
+        function openSMSModal(phone, clientId, jobId) {
+            currentSMSClientId = clientId;
+            currentSMSJobId = jobId;
+            document.getElementById('smsTo').value = phone;
+            document.getElementById('smsMessage').value = '';
+            document.getElementById('smsCharCount').textContent = '0';
+            document.getElementById('smsStatus').style.display = 'none';
+            document.getElementById('smsModal').classList.add('active');
+        }
+
+        document.getElementById('smsMessage')?.addEventListener('input', function() {
+            const count = this.value.length;
+            document.getElementById('smsCharCount').textContent = count;
+        });
+
+        async function sendManualSMS() {
+            const to = document.getElementById('smsTo').value;
+            const message = document.getElementById('smsMessage').value.trim();
+            const statusDiv = document.getElementById('smsStatus');
+
+            if (!message) {
+                statusDiv.innerHTML = '<span style="color: #e53e3e;">Please enter a message</span>';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff5f5';
+                statusDiv.style.border = '1px solid #fc8181';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/sms/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to,
+                        message,
+                        clientId: currentSMSClientId,
+                        jobId: currentSMSJobId
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = '<span style="color: #48bb78;">✓ Message sent successfully!</span>';
+                    statusDiv.style.display = 'block';
+                    statusDiv.style.background = '#f0fff4';
+                    statusDiv.style.border = '1px solid #9ae6b4';
+                    setTimeout(() => {
+                        closeModal('smsModal');
+                    }, 1500);
+                } else {
+                    statusDiv.innerHTML = '<span style="color: #e53e3e;">Error: ' + (result.error || 'Failed to send') + '</span>';
+                    statusDiv.style.display = 'block';
+                    statusDiv.style.background = '#fff5f5';
+                    statusDiv.style.border = '1px solid #fc8181';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<span style="color: #e53e3e;">Error: ' + error.message + '</span>';
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fff5f5';
+                statusDiv.style.border = '1px solid #fc8181';
+            }
+        }
+
+        async function sendAppointmentReminders() {
+            if (!confirm('Send appointment reminders to all clients with jobs tomorrow?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/sms/reminders', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Sent ' + result.sent + ' reminders out of ' + result.total + ' scheduled jobs');
+                } else {
+                    alert('Error sending reminders: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
         }
 
         // Calendar functions
