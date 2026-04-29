@@ -957,6 +957,13 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         <p>Thank you for your business!</p>
         <p>Please remit payment within 30 days.</p>
     </div>
+
+    ${settings.contractTerms ? `
+    <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+        <h3 style="color: #667eea; margin-bottom: 15px;">Terms & Conditions</h3>
+        <p style="white-space: pre-wrap; line-height: 1.6; color: #333; font-size: 0.9em;">${settings.contractTerms}</p>
+    </div>
+    ` : ''}
 </body>
 </html>`;
 

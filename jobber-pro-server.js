@@ -1026,6 +1026,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="number" name="taxRatePercent" step="0.001" min="0" placeholder="e.g., 6.625 for NJ">
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">NJ sales tax is 6.625%</small>
                     </div>
+                    <div class="form-group">
+                        <label>Contract Terms</label>
+                        <textarea name="contractTerms" rows="6" placeholder="Enter contract terms and conditions that will appear at the bottom of invoices..."></textarea>
+                        <small style="color: #718096; display: block; margin-top: 0.5rem;">These terms will be displayed at the bottom of all invoices</small>
+                    </div>
 
                     <div style="margin-top: 2rem;">
                         <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
