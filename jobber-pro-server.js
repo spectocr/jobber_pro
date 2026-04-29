@@ -802,6 +802,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="">All Team Members</option>
                         </select>
                         <button class="btn btn-secondary" onclick="clearJobFilters()" style="margin-left: auto;">Clear Filters</button>
+                        <button class="btn btn-secondary" onclick="exportJobsToExcel()">📊 Export to Excel</button>
                         <button class="btn btn-primary" onclick="openJobModal()">+ Create Job</button>
                     </div>
                 </div>
@@ -2211,6 +2212,68 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('filter-client').value = '';
             document.getElementById('filter-assigned').value = '';
             renderJobsTable();
+        }
+
+        function exportJobsToExcel() {
+            // Apply current filters to export
+            const statusFilter = document.getElementById('filter-status').value;
+            const clientFilter = document.getElementById('filter-client').value;
+            const assignedFilter = document.getElementById('filter-assigned').value;
+
+            const filteredJobs = jobs.filter(j => {
+                if (statusFilter && j.status !== statusFilter) return false;
+                if (clientFilter && j.clientId !== clientFilter) return false;
+                if (assignedFilter && j.assignedTo !== assignedFilter) return false;
+                return true;
+            });
+
+            if (filteredJobs.length === 0) {
+                alert('No jobs to export');
+                return;
+            }
+
+            // Create CSV content
+            const headers = ['Date', 'Time', 'Client', 'Job Title', 'Description', 'Assigned To', 'Status', 'Total Billed', 'Total Paid', 'Balance Owed'];
+            const rows = filteredJobs.map(j => {
+                const client = clients.find(c => c.id == j.clientId);
+                const assigned = team.find(t => t.id == j.assignedTo);
+                const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
+                const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
+                const owed = total - paid;
+                const isPaidInFull = Math.abs(owed) < 0.01;
+                const owedDisplay = isPaidInFull ? 0 : owed;
+
+                return [
+                    j.scheduledDate || '',
+                    j.scheduledTime || '',
+                    client ? client.name : 'Unknown',
+                    j.title || '',
+                    (j.description || '').replace(/"/g, '""'), // Escape quotes
+                    assigned ? assigned.name : 'Unassigned',
+                    j.status.replace('_', ' '),
+                    total.toFixed(2),
+                    paid.toFixed(2),
+                    owedDisplay.toFixed(2)
+                ];
+            });
+
+            // Build CSV
+            let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+
+            // Create download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `jobs_export_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         async function loadTeam() {
