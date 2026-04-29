@@ -3141,6 +3141,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             form.elements.companyEmail.value = settings.companyEmail || '';
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
             form.elements.taxRatePercent.value = ((settings.taxRate || 0.06625) * 100).toFixed(3);
+            form.elements.contractTerms.value = settings.contractTerms || '';
 
             // Load logo if exists
             if (settings.companyLogo) {
