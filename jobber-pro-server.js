@@ -1392,10 +1392,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 alert('You do not have permission to edit jobs.');
                 return;
             }
-            // Try to find in jobs array first, then upcomingJobs
+            // Search in all job arrays
             let job = jobs.find(j => j.id == jobId || j._id == jobId);
             if (!job && window.upcomingJobs) {
                 job = window.upcomingJobs.find(j => j.id == jobId || j._id == jobId);
+            }
+            if (!job && window.inProgressJobs) {
+                job = window.inProgressJobs.find(j => j.id == jobId || j._id == jobId);
+            }
+            if (!job && window.completedJobs) {
+                job = window.completedJobs.find(j => j.id == jobId || j._id == jobId);
             }
             if (job) {
                 openJobModal(job);
@@ -1807,6 +1813,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     }).join('') +
                     '</tbody></table></div>';
             };
+
+            // Store job arrays globally for editJob to access
+            window.upcomingJobs = stats.upcomingJobs || [];
+            window.inProgressJobs = stats.inProgressJobs || [];
+            window.completedJobs = stats.completedLast30Days || [];
 
             // Upcoming jobs
             document.getElementById('upcoming-count').textContent = `(${stats.upcomingJobs?.length || 0})`;
