@@ -1172,7 +1172,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div class="form-group">
                         <label>Assigned To</label>
-                        <select name="assignedTo" id="jobTeamSelect">
+                        <select name="assignedTo" id="jobTeamSelect" onchange="handleTeamMemberChange()">
                             <option value="">Unassigned</option>
                         </select>
                     </div>
@@ -1265,6 +1265,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div class="form-group">
                         <label>Email</label>
                         <input type="email" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label>Hourly Rate ($)</label>
+                        <input type="number" name="hourlyRate" step="0.01" min="0" placeholder="75.00">
                     </div>
                     <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Address</h3>
                     <div class="form-group">
@@ -1678,7 +1682,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function addLaborItem() {
             const id = Date.now();
-            laborItems.push({ id, description: '', hours: 0, rate: 75 });
+            const selectElement = document.getElementById('jobTeamSelect');
+            const selectedTeamId = selectElement.value;
+
+            let defaultRate = settings.hourlyRate || 75;
+
+            // If a team member is assigned, use their rate
+            if (selectedTeamId) {
+                const teamMember = team.find(t => t.id == selectedTeamId);
+                if (teamMember && teamMember.hourlyRate) {
+                    defaultRate = parseFloat(teamMember.hourlyRate);
+                }
+            }
+
+            laborItems.push({ id, description: '', hours: 0, rate: defaultRate });
             renderLineItems();
             markFormDirty();
         }
@@ -1694,6 +1711,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const id = Date.now();
             const today = new Date().toISOString().split('T')[0];
             paymentItems.push({ id, date: today, amount: 0, method: 'cash', notes: '' });
+            renderLineItems();
+            markFormDirty();
+        }
+
+        function handleTeamMemberChange() {
+            const selectElement = document.getElementById('jobTeamSelect');
+            const selectedTeamId = selectElement.value;
+
+            if (!selectedTeamId) return;
+
+            const teamMember = team.find(t => t.id == selectedTeamId);
+            if (!teamMember || !teamMember.hourlyRate) return;
+
+            // Update all existing labor items with the team member's rate
+            laborItems.forEach(item => {
+                item.rate = parseFloat(teamMember.hourlyRate);
+            });
+
+            // If no labor items exist, add one with the team member's rate
+            if (laborItems.length === 0) {
+                const id = Date.now();
+                laborItems.push({ id, description: '', hours: 0, rate: parseFloat(teamMember.hourlyRate) });
+            }
+
             renderLineItems();
             markFormDirty();
         }
