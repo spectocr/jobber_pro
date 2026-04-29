@@ -938,6 +938,17 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
 app.put('/api/timeentries/:id', isAdmin, async (req, res) => {
     const { clockIn, clockOut, duration, jobId, jobName, status, approvalStatus, paymentAmount } = req.body;
 
+    // Get current time entry
+    const timeEntry = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
+    if (!timeEntry) {
+        return res.status(404).json({ error: 'Time entry not found' });
+    }
+
+    // Validate payment amount if approving
+    if (status === 'approved' && (!paymentAmount || paymentAmount <= 0)) {
+        return res.status(400).json({ error: 'Payment amount is required to approve time entry' });
+    }
+
     const updates = {
         updatedAt: new Date()
     };
@@ -947,14 +958,37 @@ app.put('/api/timeentries/:id', isAdmin, async (req, res) => {
     if (duration !== undefined) updates.duration = duration;
     if (jobId) updates.jobId = jobId;
     if (jobName) updates.jobName = jobName;
-    if (status) updates.status = status;
-    if (approvalStatus) updates.approvalStatus = approvalStatus;
+    if (status) {
+        updates.status = status;
+        updates.approvalStatus = status;
+        if (status === 'approved') {
+            updates.approvedBy = req.session.userName;
+            updates.approvedAt = new Date();
+        }
+    }
     if (paymentAmount !== undefined) updates.paymentAmount = paymentAmount;
 
     await db.collection('timeentries').updateOne(
         { _id: new ObjectId(req.params.id) },
         { $set: updates }
     );
+
+    // Create expense if approving and this wasn't already approved
+    if (status === 'approved' && timeEntry.status !== 'approved' && paymentAmount > 0) {
+        const expense = {
+            date: new Date(),
+            category: 'Labor',
+            description: `Labor payment for ${timeEntry.jobName} - ${timeEntry.userName}`,
+            amount: parseFloat(paymentAmount),
+            paymentMethod: 'labor_payment',
+            notes: `Auto-generated from time entry approval. Worker: ${timeEntry.userName}, Job: ${timeEntry.jobName}, Duration: ${Math.floor((duration || timeEntry.duration) / 3600)}h ${Math.floor(((duration || timeEntry.duration) % 3600) / 60)}m`,
+            createdBy: req.session.userName,
+            createdAt: new Date(),
+            timeEntryId: req.params.id
+        };
+
+        await db.collection('expenses').insertOne(expense);
+    }
 
     const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
     res.json({ ...updated, id: updated._id.toString() });
@@ -968,20 +1002,48 @@ app.delete('/api/timeentries/:id', isAdmin, async (req, res) => {
 // Approve time entry
 app.post('/api/timeentries/:id/approve', isAdmin, async (req, res) => {
     const { paymentAmount } = req.body;
+    const amount = parseFloat(paymentAmount);
 
+    // Validate payment amount is required
+    if (!amount || amount <= 0) {
+        return res.status(400).json({ error: 'Payment amount is required to approve time entry' });
+    }
+
+    // Get the time entry details
+    const timeEntry = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
+    if (!timeEntry) {
+        return res.status(404).json({ error: 'Time entry not found' });
+    }
+
+    // Update the time entry
     await db.collection('timeentries').updateOne(
         { _id: new ObjectId(req.params.id) },
         {
             $set: {
                 approvalStatus: 'approved',
                 status: 'approved',
-                paymentAmount: parseFloat(paymentAmount) || 0,
+                paymentAmount: amount,
                 approvedBy: req.session.userName,
                 approvedAt: new Date(),
                 updatedAt: new Date()
             }
         }
     );
+
+    // Create expense entry
+    const expense = {
+        date: new Date(),
+        category: 'Labor',
+        description: `Labor payment for ${timeEntry.jobName} - ${timeEntry.userName}`,
+        amount: amount,
+        paymentMethod: 'labor_payment',
+        notes: `Auto-generated from time entry approval. Worker: ${timeEntry.userName}, Job: ${timeEntry.jobName}, Duration: ${Math.floor(timeEntry.duration / 3600)}h ${Math.floor((timeEntry.duration % 3600) / 60)}m`,
+        createdBy: req.session.userName,
+        createdAt: new Date(),
+        timeEntryId: req.params.id
+    };
+
+    await db.collection('expenses').insertOne(expense);
 
     const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
     res.json({ ...updated, id: updated._id.toString() });

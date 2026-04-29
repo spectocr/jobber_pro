@@ -5041,6 +5041,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
+            if (status === 'approved' && (!paymentAmount || paymentAmount <= 0)) {
+                alert('⚠️ Payment amount is required to approve time entry');
+                document.getElementById('editPaymentAmount').focus();
+                return;
+            }
+
             const duration = Math.round((clockOut - clockIn) / 1000); // seconds
 
             const updates = {
@@ -5055,16 +5061,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 updates.paymentAmount = paymentAmount;
             }
 
-            await fetch('/api/timeentries/' + id, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
+            try {
+                const response = await fetch('/api/timeentries/' + id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
 
-            closeModal('editTimeEntryModal');
-            loadTodayTimeEntries();
-            loadApprovalQueue();
-            loadAllTimeEntries();
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert('Failed to update: ' + (error.error || 'Unknown error'));
+                    return;
+                }
+
+                closeModal('editTimeEntryModal');
+                loadTodayTimeEntries();
+                loadApprovalQueue();
+                loadAllTimeEntries();
+                loadMyPay();
+            } catch (error) {
+                alert('Error updating time entry: ' + error.message);
+            }
         }
 
         function formatDuration(seconds) {
@@ -5148,20 +5165,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const paymentAmount = parseFloat(paymentInput.value);
 
             if (!paymentAmount || paymentAmount <= 0) {
-                alert('Please enter a valid payment amount');
+                alert('⚠️ Payment amount is required to approve time entry');
+                paymentInput.focus();
                 return;
             }
 
-            if (!confirm('Approve this time entry and pay $' + paymentAmount.toFixed(2) + '?')) return;
+            if (!confirm('Approve this time entry and pay $' + paymentAmount.toFixed(2) + '?\\n\\nThis will also create an expense record for this payment.')) return;
 
-            await fetch('/api/timeentries/' + id + '/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentAmount: paymentAmount })
-            });
+            try {
+                const response = await fetch('/api/timeentries/' + id + '/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paymentAmount: paymentAmount })
+                });
 
-            loadApprovalQueue();
-            loadAllTimeEntries();
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert('Failed to approve: ' + (error.error || 'Unknown error'));
+                    return;
+                }
+
+                loadApprovalQueue();
+                loadAllTimeEntries();
+                loadMyPay();
+            } catch (error) {
+                alert('Error approving time entry: ' + error.message);
+            }
         }
 
         async function rejectTimeEntry(id) {
