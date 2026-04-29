@@ -4083,6 +4083,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function previewAppointmentReminders() {
             try {
+                // Load jobs if not already loaded
+                if (!jobs || jobs.length === 0) {
+                    const response = await fetch('/api/jobs');
+                    jobs = await response.json();
+                }
+
+                // Load clients if not already loaded
+                if (!clients || clients.length === 0) {
+                    const response = await fetch('/api/clients');
+                    clients = await response.json();
+                }
+
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 const tomorrowStr = tomorrow.toISOString().split('T')[0];
