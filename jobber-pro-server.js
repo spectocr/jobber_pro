@@ -2744,7 +2744,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function deleteUser(userId) {
-            if (!confirm('Delete this user? This action cannot be undone.')) return;
+            if (!confirm('⚠️ Are you sure you want to delete this user?\n\nThis action cannot be undone.')) return;
 
             const response = await fetch(\`/api/users/\${userId}\`, {
                 method: 'DELETE'
@@ -2766,7 +2766,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 alert('You do not have permission to delete clients.');
                 return;
             }
-            if (!confirm('Delete this client?')) return;
+            const client = clients.find(c => c.id == id);
+            const clientName = client ? client.name : 'this client';
+            if (!confirm(\`⚠️ Are you sure you want to delete \${clientName}?\n\nThis will also affect all jobs associated with this client.\`)) return;
             await fetch(\`/api/clients/\${id}\`, { method: 'DELETE' });
             loadClients();
         }
@@ -2776,7 +2778,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 alert('You do not have permission to delete jobs.');
                 return;
             }
-            if (!confirm('Delete this job?')) return;
+            const job = jobs.find(j => j.id == id);
+            const jobTitle = job ? job.title : 'this job';
+            if (!confirm(\`⚠️ Are you sure you want to delete "\${jobTitle}"?\n\nThis action cannot be undone.\`)) return;
             await fetch(\`/api/jobs/\${id}\`, { method: 'DELETE' });
             loadJobs();
             loadDashboard();
@@ -2787,7 +2791,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 alert('You do not have permission to delete team members.');
                 return;
             }
-            if (!confirm('Delete this team member?')) return;
+            const member = team.find(t => t.id == id);
+            const memberName = member ? member.name : 'this team member';
+            if (!confirm(\`⚠️ Are you sure you want to delete \${memberName}?\n\nThis will affect all jobs assigned to them.\`)) return;
             await fetch(\`/api/team/\${id}\`, { method: 'DELETE' });
             loadTeam();
         }
