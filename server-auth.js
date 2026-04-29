@@ -581,6 +581,7 @@ app.get('/', (req, res) => {
 app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     const jobs = await db.collection('jobs').find().toArray();
     const clients = await db.collection('clients').find().toArray();
+    const settings = await db.collection('settings').findOne() || {};
 
     // Map _id to id for frontend compatibility
     const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
@@ -588,6 +589,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
 
     const today = new Date().toISOString().split('T')[0];
     const thisMonth = new Date().toISOString().slice(0, 7);
+    const taxRate = settings.taxRate || 0.06625;
 
     // Map jobs with proper ID conversion
     const jobsMapped = jobsWithId.map(j => ({
@@ -596,6 +598,10 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
         assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
     }));
+
+    const subtotalRevenue = jobsMapped
+        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
+        .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
 
     const stats = {
         totalClients: clientsWithId.length,
@@ -608,9 +614,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         completed: jobsMapped.filter(j => j.status === 'completed').length,
         invoiced: jobsMapped.filter(j => j.status === 'invoiced').length,
         bidLost: jobsMapped.filter(j => j.status === 'bid_lost').length,
-        revenueThisMonth: jobsMapped
-            .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
-            .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
+        revenueThisMonth: subtotalRevenue * (1 + taxRate),
         upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
@@ -659,13 +663,20 @@ app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
 
 app.get('/api/jobs', isAuthenticated, async (req, res) => {
     const jobs = await db.collection('jobs').find().toArray();
+    const settings = await db.collection('settings').findOne() || {};
+    const taxRate = settings.taxRate || 0.06625;
+
     // Map _id to id and ObjectId references to strings for frontend compatibility
-    const jobsWithId = jobs.map(j => ({
-        ...j,
-        id: j._id.toString(),
-        clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
-        assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
-    }));
+    const jobsWithId = jobs.map(j => {
+        const subtotal = parseFloat(j.total) || 0;
+        return {
+            ...j,
+            id: j._id.toString(),
+            clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
+            assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null,
+            totalWithTax: subtotal * (1 + taxRate)
+        };
+    });
     res.json(jobsWithId);
 });
 
