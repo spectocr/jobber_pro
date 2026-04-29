@@ -757,6 +757,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
                     </div>
                 </div>
+
+                <!-- Client Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <h3>Total Clients</h3>
+                        <div class="value" id="stat-total-clients">0</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #48bb78;">
+                        <h3>Repeat Clients</h3>
+                        <div class="value" id="stat-repeat-clients">0</div>
+                        <small style="color: #718096;">Multiple jobs</small>
+                    </div>
+                </div>
+
+                <!-- NJ Map -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <h3>Client Distribution - New Jersey</h3>
+                    </div>
+                    <div style="position: relative; height: 600px; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
+                        <svg id="nj-map" viewBox="0 0 400 600" style="width: 100%; height: 100%;">
+                            <!-- NJ state outline will be drawn here -->
+                        </svg>
+                        <div id="map-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 0.5rem; border-radius: 4px; font-size: 0.875rem; display: none; pointer-events: none;"></div>
+                    </div>
+                </div>
+
                 <div id="clients-list"></div>
             </div>
         </div>
@@ -2042,6 +2069,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const response = await fetch('/api/clients');
             clients = await response.json();
 
+            // Calculate stats
+            const totalClients = clients.length;
+            const clientJobCounts = {};
+            jobs.forEach(j => {
+                if (j.clientId) {
+                    clientJobCounts[j.clientId] = (clientJobCounts[j.clientId] || 0) + 1;
+                }
+            });
+            const repeatClients = Object.values(clientJobCounts).filter(count => count > 1).length;
+
+            document.getElementById('stat-total-clients').textContent = totalClients;
+            document.getElementById('stat-repeat-clients').textContent = repeatClients;
+
+            // Render map
+            renderNJMap();
+
             const container = document.getElementById('clients-list');
             if (clients.length === 0) {
                 container.innerHTML = '<div class="empty-state"><h3>No clients yet</h3><p>Add your first client to get started</p></div>';
@@ -2064,6 +2107,76 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+        }
+
+        function renderNJMap() {
+            // Count clients by ZIP code (first 3 digits for region)
+            const zipCounts = {};
+            clients.forEach(c => {
+                if (c.zipCode && c.state === 'NJ') {
+                    const zipPrefix = c.zipCode.substring(0, 3);
+                    zipCounts[zipPrefix] = (zipCounts[zipPrefix] || 0) + 1;
+                }
+            });
+
+            // NJ ZIP code regions and their approximate coordinates on the map
+            const njRegions = {
+                '070': { x: 150, y: 500, name: 'South Jersey' },
+                '071': { x: 180, y: 450, name: 'Central Jersey' },
+                '072': { x: 200, y: 400, name: 'Shore' },
+                '073': { x: 120, y: 420, name: 'Trenton Area' },
+                '074': { x: 140, y: 380, name: 'Central' },
+                '075': { x: 100, y: 350, name: 'Hunterdon' },
+                '076': { x: 80, y: 320, name: 'Northwest' },
+                '077': { x: 160, y: 320, name: 'North Central' },
+                '078': { x: 140, y: 280, name: 'Morris County' },
+                '079': { x: 180, y: 250, name: 'Bergen/Passaic' },
+                '080': { x: 140, y: 220, name: 'North Bergen' },
+                '081': { x: 100, y: 200, name: 'Sussex' }
+            };
+
+            const svg = document.getElementById('nj-map');
+
+            // Draw simplified NJ outline
+            svg.innerHTML = `
+                <path d="M 100 180 L 120 190 L 140 200 L 160 210 L 180 230 L 200 260 L 210 300 L 220 350 L 230 400 L 240 450 L 230 500 L 210 540 L 180 560 L 150 570 L 120 560 L 100 540 L 80 500 L 70 450 L 70 400 L 75 350 L 85 300 L 95 250 L 100 200 Z"
+                      fill="#e2e8f0" stroke="#667eea" stroke-width="2"/>
+            `;
+
+            // Add circles for regions with clients
+            Object.entries(njRegions).forEach(([zip, coords]) => {
+                const count = zipCounts[zip] || 0;
+                if (count > 0) {
+                    const radius = Math.min(5 + count * 3, 30);
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', coords.x);
+                    circle.setAttribute('cy', coords.y);
+                    circle.setAttribute('r', radius);
+                    circle.setAttribute('fill', '#667eea');
+                    circle.setAttribute('opacity', '0.7');
+                    circle.style.cursor = 'pointer';
+
+                    circle.addEventListener('mouseenter', (e) => {
+                        const tooltip = document.getElementById('map-tooltip');
+                        tooltip.textContent = `${coords.name} (${zip}xx): ${count} client${count !== 1 ? 's' : ''}`;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (e.pageX + 10) + 'px';
+                        tooltip.style.top = (e.pageY - 30) + 'px';
+                    });
+
+                    circle.addEventListener('mousemove', (e) => {
+                        const tooltip = document.getElementById('map-tooltip');
+                        tooltip.style.left = (e.pageX + 10) + 'px';
+                        tooltip.style.top = (e.pageY - 30) + 'px';
+                    });
+
+                    circle.addEventListener('mouseleave', () => {
+                        document.getElementById('map-tooltip').style.display = 'none';
+                    });
+
+                    svg.appendChild(circle);
+                }
+            });
         }
 
         function filterClients() {
