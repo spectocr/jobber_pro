@@ -1084,7 +1084,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <p style="margin: 0;">Loading SMS status...</p>
                     </div>
                     <div style="margin-bottom: 1rem;">
-                        <button type="button" class="btn btn-secondary" onclick="sendAppointmentReminders()">📱 Send Tomorrow's Appointment Reminders</button>
+                        <button type="button" class="btn btn-secondary" onclick="previewAppointmentReminders()">👁️ Preview Tomorrow's Reminders</button>
+                        <button type="button" class="btn btn-primary" onclick="sendAppointmentReminders()" style="margin-left: 0.5rem;">📱 Send Tomorrow's Appointment Reminders</button>
+                    </div>
+                    <div id="reminderPreview" style="display: none; padding: 1rem; background: #f7fafc; border-radius: 8px; border: 1px solid #cbd5e0; margin-bottom: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #2d3748;">Reminders Preview</h4>
+                        <div id="reminderPreviewList"></div>
                     </div>
                     <small style="color: #718096; display: block;">
                         SMS automatically sends when:<br>
@@ -4076,6 +4081,51 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        async function previewAppointmentReminders() {
+            try {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+                const tomorrowJobs = jobs.filter(j =>
+                    j.scheduledDate === tomorrowStr &&
+                    j.status === 'scheduled'
+                );
+
+                const previewDiv = document.getElementById('reminderPreview');
+                const listDiv = document.getElementById('reminderPreviewList');
+
+                if (tomorrowJobs.length === 0) {
+                    listDiv.innerHTML = '<p style="color: #718096; margin: 0;">No scheduled jobs for tomorrow.</p>';
+                    previewDiv.style.display = 'block';
+                    return;
+                }
+
+                let html = '<table style="width: 100%; font-size: 0.9rem;"><thead><tr style="text-align: left; border-bottom: 2px solid #cbd5e0;"><th style="padding: 0.5rem;">Client</th><th style="padding: 0.5rem;">Phone</th><th style="padding: 0.5rem;">Job</th><th style="padding: 0.5rem;">Time</th><th style="padding: 0.5rem;">Will Send?</th></tr></thead><tbody>';
+
+                for (const job of tomorrowJobs) {
+                    const client = clients.find(c => c.id === job.clientId || c._id === job.clientId);
+                    const hasPhone = client && client.phone;
+                    const status = hasPhone ? '<span style="color: #48bb78;">✓ Yes</span>' : '<span style="color: #e53e3e;">✗ No phone</span>';
+
+                    html += '<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 0.5rem;">' + (client ? client.name : 'Unknown') + '</td><td style="padding: 0.5rem;">' + (client?.phone || '-') + '</td><td style="padding: 0.5rem;">' + job.title + '</td><td style="padding: 0.5rem;">' + (job.scheduledTime || 'TBD') + '</td><td style="padding: 0.5rem;">' + status + '</td></tr>';
+                }
+
+                html += '</tbody></table>';
+
+                const willSend = tomorrowJobs.filter(j => {
+                    const client = clients.find(c => c.id === j.clientId || c._id === j.clientId);
+                    return client && client.phone;
+                }).length;
+
+                listDiv.innerHTML = '<p style="margin: 0 0 1rem 0; font-weight: 600; color: #2d3748;">Will send ' + willSend + ' reminders out of ' + tomorrowJobs.length + ' scheduled jobs</p>' + html;
+                previewDiv.style.display = 'block';
+
+            } catch (error) {
+                alert('Error loading preview: ' + error.message);
+            }
+        }
+
         async function sendAppointmentReminders() {
             if (!confirm('Send appointment reminders to all clients with jobs tomorrow?')) {
                 return;
@@ -4089,6 +4139,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 if (result.success) {
                     alert('Sent ' + result.sent + ' reminders out of ' + result.total + ' scheduled jobs');
+                    document.getElementById('reminderPreview').style.display = 'none';
                 } else {
                     alert('Error sending reminders: ' + (result.error || 'Unknown error'));
                 }
