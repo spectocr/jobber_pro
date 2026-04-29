@@ -723,7 +723,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <!-- Upcoming Jobs Tile -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>📅 Upcoming</h2>
+                        <h2>📅 Upcoming <span id="upcoming-count" style="color: #718096; font-size: 0.9em;">(0)</span></h2>
                     </div>
                     <div id="upcoming-jobs-list"></div>
                 </div>
@@ -731,7 +731,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <!-- In Progress Jobs Tile -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>🔧 In Progress</h2>
+                        <h2>🔧 In Progress <span id="in-progress-count" style="color: #718096; font-size: 0.9em;">(0)</span></h2>
                     </div>
                     <div id="in-progress-jobs-list"></div>
                 </div>
@@ -739,7 +739,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <!-- Completed Jobs Tile -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>✅ Completed</h2>
+                        <h2>✅ Completed <span id="completed-count" style="color: #718096; font-size: 0.9em;">(0)</span></h2>
                     </div>
                     <div id="completed-jobs-list"></div>
                 </div>
@@ -1809,14 +1809,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             };
 
             // Upcoming jobs
+            document.getElementById('upcoming-count').textContent = `(${stats.upcomingJobs?.length || 0})`;
             document.getElementById('upcoming-jobs-list').innerHTML =
                 renderJobList(stats.upcomingJobs, 'No upcoming jobs');
 
             // In Progress jobs
+            document.getElementById('in-progress-count').textContent = `(${stats.inProgressJobs?.length || 0})`;
             document.getElementById('in-progress-jobs-list').innerHTML =
                 renderJobList(stats.inProgressJobs, 'No jobs in progress');
 
             // Completed last 30 days
+            document.getElementById('completed-count').textContent = `(${stats.completedLast30Days?.length || 0})`;
             document.getElementById('completed-jobs-list').innerHTML =
                 renderJobList(stats.completedLast30Days, 'No completed jobs');
         }
