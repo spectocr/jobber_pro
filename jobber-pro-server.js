@@ -3204,7 +3204,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 companyEmail: form.elements.companyEmail.value,
                 hourlyRate: parseFloat(form.elements.hourlyRate.value),
                 taxRate: parseFloat(form.elements.taxRatePercent.value) / 100,
-                companyLogo: document.getElementById('companyLogo').value || null
+                companyLogo: document.getElementById('companyLogo').value || null,
+                contractTerms: form.elements.contractTerms.value
             };
 
             const response = await fetch('/api/settings', {
