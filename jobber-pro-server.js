@@ -352,6 +352,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             font-size: 0.75rem;
         }
 
+        .btn-icon {
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+            border-radius: 4px;
+        }
+
+        .btn-icon:hover {
+            background: rgba(0,0,0,0.05);
+            transform: scale(1.1);
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
