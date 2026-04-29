@@ -1164,8 +1164,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                         <div style="margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-radius: 8px;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Subtotal:</span>
+                                <span>$<span id="subtotalSummary">0.00</span></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Tax:</span>
+                                <span>$<span id="taxSummary">0.00</span></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;">
                                 <strong>Total Billed:</strong>
-                                <span>$<span id="totalBilledSummary">0.00</span></span>
+                                <strong>$<span id="totalBilledSummary">0.00</span></strong>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                                 <strong>Total Paid:</strong>
@@ -1710,13 +1718,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
             const subtotal = laborTotal + materialTotal;
-            const totalWithTax = calculateTotalWithTax(subtotal);
+            const taxRate = settings.taxRate || 0.06625;
+            const tax = subtotal * taxRate;
+            const totalWithTax = subtotal + tax;
 
             document.getElementById('jobTotalDisplay').textContent = totalWithTax.toFixed(2);
 
             const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
             const balance = totalWithTax - paymentTotal;
 
+            document.getElementById('subtotalSummary').textContent = subtotal.toFixed(2);
+            document.getElementById('taxSummary').textContent = tax.toFixed(2);
             document.getElementById('totalBilledSummary').textContent = totalWithTax.toFixed(2);
             document.getElementById('totalPaidSummary').textContent = paymentTotal.toFixed(2);
             document.getElementById('balanceOwedSummary').textContent = balance.toFixed(2);
