@@ -729,26 +729,58 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 width: auto;
             }
 
-            /* Modals */
+            /* Modals - Full screen on mobile */
+            .modal {
+                padding: 0;
+                align-items: stretch;
+            }
             .modal-content {
-                width: 95%;
-                max-width: 95%;
-                margin: 1rem auto;
-                max-height: 90vh;
-                overflow-y: auto;
+                width: 100%;
+                max-width: 100%;
+                height: 100%;
+                max-height: 100vh;
+                border-radius: 0;
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            .modal-header {
+                padding: 1rem;
+                flex-shrink: 0;
+                position: sticky;
+                top: 0;
+                background: white;
+                z-index: 10;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             .modal-header h2 {
-                font-size: 1.25rem;
+                font-size: 1.1rem;
+            }
+            .close-btn {
+                font-size: 1.75rem;
+                width: 2.5rem;
+                height: 2.5rem;
             }
             .modal-body {
                 padding: 1rem;
+                flex: 1;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
             .modal-footer {
                 flex-direction: column;
-                gap: 0.5rem;
+                gap: 0.75rem;
+                padding: 1rem;
+                flex-shrink: 0;
+                position: sticky;
+                bottom: 0;
+                background: white;
+                box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
             }
             .modal-footer .btn {
                 width: 100%;
+                padding: 0.875rem;
+                font-size: 0.875rem;
             }
 
             /* Forms */
@@ -757,11 +789,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             .form-group label {
                 font-size: 0.875rem;
+                font-weight: 600;
             }
             .form-group input,
             .form-group select,
             .form-group textarea {
-                font-size: 0.875rem;
+                font-size: 1rem;
+                padding: 0.75rem;
+                border-radius: 8px;
+            }
+            .form-group input[type="checkbox"] {
+                width: 1.25rem;
+                height: 1.25rem;
+            }
+            .form-group small {
+                font-size: 0.75rem;
             }
 
             /* Calendar */
@@ -825,9 +867,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             th, td {
                 padding: 0.4rem 0.2rem;
             }
-            .modal-content {
-                width: 98%;
-                margin: 0.5rem auto;
+            .modal-header h2 {
+                font-size: 1rem;
+            }
+            .modal-body {
+                padding: 0.75rem;
+            }
+            .modal-footer {
+                padding: 0.75rem;
             }
         }
 
