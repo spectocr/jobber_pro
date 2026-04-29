@@ -939,6 +939,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
         <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
         <button class="nav-btn" onclick="showView('timeclock')">⏱️ Time Clock</button>
+        <button class="nav-btn" onclick="showView('mypay')" data-user-only>💵 My Pay</button>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
         <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
         <button class="nav-btn" onclick="showView('expenses')" data-admin-only>💰 Expenses</button>
@@ -1185,6 +1186,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </div>
                 <div id="allTimeEntries"></div>
+            </div>
+        </div>
+
+        <!-- My Pay View (User Only) -->
+        <div id="mypay" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>💵 My Pay</h2>
+                </div>
+
+                <!-- Summary Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 12px; color: white;">
+                        <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Today</div>
+                        <div style="font-size: 2rem; font-weight: 700;" id="payToday">$0.00</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 1.5rem; border-radius: 12px; color: white;">
+                        <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Month to Date</div>
+                        <div style="font-size: 2rem; font-weight: 700;" id="payMTD">$0.00</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 1.5rem; border-radius: 12px; color: white;">
+                        <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Year to Date</div>
+                        <div style="font-size: 2rem; font-weight: 700;" id="payYTD">$0.00</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 1.5rem; border-radius: 12px; color: white;">
+                        <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">All Time</div>
+                        <div style="font-size: 2rem; font-weight: 700;" id="payAllTime">$0.00</div>
+                    </div>
+                </div>
+
+                <!-- Filter -->
+                <div style="margin-bottom: 1rem;">
+                    <select id="payPeriodFilter" onchange="loadMyPay()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+
+                <!-- Detailed Entries -->
+                <div>
+                    <h3 style="margin-bottom: 1rem;">Payment History</h3>
+                    <div id="myPayDetails"></div>
+                </div>
             </div>
         </div>
 
@@ -2016,6 +2063,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'clients') loadClients();
             if (viewName === 'jobs') loadJobs();
             if (viewName === 'timeclock') loadTimeClock();
+            if (viewName === 'mypay') loadMyPay();
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
             if (viewName === 'expenses') loadExpenses();
@@ -4953,6 +5001,93 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             loadAllTimeEntries();
         }
 
+        // My Pay functions
+        async function loadMyPay() {
+            const response = await fetch('/api/timeentries');
+            const allEntries = await response.json();
+
+            // Filter to only current user's approved entries
+            const myEntries = allEntries.filter(e => e.userId === currentUserId && e.status === 'approved');
+
+            // Calculate date ranges
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const thisMonth = now.toISOString().slice(0, 7);
+            const thisYear = now.getFullYear().toString();
+
+            // Calculate totals
+            let todayPay = 0, mtdPay = 0, ytdPay = 0, allTimePay = 0;
+
+            myEntries.forEach(entry => {
+                const entryDate = entry.clockIn.split('T')[0];
+                const amount = entry.paymentAmount || 0;
+
+                allTimePay += amount;
+                if (entryDate.startsWith(thisYear)) ytdPay += amount;
+                if (entryDate.startsWith(thisMonth)) mtdPay += amount;
+                if (entryDate === today) todayPay += amount;
+            });
+
+            // Update summary cards
+            document.getElementById('payToday').textContent = '$' + todayPay.toFixed(2);
+            document.getElementById('payMTD').textContent = '$' + mtdPay.toFixed(2);
+            document.getElementById('payYTD').textContent = '$' + ytdPay.toFixed(2);
+            document.getElementById('payAllTime').textContent = '$' + allTimePay.toFixed(2);
+
+            // Filter entries based on selected period
+            const period = document.getElementById('payPeriodFilter').value;
+            let filteredEntries = myEntries;
+
+            if (period === 'today') {
+                filteredEntries = myEntries.filter(e => e.clockIn.split('T')[0] === today);
+            } else if (period === 'week') {
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                filteredEntries = myEntries.filter(e => new Date(e.clockIn) >= weekAgo);
+            } else if (period === 'month') {
+                filteredEntries = myEntries.filter(e => e.clockIn.startsWith(thisMonth));
+            } else if (period === 'year') {
+                filteredEntries = myEntries.filter(e => e.clockIn.startsWith(thisYear));
+            }
+
+            // Sort by date descending
+            filteredEntries.sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn));
+
+            // Render details
+            renderMyPayDetails(filteredEntries);
+        }
+
+        function renderMyPayDetails(entries) {
+            const container = document.getElementById('myPayDetails');
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No approved payments for this period</p></div>';
+                return;
+            }
+
+            const html = entries.map(entry => {
+                const clockIn = new Date(entry.clockIn);
+                const clockOut = new Date(entry.clockOut);
+                const duration = formatDuration(entry.duration);
+                const date = clockIn.toLocaleDateString();
+
+                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #48bb78;">' +
+                    '<div style="display: flex; justify-content: space-between; align-items: start;">' +
+                    '<div style="flex: 1;">' +
+                    '<div style="display: flex; gap: 1rem; align-items: baseline; margin-bottom: 0.5rem;">' +
+                    '<h4 style="margin: 0; color: #1a202c;">' + entry.jobName + '</h4>' +
+                    '<span style="background: #48bb78; color: #fff; padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: 600; font-size: 1rem;">$' + (entry.paymentAmount || 0).toFixed(2) + '</span>' +
+                    '</div>' +
+                    '<div style="color: #718096; font-size: 0.9rem;">' +
+                    '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' - ' + clockOut.toLocaleTimeString() + '</div>' +
+                    '<div>⏱️ Duration: ' + duration + '</div>' +
+                    (entry.approvedBy ? '<div style="margin-top: 0.25rem;">✓ Approved by ' + entry.approvedBy + '</div>' : '') +
+                    '</div></div>' +
+                    '</div></div>';
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
         // Calendar functions
         let currentYear = new Date().getFullYear();
         let currentMonth = new Date().getMonth() + 1;
@@ -5093,6 +5228,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     btn.style.display = 'none';
                 });
 
+                // Show user-only tabs
+                document.querySelectorAll('[data-user-only]').forEach(btn => {
+                    btn.style.display = 'inline-block';
+                });
+
                 // Hide all admin-only views
                 document.getElementById('dashboard').style.display = 'none';
                 document.getElementById('clients').style.display = 'none';
@@ -5116,6 +5256,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Hide user management section
                 const userMgmt = document.getElementById('userManagementSection');
                 if (userMgmt) userMgmt.style.display = 'none';
+            } else {
+                // Hide user-only tabs for admins
+                document.querySelectorAll('[data-user-only]').forEach(btn => {
+                    btn.style.display = 'none';
+                });
             }
         }
 
