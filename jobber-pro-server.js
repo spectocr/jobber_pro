@@ -2064,15 +2064,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const response = await fetch('/api/clients');
             clients = await response.json();
 
+            // Always reload jobs to ensure fresh data for stats
+            const jobsResponse = await fetch('/api/jobs');
+            jobs = await jobsResponse.json();
+
             // Calculate stats
             const totalClients = clients.length;
             const clientJobCounts = {};
+
+            console.log('Total clients:', totalClients);
+            console.log('Total jobs:', jobs.length);
+            console.log('Sample client IDs:', clients.slice(0, 3).map(c => c.id));
+            console.log('Sample job clientIds:', jobs.slice(0, 5).map(j => j.clientId));
+
             jobs.forEach(j => {
                 if (j.clientId) {
                     clientJobCounts[j.clientId] = (clientJobCounts[j.clientId] || 0) + 1;
                 }
             });
+
+            console.log('Client job counts:', clientJobCounts);
+            console.log('Clients with multiple jobs:', Object.entries(clientJobCounts).filter(([id, count]) => count > 1));
+
             const repeatClients = Object.values(clientJobCounts).filter(count => count > 1).length;
+
+            console.log('Repeat clients count:', repeatClients);
 
             document.getElementById('stat-total-clients').textContent = totalClients;
             document.getElementById('stat-repeat-clients').textContent = repeatClients;
