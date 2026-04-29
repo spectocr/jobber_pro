@@ -1157,23 +1157,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </label>
                     </div>
                     <div id="propertyManagementFields" style="display: none; border-left: 3px solid #667eea; padding-left: 1rem; margin-top: 1rem;">
-                        <h3 style="margin-bottom: 0.5rem; color: #667eea;">Property Management Details</h3>
-                        <div class="form-group">
-                            <label>Service Address</label>
-                            <textarea name="serviceAddress" rows="3"></textarea>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="margin: 0; color: #667eea;">Service Locations</h3>
+                            <button type="button" class="btn btn-primary btn-small" onclick="addServiceLocation()">+ Add Location</button>
                         </div>
-                        <div class="form-group">
-                            <label>Service Name</label>
-                            <input type="text" name="serviceName">
-                        </div>
-                        <div class="form-group">
-                            <label>Service Contact</label>
-                            <input type="text" name="serviceContact">
-                        </div>
-                        <div class="form-group">
-                            <label>Property Management Notes</label>
-                            <textarea name="pmNotes" rows="3"></textarea>
-                        </div>
+                        <div id="serviceLocationsContainer"></div>
                     </div>
                     <div class="form-group">
                         <label>Notes</label>
@@ -1566,7 +1554,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Handle property management checkbox
                 const pmCheckbox = document.getElementById('isPropertyManagementCheckbox');
                 pmCheckbox.checked = client.isPropertyManagement || false;
+
+                // Load service locations
+                serviceLocations = client.serviceLocations || [];
                 togglePropertyManagementFields();
+                renderServiceLocations();
 
                 // Migrate old address field to new structured fields if needed
                 if (client.address && !client.addressLine1) {
@@ -1575,7 +1567,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('clientModalTitle').textContent = 'Add Client';
                 form.reset();
+                serviceLocations = [];
                 document.getElementById('propertyManagementFields').style.display = 'none';
+                renderServiceLocations();
             }
 
             document.getElementById('clientModal').classList.add('active');
@@ -1728,6 +1722,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Convert checkbox to boolean
             client.isPropertyManagement = document.getElementById('isPropertyManagementCheckbox').checked;
+
+            // Add service locations if property management is enabled
+            if (client.isPropertyManagement) {
+                client.serviceLocations = serviceLocations;
+            }
 
             // If editing, include the _id
             if (currentEditingClientId) {
@@ -2145,10 +2144,70 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 '</tbody></table>';
         }
 
+        let serviceLocations = [];
+
         function togglePropertyManagementFields() {
             const checkbox = document.getElementById('isPropertyManagementCheckbox');
             const fields = document.getElementById('propertyManagementFields');
             fields.style.display = checkbox.checked ? 'block' : 'none';
+        }
+
+        function addServiceLocation() {
+            const id = Date.now();
+            serviceLocations.push({
+                id: id,
+                address: '',
+                name: '',
+                contact: '',
+                notes: ''
+            });
+            renderServiceLocations();
+        }
+
+        function removeServiceLocation(id) {
+            serviceLocations = serviceLocations.filter(loc => loc.id !== id);
+            renderServiceLocations();
+        }
+
+        function renderServiceLocations() {
+            const container = document.getElementById('serviceLocationsContainer');
+
+            if (serviceLocations.length === 0) {
+                container.innerHTML = '<p style="color: #718096; padding: 1rem; text-align: center;">No service locations added yet.</p>';
+                return;
+            }
+
+            container.innerHTML = serviceLocations.map((loc, index) => \`
+                <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <strong style="color: #2d3748;">Location #\${index + 1}</strong>
+                        <button type="button" class="btn btn-danger btn-small" onclick="removeServiceLocation(\${loc.id})">Remove</button>
+                    </div>
+                    <div class="form-group">
+                        <label>Service Address</label>
+                        <textarea onchange="updateServiceLocation(\${loc.id}, 'address', this.value)" rows="2">\${loc.address || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Service Name</label>
+                        <input type="text" onchange="updateServiceLocation(\${loc.id}, 'name', this.value)" value="\${loc.name || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Service Contact</label>
+                        <input type="text" onchange="updateServiceLocation(\${loc.id}, 'contact', this.value)" value="\${loc.contact || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea onchange="updateServiceLocation(\${loc.id}, 'notes', this.value)" rows="2">\${loc.notes || ''}</textarea>
+                    </div>
+                </div>
+            \`).join('');
+        }
+
+        function updateServiceLocation(id, field, value) {
+            const location = serviceLocations.find(loc => loc.id === id);
+            if (location) {
+                location[field] = value;
+            }
         }
 
         function toggleZipDistribution() {
