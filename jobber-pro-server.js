@@ -4853,7 +4853,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
 
                 const adminButtons = isAdmin ? '<div style="display: flex; gap: 0.25rem;">' +
-                    '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit">✏️</button>' +
+                    '<button class="btn-icon" onclick="editTimeEntryById(\'' + entry.id + '\')" title="Edit">✏️</button>' +
                     '<button class="btn-icon" onclick="deleteTimeEntry(\'' + entry.id + '\')" title="Delete">🗑️</button>' +
                     '</div>' : '';
 
@@ -4947,7 +4947,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div>⏱️ Duration: ' + duration + '</div>' +
                     '</div></div>' +
                     '<div style="display: flex; gap: 0.25rem;">' +
-                    '<button class="btn-icon" onclick=\'editTimeEntry(' + JSON.stringify(entry) + ')\' title="Edit">✏️</button>' +
+                    '<button class="btn-icon" onclick="editTimeEntryById(\'' + entry.id + '\')" title="Edit">✏️</button>' +
                     '<button class="btn-icon" onclick="deleteTimeEntry(\'' + entry.id + '\')" title="Delete">🗑️</button>' +
                     '</div>' +
                     '</div></div>';
@@ -4984,6 +4984,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         let currentEditingTimeEntry = null;
+
+        async function editTimeEntryById(id) {
+            if (!isAdmin) {
+                alert('Only admins can edit time entries');
+                return;
+            }
+
+            // Fetch all entries and find the one we need
+            const response = await fetch('/api/timeentries');
+            const entries = await response.json();
+            const entry = entries.find(e => e.id === id);
+
+            if (!entry) {
+                alert('Time entry not found');
+                return;
+            }
+
+            editTimeEntry(entry);
+        }
 
         function editTimeEntry(entry) {
             if (!isAdmin) {
