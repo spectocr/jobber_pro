@@ -1188,8 +1188,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <input type="hidden" name="id">
                     <div class="form-group">
                         <label>Client *</label>
-                        <select name="clientId" required id="jobClientSelect">
+                        <select name="clientId" required id="jobClientSelect" onchange="handleClientChange()">
                             <option value="">Select a client...</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="serviceLocationGroup" style="display: none;">
+                        <label>Service Location</label>
+                        <select name="serviceLocationId" id="jobServiceLocationSelect">
+                            <option value="">Select a location...</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1642,9 +1648,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (job.laborItems) laborItems = [...job.laborItems];
                 if (job.materialItems) materialItems = [...job.materialItems];
                 if (job.payments) paymentItems = [...job.payments];
+
+                // Trigger client change to populate service locations
+                handleClientChange();
+
+                // Set service location if it exists
+                if (job.serviceLocationId) {
+                    const locationSelect = document.getElementById('jobServiceLocationSelect');
+                    locationSelect.value = job.serviceLocationId;
+                }
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
+                document.getElementById('serviceLocationGroup').style.display = 'none';
             }
 
             renderLineItems();
@@ -1783,6 +1799,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             paymentItems.push({ id, date: today, amount: 0, method: 'cash', notes: '' });
             renderLineItems();
             markFormDirty();
+        }
+
+        function handleClientChange() {
+            const clientSelect = document.getElementById('jobClientSelect');
+            const selectedClientId = clientSelect.value;
+            const locationGroup = document.getElementById('serviceLocationGroup');
+            const locationSelect = document.getElementById('jobServiceLocationSelect');
+
+            if (!selectedClientId) {
+                locationGroup.style.display = 'none';
+                locationSelect.innerHTML = '<option value="">Select a location...</option>';
+                return;
+            }
+
+            const client = clients.find(c => c.id == selectedClientId);
+
+            if (client && client.isPropertyManagement && client.serviceLocations && client.serviceLocations.length > 0) {
+                locationGroup.style.display = 'block';
+                locationSelect.innerHTML = '<option value="">Select a location...</option>' +
+                    client.serviceLocations.map((loc, index) => {
+                        const label = loc.name || loc.address || \`Location #\${index + 1}\`;
+                        return \`<option value="\${loc.id}">\${label}</option>\`;
+                    }).join('');
+            } else {
+                locationGroup.style.display = 'none';
+                locationSelect.innerHTML = '<option value="">Select a location...</option>';
+            }
         }
 
         function handleTeamMemberChange() {
