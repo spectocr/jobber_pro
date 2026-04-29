@@ -2072,28 +2072,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const totalClients = clients.length;
             const clientJobCounts = {};
 
-            console.log('Total clients:', totalClients);
-            console.log('Total jobs:', jobs.length);
-            console.log('Sample client IDs:', clients.slice(0, 3).map(c => c.id));
-            console.log('Sample job clientIds:', jobs.slice(0, 5).map(j => j.clientId));
-
             jobs.forEach(j => {
                 if (j.clientId) {
                     clientJobCounts[j.clientId] = (clientJobCounts[j.clientId] || 0) + 1;
                 }
             });
 
-            console.log('Client job counts:', clientJobCounts);
-            console.log('Full job counts breakdown:');
-            Object.entries(clientJobCounts).forEach(([id, count]) => {
-                const client = clients.find(c => c.id === id);
-                console.log(`  ${client ? client.name : 'Unknown'} (${id}): ${count} job(s)`);
-            });
-            console.log('Clients with multiple jobs:', Object.entries(clientJobCounts).filter(([id, count]) => count > 1));
-
             const repeatClients = Object.values(clientJobCounts).filter(count => count > 1).length;
-
-            console.log('Repeat clients count:', repeatClients);
 
             document.getElementById('stat-total-clients').textContent = totalClients;
             document.getElementById('stat-repeat-clients').textContent = repeatClients;
@@ -2130,29 +2115,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const zipCounts = {};
             const zipCities = {};
 
-            console.log('ZIP Distribution - Total clients:', clients.length);
-            console.log('All clients with ZIP/state data:');
             clients.forEach(c => {
-                console.log(`  ${c.name}: ZIP=${c.zipCode}, State=${c.state}, City=${c.city}`);
-            });
-
-            clients.forEach(c => {
-                if (c.zipCode) {
+                if (c.zipCode && c.state && c.state.toUpperCase() === 'NJ') {
                     const zip = c.zipCode.substring(0, 5);
-                    if (c.state === 'NJ') {
-                        zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-                        if (!zipCities[zip] && c.city) {
-                            zipCities[zip] = c.city;
-                        }
-                    } else {
-                        console.log(`  ⚠️ Skipping ${c.name} - ZIP ${zip} but state is '${c.state}' not 'NJ'`);
+                    zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+                    if (!zipCities[zip] && c.city) {
+                        zipCities[zip] = c.city;
                     }
-                } else {
-                    console.log(`  ⚠️ Skipping ${c.name} - No ZIP code`);
                 }
             });
-
-            console.log('Final ZIP Counts:', zipCounts);
 
             const container = document.getElementById('zip-distribution');
 
