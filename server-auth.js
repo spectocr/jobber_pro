@@ -879,6 +879,65 @@ app.post('/api/settings', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+// Time Entries API
+app.get('/api/timeentries', isAuthenticated, async (req, res) => {
+    const entries = await db.collection('timeentries').find().sort({ clockIn: -1 }).toArray();
+    const entriesWithId = entries.map(e => ({ ...e, id: e._id.toString() }));
+    res.json(entriesWithId);
+});
+
+app.post('/api/timeentries/clockin', isAuthenticated, async (req, res) => {
+    const { jobId, jobName } = req.body;
+    const entry = {
+        userId: req.session.userId,
+        userName: req.session.user.name,
+        jobId: jobId,
+        jobName: jobName,
+        clockIn: new Date(),
+        clockOut: null,
+        duration: null,
+        status: 'active',
+        createdAt: new Date()
+    };
+    const result = await db.collection('timeentries').insertOne(entry);
+    res.json({ ...entry, id: result.insertedId.toString() });
+});
+
+app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
+    const { entryId } = req.body;
+    const entry = await db.collection('timeentries').findOne({
+        _id: new ObjectId(entryId),
+        status: 'active'
+    });
+
+    if (entry) {
+        const clockOut = new Date();
+        const duration = Math.round((clockOut - entry.clockIn) / 1000); // seconds
+
+        await db.collection('timeentries').updateOne(
+            { _id: new ObjectId(entryId) },
+            {
+                $set: {
+                    clockOut: clockOut,
+                    status: 'completed',
+                    duration: duration,
+                    updatedAt: new Date()
+                }
+            }
+        );
+
+        const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(entryId) });
+        res.json({ ...updated, id: updated._id.toString() });
+    } else {
+        res.status(404).json({ error: 'Active time entry not found' });
+    }
+});
+
+app.delete('/api/timeentries/:id', isAuthenticated, async (req, res) => {
+    await db.collection('timeentries').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+});
+
 app.get('/api/calendar', isAuthenticated, async (req, res) => {
     const { year, month } = req.query;
     const monthStr = `${year}-${String(month).padStart(2, '0')}`;

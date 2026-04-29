@@ -938,6 +938,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button class="nav-btn active" onclick="showView('dashboard')" data-admin-only>📊 Dashboard</button>
         <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
         <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
+        <button class="nav-btn" onclick="showView('timeclock')">⏱️ Time Clock</button>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
         <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
         <button class="nav-btn" onclick="showView('expenses')" data-admin-only>💰 Expenses</button>
@@ -1108,6 +1109,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </div>
                 <div id="jobs-list"></div>
+            </div>
+        </div>
+
+        <!-- Time Clock View -->
+        <div id="timeclock" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>⏱️ Time Clock</h2>
+                </div>
+
+                <!-- Clock In/Out Section -->
+                <div id="clockStatus" style="padding: 2rem; text-align: center; background: #f7fafc; border-radius: 12px; margin-bottom: 2rem;">
+                    <div id="clockedOutView">
+                        <h3 style="color: #718096; margin-bottom: 1rem;">Not Clocked In</h3>
+                        <select id="clockInJobSelect" style="width: 100%; max-width: 400px; padding: 0.75rem; border: 2px solid #cbd5e0; border-radius: 8px; margin-bottom: 1rem; font-size: 1rem;">
+                            <option value="">Select a job to clock in...</option>
+                        </select>
+                        <br>
+                        <button class="btn btn-primary" onclick="clockIn()" style="font-size: 1.25rem; padding: 1rem 2rem;">🕐 Clock In</button>
+                    </div>
+
+                    <div id="clockedInView" style="display: none;">
+                        <div style="background: white; padding: 2rem; border-radius: 12px; border: 3px solid #48bb78;">
+                            <h3 style="color: #48bb78; margin-bottom: 0.5rem;">⏱️ Currently Working</h3>
+                            <h2 style="color: #1a202c; margin-bottom: 1rem;" id="currentJobTitle">Job Name</h2>
+                            <div style="font-size: 3rem; font-weight: 700; color: #667eea; margin: 1.5rem 0;" id="timerDisplay">0:00:00</div>
+                            <p style="color: #718096; margin-bottom: 1.5rem;">Started at <span id="clockInTime">--:--</span></p>
+                            <button class="btn btn-danger" onclick="clockOut()" style="font-size: 1.25rem; padding: 1rem 2rem;">🕐 Clock Out</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's Time Entries -->
+                <div>
+                    <h3 style="margin-bottom: 1rem;">📋 Today's Time Log</h3>
+                    <div id="todayTimeEntries"></div>
+                </div>
+            </div>
+
+            <!-- Recent Time Entries (Admin Only) -->
+            <div class="card" id="allTimeEntriesCard" style="display: none;">
+                <div class="card-header">
+                    <h2>Recent Time Entries (All Team)</h2>
+                    <button class="btn btn-secondary" onclick="exportTimeEntries()">📊 Export</button>
+                </div>
+                <div id="allTimeEntries"></div>
             </div>
         </div>
 
@@ -1864,6 +1911,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let hasUnsavedChanges = false;
         let currentUserRole = 'user'; // Default to user, updated on load
         let isAdmin = false;
+        let currentUserId = null;
 
         // Helper function to calculate total with tax
         function calculateTotalWithTax(total) {
@@ -1931,6 +1979,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'dashboard') loadDashboard();
             if (viewName === 'clients') loadClients();
             if (viewName === 'jobs') loadJobs();
+            if (viewName === 'timeclock') loadTimeClock();
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
             if (viewName === 'expenses') loadExpenses();
@@ -4440,6 +4489,241 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        // Time Clock Functions
+        let currentClockEntry = null;
+        let timerInterval = null;
+
+        async function loadTimeClock() {
+            const response = await fetch('/api/jobs');
+            const jobs = await response.json();
+            const activeJobs = jobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress');
+
+            const select = document.getElementById('clockInJobSelect');
+            select.innerHTML = '<option value="">Select a job to clock in...</option>';
+            activeJobs.forEach(job => {
+                const option = document.createElement('option');
+                option.value = job.id;
+                option.textContent = job.title + ' - ' + (job.clientName || 'Client');
+                option.dataset.jobName = job.title;
+                select.appendChild(option);
+            });
+
+            const entriesResponse = await fetch('/api/timeentries');
+            const entries = await entriesResponse.json();
+            const activeEntry = entries.find(e => e.status === 'active' && e.userId === currentUserId);
+
+            if (activeEntry) {
+                currentClockEntry = activeEntry;
+                showClockedIn();
+                startTimer();
+            } else {
+                showClockedOut();
+            }
+
+            loadTodayTimeEntries();
+
+            if (isAdmin) {
+                document.getElementById('allTimeEntriesCard').style.display = 'block';
+                loadAllTimeEntries();
+            }
+        }
+
+        async function clockIn() {
+            const select = document.getElementById('clockInJobSelect');
+            const jobId = select.value;
+
+            if (!jobId) {
+                alert('Please select a job to clock in');
+                return;
+            }
+
+            const selectedOption = select.options[select.selectedIndex];
+            const jobName = selectedOption.dataset.jobName;
+
+            const response = await fetch('/api/timeentries/clockin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jobId: jobId,
+                    jobName: jobName
+                })
+            });
+
+            currentClockEntry = await response.json();
+            showClockedIn();
+            startTimer();
+            loadTodayTimeEntries();
+        }
+
+        async function clockOut() {
+            if (!currentClockEntry) return;
+
+            const response = await fetch('/api/timeentries/clockout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entryId: currentClockEntry.id
+                })
+            });
+
+            const completedEntry = await response.json();
+            stopTimer();
+            currentClockEntry = null;
+            showClockedOut();
+            loadTodayTimeEntries();
+
+            if (isAdmin) {
+                loadAllTimeEntries();
+            }
+        }
+
+        function showClockedIn() {
+            document.getElementById('clockedOutView').style.display = 'none';
+            document.getElementById('clockedInView').style.display = 'block';
+            document.getElementById('currentJobTitle').textContent = currentClockEntry.jobName;
+
+            const clockInTime = new Date(currentClockEntry.clockIn);
+            document.getElementById('clockInTime').textContent = clockInTime.toLocaleTimeString();
+        }
+
+        function showClockedOut() {
+            document.getElementById('clockedOutView').style.display = 'block';
+            document.getElementById('clockedInView').style.display = 'none';
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+
+            function updateTimer() {
+                const clockInTime = new Date(currentClockEntry.clockIn);
+                const now = new Date();
+                const elapsed = Math.floor((now - clockInTime) / 1000);
+
+                const hours = Math.floor(elapsed / 3600);
+                const minutes = Math.floor((elapsed % 3600) / 60);
+                const seconds = elapsed % 60;
+
+                document.getElementById('timerDisplay').textContent =
+                    hours + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            }
+
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        async function loadTodayTimeEntries() {
+            const response = await fetch('/api/timeentries');
+            const entries = await response.json();
+
+            const today = new Date().toISOString().split('T')[0];
+            const todayEntries = entries.filter(e => {
+                const entryDate = e.clockIn.split('T')[0];
+                return entryDate === today && e.userId === currentUserId;
+            });
+
+            renderTodayTimeEntries(todayEntries);
+        }
+
+        function renderTodayTimeEntries(entries) {
+            const container = document.getElementById('todayTimeEntries');
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No time entries today</p></div>';
+                return;
+            }
+
+            const html = entries.map(entry => {
+                const clockIn = new Date(entry.clockIn);
+                const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+                const duration = entry.duration ? formatDuration(entry.duration) : 'In Progress';
+                const clockOutText = clockOut ? '| Out: ' + clockOut.toLocaleTimeString() : '';
+                const deleteBtn = entry.status === 'completed' ?
+                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' : '';
+
+                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' +
+                    (entry.status === 'active' ? '#48bb78' : '#667eea') + ';">' +
+                    '<div style="display: flex; justify-content: space-between; align-items: start;">' +
+                    '<div style="flex: 1;">' +
+                    '<h4 style="margin: 0 0 0.5rem 0; color: #1a202c;">' + entry.jobName + '</h4>' +
+                    '<div style="color: #718096; font-size: 0.9rem;">' +
+                    '<div>⏰ In: ' + clockIn.toLocaleTimeString() + ' ' + clockOutText + '</div>' +
+                    '<div>⏱️ Duration: ' + duration + '</div>' +
+                    '</div></div>' + deleteBtn +
+                    '</div></div>';
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function loadAllTimeEntries() {
+            const response = await fetch('/api/timeentries');
+            const entries = await response.json();
+
+            entries.sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn));
+
+            const container = document.getElementById('allTimeEntries');
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No time entries yet</p></div>';
+                return;
+            }
+
+            const html = entries.slice(0, 50).map(entry => {
+                const clockIn = new Date(entry.clockIn);
+                const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+                const duration = entry.duration ? formatDuration(entry.duration) : 'In Progress';
+                const date = clockIn.toLocaleDateString();
+                const timeText = clockOut ? '- ' + clockOut.toLocaleTimeString() : '(Active)';
+
+                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' +
+                    (entry.status === 'active' ? '#48bb78' : '#667eea') + ';">' +
+                    '<div style="display: flex; justify-content: space-between; align-items: start;">' +
+                    '<div style="flex: 1;">' +
+                    '<div style="display: flex; gap: 1rem; align-items: baseline; margin-bottom: 0.5rem;">' +
+                    '<h4 style="margin: 0; color: #1a202c;">' + entry.jobName + '</h4>' +
+                    '<span style="color: #718096; font-size: 0.9rem;">by ' + entry.userName + '</span>' +
+                    '</div>' +
+                    '<div style="color: #718096; font-size: 0.9rem;">' +
+                    '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' ' + timeText + '</div>' +
+                    '<div>⏱️ Duration: ' + duration + '</div>' +
+                    '</div></div>' +
+                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' +
+                    '</div></div>';
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function deleteTimeEntry(id) {
+            if (!confirm('Delete this time entry?')) return;
+
+            await fetch('/api/timeentries/' + id, {
+                method: 'DELETE'
+            });
+
+            loadTodayTimeEntries();
+            if (isAdmin) {
+                loadAllTimeEntries();
+            }
+        }
+
+        function formatDuration(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return hours + 'h ' + minutes + 'm';
+        }
+
+        function exportTimeEntries() {
+            alert('Export feature coming soon!');
+        }
+
         // Calendar functions
         let currentYear = new Date().getFullYear();
         let currentMonth = new Date().getMonth() + 1;
@@ -4550,7 +4834,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const user = await response.json();
                 document.getElementById('currentUserName').textContent = user.name;
 
-                // Set user role
+                // Set user ID and role
+                currentUserId = user._id;
                 currentUserRole = user.role || 'user';
                 isAdmin = currentUserRole === 'admin';
 
