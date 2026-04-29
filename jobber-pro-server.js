@@ -1709,13 +1709,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function updateJobTotal() {
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-            const total = laborTotal + materialTotal;
-            document.getElementById('jobTotalDisplay').textContent = total.toFixed(2);
+            const subtotal = laborTotal + materialTotal;
+            const totalWithTax = calculateTotalWithTax(subtotal);
+
+            document.getElementById('jobTotalDisplay').textContent = totalWithTax.toFixed(2);
 
             const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-            const balance = total - paymentTotal;
+            const balance = totalWithTax - paymentTotal;
 
-            document.getElementById('totalBilledSummary').textContent = total.toFixed(2);
+            document.getElementById('totalBilledSummary').textContent = totalWithTax.toFixed(2);
             document.getElementById('totalPaidSummary').textContent = paymentTotal.toFixed(2);
             document.getElementById('balanceOwedSummary').textContent = balance.toFixed(2);
         }
@@ -1977,7 +1979,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 filteredJobs.map(j => {
                     const client = clients.find(c => c.id == j.clientId);
                     const assigned = team.find(t => t.id == j.assignedTo);
-                    const total = j.total ? parseFloat(j.total) : 0;
+                    const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                     const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
                     const owed = j.balanceOwed !== undefined ? parseFloat(j.balanceOwed) : total;
                     const paymentStatus = owed === 0 ? '✓' : owed < total ? '◐' : '';
