@@ -1082,10 +1082,11 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         .status-completed { background: #c6f6d5; color: #22543d; }
         .status-in_progress { background: #feebc8; color: #7c2d12; }
         .status-scheduled { background: #bee3f8; color: #2c5282; }
-        .watermark { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5em; font-weight: 900; color: rgba(72, 187, 120, 0.4); z-index: 999; white-space: nowrap; pointer-events: none; letter-spacing: 0.15em; border: 6px solid rgba(72, 187, 120, 0.3); padding: 30px 60px; border-radius: 15px; max-width: 80%; }
+        .watermark { position: absolute; top: 350px; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5em; font-weight: 900; color: rgba(72, 187, 120, 0.4); z-index: 999; white-space: nowrap; pointer-events: none; letter-spacing: 0.15em; border: 6px solid rgba(72, 187, 120, 0.3); padding: 30px 60px; border-radius: 15px; max-width: 80%; }
         @media print {
             .watermark {
                 position: absolute;
+                top: 400px;
                 color: rgba(72, 187, 120, 0.35);
                 border-color: rgba(72, 187, 120, 0.25);
                 font-size: 4.5em;
