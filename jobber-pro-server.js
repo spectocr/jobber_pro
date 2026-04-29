@@ -669,6 +669,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h3>Revenue This Month</h3>
                     <div class="value" id="stat-revenue">$0</div>
                 </div>
+                <div class="stat-card" style="border-left-color: #48bb78;">
+                    <h3>Profit This Month</h3>
+                    <div class="value" id="stat-profit">$0</div>
+                </div>
                 <div class="stat-card">
                     <h3>Jobs Today</h3>
                     <div class="value" id="stat-jobs-today">0</div>
@@ -2061,13 +2065,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         // Load functions
+        function formatMoney(amount) {
+            return '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
         async function loadDashboard() {
             const response = await fetch('/api/dashboard');
             const stats = await response.json();
 
             document.getElementById('stat-clients').textContent = stats.totalClients;
             document.getElementById('stat-jobs-month').textContent = stats.jobsThisMonth;
-            document.getElementById('stat-revenue').textContent = '$' + (stats.revenueThisMonth || 0).toFixed(2);
+            document.getElementById('stat-revenue').textContent = formatMoney(stats.revenueThisMonth || 0);
+            document.getElementById('stat-profit').textContent = formatMoney(stats.profitThisMonth || 0);
             document.getElementById('stat-jobs-today').textContent = stats.jobsToday;
 
             document.getElementById('stat-prospecting').textContent = stats.prospecting;

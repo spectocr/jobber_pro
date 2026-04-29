@@ -600,9 +600,20 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     }));
 
     // job.total is already stored WITH tax included (or without if taxWaived)
-    const totalRevenue = jobsMapped
-        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
-        .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+    const completedJobsThisMonth = jobsMapped
+        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth));
+
+    const totalRevenue = completedJobsThisMonth.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+
+    // Calculate profit (revenue - material costs)
+    const totalMaterialCosts = completedJobsThisMonth.reduce((sum, j) => {
+        if (j.materialItems && Array.isArray(j.materialItems)) {
+            return sum + j.materialItems.reduce((mSum, item) => mSum + ((item.quantity || 0) * (item.price || 0)), 0);
+        }
+        return sum;
+    }, 0);
+
+    const totalProfit = totalRevenue - totalMaterialCosts;
 
     const stats = {
         totalClients: clientsWithId.length,
@@ -616,6 +627,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         invoiced: jobsMapped.filter(j => j.status === 'invoiced').length,
         bidLost: jobsMapped.filter(j => j.status === 'bid_lost').length,
         revenueThisMonth: totalRevenue,
+        profitThisMonth: totalProfit,
         upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
