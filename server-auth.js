@@ -1087,18 +1087,16 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             top: 40%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-45deg);
-            font-size: 6em;
+            font-size: 4.5em;
             font-weight: 900;
-            color: rgba(72, 187, 120, 0.35);
+            color: rgba(72, 187, 120, 0.25);
             z-index: 999;
             white-space: nowrap;
             pointer-events: none;
             letter-spacing: 0.15em;
-            border: 8px solid rgba(72, 187, 120, 0.25);
-            padding: 40px 70px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            border: 6px solid rgba(72, 187, 120, 0.2);
+            padding: 30px 50px;
+            border-radius: 15px;
         }
         @media print {
             .watermark {
@@ -1106,12 +1104,10 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
                 top: 400px;
                 left: 50%;
                 transform: translate(-50%, -50%) rotate(-45deg);
-                font-size: 4.5em;
-                color: rgba(72, 187, 120, 0.35);
-                border: 6px solid rgba(72, 187, 120, 0.25);
-                padding: 25px 50px;
-                background: none;
-                box-shadow: none;
+                font-size: 3.5em;
+                color: rgba(72, 187, 120, 0.25);
+                border: 5px solid rgba(72, 187, 120, 0.2);
+                padding: 20px 40px;
             }
         }
     </style>
