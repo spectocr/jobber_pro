@@ -5019,7 +5019,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Format dates for datetime-local inputs
             const clockIn = new Date(entry.clockIn);
-            const clockOut = entry.clockOut ? new Date(entry.clockOut) : new Date();
+            let clockOut;
+
+            if (entry.clockOut) {
+                clockOut = new Date(entry.clockOut);
+            } else {
+                // For active entries without clock out, default to now or 1 hour after clock in (whichever is later)
+                const now = new Date();
+                const oneHourLater = new Date(clockIn.getTime() + 3600000);
+                clockOut = now > oneHourLater ? now : oneHourLater;
+            }
 
             document.getElementById('editClockIn').value = formatDateTimeLocal(clockIn);
             document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
@@ -5062,8 +5071,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            if (clockOut.getTime() <= clockIn.getTime()) {
-                alert('Clock out time must be after clock in time');
+            const timeDiff = clockOut.getTime() - clockIn.getTime();
+            if (timeDiff <= 0) {
+                alert('Clock out time must be after clock in time\\n\\nClock In: ' + clockIn.toLocaleString() + '\\nClock Out: ' + clockOut.toLocaleString() + '\\nDifference: ' + timeDiff + 'ms');
                 return;
             }
 
