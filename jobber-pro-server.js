@@ -1150,6 +1150,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="other">Other</option>
                         </select>
                     </div>
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="isPropertyManagement" id="isPropertyManagementCheckbox" onchange="togglePropertyManagementFields()" style="width: auto; cursor: pointer;">
+                            <span>Property Management?</span>
+                        </label>
+                    </div>
+                    <div id="propertyManagementFields" style="display: none; border-left: 3px solid #667eea; padding-left: 1rem; margin-top: 1rem;">
+                        <h3 style="margin-bottom: 0.5rem; color: #667eea;">Property Management Details</h3>
+                        <div class="form-group">
+                            <label>Service Address</label>
+                            <textarea name="serviceAddress" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Service Name</label>
+                            <input type="text" name="serviceName">
+                        </div>
+                        <div class="form-group">
+                            <label>Service Contact</label>
+                            <input type="text" name="serviceContact">
+                        </div>
+                        <div class="form-group">
+                            <label>Property Management Notes</label>
+                            <textarea name="pmNotes" rows="3"></textarea>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Notes</label>
                         <textarea name="notes"></textarea>
@@ -1533,10 +1558,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Populate form fields
                 Object.keys(client).forEach(key => {
                     const input = form.elements[key];
-                    if (input) {
+                    if (input && input.type !== 'checkbox') {
                         input.value = client[key] || '';
                     }
                 });
+
+                // Handle property management checkbox
+                const pmCheckbox = document.getElementById('isPropertyManagementCheckbox');
+                pmCheckbox.checked = client.isPropertyManagement || false;
+                togglePropertyManagementFields();
 
                 // Migrate old address field to new structured fields if needed
                 if (client.address && !client.addressLine1) {
@@ -1545,6 +1575,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('clientModalTitle').textContent = 'Add Client';
                 form.reset();
+                document.getElementById('propertyManagementFields').style.display = 'none';
             }
 
             document.getElementById('clientModal').classList.add('active');
@@ -1694,6 +1725,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const form = document.getElementById('clientForm');
             const formData = new FormData(form);
             const client = Object.fromEntries(formData);
+
+            // Convert checkbox to boolean
+            client.isPropertyManagement = document.getElementById('isPropertyManagementCheckbox').checked;
 
             // If editing, include the _id
             if (currentEditingClientId) {
@@ -2109,6 +2143,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+        }
+
+        function togglePropertyManagementFields() {
+            const checkbox = document.getElementById('isPropertyManagementCheckbox');
+            const fields = document.getElementById('propertyManagementFields');
+            fields.style.display = checkbox.checked ? 'block' : 'none';
         }
 
         function toggleZipDistribution() {
