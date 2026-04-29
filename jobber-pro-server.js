@@ -88,6 +88,11 @@ class DataManager {
         const today = new Date().toISOString().split('T')[0];
         const thisMonth = new Date().toISOString().slice(0, 7);
 
+        // Calculate 30 days ago
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
         const stats = {
             totalClients: clients.length,
             totalJobs: jobs.length,
@@ -103,10 +108,19 @@ class DataManager {
                 .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
                 .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
 
+            // Three tile categories
             upcomingJobs: jobs
                 .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
-                .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))
-                .slice(0, 5)
+                .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
+
+            inProgressJobs: jobs
+                .filter(j => j.status === 'in_progress')
+                .sort((a, b) => (b.scheduledDate || '').localeCompare(a.scheduledDate || '')),
+
+            completedLast30Days: jobs
+                .filter(j => (j.status === 'completed' || j.status === 'invoiced') &&
+                            j.completedDate && j.completedDate >= thirtyDaysAgoStr)
+                .sort((a, b) => (b.completedDate || '').localeCompare(a.completedDate || ''))
         };
 
         return stats;
@@ -680,11 +694,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <h2>Upcoming Jobs</h2>
+            <!-- Job Status Tiles -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+                <!-- Upcoming Jobs Tile -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📅 Upcoming</h2>
+                    </div>
+                    <div id="upcoming-jobs-list"></div>
                 </div>
-                <div id="upcoming-jobs-list"></div>
+
+                <!-- In Progress Jobs Tile -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🔧 In Progress</h2>
+                    </div>
+                    <div id="in-progress-jobs-list"></div>
+                </div>
+
+                <!-- Completed Last 30 Days Tile -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>✅ Completed (30d)</h2>
+                    </div>
+                    <div id="completed-jobs-list"></div>
+                </div>
             </div>
         </div>
 
@@ -1719,28 +1753,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-completed').textContent = stats.completed;
             document.getElementById('stat-invoiced').textContent = stats.invoiced;
 
-            // Upcoming jobs
-            const upcomingList = document.getElementById('upcoming-jobs-list');
-            if (stats.upcomingJobs && stats.upcomingJobs.length > 0) {
-                // Store upcoming jobs for later lookup
-                window.upcomingJobs = stats.upcomingJobs;
+            // Render job list helper function
+            const renderJobList = (jobs, emptyMessage) => {
+                if (!jobs || jobs.length === 0) {
+                    return \`<div class="empty-state" style="padding: 2rem;"><p style="color: #a0aec0;">\${emptyMessage}</p></div>\`;
+                }
 
-                upcomingList.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th></tr></thead><tbody>' +
-                    stats.upcomingJobs.map(j => {
+                return '<div style="max-height: 400px; overflow-y: auto;"><table style="font-size: 0.875rem;"><tbody>' +
+                    jobs.map(j => {
                         const client = clients.find(c => c.id == j.clientId);
                         const assigned = team.find(t => t.id == j.assignedTo);
-                        return \`<tr style="cursor: pointer;" onclick="editJob('\${j.id}')">
-                            <td>\${j.scheduledDate} \${j.scheduledTime || ''}</td>
-                            <td>\${client ? client.name : 'Unknown'}</td>
-                            <td>\${j.title}</td>
-                            <td>\${assigned ? assigned.name : 'Unassigned'}</td>
-                            <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
+                        return \`<tr style="cursor: pointer; border-bottom: 1px solid #e2e8f0;" onclick="editJob('\${j.id}')">
+                            <td style="padding: 0.75rem;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">\${j.title}</div>
+                                <div style="font-size: 0.75rem; color: #718096;">
+                                    \${client ? client.name : 'Unknown'} • \${j.scheduledDate || 'No date'}
+                                    \${assigned ? ' • ' + assigned.name : ''}
+                                </div>
+                            </td>
                         </tr>\`;
                     }).join('') +
-                    '</tbody></table>';
-            } else {
-                upcomingList.innerHTML = '<div class="empty-state"><h3>No upcoming jobs</h3><p>Create a job to get started</p></div>';
-            }
+                    '</tbody></table></div>';
+            };
+
+            // Upcoming jobs
+            document.getElementById('upcoming-jobs-list').innerHTML =
+                renderJobList(stats.upcomingJobs, 'No upcoming jobs');
+
+            // In Progress jobs
+            document.getElementById('in-progress-jobs-list').innerHTML =
+                renderJobList(stats.inProgressJobs, 'No jobs in progress');
+
+            // Completed last 30 days
+            document.getElementById('completed-jobs-list').innerHTML =
+                renderJobList(stats.completedLast30Days, 'No completed jobs');
         }
 
         async function loadClients() {
