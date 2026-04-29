@@ -1865,7 +1865,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Calculate totals
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-            job.total = laborTotal + materialTotal;
+            const subtotal = laborTotal + materialTotal;
+            const taxRate = settings.taxRate || 0.06625;
+            job.total = subtotal * (1 + taxRate);
 
             const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
             job.totalPaid = paymentTotal;
