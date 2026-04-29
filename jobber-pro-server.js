@@ -2112,7 +2112,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const assigned = team.find(t => t.id == j.assignedTo);
                     const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                     const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
-                    const owed = j.balanceOwed !== undefined ? parseFloat(j.balanceOwed) : total;
+                    const owed = total - paid;
                     const paymentStatus = owed === 0 ? '✓' : owed < total ? '◐' : '';
                     return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
