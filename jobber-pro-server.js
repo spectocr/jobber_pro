@@ -185,18 +185,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 1.5rem 2rem;
+            padding: 0.75rem 2rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 72px;
         }
 
         .header h1 {
-            font-size: 1.8rem;
-            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+            margin: 0;
         }
 
         .header p {
-            opacity: 0.9;
-            font-size: 0.9rem;
+            display: none;
         }
 
         .nav {
@@ -635,17 +638,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 <body>
     <div class="header">
         <div style="display: flex; align-items: center; gap: 1rem;">
-            <img id="header-logo" src="" alt="" style="max-height: 60px; max-width: 150px; display: none;">
-            <div>
-                <h1>⚡ Jobber Pro</h1>
-                <p>Field Service Management System</p>
-            </div>
+            <img id="header-logo" src="" alt="" style="max-height: 50px; max-width: 120px; display: none;">
+            <h1>⚡ Jobber Pro</h1>
         </div>
-        <div style="text-align: right; color: white; font-size: 0.9rem;">
-            <div style="font-weight: 600; margin-bottom: 0.25rem;" id="currentUserName">Loading...</div>
-            <div style="font-size: 0.8rem; opacity: 0.9;">Last Login: <span id="lastLoginTime">--</span></div>
-            <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;" id="currentDateTime">--</div>
-            <button onclick="logout()" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Logout</button>
+        <div style="display: flex; align-items: center; gap: 2rem; color: white; font-size: 0.9rem;">
+            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                <div>
+                    <span style="font-weight: 600;" id="currentUserName">Loading...</span>
+                    <span style="opacity: 0.8; margin-left: 0.5rem;">(<span id="currentUserRole">--</span>)</span>
+                </div>
+                <div style="opacity: 0.9; font-size: 0.85rem;">Last Login: <span id="lastLoginTime">--</span></div>
+                <div style="opacity: 0.9; font-size: 0.85rem;" id="currentDateTime">--</div>
+            </div>
+            <button onclick="logout()" style="padding: 0.4rem 1rem; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">Logout</button>
         </div>
     </div>
 
@@ -3807,6 +3812,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Set user role
                 currentUserRole = user.role || 'user';
                 isAdmin = currentUserRole === 'admin';
+
+                // Display role
+                const roleText = currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1);
+                document.getElementById('currentUserRole').textContent = roleText;
 
                 if (user.lastLogin) {
                     const lastLogin = new Date(user.lastLogin);
