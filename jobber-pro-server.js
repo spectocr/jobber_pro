@@ -806,6 +806,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 font-size: 0.75rem;
             }
 
+            /* Line items (labor, materials, payments) */
+            .line-item {
+                display: block !important;
+                background: #f7fafc;
+                padding: 1rem;
+                border-radius: 8px;
+                margin-bottom: 1rem !important;
+                position: relative;
+            }
+            .line-item .form-group {
+                margin-bottom: 0.75rem;
+            }
+            .line-item button[type="button"] {
+                position: absolute;
+                top: 0.5rem;
+                right: 0.5rem;
+                width: 2rem !important;
+                height: 2rem !important;
+                padding: 0 !important;
+                font-size: 1.5rem;
+            }
+
             /* Calendar */
             .calendar-view.active {
                 height: calc(100vh - 150px);
