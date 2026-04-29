@@ -2110,55 +2110,112 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function renderNJMap() {
-            // Count clients by ZIP code (first 3 digits for region)
+            // Count clients by full ZIP code
             const zipCounts = {};
             clients.forEach(c => {
                 if (c.zipCode && c.state === 'NJ') {
-                    const zipPrefix = c.zipCode.substring(0, 3);
-                    zipCounts[zipPrefix] = (zipCounts[zipPrefix] || 0) + 1;
+                    const zip = c.zipCode.substring(0, 5); // Full 5-digit ZIP
+                    zipCounts[zip] = (zipCounts[zip] || 0) + 1;
                 }
             });
 
-            // NJ ZIP code regions and their approximate coordinates on the map
-            const njRegions = {
-                '070': { x: 150, y: 500, name: 'South Jersey' },
-                '071': { x: 180, y: 450, name: 'Central Jersey' },
-                '072': { x: 200, y: 400, name: 'Shore' },
-                '073': { x: 120, y: 420, name: 'Trenton Area' },
-                '074': { x: 140, y: 380, name: 'Central' },
-                '075': { x: 100, y: 350, name: 'Hunterdon' },
-                '076': { x: 80, y: 320, name: 'Northwest' },
-                '077': { x: 160, y: 320, name: 'North Central' },
-                '078': { x: 140, y: 280, name: 'Morris County' },
-                '079': { x: 180, y: 250, name: 'Bergen/Passaic' },
-                '080': { x: 140, y: 220, name: 'North Bergen' },
-                '081': { x: 100, y: 200, name: 'Sussex' }
-            };
-
             const svg = document.getElementById('nj-map');
 
-            // Draw simplified NJ outline
+            // More accurate NJ outline (simplified but recognizable shape)
             svg.innerHTML = `
-                <path d="M 100 180 L 120 190 L 140 200 L 160 210 L 180 230 L 200 260 L 210 300 L 220 350 L 230 400 L 240 450 L 230 500 L 210 540 L 180 560 L 150 570 L 120 560 L 100 540 L 80 500 L 70 450 L 70 400 L 75 350 L 85 300 L 95 250 L 100 200 Z"
-                      fill="#e2e8f0" stroke="#667eea" stroke-width="2"/>
+                <defs>
+                    <linearGradient id="njGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#f0f4ff;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <!-- NJ State Outline -->
+                <path d="M 200 50 L 220 55 L 235 65 L 245 80 L 250 95 L 252 115 L 255 135 L 258 155 L 260 175 L 262 195 L 265 220 L 270 250 L 275 280 L 278 310 L 280 340 L 282 370 L 283 400 L 282 430 L 278 460 L 270 490 L 258 515 L 240 535 L 218 548 L 195 555 L 170 558 L 145 555 L 125 548 L 108 535 L 95 518 L 85 498 L 78 475 L 75 450 L 73 425 L 72 400 L 73 375 L 75 350 L 78 325 L 82 300 L 88 275 L 95 250 L 103 225 L 112 200 L 122 175 L 133 150 L 145 125 L 157 105 L 170 85 L 183 68 L 195 55 Z"
+                      fill="url(#njGradient)" stroke="#667eea" stroke-width="3" filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.1))"/>
+
+                <!-- Counties outlines (subtle) -->
+                <g opacity="0.2" stroke="#999" stroke-width="1" fill="none">
+                    <path d="M 200 50 L 180 100 L 170 150"/>
+                    <path d="M 250 100 L 220 120 L 200 140"/>
+                    <path d="M 180 200 L 200 220 L 220 240"/>
+                    <path d="M 150 300 L 180 320 L 200 340"/>
+                    <path d="M 120 400 L 150 420 L 180 440"/>
+                </g>
             `;
 
-            // Add circles for regions with clients
-            Object.entries(njRegions).forEach(([zip, coords]) => {
-                const count = zipCounts[zip] || 0;
-                if (count > 0) {
-                    const radius = Math.min(5 + count * 3, 30);
+            // Major NJ ZIP codes with approximate lat/long converted to map coordinates
+            const njZipCoords = {
+                // North Jersey
+                '07001': { x: 215, y: 140, name: 'Avenel' }, '07002': { x: 205, y: 145, name: 'Bayonne' },
+                '07003': { x: 195, y: 135, name: 'Bloomfield' }, '07004': { x: 185, y: 125, name: 'Fairfield' },
+                '07005': { x: 175, y: 115, name: 'Boonton' }, '07006': { x: 185, y: 105, name: 'Caldwell' },
+                '07010': { x: 195, y: 125, name: 'Cliffside Park' }, '07020': { x: 205, y: 155, name: 'Edgewater' },
+                '07024': { x: 215, y: 135, name: 'Fort Lee' }, '07030': { x: 225, y: 145, name: 'Hoboken' },
+                '07040': { x: 205, y: 165, name: 'Maplewood' }, '07050': { x: 195, y: 155, name: 'Orange' },
+                '07060': { x: 185, y: 145, name: 'Plainfield' }, '07070': { x: 195, y: 175, name: 'Rutherford' },
+                '07080': { x: 215, y: 165, name: 'South Orange' }, '07090': { x: 205, y: 185, name: 'Westfield' },
+
+                // Bergen County
+                '07601': { x: 220, y: 85, name: 'Hackensack' }, '07621': { x: 210, y: 75, name: 'Bergenfield' },
+                '07640': { x: 200, y: 65, name: 'Harrington Park' }, '07650': { x: 230, y: 95, name: 'Palisades Park' },
+                '07660': { x: 220, y: 105, name: 'Ridgefield Park' }, '07670': { x: 210, y: 95, name: 'Tenafly' },
+
+                // Morris County
+                '07801': { x: 145, y: 125, name: 'Dover' }, '07820': { x: 135, y: 105, name: 'Allamuchy' },
+                '07828': { x: 125, y: 85, name: 'Budd Lake' }, '07836': { x: 155, y: 115, name: 'Flanders' },
+                '07840': { x: 115, y: 95, name: 'Hackettstown' }, '07850': { x: 165, y: 105, name: 'Landing' },
+                '07860': { x: 105, y: 85, name: 'Newton' }, '07876': { x: 125, y: 115, name: 'Succasunna' },
+                '07901': { x: 175, y: 185, name: 'Summit' }, '07920': { x: 165, y: 175, name: 'Basking Ridge' },
+                '07960': { x: 155, y: 165, name: 'Morristown' }, '07980': { x: 145, y: 155, name: 'Stirling' },
+
+                // Central Jersey
+                '08501': { x: 155, y: 275, name: 'Allentown' }, '08520': { x: 135, y: 285, name: 'Hightstown' },
+                '08540': { x: 125, y: 295, name: 'Princeton' }, '08550': { x: 145, y: 285, name: 'Princeton Junction' },
+                '08610': { x: 115, y: 305, name: 'Trenton' }, '08638': { x: 105, y: 315, name: 'Trenton' },
+                '08701': { x: 235, y: 305, name: 'Lakewood' }, '08720': { x: 245, y: 325, name: 'Allenwood' },
+                '08750': { x: 255, y: 335, name: 'Sea Girt' }, '08801': { x: 145, y: 235, name: 'Annandale' },
+                '08810': { x: 175, y: 245, name: 'Dayton' }, '08820': { x: 165, y: 255, name: 'Edison' },
+                '08830': { x: 155, y: 245, name: 'Iselin' }, '08850': { x: 145, y: 255, name: 'Milltown' },
+                '08901': { x: 185, y: 265, name: 'New Brunswick' }, '08904': { x: 195, y: 275, name: 'Highland Park' },
+
+                // Shore Area
+                '07701': { x: 225, y: 285, name: 'Red Bank' }, '07730': { x: 235, y: 295, name: 'Avon' },
+                '07740': { x: 245, y: 305, name: 'Long Branch' }, '07750': { x: 255, y: 315, name: 'Monmouth Beach' },
+                '08701': { x: 235, y: 345, name: 'Lakewood' }, '08721': { x: 245, y: 365, name: 'Bayville' },
+                '08753': { x: 255, y: 385, name: 'Toms River' }, '08758': { x: 265, y: 395, name: 'Waretown' },
+
+                // South Jersey
+                '08002': { x: 145, y: 395, name: 'Cherry Hill' }, '08034': { x: 155, y: 405, name: 'Cherry Hill' },
+                '08003': { x: 135, y: 385, name: 'Cherry Hill' }, '08054': { x: 165, y: 415, name: 'Mount Laurel' },
+                '08060': { x: 125, y: 375, name: 'Blackwood' }, '08080': { x: 115, y: 425, name: 'Sewell' },
+                '08090': { x: 105, y: 435, name: 'Williamstown' }, '08103': { x: 155, y: 425, name: 'Camden' },
+                '08201': { x: 175, y: 495, name: 'Absecon' }, '08210': { x: 185, y: 505, name: 'Cape May Court House' },
+                '08260': { x: 195, y: 525, name: 'Wildwood' }, '08401': { x: 165, y: 485, name: 'Atlantic City' },
+                '08640': { x: 95, y: 315, name: 'Fort Dix' }, '08759': { x: 255, y: 375, name: 'Manchester' }
+            };
+
+            // Add circles for each ZIP code with clients
+            const maxCount = Math.max(...Object.values(zipCounts), 1);
+            Object.entries(zipCounts).forEach(([zip, count]) => {
+                const coords = njZipCoords[zip];
+                if (coords) {
+                    const radius = Math.min(8 + (count / maxCount) * 20, 35);
                     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     circle.setAttribute('cx', coords.x);
                     circle.setAttribute('cy', coords.y);
                     circle.setAttribute('r', radius);
                     circle.setAttribute('fill', '#667eea');
-                    circle.setAttribute('opacity', '0.7');
+                    circle.setAttribute('opacity', '0.6');
+                    circle.setAttribute('stroke', '#fff');
+                    circle.setAttribute('stroke-width', '2');
                     circle.style.cursor = 'pointer';
+                    circle.style.transition = 'all 0.2s';
 
                     circle.addEventListener('mouseenter', (e) => {
+                        circle.setAttribute('opacity', '0.9');
+                        circle.setAttribute('r', radius * 1.2);
                         const tooltip = document.getElementById('map-tooltip');
-                        tooltip.textContent = `${coords.name} (${zip}xx): ${count} client${count !== 1 ? 's' : ''}`;
+                        tooltip.textContent = `${coords.name} (${zip}): ${count} client${count !== 1 ? 's' : ''}`;
                         tooltip.style.display = 'block';
                         tooltip.style.left = (e.pageX + 10) + 'px';
                         tooltip.style.top = (e.pageY - 30) + 'px';
@@ -2171,12 +2228,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     });
 
                     circle.addEventListener('mouseleave', () => {
+                        circle.setAttribute('opacity', '0.6');
+                        circle.setAttribute('r', radius);
                         document.getElementById('map-tooltip').style.display = 'none';
                     });
 
                     svg.appendChild(circle);
                 }
             });
+
+            // Add legend
+            const legend = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            legend.innerHTML = `
+                <text x="20" y="30" font-size="14" font-weight="bold" fill="#667eea">Client Distribution</text>
+                <text x="20" y="50" font-size="11" fill="#718096">Circle size = # of clients</text>
+            `;
+            svg.appendChild(legend);
         }
 
         function filterClients() {
