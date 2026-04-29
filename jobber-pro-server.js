@@ -3271,8 +3271,6 @@ const handleRequest = async (req, res) => {
         <thead>
             <tr>
                 <th>Description</th>
-                <th style="text-align: center;">Hours</th>
-                <th style="text-align: right;">Rate</th>
                 <th style="text-align: right;">Amount</th>
             </tr>
         </thead>
@@ -3280,8 +3278,6 @@ const handleRequest = async (req, res) => {
             ${job.laborItems.map(item => `
             <tr>
                 <td>${item.description}</td>
-                <td style="text-align: center;">${item.hours}</td>
-                <td style="text-align: right;">$${parseFloat(item.rate).toFixed(2)}</td>
                 <td style="text-align: right;">$${(item.hours * item.rate).toFixed(2)}</td>
             </tr>
             `).join('')}
@@ -3295,8 +3291,6 @@ const handleRequest = async (req, res) => {
         <thead>
             <tr>
                 <th>Description</th>
-                <th style="text-align: center;">Quantity</th>
-                <th style="text-align: right;">Price</th>
                 <th style="text-align: right;">Amount</th>
             </tr>
         </thead>
@@ -3304,8 +3298,6 @@ const handleRequest = async (req, res) => {
             ${job.materialItems.map(item => `
             <tr>
                 <td>${item.description}</td>
-                <td style="text-align: center;">${item.quantity}</td>
-                <td style="text-align: right;">$${parseFloat(item.price).toFixed(2)}</td>
                 <td style="text-align: right;">$${(item.quantity * item.price).toFixed(2)}</td>
             </tr>
             `).join('')}
