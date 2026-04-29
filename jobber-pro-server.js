@@ -5041,12 +5041,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     clockOut = now > oneHourLater ? now : oneHourLater;
                 }
 
-                // Ensure clockOut is at least 1 minute after clockIn (to avoid same-minute rounding issues)
-                if (clockOut.getTime() <= clockIn.getTime()) {
-                    clockOut = new Date(clockIn.getTime() + 60000); // Add 1 minute
+                // Format both dates
+                const clockInFormatted = formatDateTimeLocal(clockIn);
+                const clockOutFormatted = formatDateTimeLocal(clockOut);
+
+                // If they format to the same minute, add 1 minute to clockOut
+                if (clockInFormatted === clockOutFormatted) {
+                    clockOut = new Date(clockOut.getTime() + 60000); // Add 1 minute
                 }
 
-                document.getElementById('editClockIn').value = formatDateTimeLocal(clockIn);
+                document.getElementById('editClockIn').value = clockInFormatted;
                 document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
 
                 // Set status and payment amount
