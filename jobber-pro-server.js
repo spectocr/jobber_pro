@@ -1148,6 +1148,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
             </div>
 
+            <!-- Admin Approval Queue (Admin Only) -->
+            <div class="card" id="approvalQueueCard" style="display: none;">
+                <div class="card-header">
+                    <h2>⏳ Pending Approval Queue</h2>
+                    <span id="pendingCount" style="background: #ffc107; color: #000; padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: 600;">0</span>
+                </div>
+                <div id="approvalQueue"></div>
+            </div>
+
             <!-- Recent Time Entries (Admin Only) -->
             <div class="card" id="allTimeEntriesCard" style="display: none;">
                 <div class="card-header">
@@ -4567,7 +4576,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             loadTodayTimeEntries();
 
             if (isAdmin) {
+                document.getElementById('approvalQueueCard').style.display = 'block';
                 document.getElementById('allTimeEntriesCard').style.display = 'block';
+                loadApprovalQueue();
                 loadAllTimeEntries();
             }
         }
@@ -4617,6 +4628,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             loadTodayTimeEntries();
 
             if (isAdmin) {
+                loadApprovalQueue();
                 loadAllTimeEntries();
             }
         }
@@ -4688,18 +4700,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
                 const duration = entry.duration ? formatDuration(entry.duration) : 'In Progress';
                 const clockOutText = clockOut ? '| Out: ' + clockOut.toLocaleTimeString() : '';
-                const deleteBtn = entry.status === 'completed' ?
-                    '<button class="btn-icon" onclick="deleteTimeEntry(' + entry.id + ')" title="Delete">🗑️</button>' : '';
 
-                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' +
-                    (entry.status === 'active' ? '#48bb78' : '#667eea') + ';">' +
+                // Status colors: active=green, pending=yellow, approved=green, rejected=red
+                let borderColor = '#667eea'; // default blue
+                let statusBadge = '';
+                if (entry.status === 'active') {
+                    borderColor = '#48bb78';
+                } else if (entry.status === 'pending') {
+                    borderColor = '#ffc107';
+                    statusBadge = '<span style="background: #ffc107; color: #000; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">⏳ Pending</span>';
+                } else if (entry.status === 'approved') {
+                    borderColor = '#48bb78';
+                    statusBadge = '<span style="background: #48bb78; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">✓ Approved ($' + (entry.paymentAmount || 0).toFixed(2) + ')</span>';
+                } else if (entry.status === 'rejected') {
+                    borderColor = '#e53e3e';
+                    statusBadge = '<span style="background: #e53e3e; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">✗ Rejected</span>';
+                }
+
+                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' + borderColor + ';">' +
                     '<div style="display: flex; justify-content: space-between; align-items: start;">' +
                     '<div style="flex: 1;">' +
-                    '<h4 style="margin: 0 0 0.5rem 0; color: #1a202c;">' + entry.jobName + '</h4>' +
+                    '<div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">' +
+                    '<h4 style="margin: 0; color: #1a202c;">' + entry.jobName + '</h4>' +
+                    statusBadge +
+                    '</div>' +
                     '<div style="color: #718096; font-size: 0.9rem;">' +
                     '<div>⏰ In: ' + clockIn.toLocaleTimeString() + ' ' + clockOutText + '</div>' +
                     '<div>⏱️ Duration: ' + duration + '</div>' +
-                    '</div></div>' + deleteBtn +
+                    '</div></div>' +
                     '</div></div>';
             }).join('');
 
@@ -4726,13 +4754,29 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const date = clockIn.toLocaleDateString();
                 const timeText = clockOut ? '- ' + clockOut.toLocaleTimeString() : '(Active)';
 
-                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' +
-                    (entry.status === 'active' ? '#48bb78' : '#667eea') + ';">' +
+                // Status colors
+                let borderColor = '#667eea';
+                let statusBadge = '';
+                if (entry.status === 'active') {
+                    borderColor = '#48bb78';
+                } else if (entry.status === 'pending') {
+                    borderColor = '#ffc107';
+                    statusBadge = '<span style="background: #ffc107; color: #000; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">⏳ Pending</span>';
+                } else if (entry.status === 'approved') {
+                    borderColor = '#48bb78';
+                    statusBadge = '<span style="background: #48bb78; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">✓ $' + (entry.paymentAmount || 0).toFixed(2) + '</span>';
+                } else if (entry.status === 'rejected') {
+                    borderColor = '#e53e3e';
+                    statusBadge = '<span style="background: #e53e3e; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">✗ Rejected</span>';
+                }
+
+                return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' + borderColor + ';">' +
                     '<div style="display: flex; justify-content: space-between; align-items: start;">' +
                     '<div style="flex: 1;">' +
-                    '<div style="display: flex; gap: 1rem; align-items: baseline; margin-bottom: 0.5rem;">' +
+                    '<div style="display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.5rem;">' +
                     '<h4 style="margin: 0; color: #1a202c;">' + entry.jobName + '</h4>' +
                     '<span style="color: #718096; font-size: 0.9rem;">by ' + entry.userName + '</span>' +
+                    statusBadge +
                     '</div>' +
                     '<div style="color: #718096; font-size: 0.9rem;">' +
                     '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' ' + timeText + '</div>' +
@@ -4766,6 +4810,86 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function exportTimeEntries() {
             alert('Export feature coming soon!');
+        }
+
+        async function loadApprovalQueue() {
+            const response = await fetch('/api/timeentries');
+            const entries = await response.json();
+
+            const pending = entries.filter(e => e.approvalStatus === 'pending' || e.status === 'pending');
+            pending.sort((a, b) => new Date(b.clockOut) - new Date(a.clockOut));
+
+            document.getElementById('pendingCount').textContent = pending.length;
+
+            const container = document.getElementById('approvalQueue');
+
+            if (pending.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>✅ No pending approvals</p></div>';
+                return;
+            }
+
+            const html = pending.map(entry => {
+                const clockIn = new Date(entry.clockIn);
+                const clockOut = new Date(entry.clockOut);
+                const duration = formatDuration(entry.duration);
+                const date = clockIn.toLocaleDateString();
+
+                return '<div class="time-entry-card" style="background: #fffbea; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #ffc107;">' +
+                    '<div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">' +
+                    '<div style="flex: 1;">' +
+                    '<div style="display: flex; gap: 1rem; align-items: baseline; margin-bottom: 0.5rem;">' +
+                    '<h4 style="margin: 0; color: #1a202c;">' + entry.jobName + '</h4>' +
+                    '<span style="color: #718096; font-size: 0.9rem;">by ' + entry.userName + '</span>' +
+                    '</div>' +
+                    '<div style="color: #718096; font-size: 0.9rem;">' +
+                    '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' - ' + clockOut.toLocaleTimeString() + '</div>' +
+                    '<div>⏱️ Duration: ' + duration + '</div>' +
+                    '</div></div>' +
+                    '<div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 200px;">' +
+                    '<input type="number" id="payment_' + entry.id + '" placeholder="Payment amount" step="0.01" min="0" style="padding: 0.5rem; border: 2px solid #cbd5e0; border-radius: 4px;">' +
+                    '<div style="display: flex; gap: 0.5rem;">' +
+                    '<button class="btn btn-primary btn-small" onclick="approveTimeEntry(\'' + entry.id + '\')" style="flex: 1;">✓ Approve</button>' +
+                    '<button class="btn btn-danger btn-small" onclick="rejectTimeEntry(\'' + entry.id + '\')" style="flex: 1;">✗ Reject</button>' +
+                    '</div></div>' +
+                    '</div></div>';
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function approveTimeEntry(id) {
+            const paymentInput = document.getElementById('payment_' + id);
+            const paymentAmount = parseFloat(paymentInput.value);
+
+            if (!paymentAmount || paymentAmount <= 0) {
+                alert('Please enter a valid payment amount');
+                return;
+            }
+
+            if (!confirm('Approve this time entry and pay $' + paymentAmount.toFixed(2) + '?')) return;
+
+            await fetch('/api/timeentries/' + id + '/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentAmount: paymentAmount })
+            });
+
+            loadApprovalQueue();
+            loadAllTimeEntries();
+        }
+
+        async function rejectTimeEntry(id) {
+            const reason = prompt('Reason for rejection (optional):');
+            if (reason === null) return; // Cancelled
+
+            await fetch('/api/timeentries/' + id + '/reject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            });
+
+            loadApprovalQueue();
+            loadAllTimeEntries();
         }
 
         // Calendar functions

@@ -919,7 +919,8 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
             {
                 $set: {
                     clockOut: clockOut,
-                    status: 'completed',
+                    status: 'pending',
+                    approvalStatus: 'pending',
                     duration: duration,
                     updatedAt: new Date()
                 }
@@ -936,6 +937,50 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
 app.delete('/api/timeentries/:id', isAuthenticated, async (req, res) => {
     await db.collection('timeentries').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
+});
+
+// Approve time entry
+app.post('/api/timeentries/:id/approve', isAdmin, async (req, res) => {
+    const { paymentAmount } = req.body;
+
+    await db.collection('timeentries').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        {
+            $set: {
+                approvalStatus: 'approved',
+                status: 'approved',
+                paymentAmount: parseFloat(paymentAmount) || 0,
+                approvedBy: req.session.userName,
+                approvedAt: new Date(),
+                updatedAt: new Date()
+            }
+        }
+    );
+
+    const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ...updated, id: updated._id.toString() });
+});
+
+// Reject time entry
+app.post('/api/timeentries/:id/reject', isAdmin, async (req, res) => {
+    const { reason } = req.body;
+
+    await db.collection('timeentries').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        {
+            $set: {
+                approvalStatus: 'rejected',
+                status: 'rejected',
+                rejectionReason: reason || '',
+                rejectedBy: req.session.userName,
+                rejectedAt: new Date(),
+                updatedAt: new Date()
+            }
+        }
+    );
+
+    const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ...updated, id: updated._id.toString() });
 });
 
 app.get('/api/calendar', isAuthenticated, async (req, res) => {
