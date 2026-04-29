@@ -1104,8 +1104,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="">All Team Members</option>
                         </select>
                         <button class="btn btn-secondary" onclick="clearJobFilters()" style="margin-left: auto;">Clear Filters</button>
-                        <button class="btn btn-secondary" onclick="exportJobsToExcel()">📊 Export to Excel</button>
-                        <button class="btn btn-primary" onclick="openJobModal()">+ Create Job</button>
+                        <button class="btn btn-secondary" onclick="exportJobsToExcel()" data-admin-only>📊 Export to Excel</button>
+                        <button class="btn btn-primary" onclick="openJobModal()" data-admin-only>+ Create Job</button>
                     </div>
                 </div>
                 <div id="jobs-list"></div>
@@ -3089,30 +3089,37 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th><th>Billed / Paid / Owed</th><th>Actions</th></tr></thead><tbody>' +
+            const moneyColumn = isAdmin ? '<th>Billed / Paid / Owed</th>' : '';
+            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + '<th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
                     const client = clients.find(c => c.id == j.clientId);
                     const assigned = team.find(t => t.id == j.assignedTo);
-                    const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
-                    const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
-                    const owed = total - paid;
-                    const isPaidInFull = Math.abs(owed) < 0.01;
-                    const owedDisplay = isPaidInFull ? 0 : owed;
-                    const paymentStatus = isPaidInFull ? '✓' : owed < total ? '◐' : '';
+
+                    let moneyCell = '';
+                    if (isAdmin) {
+                        const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
+                        const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
+                        const owed = total - paid;
+                        const isPaidInFull = Math.abs(owed) < 0.01;
+                        const owedDisplay = isPaidInFull ? 0 : owed;
+                        const paymentStatus = isPaidInFull ? '✓' : owed < total ? '◐' : '';
+                        moneyCell = \`<td>
+                            <div style="font-size: 0.9rem;">
+                                <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${isPaidInFull ? '#48bb78' : '#e53e3e'};">$\${owedDisplay.toFixed(2)}</span> \${paymentStatus}</div>
+                            </div>
+                        </td>\`;
+                    }
+
                     return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
                         <td>\${client ? client.name : 'Unknown'}</td>
                         <td><strong>\${j.title}</strong><br><small>\${j.description || ''}</small></td>
                         <td>\${assigned ? assigned.name : 'Unassigned'}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                        <td>
-                            <div style="font-size: 0.9rem;">
-                                <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${isPaidInFull ? '#48bb78' : '#e53e3e'};">$\${owedDisplay.toFixed(2)}</span> \${paymentStatus}</div>
-                            </div>
-                        </td>
+                        \${moneyCell}
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
-                            <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>
+                            \${isAdmin ? '<button class="btn btn-primary btn-small" onclick="window.open(\'/invoice/\${j.id}\', \'_blank\')">📄 Invoice</button>' : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                         </td>
                     </tr>\`;
