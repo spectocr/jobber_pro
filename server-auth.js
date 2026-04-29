@@ -936,7 +936,7 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
 
 // Edit time entry (admin only)
 app.put('/api/timeentries/:id', isAdmin, async (req, res) => {
-    const { clockIn, clockOut, duration, jobId, jobName } = req.body;
+    const { clockIn, clockOut, duration, jobId, jobName, status, approvalStatus, paymentAmount } = req.body;
 
     const updates = {
         updatedAt: new Date()
@@ -947,6 +947,9 @@ app.put('/api/timeentries/:id', isAdmin, async (req, res) => {
     if (duration !== undefined) updates.duration = duration;
     if (jobId) updates.jobId = jobId;
     if (jobName) updates.jobName = jobName;
+    if (status) updates.status = status;
+    if (approvalStatus) updates.approvalStatus = approvalStatus;
+    if (paymentAmount !== undefined) updates.paymentAmount = paymentAmount;
 
     await db.collection('timeentries').updateOne(
         { _id: new ObjectId(req.params.id) },

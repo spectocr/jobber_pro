@@ -1956,6 +1956,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <input type="datetime-local" id="editClockOut" required>
                 </div>
 
+                <div class="form-group">
+                    <label>Status *</label>
+                    <select id="editStatus">
+                        <option value="active">Active</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Payment Amount ($)</label>
+                    <input type="number" id="editPaymentAmount" step="0.01" min="0" placeholder="Enter amount for approved entries">
+                </div>
+
                 <div style="background: #fff3cd; padding: 0.75rem; border-radius: 4px; margin-top: 1rem;">
                     <small><strong>Note:</strong> Duration will be automatically recalculated based on the times.</small>
                 </div>
@@ -4992,6 +5007,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
             }
 
+            // Set status and payment amount
+            document.getElementById('editStatus').value = entry.status || 'pending';
+            document.getElementById('editPaymentAmount').value = entry.paymentAmount || '';
+
             // Show modal
             document.getElementById('editTimeEntryModal').classList.add('active');
         }
@@ -5009,6 +5028,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const id = document.getElementById('editTimeEntryId').value;
             const clockIn = new Date(document.getElementById('editClockIn').value);
             const clockOut = new Date(document.getElementById('editClockOut').value);
+            const status = document.getElementById('editStatus').value;
+            const paymentAmount = parseFloat(document.getElementById('editPaymentAmount').value) || null;
 
             if (!clockIn || !clockOut) {
                 alert('Please provide both clock in and clock out times');
@@ -5022,14 +5043,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const duration = Math.round((clockOut - clockIn) / 1000); // seconds
 
+            const updates = {
+                clockIn: clockIn.toISOString(),
+                clockOut: clockOut.toISOString(),
+                duration: duration,
+                status: status,
+                approvalStatus: status
+            };
+
+            if (paymentAmount !== null) {
+                updates.paymentAmount = paymentAmount;
+            }
+
             await fetch('/api/timeentries/' + id, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    clockIn: clockIn.toISOString(),
-                    clockOut: clockOut.toISOString(),
-                    duration: duration
-                })
+                body: JSON.stringify(updates)
             });
 
             closeModal('editTimeEntryModal');
