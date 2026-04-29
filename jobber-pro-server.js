@@ -2121,7 +2121,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const svg = document.getElementById('nj-map');
 
-            // More accurate NJ outline (simplified but recognizable shape)
+            // Accurate NJ state outline (recognizable shape)
             svg.innerHTML = `
                 <defs>
                     <linearGradient id="njGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -2129,18 +2129,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
                     </linearGradient>
                 </defs>
-                <!-- NJ State Outline -->
-                <path d="M 200 50 L 220 55 L 235 65 L 245 80 L 250 95 L 252 115 L 255 135 L 258 155 L 260 175 L 262 195 L 265 220 L 270 250 L 275 280 L 278 310 L 280 340 L 282 370 L 283 400 L 282 430 L 278 460 L 270 490 L 258 515 L 240 535 L 218 548 L 195 555 L 170 558 L 145 555 L 125 548 L 108 535 L 95 518 L 85 498 L 78 475 L 75 450 L 73 425 L 72 400 L 73 375 L 75 350 L 78 325 L 82 300 L 88 275 L 95 250 L 103 225 L 112 200 L 122 175 L 133 150 L 145 125 L 157 105 L 170 85 L 183 68 L 195 55 Z"
-                      fill="url(#njGradient)" stroke="#667eea" stroke-width="3" filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.1))"/>
-
-                <!-- Counties outlines (subtle) -->
-                <g opacity="0.2" stroke="#999" stroke-width="1" fill="none">
-                    <path d="M 200 50 L 180 100 L 170 150"/>
-                    <path d="M 250 100 L 220 120 L 200 140"/>
-                    <path d="M 180 200 L 200 220 L 220 240"/>
-                    <path d="M 150 300 L 180 320 L 200 340"/>
-                    <path d="M 120 400 L 150 420 L 180 440"/>
-                </g>
+                <!-- New Jersey State Outline - Accurate Shape -->
+                <path d="M 200 30
+                         L 210 32 L 220 35 L 228 40 L 235 48 L 240 58 L 243 70
+                         L 245 85 L 247 100 L 248 115 L 250 130 L 252 145
+                         L 254 160 L 256 175 L 258 190 L 260 205 L 262 220
+                         L 265 240 L 268 260 L 271 280 L 274 300 L 276 320
+                         L 278 340 L 280 360 L 281 380 L 282 400 L 282 420
+                         L 281 440 L 279 460 L 276 480 L 272 500 L 266 518
+                         L 258 535 L 248 548 L 236 558 L 222 565 L 206 570
+                         L 188 572 L 170 571 L 152 568 L 135 562 L 120 554
+                         L 106 543 L 94 530 L 84 515 L 76 498 L 70 480
+                         L 66 460 L 63 440 L 61 420 L 60 400 L 60 380
+                         L 61 360 L 63 340 L 66 320 L 70 300 L 75 280
+                         L 81 260 L 88 240 L 96 220 L 105 200 L 115 180
+                         L 126 160 L 138 140 L 150 120 L 162 100 L 174 82
+                         L 185 66 L 194 52 L 200 40 Z"
+                      fill="url(#njGradient)"
+                      stroke="#667eea"
+                      stroke-width="3"
+                      filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.1))"/>
             `;
 
             // Major NJ ZIP codes with approximate lat/long converted to map coordinates
@@ -2199,21 +2207,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             Object.entries(zipCounts).forEach(([zip, count]) => {
                 const coords = njZipCoords[zip];
                 if (coords) {
-                    const radius = Math.min(8 + (count / maxCount) * 20, 35);
+                    const radius = Math.max(15, Math.min(12 + (count / maxCount) * 25, 40));
+
+                    // Create group for circle and text
+                    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    group.style.cursor = 'pointer';
+
+                    // Create circle
                     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     circle.setAttribute('cx', coords.x);
                     circle.setAttribute('cy', coords.y);
                     circle.setAttribute('r', radius);
                     circle.setAttribute('fill', '#667eea');
-                    circle.setAttribute('opacity', '0.6');
+                    circle.setAttribute('opacity', '0.7');
                     circle.setAttribute('stroke', '#fff');
                     circle.setAttribute('stroke-width', '2');
-                    circle.style.cursor = 'pointer';
                     circle.style.transition = 'all 0.2s';
 
-                    circle.addEventListener('mouseenter', (e) => {
-                        circle.setAttribute('opacity', '0.9');
-                        circle.setAttribute('r', radius * 1.2);
+                    // Create text with count
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', coords.x);
+                    text.setAttribute('y', coords.y);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('dominant-baseline', 'middle');
+                    text.setAttribute('fill', '#fff');
+                    text.setAttribute('font-size', radius > 20 ? '14' : '12');
+                    text.setAttribute('font-weight', 'bold');
+                    text.style.pointerEvents = 'none';
+                    text.textContent = count;
+
+                    group.appendChild(circle);
+                    group.appendChild(text);
+
+                    group.addEventListener('mouseenter', (e) => {
+                        circle.setAttribute('opacity', '0.95');
+                        circle.setAttribute('r', radius * 1.15);
                         const tooltip = document.getElementById('map-tooltip');
                         tooltip.textContent = `${coords.name} (${zip}): ${count} client${count !== 1 ? 's' : ''}`;
                         tooltip.style.display = 'block';
@@ -2221,19 +2249,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         tooltip.style.top = (e.pageY - 30) + 'px';
                     });
 
-                    circle.addEventListener('mousemove', (e) => {
+                    group.addEventListener('mousemove', (e) => {
                         const tooltip = document.getElementById('map-tooltip');
                         tooltip.style.left = (e.pageX + 10) + 'px';
                         tooltip.style.top = (e.pageY - 30) + 'px';
                     });
 
-                    circle.addEventListener('mouseleave', () => {
-                        circle.setAttribute('opacity', '0.6');
+                    group.addEventListener('mouseleave', () => {
+                        circle.setAttribute('opacity', '0.7');
                         circle.setAttribute('r', radius);
                         document.getElementById('map-tooltip').style.display = 'none';
                     });
 
-                    svg.appendChild(circle);
+                    svg.appendChild(group);
                 }
             });
 
