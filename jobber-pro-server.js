@@ -2145,6 +2145,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         let serviceLocations = [];
+        let expandedLocations = new Set();
 
         function togglePropertyManagementFields() {
             const checkbox = document.getElementById('isPropertyManagementCheckbox');
@@ -2161,11 +2162,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 contact: '',
                 notes: ''
             });
+            expandedLocations.add(id);
             renderServiceLocations();
         }
 
         function removeServiceLocation(id) {
             serviceLocations = serviceLocations.filter(loc => loc.id !== id);
+            expandedLocations.delete(id);
+            renderServiceLocations();
+        }
+
+        function toggleServiceLocation(id) {
+            if (expandedLocations.has(id)) {
+                expandedLocations.delete(id);
+            } else {
+                expandedLocations.add(id);
+            }
             renderServiceLocations();
         }
 
@@ -2177,30 +2189,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = serviceLocations.map((loc, index) => \`
-                <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <strong style="color: #2d3748;">Location #\${index + 1}</strong>
-                        <button type="button" class="btn btn-danger btn-small" onclick="removeServiceLocation(\${loc.id})">Remove</button>
+            container.innerHTML = serviceLocations.map((loc, index) => {
+                const isExpanded = expandedLocations.has(loc.id);
+                const summary = loc.name || loc.address || 'Untitled Location';
+
+                return \`
+                <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleServiceLocation(\${loc.id})">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.2rem; user-select: none;">\${isExpanded ? '▼' : '▶'}</span>
+                            <strong style="color: #2d3748;">Location #\${index + 1}:</strong>
+                            <span style="color: #4a5568;">\${summary}</span>
+                        </div>
+                        <button type="button" class="btn btn-danger btn-small" onclick="event.stopPropagation(); removeServiceLocation(\${loc.id})">Remove</button>
                     </div>
-                    <div class="form-group">
-                        <label>Service Address</label>
-                        <textarea onchange="updateServiceLocation(\${loc.id}, 'address', this.value)" rows="2">\${loc.address || ''}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Service Name</label>
-                        <input type="text" onchange="updateServiceLocation(\${loc.id}, 'name', this.value)" value="\${loc.name || ''}">
-                    </div>
-                    <div class="form-group">
-                        <label>Service Contact</label>
-                        <input type="text" onchange="updateServiceLocation(\${loc.id}, 'contact', this.value)" value="\${loc.contact || ''}">
-                    </div>
-                    <div class="form-group">
-                        <label>Notes</label>
-                        <textarea onchange="updateServiceLocation(\${loc.id}, 'notes', this.value)" rows="2">\${loc.notes || ''}</textarea>
+                    <div id="location-details-\${loc.id}" style="display: \${isExpanded ? 'block' : 'none'}; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                        <div class="form-group">
+                            <label>Service Address</label>
+                            <textarea onchange="updateServiceLocation(\${loc.id}, 'address', this.value)" rows="2">\${loc.address || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Service Name</label>
+                            <input type="text" onchange="updateServiceLocation(\${loc.id}, 'name', this.value)" value="\${loc.name || ''}">
+                        </div>
+                        <div class="form-group">
+                            <label>Service Contact</label>
+                            <input type="text" onchange="updateServiceLocation(\${loc.id}, 'contact', this.value)" value="\${loc.contact || ''}">
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea onchange="updateServiceLocation(\${loc.id}, 'notes', this.value)" rows="2">\${loc.notes || ''}</textarea>
+                        </div>
                     </div>
                 </div>
-            \`).join('');
+                \`;
+            }).join('');
         }
 
         function updateServiceLocation(id, field, value) {
