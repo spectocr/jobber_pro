@@ -4991,17 +4991,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            // Fetch all entries and find the one we need
-            const response = await fetch('/api/timeentries');
-            const entries = await response.json();
-            const entry = entries.find(e => e.id === id);
+            try {
+                // Fetch all entries and find the one we need
+                const response = await fetch('/api/timeentries');
+                if (!response.ok) {
+                    alert('Failed to fetch time entries');
+                    return;
+                }
 
-            if (!entry) {
-                alert('Time entry not found');
-                return;
+                const entries = await response.json();
+                const entry = entries.find(e => e.id === id);
+
+                if (!entry) {
+                    alert('Time entry not found. ID: ' + id);
+                    return;
+                }
+
+                editTimeEntry(entry);
+            } catch (error) {
+                alert('Error loading time entry: ' + error.message);
+                console.error('editTimeEntryById error:', error);
             }
-
-            editTimeEntry(entry);
         }
 
         function editTimeEntry(entry) {
@@ -5010,40 +5020,45 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            currentEditingTimeEntry = entry;
+            try {
+                currentEditingTimeEntry = entry;
 
-            // Populate the modal
-            document.getElementById('editTimeEntryId').value = entry.id;
-            document.getElementById('editTimeJobName').textContent = entry.jobName;
-            document.getElementById('editTimeUserName').textContent = entry.userName;
+                // Populate the modal
+                document.getElementById('editTimeEntryId').value = entry.id;
+                document.getElementById('editTimeJobName').textContent = entry.jobName;
+                document.getElementById('editTimeUserName').textContent = entry.userName;
 
-            // Format dates for datetime-local inputs
-            const clockIn = new Date(entry.clockIn);
-            let clockOut;
+                // Format dates for datetime-local inputs
+                const clockIn = new Date(entry.clockIn);
+                let clockOut;
 
-            if (entry.clockOut) {
-                clockOut = new Date(entry.clockOut);
-            } else {
-                // For active entries without clock out, default to now or 1 hour after clock in (whichever is later)
-                const now = new Date();
-                const oneHourLater = new Date(clockIn.getTime() + 3600000);
-                clockOut = now > oneHourLater ? now : oneHourLater;
+                if (entry.clockOut) {
+                    clockOut = new Date(entry.clockOut);
+                } else {
+                    // For active entries without clock out, default to now or 1 hour after clock in (whichever is later)
+                    const now = new Date();
+                    const oneHourLater = new Date(clockIn.getTime() + 3600000);
+                    clockOut = now > oneHourLater ? now : oneHourLater;
+                }
+
+                // Ensure clockOut is at least 1 minute after clockIn (to avoid same-minute rounding issues)
+                if (clockOut.getTime() <= clockIn.getTime()) {
+                    clockOut = new Date(clockIn.getTime() + 60000); // Add 1 minute
+                }
+
+                document.getElementById('editClockIn').value = formatDateTimeLocal(clockIn);
+                document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
+
+                // Set status and payment amount
+                document.getElementById('editStatus').value = entry.status || 'pending';
+                document.getElementById('editPaymentAmount').value = entry.paymentAmount || '';
+
+                // Show modal
+                document.getElementById('editTimeEntryModal').classList.add('active');
+            } catch (error) {
+                alert('Error opening edit modal: ' + error.message);
+                console.error('editTimeEntry error:', error, entry);
             }
-
-            // Ensure clockOut is at least 1 minute after clockIn (to avoid same-minute rounding issues)
-            if (clockOut.getTime() <= clockIn.getTime()) {
-                clockOut = new Date(clockIn.getTime() + 60000); // Add 1 minute
-            }
-
-            document.getElementById('editClockIn').value = formatDateTimeLocal(clockIn);
-            document.getElementById('editClockOut').value = formatDateTimeLocal(clockOut);
-
-            // Set status and payment amount
-            document.getElementById('editStatus').value = entry.status || 'pending';
-            document.getElementById('editPaymentAmount').value = entry.paymentAmount || '';
-
-            // Show modal
-            document.getElementById('editTimeEntryModal').classList.add('active');
         }
 
         function formatDateTimeLocal(date) {
