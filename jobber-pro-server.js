@@ -555,16 +555,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         .calendar-day-header {
             background: #667eea;
             color: white;
-            padding: 1rem;
+            padding: 0.75rem;
             text-align: center;
             font-weight: 600;
             font-size: 0.875rem;
         }
         .calendar-day {
             background: white;
-            min-height: 100px;
             padding: 0.5rem;
             position: relative;
+            border: 1px solid #e2e8f0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         .calendar-day.other-month {
             background: #f7fafc;
@@ -578,6 +581,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             font-weight: 600;
             color: #1a202c;
             margin-bottom: 0.5rem;
+            flex-shrink: 0;
         }
         .calendar-job {
             background: #667eea;
@@ -590,6 +594,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            flex-shrink: 0;
         }
         .calendar-job:hover {
             background: #5568d3;
@@ -597,27 +602,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         .calendar-job.in_progress { background: #ed8936; }
         .calendar-job.completed { background: #48bb78; }
         .calendar-job.invoiced { background: #9f7aea; }
-
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-
-        .calendar-day {
-            aspect-ratio: 1;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 0.5rem;
-            font-size: 0.875rem;
-        }
-
-        .calendar-day-header {
-            font-weight: 600;
-            text-align: center;
-            padding: 0.5rem;
-        }
 
         .job-count {
             background: #667eea;
