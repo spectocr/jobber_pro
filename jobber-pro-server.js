@@ -625,13 +625,224 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             font-weight: 600;
         }
 
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .container {
+                max-width: 100%;
+                padding: 1.5rem;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
         @media (max-width: 768px) {
-            .container { padding: 1rem; }
-            .header { padding: 1rem; }
-            .header h1 { font-size: 1.5rem; }
-            .stats-grid { grid-template-columns: 1fr; }
-            table { font-size: 0.875rem; }
-            th, td { padding: 0.75rem 0.5rem; }
+            /* Header */
+            .header {
+                padding: 0.75rem 1rem;
+                height: auto;
+                min-height: 60px;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            .header > div:first-child {
+                width: 100%;
+                justify-content: center;
+            }
+            .header > div:last-child {
+                width: 100%;
+                font-size: 0.75rem;
+                text-align: center;
+            }
+            .header > div:last-child > div {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.5rem;
+                font-size: 0.7rem;
+            }
+
+            /* Navigation */
+            .nav {
+                padding: 0 0.5rem;
+                gap: 0.25rem;
+            }
+            .nav-btn {
+                padding: 0.75rem 1rem;
+                font-size: 0.75rem;
+            }
+
+            /* Container */
+            .container {
+                padding: 1rem;
+            }
+
+            /* Stats Grid */
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .stat-card {
+                padding: 1rem;
+            }
+            .stat-card .value {
+                font-size: 1.5rem;
+            }
+
+            /* Cards */
+            .card {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .card-header h2 {
+                font-size: 1.25rem;
+            }
+
+            /* Tables */
+            table {
+                font-size: 0.75rem;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            th, td {
+                padding: 0.5rem 0.25rem;
+            }
+
+            /* Buttons */
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.75rem;
+                width: 100%;
+                justify-content: center;
+            }
+            .btn-small {
+                padding: 0.35rem 0.75rem;
+                font-size: 0.7rem;
+                width: auto;
+            }
+
+            /* Modals */
+            .modal-content {
+                width: 95%;
+                max-width: 95%;
+                margin: 1rem auto;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+            .modal-header h2 {
+                font-size: 1.25rem;
+            }
+            .modal-body {
+                padding: 1rem;
+            }
+            .modal-footer {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .modal-footer .btn {
+                width: 100%;
+            }
+
+            /* Forms */
+            .form-group {
+                margin-bottom: 1rem;
+            }
+            .form-group label {
+                font-size: 0.875rem;
+            }
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                font-size: 0.875rem;
+            }
+
+            /* Calendar */
+            .calendar-view.active {
+                height: calc(100vh - 150px);
+            }
+            .calendar-day-header {
+                font-size: 0.7rem;
+                padding: 0.5rem 0.25rem;
+            }
+            .calendar-day {
+                padding: 0.25rem;
+                min-height: 60px;
+            }
+            .day-number {
+                font-size: 0.75rem;
+            }
+            .calendar-job {
+                font-size: 0.65rem;
+                padding: 0.2rem 0.3rem;
+            }
+            #calendar-grid {
+                gap: 0.5px;
+            }
+
+            /* Reports */
+            .report-section {
+                margin-bottom: 1.5rem;
+            }
+            .report-section h3 {
+                font-size: 1.1rem;
+            }
+
+            /* Hide long text on mobile */
+            .stat-card .subtext {
+                font-size: 0.75rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.1rem;
+            }
+            .nav-btn {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.7rem;
+            }
+            .container {
+                padding: 0.75rem;
+            }
+            .card {
+                padding: 0.75rem;
+                border-radius: 8px;
+            }
+            .stat-card .value {
+                font-size: 1.25rem;
+            }
+            table {
+                font-size: 0.7rem;
+            }
+            th, td {
+                padding: 0.4rem 0.2rem;
+            }
+            .modal-content {
+                width: 98%;
+                margin: 0.5rem auto;
+            }
+        }
+
+        /* Landscape mobile optimization */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .header {
+                flex-direction: row;
+                min-height: 50px;
+            }
+            .header > div:last-child > div {
+                font-size: 0.65rem;
+            }
+            .calendar-view.active {
+                height: calc(100vh - 100px);
+            }
         }
     </style>
 </head>
