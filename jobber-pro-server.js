@@ -99,10 +99,12 @@ class DataManager {
             jobsToday: jobs.filter(j => j.scheduledDate === today).length,
             jobsThisMonth: jobs.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
 
+            prospecting: jobs.filter(j => j.status === 'prospecting').length,
             scheduled: jobs.filter(j => j.status === 'scheduled').length,
             inProgress: jobs.filter(j => j.status === 'in_progress').length,
             completed: jobs.filter(j => j.status === 'completed').length,
             invoiced: jobs.filter(j => j.status === 'invoiced').length,
+            bidLost: jobs.filter(j => j.status === 'bid_lost').length,
 
             revenueThisMonth: jobs
                 .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
@@ -394,6 +396,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             color: #553c9a;
         }
 
+        .status-prospecting {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-bid_lost {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -676,6 +688,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
 
             <div class="stats-grid">
+                <div class="stat-card" style="border-left-color: #f56565;">
+                    <h3>Prospecting</h3>
+                    <div class="value" id="stat-prospecting">0</div>
+                </div>
                 <div class="stat-card" style="border-left-color: #4299e1;">
                     <h3>Scheduled</h3>
                     <div class="value" id="stat-scheduled">0</div>
@@ -691,6 +707,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="stat-card" style="border-left-color: #9f7aea;">
                     <h3>Invoiced</h3>
                     <div class="value" id="stat-invoiced">0</div>
+                </div>
+                <div class="stat-card" style="border-left-color: #718096;">
+                    <h3>Bid Lost</h3>
+                    <div class="value" id="stat-bid-lost">0</div>
                 </div>
             </div>
 
@@ -764,10 +784,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <select id="filter-status" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
                             <option value="">All Statuses</option>
+                            <option value="prospecting">Prospecting</option>
                             <option value="scheduled">Scheduled</option>
                             <option value="in_progress">In Progress</option>
                             <option value="completed">Completed</option>
                             <option value="invoiced">Invoiced</option>
+                            <option value="bid_lost">Bid Lost</option>
                         </select>
                         <select id="filter-client" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                             <option value="">All Clients</option>
@@ -881,10 +903,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Status</label>
                             <select id="report-filter-status" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 8px;">
                                 <option value="">All Statuses</option>
+                                <option value="prospecting">Prospecting</option>
                                 <option value="scheduled">Scheduled</option>
                                 <option value="in_progress">In Progress</option>
                                 <option value="completed">Completed</option>
                                 <option value="invoiced">Invoiced</option>
+                                <option value="bid_lost">Bid Lost</option>
                             </select>
                         </div>
                         <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
@@ -1104,10 +1128,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div class="form-group">
                         <label>Status *</label>
                         <select name="status" required>
+                            <option value="prospecting">Prospecting</option>
                             <option value="scheduled">Scheduled</option>
                             <option value="in_progress">In Progress</option>
                             <option value="completed">Completed</option>
                             <option value="invoiced">Invoiced</option>
+                            <option value="bid_lost">Bid Lost</option>
                         </select>
                     </div>
 
@@ -1748,10 +1774,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-revenue').textContent = '$' + (stats.revenueThisMonth || 0).toFixed(2);
             document.getElementById('stat-jobs-today').textContent = stats.jobsToday;
 
+            document.getElementById('stat-prospecting').textContent = stats.prospecting;
             document.getElementById('stat-scheduled').textContent = stats.scheduled;
             document.getElementById('stat-in-progress').textContent = stats.inProgress;
             document.getElementById('stat-completed').textContent = stats.completed;
             document.getElementById('stat-invoiced').textContent = stats.invoiced;
+            document.getElementById('stat-bid-lost').textContent = stats.bidLost;
 
             // Render job list helper function
             const renderJobList = (jobs, emptyMessage) => {
@@ -2253,10 +2281,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </tr>
                     </thead>
                     <tbody>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Prospecting</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.prospecting || 0}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.prospecting || 0) / total * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Scheduled</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.scheduled}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.scheduled / total) * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">In Progress</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.in_progress}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.in_progress / total) * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Completed</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.completed}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.completed / total) * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Invoiced</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.invoiced}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.invoiced / total) * 100).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Bid Lost</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.bid_lost || 0}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.bid_lost || 0) / total * 100).toFixed(1)}%</td></tr>
                         <tr style="background: #f8f9fa; font-weight: 600;"><td style="padding: 0.75rem;">Total</td><td style="padding: 0.75rem; text-align: right;">\${total}</td><td style="padding: 0.75rem; text-align: right;">100%</td></tr>
                     </tbody>
                 </table>
@@ -3169,10 +3199,12 @@ const handleRequest = async (req, res) => {
         .print-button { position: fixed; top: 20px; right: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         .print-button:hover { background: #5568d3; }
         .status-badge { display: inline-block; padding: 5px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600; text-transform: uppercase; }
-        .status-invoiced { background: #e9d8fd; color: #553c9a; }
-        .status-completed { background: #c6f6d5; color: #22543d; }
-        .status-in_progress { background: #feebc8; color: #7c2d12; }
+        .status-prospecting { background: #fed7d7; color: #742a2a; }
         .status-scheduled { background: #bee3f8; color: #2c5282; }
+        .status-in_progress { background: #feebc8; color: #7c2d12; }
+        .status-completed { background: #c6f6d5; color: #22543d; }
+        .status-invoiced { background: #e9d8fd; color: #553c9a; }
+        .status-bid_lost { background: #e2e8f0; color: #4a5568; }
     </style>
 </head>
 <body>
