@@ -4518,8 +4518,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 if (matchingTeamMember) {
                     // Filter jobs to only those assigned to this team member
-                    activeJobs = activeJobs.filter(j => j.assignedTo && j.assignedTo === matchingTeamMember.id);
+                    // Use loose comparison to handle string/number ID differences
+                    activeJobs = activeJobs.filter(j => j.assignedTo && String(j.assignedTo) === String(matchingTeamMember.id));
+
+                    console.log('User:', currentUser.email, 'Team Member ID:', matchingTeamMember.id, 'Found jobs:', activeJobs.length);
                 } else {
+                    console.log('No matching team member found for user:', currentUser.email);
                     // User not linked to team member - show no jobs
                     activeJobs = [];
                 }
