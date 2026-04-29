@@ -835,9 +835,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
 
         <!-- Calendar View -->
-        <div id="calendar" class="view">
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div id="calendar" class="view" style="height: calc(100vh - 200px); display: flex; flex-direction: column;">
+            <div class="card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
                     <h2>Calendar</h2>
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <button class="btn btn-secondary" onclick="changeMonth(-1)">‹ Prev</button>
@@ -846,7 +846,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="btn btn-primary" onclick="goToToday()">Today</button>
                     </div>
                 </div>
-                <div id="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; border: 1px solid #e2e8f0;"></div>
+                <div id="calendar-grid" style="flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; border: 1px solid #e2e8f0; grid-auto-rows: 1fr; overflow: auto;"></div>
             </div>
         </div>
 
