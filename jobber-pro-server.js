@@ -655,6 +655,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
         <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
+        <button class="nav-btn" onclick="showView('expenses')" data-admin-only>💰 Expenses</button>
         <button class="nav-btn" onclick="showView('reports')" data-admin-only>📈 Reports</button>
         <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
     </div>
@@ -872,6 +873,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="team-detail-jobs"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Expenses View -->
+        <div id="expenses" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Business Expenses</h2>
+                    <button class="btn btn-primary" onclick="openExpenseModal()">+ Add Expense</button>
+                </div>
+                <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
+                    <input type="text" id="expense-search" placeholder="🔍 Search expenses..." style="flex: 1; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;" oninput="filterExpenses()">
+                    <select id="expense-category-filter" onchange="filterExpenses()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                        <option value="">All Categories</option>
+                        <option value="vehicle">Vehicle & Fuel</option>
+                        <option value="tools">Tools & Equipment</option>
+                        <option value="materials">Materials & Supplies</option>
+                        <option value="office">Office Expenses</option>
+                        <option value="utilities">Utilities</option>
+                        <option value="insurance">Insurance</option>
+                        <option value="marketing">Marketing & Advertising</option>
+                        <option value="meals">Meals & Entertainment</option>
+                        <option value="travel">Travel</option>
+                        <option value="professional">Professional Services</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="exportExpensesToExcel()">📊 Export</button>
+                </div>
+                <div id="expenses-list"></div>
             </div>
         </div>
 
@@ -1365,6 +1395,72 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Expense Modal -->
+    <div id="expenseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="expenseModalTitle">Add Expense</h2>
+                <button class="close-btn" onclick="closeModal('expenseModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="expenseForm">
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select name="category" required>
+                            <option value="">Select category...</option>
+                            <option value="vehicle">Vehicle & Fuel</option>
+                            <option value="tools">Tools & Equipment</option>
+                            <option value="materials">Materials & Supplies</option>
+                            <option value="office">Office Expenses</option>
+                            <option value="utilities">Utilities</option>
+                            <option value="insurance">Insurance</option>
+                            <option value="marketing">Marketing & Advertising</option>
+                            <option value="meals">Meals & Entertainment</option>
+                            <option value="travel">Travel</option>
+                            <option value="professional">Professional Services</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Vendor/Merchant *</label>
+                        <input type="text" name="vendor" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description *</label>
+                        <textarea name="description" rows="2" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount ($) *</label>
+                        <input type="number" name="amount" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Method</label>
+                        <select name="paymentMethod">
+                            <option value="cash">Cash</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="debit_card">Debit Card</option>
+                            <option value="check">Check</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Receipt/Notes</label>
+                        <textarea name="notes" rows="2" placeholder="Receipt number, additional details..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('expenseModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add User Modal -->
     <div id="addUserModal" class="modal">
         <div class="modal-content">
@@ -1408,6 +1504,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let jobs = [];
         let settings = {};
         let team = [];
+        let expenses = [];
         let hasUnsavedChanges = false;
         let currentUserRole = 'user'; // Default to user, updated on load
         let isAdmin = false;
@@ -1453,7 +1550,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Navigation
         function showView(viewName) {
             // Check permissions - users can only access jobs and calendar
-            const adminOnlyViews = ['dashboard', 'clients', 'team', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'team', 'expenses', 'reports', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewName)) {
                 alert('You do not have permission to access this section.');
                 return;
@@ -1480,6 +1577,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'jobs') loadJobs();
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
+            if (viewName === 'expenses') loadExpenses();
             if (viewName === 'reports') loadReports();
             if (viewName === 'settings') {
                 loadSettings();
@@ -3424,6 +3522,176 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!confirm(\`⚠️ Are you sure you want to delete \${memberName}?\n\nThis will affect all jobs assigned to them.\`)) return;
             await fetch(\`/api/team/\${id}\`, { method: 'DELETE' });
             loadTeam();
+        }
+
+        // Expenses Functions
+        let currentEditingExpenseId = null;
+
+        async function loadExpenses() {
+            const response = await fetch('/api/expenses');
+            expenses = await response.json();
+            filterExpenses();
+        }
+
+        function filterExpenses() {
+            const searchTerm = document.getElementById('expense-search').value.toLowerCase();
+            const categoryFilter = document.getElementById('expense-category-filter').value;
+
+            const filtered = expenses.filter(e => {
+                const matchesSearch = !searchTerm ||
+                    (e.vendor || '').toLowerCase().includes(searchTerm) ||
+                    (e.description || '').toLowerCase().includes(searchTerm) ||
+                    (e.category || '').toLowerCase().includes(searchTerm);
+                const matchesCategory = !categoryFilter || e.category === categoryFilter;
+                return matchesSearch && matchesCategory;
+            });
+
+            renderExpenses(filtered);
+        }
+
+        function renderExpenses(expensesToRender) {
+            const container = document.getElementById('expenses-list');
+
+            if (expensesToRender.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>No expenses yet</h3><p>Add your first business expense to get started</p></div>';
+                return;
+            }
+
+            const categoryLabels = {
+                vehicle: 'Vehicle & Fuel',
+                tools: 'Tools & Equipment',
+                materials: 'Materials & Supplies',
+                office: 'Office Expenses',
+                utilities: 'Utilities',
+                insurance: 'Insurance',
+                marketing: 'Marketing & Advertising',
+                meals: 'Meals & Entertainment',
+                travel: 'Travel',
+                professional: 'Professional Services',
+                other: 'Other'
+            };
+
+            const sorted = [...expensesToRender].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+            container.innerHTML = '<table><thead><tr><th>Date</th><th>Category</th><th>Vendor</th><th>Description</th><th>Amount</th><th>Payment Method</th><th>Actions</th></tr></thead><tbody>' +
+                sorted.map(e => \`<tr>
+                    <td>\${e.date || '-'}</td>
+                    <td>\${categoryLabels[e.category] || e.category}</td>
+                    <td>\${e.vendor || '-'}</td>
+                    <td>\${e.description || '-'}</td>
+                    <td style="font-weight: 600;">\${formatMoney(parseFloat(e.amount) || 0)}</td>
+                    <td>\${(e.paymentMethod || 'cash').replace('_', ' ')}</td>
+                    <td>
+                        <button class="btn btn-secondary btn-small" onclick="editExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
+                    </td>
+                </tr>\`).join('') +
+                '</tbody></table>';
+        }
+
+        function openExpenseModal(expense = null) {
+            if (!isAdmin) {
+                alert('You do not have permission to create or edit expenses.');
+                return;
+            }
+
+            const form = document.getElementById('expenseForm');
+            currentEditingExpenseId = null;
+
+            if (expense) {
+                document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
+                currentEditingExpenseId = expense._id || expense.id;
+                Object.keys(expense).forEach(key => {
+                    const input = form.elements[key];
+                    if (input) input.value = expense[key] || '';
+                });
+            } else {
+                document.getElementById('expenseModalTitle').textContent = 'Add Expense';
+                form.reset();
+                form.elements.date.value = new Date().toISOString().split('T')[0];
+            }
+
+            document.getElementById('expenseModal').classList.add('active');
+        }
+
+        function editExpense(id) {
+            if (!isAdmin) {
+                alert('You do not have permission to edit expenses.');
+                return;
+            }
+            const expense = expenses.find(e => e.id == id || e._id == id);
+            if (expense) openExpenseModal(expense);
+        }
+
+        async function saveExpense() {
+            const form = document.getElementById('expenseForm');
+            const formData = new FormData(form);
+            const expense = Object.fromEntries(formData);
+
+            if (currentEditingExpenseId) {
+                expense._id = currentEditingExpenseId;
+            }
+
+            const response = await fetch('/api/expenses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(expense)
+            });
+
+            if (response.ok) {
+                closeModal('expenseModal');
+                loadExpenses();
+            }
+        }
+
+        async function deleteExpense(id) {
+            if (!isAdmin) {
+                alert('You do not have permission to delete expenses.');
+                return;
+            }
+            if (!confirm('⚠️ Are you sure you want to delete this expense?')) return;
+            await fetch(\`/api/expenses/\${id}\`, { method: 'DELETE' });
+            loadExpenses();
+        }
+
+        function exportExpensesToExcel() {
+            const searchTerm = document.getElementById('expense-search').value.toLowerCase();
+            const categoryFilter = document.getElementById('expense-category-filter').value;
+
+            const filtered = expenses.filter(e => {
+                const matchesSearch = !searchTerm ||
+                    (e.vendor || '').toLowerCase().includes(searchTerm) ||
+                    (e.description || '').toLowerCase().includes(searchTerm);
+                const matchesCategory = !categoryFilter || e.category === categoryFilter;
+                return matchesSearch && matchesCategory;
+            });
+
+            const headers = ['Date', 'Category', 'Vendor', 'Description', 'Amount', 'Payment Method', 'Notes'];
+            const rows = filtered.map(e => [
+                e.date || '',
+                e.category || '',
+                e.vendor || '',
+                e.description || '',
+                (parseFloat(e.amount) || 0).toFixed(2),
+                e.paymentMethod || '',
+                e.notes || ''
+            ]);
+
+            let csv = headers.map(h => \`"\${h}"\`).join(',') + '\\n';
+            rows.forEach(row => {
+                csv += row.map(cell => \`"\${cell}"\`).join(',') + '\\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', \`expenses_export_\${timestamp}.csv\`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Calendar functions
