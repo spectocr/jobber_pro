@@ -5082,10 +5082,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentEditingUserId = null;
 
         async function loadUsers() {
+            console.log('Loading users...');
             const response = await fetch('/api/users');
+            console.log('Response status:', response.status);
             if (response.ok) {
                 const users = await response.json();
+                console.log('Users loaded:', users);
                 const usersList = document.getElementById('usersList');
+                console.log('usersList element:', usersList);
+                if (!usersList) {
+                    console.error('usersList element not found!');
+                    return;
+                }
                 usersList.innerHTML = users.map(user => {
                     const lastLoginText = user.lastLogin
                         ? new Date(user.lastLogin).toLocaleString('en-US', {
@@ -5116,6 +5124,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 \`;
                 }).join('');
+            } else {
+                console.error('Failed to load users:', response.status);
             }
         }
 
