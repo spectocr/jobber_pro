@@ -434,6 +434,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             color: #4a5568;
         }
 
+        .settings-tab {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #718096;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .settings-tab:hover {
+            color: #667eea;
+            background: #f7fafc;
+        }
+
+        .settings-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .settings-tab-content {
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -1519,7 +1549,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="card-header">
                     <h2>Settings</h2>
                 </div>
-                <form id="settingsForm" style="max-width: 600px;">
+
+                <!-- Settings Tabs -->
+                <div style="border-bottom: 2px solid #e2e8f0; margin-bottom: 2rem;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="settings-tab active" onclick="switchSettingsTab('company')" data-tab="company">
+                            🏢 Company & Billing
+                        </button>
+                        <button class="settings-tab" onclick="switchSettingsTab('messaging')" data-tab="messaging">
+                            📱 SMS Messaging
+                        </button>
+                        <button class="settings-tab" onclick="switchSettingsTab('account')" data-tab="account">
+                            🔒 Account & Password
+                        </button>
+                        <button class="settings-tab" id="usersTab" onclick="switchSettingsTab('users')" data-tab="users" style="display: none;">
+                            👥 User Management
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Company & Billing Tab -->
+                <div id="companyTab" class="settings-tab-content">
+                    <form id="settingsForm" style="max-width: 600px;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">Company Information</h3>
                     <div class="form-group">
                         <label>Company Logo</label>
@@ -1567,7 +1618,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">These terms will be displayed at the bottom of all invoices</small>
                     </div>
 
-                    <h3 style="margin: 2rem 0 1rem 0; color: #667eea;">SMS / Text Messaging</h3>
+                    <div style="margin-top: 2rem;">
+                        <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                    </div>
+                </form>
+                </div>
+
+                <!-- SMS Messaging Tab -->
+                <div id="messagingTab" class="settings-tab-content" style="display: none;">
+                    <div style="max-width: 600px;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">SMS / Text Messaging</h3>
                     <div id="smsConfigStatus" style="padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                         <p style="margin: 0;">Loading SMS status...</p>
                     </div>
@@ -1586,19 +1646,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         • Payment is recorded (receipt confirmation)<br>
                         Use the 📱 button next to clients to send custom messages.
                     </small>
-
-                    <div style="margin-top: 2rem;">
-                        <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
                     </div>
-                </form>
-            </div>
-
-            <!-- Password Change Section -->
-            <div class="card" style="margin-top: 2rem;">
-                <div class="card-header">
-                    <h2>Change Password</h2>
                 </div>
-                <form id="passwordForm" style="max-width: 600px;">
+
+                <!-- Account & Password Tab -->
+                <div id="accountTab" class="settings-tab-content" style="display: none;">
+                    <div style="max-width: 600px;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">Change Password</h3>
+                <form id="passwordForm">
                     <div class="form-group">
                         <label>Current Password</label>
                         <input type="password" id="currentPassword" required>
@@ -1616,14 +1671,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button type="button" class="btn btn-primary" onclick="changePassword()">Change Password</button>
                     </div>
                 </form>
-            </div>
-
-            <!-- User Management Section (Admin Only) -->
-            <div class="card" id="userManagementSection" style="margin-top: 2rem; display: none;">
-                <div class="card-header">
-                    <h2>User Management</h2>
-                    <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
                 </div>
+                </div>
+
+                <!-- User Management Tab (Admin Only) -->
+                <div id="usersTab-content" class="settings-tab-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3 style="margin: 0; color: #667eea;">User Management</h3>
+                        <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+                    </div>
                 <div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 1rem;">
                     <strong>⚠️ Important:</strong> User's full name must exactly match their Team Member name for Time Clock job assignments to work.
                 </div>
@@ -4851,9 +4907,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function switchSettingsTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.settings-tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+
+            // Remove active class from all tabs
+            document.querySelectorAll('.settings-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab content
+            const contentId = tabName === 'users' ? 'usersTab-content' : tabName + 'Tab';
+            document.getElementById(contentId).style.display = 'block';
+
+            // Add active class to selected tab
+            const selectedTab = document.querySelector(`[data-tab="${tabName}"]`);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+            }
+        }
+
         async function loadSettings() {
             const response = await fetch('/api/settings');
             const settings = await response.json();
+
+            // Show/hide user management tab based on admin status
+            if (isAdmin) {
+                document.getElementById('usersTab').style.display = 'block';
+            }
 
             const form = document.getElementById('settingsForm');
             form.elements.companyName.value = settings.companyName || '';
