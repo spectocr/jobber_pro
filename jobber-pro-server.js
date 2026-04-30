@@ -1812,6 +1812,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
 
+                    <div id="laborActualsSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                        <h3 style="margin-bottom: 1rem;">💰 Labor Actuals (Payouts to Workers)</h3>
+                        <div id="laborActualsList" style="background: #f7fafc; padding: 1rem; border-radius: 8px;">
+                            <!-- Labor actuals will be rendered here -->
+                        </div>
+                    </div>
+
                     <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
                         <h3 style="margin-bottom: 1rem;">Attachments</h3>
                         <div id="attachmentsList" style="margin-bottom: 1rem;">
@@ -2410,6 +2417,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             renderLineItems();
             renderTouchPoints();
             renderAttachments();
+
+            // Load and render labor actuals if editing existing job
+            if (job && (job._id || job.id)) {
+                loadLaborActuals(job._id || job.id);
+            } else {
+                document.getElementById('laborActualsSection').style.display = 'none';
+            }
+
             document.getElementById('jobModal').classList.add('active');
         }
 
@@ -3032,6 +3047,69 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 touchPoints = touchPoints.filter(tp => tp.id !== id);
                 renderTouchPoints();
                 markFormDirty();
+            }
+        }
+
+        async function loadLaborActuals(jobId) {
+            try {
+                const response = await fetch('/api/timeentries');
+                if (!response.ok) {
+                    console.error('Failed to load time entries');
+                    return;
+                }
+
+                const allEntries = await response.json();
+                const jobEntries = allEntries.filter(entry =>
+                    entry.jobId === jobId && entry.status === 'approved'
+                );
+
+                const section = document.getElementById('laborActualsSection');
+                const container = document.getElementById('laborActualsList');
+
+                if (jobEntries.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                section.style.display = 'block';
+
+                const totalPayout = jobEntries.reduce((sum, entry) =>
+                    sum + (parseFloat(entry.paymentAmount) || 0), 0
+                );
+
+                container.innerHTML = \`
+                    <div style="margin-bottom: 1rem;">
+                        <p style="color: #4a5568; margin-bottom: 0.5rem;">
+                            <strong>Approved labor payments for this job:</strong>
+                        </p>
+                    </div>
+                    \${jobEntries.map(entry => {
+                        const clockIn = new Date(entry.clockIn);
+                        const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+                        const hours = entry.duration ? (entry.duration / 3600).toFixed(2) : '0.00';
+                        const payout = parseFloat(entry.paymentAmount) || 0;
+
+                        return \`
+                            <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                                <div>
+                                    <strong style="color: #2d3748;">\${entry.userName}</strong>
+                                    <div style="font-size: 0.85rem; color: #718096;">
+                                        \${clockIn.toLocaleDateString()} · \${hours} hours
+                                    </div>
+                                </div>
+                                <div style="font-weight: 600; color: #48bb78;">
+                                    \${formatMoney(payout)}
+                                </div>
+                            </div>
+                        \`;
+                    }).join('')}
+                    <div style="display: flex; justify-content: space-between; padding: 1rem 0; margin-top: 0.5rem; border-top: 2px solid #cbd5e0;">
+                        <strong style="color: #1a202c;">Total Labor Costs:</strong>
+                        <strong style="color: #e53e3e; font-size: 1.1rem;">\${formatMoney(totalPayout)}</strong>
+                    </div>
+                \`;
+            } catch (error) {
+                console.error('Error loading labor actuals:', error);
             }
         }
 
