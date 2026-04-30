@@ -3250,8 +3250,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City, State</th><th>Marketing Channel</th><th>Actions</th></tr></thead><tbody>' +
                 clients.map(c => {
                     const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '-');
+                    const jobCount = clientJobCounts[c.id] || 0;
+
+                    // Build client name with badges
+                    let nameHtml = '';
+                    if (jobCount > 2) {
+                        // Gold star with job count for 3+ jobs
+                        nameHtml = \`<span style="color: #f59e0b;">⭐</span> <strong style="color: #d97706;">\${c.name}</strong> <span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 4px;">\${jobCount}</span>\`;
+                    } else if (jobCount > 1) {
+                        // Green star for repeat clients (2 jobs)
+                        nameHtml = \`<span style="color: #10b981;">⭐</span> <strong style="color: #d97706;">\${c.name}</strong>\`;
+                    } else {
+                        // Regular name
+                        nameHtml = \`<strong>\${c.name}</strong>\`;
+                    }
+
                     return \`<tr style="cursor: pointer;" onclick="viewClientDetail('\${c.id}')">
-                        <td><strong>\${c.name}</strong></td>
+                        <td>\${nameHtml}</td>
                         <td>\${c.email || '-'}</td>
                         <td>\${formatPhoneNumber(c.phone)}</td>
                         <td>\${cityState}</td>
