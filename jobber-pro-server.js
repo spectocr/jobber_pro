@@ -2340,7 +2340,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (job.materialItems) materialItems = [...job.materialItems];
                 if (job.payments) paymentItems = [...job.payments];
                 if (job.touchPoints) touchPoints = [...job.touchPoints];
-                if (job.attachments) attachments = [...job.attachments];
+                if (job.attachments) {
+                    attachments = [...job.attachments];
+                    console.log('Loaded attachments from job:', attachments);
+                } else {
+                    console.log('No attachments in job data');
+                }
 
                 // Trigger client change to populate service locations
                 handleClientChange();
@@ -2936,7 +2941,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             job.materialItems = materialItems;
             job.payments = paymentItems;
             job.touchPoints = touchPoints;
-            job.attachments = attachments;
+            // Clean attachments - remove base64 data if s3Key exists (save space)
+            job.attachments = attachments.map(att => {
+                if (att.s3Key) {
+                    // Only store S3 metadata, not the full base64 data
+                    return {
+                        id: att.id,
+                        name: att.name,
+                        type: att.type,
+                        size: att.size,
+                        s3Key: att.s3Key,
+                        uploadedAt: att.uploadedAt
+                    };
+                }
+                return att; // Keep full data for MongoDB fallback
+            });
 
             // Handle checkbox - it won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
@@ -2952,6 +2971,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
             job.totalPaid = paymentTotal;
             job.balanceOwed = job.total - paymentTotal;
+
+            console.log('Saving job with attachments:', job.attachments);
 
             const response = await fetch('/api/jobs', {
                 method: 'POST',
