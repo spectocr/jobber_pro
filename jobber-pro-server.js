@@ -2372,10 +2372,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentEditingClientId = null;
 
         function editClient(clientId) {
-            if (!isAdmin) {
-                alert('You do not have permission to edit clients.');
-                return;
-            }
+            if (!checkAdminPermission('edit clients')) return;
             const client = clients.find(c => c.id == clientId || c._id == clientId);
             if (client) {
                 openClientModal(client);
@@ -2383,10 +2380,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function openClientModal(client = null) {
-            if (!isAdmin) {
-                alert('You do not have permission to create or edit clients.');
-                return;
-            }
+            if (!checkAdminPermission('create or edit clients')) return;
 
             const form = document.getElementById('clientForm');
             currentEditingClientId = null;
@@ -2430,10 +2424,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentEditingJobId = null;
 
         function editJob(jobId) {
-            if (!isAdmin) {
-                alert('You do not have permission to edit jobs.');
-                return;
-            }
+            if (!checkAdminPermission('edit jobs')) return;
             // Search in all job arrays
             let job = jobs.find(j => j.id == jobId || j._id == jobId);
             if (!job && window.upcomingJobs) {
@@ -3468,10 +3459,122 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        // Load functions
+        // ============================================================
+        // UTILITY FUNCTIONS
+        // ============================================================
+
+        // Format money with thousands separator
         function formatMoney(amount) {
             return '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
+
+        // Check admin permission
+        function checkAdminPermission(actionName) {
+            if (!isAdmin) {
+                alert(`You do not have permission to ${actionName}.`);
+                return false;
+            }
+            return true;
+        }
+
+        // Export data to CSV
+        function exportToCSV(data, headers, filename, rowMapper) {
+            let csv = headers.map(h => '"' + h + '"').join(',') + '\n';
+            data.forEach(item => {
+                const row = rowMapper(item);
+                csv += row.map(cell => '"' + (cell || '') + '"').join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // POST data to API
+        async function postData(endpoint, data, options = {}) {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                if (options.markClean) markFormClean();
+                if (options.closeModal) closeModal(options.closeModal);
+                if (options.reload) options.reload();
+                return await response.json();
+            } else {
+                const error = await response.text();
+                throw new Error(error || 'Request failed');
+            }
+        }
+
+        // Render empty state
+        function renderEmptyState(container, title, message) {
+            container.innerHTML = `<div class="empty-state"><h3>${title}</h3><p>${message}</p></div>`;
+        }
+
+        // Find client by ID
+        function findClient(id) {
+            return clients.find(c => c.id == id) || null;
+        }
+
+        // Find team member by ID
+        function findTeamMember(id) {
+            return team.find(t => t.id == id) || null;
+        }
+
+        // Validate password
+        function validatePassword(password, confirmPassword) {
+            if (!password || !confirmPassword) {
+                alert('Please enter both password fields');
+                return false;
+            }
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                return false;
+            }
+            if (password.length < 6) {
+                alert('Password must be at least 6 characters');
+                return false;
+            }
+            return true;
+        }
+
+        // Calculate job payment status
+        function calculateJobPaymentStatus(job) {
+            const total = job.totalWithTax ? job.totalWithTax : (job.total ? calculateTotalWithTax(parseFloat(job.total)) : 0);
+            const paid = job.totalPaid ? parseFloat(job.totalPaid) : 0;
+            const owed = total - paid;
+            const isPaidInFull = Math.abs(owed) < 0.01;
+            return { total, paid, owed, isPaidInFull };
+        }
+
+        // Get filtered jobs
+        function getFilteredJobs(statusFilter, clientFilter, assignedFilter) {
+            return jobs.filter(j => {
+                if (statusFilter && j.status !== statusFilter) return false;
+                if (clientFilter && j.clientId !== clientFilter) return false;
+                if (assignedFilter && j.assignedTo !== assignedFilter) return false;
+                return true;
+            });
+        }
+
+        // Populate dropdown
+        function populateDropdown(selectElement, items, valueKey, displayKey, placeholder = 'Select...') {
+            selectElement.innerHTML = `<option value="">${placeholder}</option>` +
+                items.map(item => `<option value="${item[valueKey]}">${item[displayKey]}</option>`).join('');
+        }
+
+        // ============================================================
+        // LOAD FUNCTIONS
+        // ============================================================
 
         async function loadDashboard() {
             const response = await fetch('/api/dashboard');
@@ -3498,8 +3601,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 return '<div style="max-height: 400px; overflow-y: auto;"><table style="font-size: 0.875rem;"><tbody>' +
                     jobs.map(j => {
-                        const client = clients.find(c => c.id == j.clientId);
-                        const assigned = team.find(t => t.id == j.assignedTo);
+                        const client = findClient(j.clientId);
+                        const assigned = findTeamMember(j.assignedTo);
                         return \`<tr style="cursor: pointer; border-bottom: 1px solid #e2e8f0;" onclick="editJob('\${j.id}')">
                             <td style="padding: 0.75rem;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">\${j.title}</div>
@@ -3955,7 +4058,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             jobsContainer.innerHTML = '<table><thead><tr><th>Date</th><th>Job</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
                 clientJobs.map(j => {
-                    const assigned = team.find(t => t.id == j.assignedTo);
+                    const assigned = findTeamMember(j.assignedTo);
                     return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
                         <td>
@@ -4024,8 +4127,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const moneyColumn = isAdmin ? '<th>Billed / Paid / Owed</th>' : '';
             container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + '<th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
-                    const client = clients.find(c => c.id == j.clientId);
-                    const assigned = team.find(t => t.id == j.assignedTo);
+                    const client = findClient(j.clientId);
+                    const assigned = findTeamMember(j.assignedTo);
 
                     let moneyCell = '';
                     if (isAdmin) {
@@ -4091,8 +4194,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Create CSV content
             const headers = ['Date', 'Time', 'Client', 'Job Title', 'Description', 'Assigned To', 'Status', 'Total Billed', 'Total Paid', 'Balance Owed'];
             const rows = filteredJobs.map(j => {
-                const client = clients.find(c => c.id == j.clientId);
-                const assigned = team.find(t => t.id == j.assignedTo);
+                const client = findClient(j.clientId);
+                const assigned = findTeamMember(j.assignedTo);
                 const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                 const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
                 const owed = total - paid;
@@ -5335,10 +5438,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function deleteJob(id) {
-            if (!isAdmin) {
-                alert('You do not have permission to delete jobs.');
-                return;
-            }
+            if (!checkAdminPermission('delete jobs')) return;
             const job = jobs.find(j => j.id == id);
             const jobTitle = job ? job.title : 'this job';
             if (!confirm(\`⚠️ Are you sure you want to delete "\${jobTitle}"?\n\nThis action cannot be undone.\`)) return;
@@ -5348,10 +5448,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function deleteTeamMember(id) {
-            if (!isAdmin) {
-                alert('You do not have permission to delete team members.');
-                return;
-            }
+            if (!checkAdminPermission('delete team members')) return;
             const member = team.find(t => t.id == id);
             const memberName = member ? member.name : 'this team member';
             if (!confirm(\`⚠️ Are you sure you want to delete \${memberName}?\n\nThis will affect all jobs assigned to them.\`)) return;
@@ -6436,7 +6533,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 const dayJobs = calendarJobs.filter(j => j.scheduledDate === dateStr);
                 dayJobs.forEach(j => {
-                    const client = clients.find(c => c.id == j.clientId);
+                    const client = findClient(j.clientId);
                     html += \`<div class="calendar-job \${j.status}" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})' title="\${j.title} - \${client ? client.name : 'Unknown'}">\${j.title}</div>\`;
                 });
 
