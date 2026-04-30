@@ -3897,9 +3897,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            // Create CSV content
             const headers = ['Name', 'Email', 'Phone', 'Address Line 1', 'Address Line 2', 'Address Line 3', 'City', 'State', 'ZIP Code', 'Marketing Channel', 'Notes', 'Date Added'];
-            const rows = filteredClients.map(c => {
+            const timestamp = new Date().toISOString().split('T')[0];
+
+            exportToCSV(filteredClients, headers, `clients_export_${timestamp}.csv`, (c) => {
                 return [
                     c.name || '',
                     c.email || '',
@@ -3911,28 +3912,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     c.state || '',
                     c.zipCode || '',
                     c.marketingChannel || '',
-                    (c.notes || '').replace(/"/g, '""'), // Escape quotes
+                    (c.notes || '').replace(/"/g, '""'),
                     c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''
                 ];
             });
-
-            // Build CSV
-            let csv = headers.map(h => '"' + h + '"').join(',') + '\\n';
-            rows.forEach(row => {
-                csv += row.map(cell => '"' + cell + '"').join(',') + '\\n';
-            });
-
-            // Create download
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            const timestamp = new Date().toISOString().split('T')[0];
-            link.setAttribute('href', url);
-            link.setAttribute('download', `clients_export_${timestamp}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         }
 
         async function viewClientDetail(clientId) {
@@ -4158,9 +4141,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            // Create CSV content
             const headers = ['Date', 'Time', 'Client', 'Job Title', 'Description', 'Assigned To', 'Status', 'Total Billed', 'Total Paid', 'Balance Owed'];
-            const rows = filteredJobs.map(j => {
+            const timestamp = new Date().toISOString().split('T')[0];
+
+            exportToCSV(filteredJobs, headers, `jobs_export_${timestamp}.csv`, (j) => {
                 const client = findClient(j.clientId);
                 const assigned = findTeamMember(j.assignedTo);
                 const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
@@ -4174,7 +4158,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     j.scheduledTime || '',
                     client ? client.name : 'Unknown',
                     j.title || '',
-                    (j.description || '').replace(/"/g, '""'), // Escape quotes
+                    (j.description || '').replace(/"/g, '""'),
                     assigned ? assigned.name : 'Unassigned',
                     j.status.replace('_', ' '),
                     total.toFixed(2),
@@ -4182,24 +4166,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     owedDisplay.toFixed(2)
                 ];
             });
-
-            // Build CSV
-            let csv = headers.map(h => '"' + h + '"').join(',') + '\\n';
-            rows.forEach(row => {
-                csv += row.map(cell => '"' + cell + '"').join(',') + '\\n';
-            });
-
-            // Create download
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            const timestamp = new Date().toISOString().split('T')[0];
-            link.setAttribute('href', url);
-            link.setAttribute('download', `jobs_export_${timestamp}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         }
 
         async function loadTeam() {
@@ -5560,7 +5526,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
 
             const headers = ['Date', 'Category', 'Vendor', 'Description', 'Amount', 'Payment Method', 'Notes'];
-            const rows = filtered.map(e => [
+            const timestamp = new Date().toISOString().split('T')[0];
+
+            exportToCSV(filtered, headers, `expenses_export_${timestamp}.csv`, (e) => [
                 e.date || '',
                 e.category || '',
                 e.vendor || '',
@@ -5569,22 +5537,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 e.paymentMethod || '',
                 e.notes || ''
             ]);
-
-            let csv = headers.map(h => \`"\${h}"\`).join(',') + '\\n';
-            rows.forEach(row => {
-                csv += row.map(cell => \`"\${cell}"\`).join(',') + '\\n';
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            const timestamp = new Date().toISOString().split('T')[0];
-            link.setAttribute('href', url);
-            link.setAttribute('download', \`expenses_export_\${timestamp}.csv\`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         }
 
         // SMS Functions
