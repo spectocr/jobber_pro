@@ -3584,6 +3584,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById('client-detail').classList.add('active');
 
+            // Load time entries for cost calculation
+            const timeEntriesResponse = await fetch('/api/timeentries');
+            const timeEntries = await timeEntriesResponse.json();
+
             // Update client info
             document.getElementById('client-detail-name').textContent = client.name;
             document.getElementById('client-detail-info').innerHTML = \`
@@ -3616,21 +3620,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return sum + jobTotal;
             }, 0);
 
-            // Calculate net profit (revenue - labor costs - material costs)
-            const totalCosts = clientJobs.reduce((sum, j) => {
-                const laborCost = (j.laborItems || []).reduce((lSum, item) => {
-                    const hours = parseFloat(item.hours) || 0;
-                    const rate = parseFloat(item.rate) || 0;
-                    return lSum + (hours * rate);
-                }, 0);
+            // Calculate net profit (revenue - material costs - labor payments to workers)
+            // Labor items in jobs = what you BILL (revenue, not cost)
+            // Material items = actual material costs
+            // Real labor costs = approved time entry payments
+            const materialCosts = clientJobs.reduce((sum, j) => {
                 const materialCost = (j.materialItems || []).reduce((mSum, item) => {
                     const quantity = parseFloat(item.quantity) || 0;
                     const price = parseFloat(item.price) || 0;
                     return mSum + (quantity * price);
                 }, 0);
-                console.log('Job costs:', j.title, 'labor:', laborCost, 'material:', materialCost);
-                return sum + laborCost + materialCost;
+                return sum + materialCost;
             }, 0);
+
+            // Get approved time entries for this client's jobs to calculate actual labor costs
+            const clientJobIds = clientJobs.map(j => j.id || j._id).filter(id => id);
+            const laborCosts = timeEntries
+                .filter(entry =>
+                    entry.status === 'approved' &&
+                    clientJobIds.includes(entry.jobId)
+                )
+                .reduce((sum, entry) => sum + (parseFloat(entry.paymentAmount) || 0), 0);
+
+            const totalCosts = materialCosts + laborCosts;
+            console.log('Job costs breakdown:', { materialCosts, laborCosts, totalCosts });
             const netProfit = totalRevenue - totalCosts;
             console.log('Client Net Profit Calc:', { totalRevenue, totalCosts, netProfit, jobCount: clientJobs.length });
 
