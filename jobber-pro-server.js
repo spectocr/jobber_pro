@@ -1344,15 +1344,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="btn btn-secondary" onclick="showView('team')">← Back to Team</button>
                     <h2 id="team-detail-name"></h2>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
-                    <div>
-                        <h3 style="margin-bottom: 1rem; color: #667eea;">Team Member Info</h3>
-                        <div id="team-detail-info" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;"></div>
-                    </div>
-                    <div>
-                        <h3 style="margin-bottom: 1rem; color: #667eea;">Assigned Jobs</h3>
-                        <div id="team-detail-jobs"></div>
-                    </div>
+
+                <!-- Pay Summary Stats -->
+                <div id="team-pay-summary" style="margin-bottom: 2rem;"></div>
+
+                <!-- Pay History -->
+                <div>
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">Payment History</h3>
+                    <div id="team-pay-history"></div>
                 </div>
             </div>
         </div>
@@ -3992,67 +3991,99 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById('team-detail').classList.add('active');
 
-            // Update member info
+            // Update member name
             document.getElementById('team-detail-name').textContent = member.name;
-            document.getElementById('team-detail-info').innerHTML = \`
-                <p style="margin-bottom: 0.75rem;"><strong>Role:</strong> \${member.role}</p>
-                <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(member.phone) || 'N/A'}</p>
-                <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${member.email || 'N/A'}</p>
-                <p style="margin-bottom: 0.75rem;"><strong>Status:</strong> <span class="status-badge \${member.active ? 'status-completed' : 'status-scheduled'}">\${member.active ? 'Active' : 'Inactive'}</span></p>
-            \`;
 
-            // Load member's jobs
-            const memberJobs = jobs.filter(j => j.assignedTo == member.id || String(j.assignedTo) === String(member.id));
-            const jobsContainer = document.getElementById('team-detail-jobs');
+            // Get all time entries for this member
+            const allEntries = await fetch('/api/timeentries').then(r => r.json());
+            const memberEntries = allEntries.filter(e => String(e.userId) === String(member.userId));
 
-            if (memberJobs.length === 0) {
-                jobsContainer.innerHTML = '<div class="empty-state"><h3>No jobs assigned</h3><p>Assign jobs to this team member</p></div>';
+            // Get approved entries
+            const approvedEntries = memberEntries.filter(e => e.status === 'approved');
+
+            if (approvedEntries.length === 0) {
+                document.getElementById('team-pay-summary').innerHTML = '<div class="empty-state"><h3>No payment history</h3><p>No approved time entries yet</p></div>';
+                document.getElementById('team-pay-history').innerHTML = '';
                 return;
             }
 
-            // Calculate total hours and revenue
-            const totalHours = memberJobs.reduce((sum, j) => sum + (parseFloat(j.hours) || 0), 0);
-            const totalRevenue = memberJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+            // Calculate totals
+            const totalHours = approvedEntries.reduce((sum, e) => sum + parseFloat(e.hours), 0);
+            const totalPayouts = approvedEntries.reduce((sum, e) => sum + parseFloat(e.paymentAmount), 0);
+            const avgHourlyRate = totalHours > 0 ? totalPayouts / totalHours : 0;
 
-            jobsContainer.innerHTML = \`
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
-                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Jobs</div>
-                        <div style="font-size: 1.5rem; font-weight: 700;">\${memberJobs.length}</div>
+            // Get date range
+            const dates = approvedEntries.map(e => new Date(e.clockIn));
+            const firstPayout = new Date(Math.min(...dates));
+            const lastPayout = new Date(Math.max(...dates));
+
+            // Pay summary stats
+            document.getElementById('team-pay-summary').innerHTML = \`
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total Payouts</div>
+                        <div style="font-size: 2rem; font-weight: 700;">$\${formatMoney(totalPayouts)}</div>
                     </div>
-                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
-                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Hours</div>
-                        <div style="font-size: 1.5rem; font-weight: 700;">\${totalHours.toFixed(1)}</div>
+                    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
+                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Total Hours</div>
+                        <div style="font-size: 2rem; font-weight: 700; color: #1a202c;">\${totalHours.toFixed(2)}</div>
                     </div>
-                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
-                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Revenue</div>
-                        <div style="font-size: 1.5rem; font-weight: 700;">$\${totalRevenue.toFixed(2)}</div>
+                    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
+                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Avg Rate</div>
+                        <div style="font-size: 2rem; font-weight: 700; color: #1a202c;">$\${avgHourlyRate.toFixed(2)}/hr</div>
                     </div>
-                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
-                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Avg Rate</div>
-                        <div style="font-size: 1.5rem; font-weight: 700;">$\${totalHours > 0 ? (totalRevenue / totalHours).toFixed(2) : '0.00'}/hr</div>
+                    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
+                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Total Entries</div>
+                        <div style="font-size: 2rem; font-weight: 700; color: #1a202c;">\${approvedEntries.length}</div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
+                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">First Payout</div>
+                        <div style="font-size: 1.25rem; font-weight: 600; color: #1a202c;">\${firstPayout.toLocaleDateString()}</div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
+                        <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Last Payout</div>
+                        <div style="font-size: 1.25rem; font-weight: 600; color: #1a202c;">\${lastPayout.toLocaleDateString()}</div>
                     </div>
                 </div>
-                <table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Status</th><th>Hours</th><th>Total</th><th>Actions</th></tr></thead><tbody>\` +
-                memberJobs.map(j => {
-                    const client = clients.find(c => c.id == j.clientId || String(c.id) === String(j.clientId));
-                    return \`<tr>
-                        <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
-                        <td>\${client ? client.name : 'Unknown'}</td>
-                        <td>
-                            <strong>\${j.title}</strong><br>
-                            <small>\${(j.description || '').substring(0, 50)}</small>
-                        </td>
-                        <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                        <td>\${j.hours || 0}</td>
-                        <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
-                        <td>
-                            <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
-                            <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
-                        </td>
-                    </tr>\`;
-                }).join('') +
-                '</tbody></table>';
+            \`;
+
+            // Sort by date descending
+            approvedEntries.sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn));
+
+            // Pay history table
+            document.getElementById('team-pay-history').innerHTML = \`
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Clock In</th>
+                            <th>Clock Out</th>
+                            <th>Hours</th>
+                            <th>Rate</th>
+                            <th>Payout</th>
+                            <th>Job</th>
+                        </tr>
+                    </thead>
+                    <tbody>\` +
+                        approvedEntries.map(entry => {
+                            const clockIn = new Date(entry.clockIn);
+                            const clockOut = new Date(entry.clockOut);
+                            const job = jobs.find(j => String(j.id) === String(entry.jobId));
+                            const client = job ? clients.find(c => String(c.id) === String(job.clientId)) : null;
+
+                            return \`<tr>
+                                <td>\${clockIn.toLocaleDateString()}</td>
+                                <td>\${clockIn.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</td>
+                                <td>\${clockOut.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</td>
+                                <td><strong>\${parseFloat(entry.hours).toFixed(2)}</strong></td>
+                                <td>$\${parseFloat(entry.hourlyRate).toFixed(2)}/hr</td>
+                                <td style="color: #10b981; font-weight: 700;">$\${formatMoney(entry.paymentAmount)}</td>
+                                <td>\${job ? \`<small>\${client ? client.name : 'Unknown'}<br><strong>\${job.title}</strong></small>\` : '<small>Job not found</small>'}</td>
+                            </tr>\`;
+                        }).join('') +
+                    \`</tbody>
+                </table>
+            \`;
         }
 
         // Report functions
