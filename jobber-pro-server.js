@@ -2504,35 +2504,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 });
 
                 // Check if this team member has a user login
+                console.log('Team member data:', member);
                 console.log('Team member userId:', member.userId);
-                if (member.userId) {
-                    // Fetch user data
-                    try {
-                        const response = await fetch('/api/users');
-                        const users = await response.json();
-                        console.log('Fetched users:', users.length);
-                        console.log('Looking for userId:', member.userId);
-                        const user = users.find(u => u.id === member.userId || u._id === member.userId);
-                        console.log('Found user:', user);
+                console.log('Team member email:', member.email);
 
-                        if (user) {
-                            // Show existing login section
-                            document.getElementById('createUserLogin').checked = true;
-                            document.getElementById('createUserLogin').disabled = true;
-                            document.getElementById('loginFields').style.display = 'block';
-                            document.getElementById('loginEmail').value = user.email;
+                // Try to find user by email if userId is not set
+                let hasUserLogin = false;
+                let userAccount = null;
 
-                            // Update the section header and instructions
-                            document.getElementById('loginSectionTitle').textContent = 'User Login Access (Existing)';
-                            document.getElementById('loginCheckboxText').textContent = 'User login exists for this team member';
-                            document.getElementById('loginCheckboxSubtext').textContent = 'Update email or password below (password optional)';
+                try {
+                    const response = await fetch('/api/users');
+                    const users = await response.json();
+                    console.log('All users:', users);
 
-                            // Update password fields to be optional for editing
-                            document.getElementById('loginPassword').placeholder = 'Leave blank to keep current password';
-                            document.getElementById('loginPasswordConfirm').placeholder = 'Leave blank to keep current password';
-                        }
-                    } catch (err) {
-                        console.error('Error fetching users:', err);
+                    if (member.userId) {
+                        userAccount = users.find(u => u.id === member.userId || u._id === member.userId);
+                        console.log('Found by userId:', userAccount);
+                    } else if (member.email) {
+                        // Try to match by email
+                        userAccount = users.find(u => u.email === member.email);
+                        console.log('Found by email:', userAccount);
+                    }
+
+                    hasUserLogin = !!userAccount;
+                } catch (err) {
+                    console.error('Error fetching users:', err);
+                }
+
+                if (hasUserLogin && userAccount) {
+                    // Show existing login section
+                    document.getElementById('createUserLogin').checked = true;
+                    document.getElementById('createUserLogin').disabled = true;
+                    document.getElementById('loginFields').style.display = 'block';
+                    document.getElementById('loginEmail').value = userAccount.email;
+
+                    // Update the section header and instructions
+                    document.getElementById('loginSectionTitle').textContent = 'User Login Access (Existing)';
+                    document.getElementById('loginCheckboxText').textContent = 'User login exists for this team member';
+                    document.getElementById('loginCheckboxSubtext').textContent = 'Update email or password below (password optional)';
+
+                    // Update password fields to be optional for editing
+                    document.getElementById('loginPassword').placeholder = 'Leave blank to keep current password';
+                    document.getElementById('loginPasswordConfirm').placeholder = 'Leave blank to keep current password';
+
+                    // Store the user ID in the member object if it wasn't there
+                    if (!member.userId) {
+                        member.userId = userAccount.id || userAccount._id;
                     }
                 }
             } else {

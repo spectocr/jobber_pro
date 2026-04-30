@@ -1049,23 +1049,36 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
     }
 
     // Handle user login update
-    if (member.updateUserLogin && member.userId) {
-        const updateFields = {
-            email: member.loginEmail,
-            name: member.name,
-            updatedAt: new Date()
-        };
+    if (member.updateUserLogin) {
+        let userId = member.userId;
 
-        // Only update password if provided
-        if (member.loginPassword) {
-            updateFields.password = await bcrypt.hash(member.loginPassword, 10);
+        // If no userId but has email, try to find user by email
+        if (!userId && member.email) {
+            const existingUser = await db.collection('users').findOne({ email: member.email });
+            if (existingUser) {
+                userId = existingUser._id.toString();
+                member.userId = userId; // Link it
+            }
         }
 
-        await db.collection('users').updateOne(
-            { _id: new ObjectId(member.userId) },
-            { $set: updateFields }
-        );
-        userUpdated = true;
+        if (userId) {
+            const updateFields = {
+                email: member.loginEmail,
+                name: member.name,
+                updatedAt: new Date()
+            };
+
+            // Only update password if provided
+            if (member.loginPassword) {
+                updateFields.password = await bcrypt.hash(member.loginPassword, 10);
+            }
+
+            await db.collection('users').updateOne(
+                { _id: new ObjectId(userId) },
+                { $set: updateFields }
+            );
+            userUpdated = true;
+        }
 
         // Remove login fields from member object before saving
         delete member.updateUserLogin;
