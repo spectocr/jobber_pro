@@ -1454,7 +1454,16 @@ app.post('/api/sms/reminders', isAuthenticated, async (req, res) => {
 
 // Invoice generation (protected)
 app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
-    const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.jobId) });
+    let job = null;
+    try {
+        // Try to find job by ObjectId
+        job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.jobId) });
+    } catch (e) {
+        // If ObjectId fails, try as string
+        console.error('Error parsing jobId as ObjectId:', e.message);
+        return res.status(404).send('<h1>Invoice not found - Invalid job ID</h1>');
+    }
+
     if (!job) {
         return res.status(404).send('<h1>Invoice not found</h1>');
     }
