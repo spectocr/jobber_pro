@@ -1770,6 +1770,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                        <h3 style="margin-bottom: 1rem;">Attachments</h3>
+                        <div id="attachmentsList" style="margin-bottom: 1rem;">
+                            <!-- Attachments will be rendered here -->
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx,.txt" multiple style="display: none;" onchange="handleFileSelect(event)">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
+                                📎 Add Photos/Documents
+                            </button>
+                            <span style="margin-left: 1rem; color: #718096; font-size: 0.9rem;">Photos, PDFs, or documents</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
                         <h3 style="margin-bottom: 1rem;">Touch Points</h3>
                         <div id="touchPointsList" style="margin-bottom: 1rem;">
                             <!-- Touch points will be rendered here -->
@@ -2297,6 +2311,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             materialItems = [];
             paymentItems = [];
             touchPoints = [];
+            attachments = [];
             currentEditingJobId = null;
 
             if (job) {
@@ -2325,6 +2340,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (job.materialItems) materialItems = [...job.materialItems];
                 if (job.payments) paymentItems = [...job.payments];
                 if (job.touchPoints) touchPoints = [...job.touchPoints];
+                if (job.attachments) attachments = [...job.attachments];
 
                 // Trigger client change to populate service locations
                 handleClientChange();
@@ -2342,6 +2358,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             renderLineItems();
             renderTouchPoints();
+            renderAttachments();
             document.getElementById('jobModal').classList.add('active');
         }
 
@@ -2444,6 +2461,102 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let materialItems = [];
         let paymentItems = [];
         let touchPoints = [];
+        let attachments = [];
+
+        async function handleFileSelect(event) {
+            const files = event.target.files;
+            if (!files.length) return;
+
+            for (const file of files) {
+                // Check file size (max 5MB)
+                if (file.size > 5 * 1024 * 1024) {
+                    alert(`File "${file.name}" is too large. Maximum size is 5MB.`);
+                    continue;
+                }
+
+                // Read file as base64
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const attachment = {
+                        id: Date.now() + Math.random(),
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        data: e.target.result,
+                        uploadedAt: new Date().toISOString()
+                    };
+                    attachments.push(attachment);
+                    renderAttachments();
+                    markFormDirty();
+                };
+                reader.readAsDataURL(file);
+            }
+
+            // Clear the input so the same file can be selected again
+            event.target.value = '';
+        }
+
+        function renderAttachments() {
+            const container = document.getElementById('attachmentsList');
+            if (attachments.length === 0) {
+                container.innerHTML = '<p style="color: #a0aec0; font-style: italic;">No attachments yet</p>';
+                return;
+            }
+
+            container.innerHTML = attachments.map(att => {
+                const isImage = att.type.startsWith('image/');
+                const sizeKB = (att.size / 1024).toFixed(1);
+                const icon = isImage ? '🖼️' : '📄';
+
+                return \`
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem; background: #f7fafc; border-radius: 8px; margin-bottom: 0.5rem;">
+                        <span style="font-size: 1.5rem;">\${icon}</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #2d3748;">\${att.name}</div>
+                            <div style="font-size: 0.85rem; color: #718096;">\${sizeKB} KB</div>
+                        </div>
+                        \${isImage ? \`<button type="button" class="btn btn-secondary btn-small" onclick="viewAttachment('\${att.id}')">View</button>\` : ''}
+                        <button type="button" class="btn btn-secondary btn-small" onclick="downloadAttachment('\${att.id}')">Download</button>
+                        <button type="button" class="btn btn-danger btn-small" onclick="removeAttachment('\${att.id}')">Remove</button>
+                    </div>
+                \`;
+            }).join('');
+        }
+
+        function removeAttachment(id) {
+            attachments = attachments.filter(att => att.id != id);
+            renderAttachments();
+            markFormDirty();
+        }
+
+        function viewAttachment(id) {
+            const attachment = attachments.find(att => att.id == id);
+            if (!attachment) return;
+
+            // Open image in a new window
+            const win = window.open('', '_blank');
+            win.document.write(\`
+                <html>
+                    <head><title>\${attachment.name}</title></head>
+                    <body style="margin: 0; display: flex; justify-content: center; align-items: center; background: #000;">
+                        <img src="\${attachment.data}" style="max-width: 100%; max-height: 100vh;" />
+                    </body>
+                </html>
+            \`);
+        }
+
+        function downloadAttachment(id) {
+            const attachment = attachments.find(att => att.id == id);
+            if (!attachment) return;
+
+            // Create a temporary link and click it
+            const link = document.createElement('a');
+            link.href = attachment.data;
+            link.download = attachment.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
 
         function addLaborItem() {
             const id = Date.now();
@@ -2754,11 +2867,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 job._id = currentEditingJobId;
             }
 
-            // Add line items, payments, and touch points
+            // Add line items, payments, touch points, and attachments
             job.laborItems = laborItems;
             job.materialItems = materialItems;
             job.payments = paymentItems;
             job.touchPoints = touchPoints;
+            job.attachments = attachments;
 
             // Handle checkbox - it won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
