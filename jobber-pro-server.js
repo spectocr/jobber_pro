@@ -1680,13 +1680,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <h3 style="margin: 0; color: #667eea;">User Management</h3>
                         <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
                     </div>
-                <div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 1rem;">
-                    <strong>⚠️ Important:</strong> User's full name must exactly match their Team Member name for Time Clock job assignments to work.
+                    <div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong>⚠️ Important:</strong> User's full name must exactly match their Team Member name for Time Clock job assignments to work.
+                    </div>
+                    <div id="usersList"></div>
                 </div>
-                <div id="usersList"></div>
             </div>
         </div>
-    </div>
 
     <!-- Client Modal -->
     <div id="clientModal" class="modal">
