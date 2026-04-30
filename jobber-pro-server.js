@@ -2644,11 +2644,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const clientSelect = document.getElementById('jobClientSelect');
             const teamSelect = document.getElementById('jobTeamSelect');
 
-            clientSelect.innerHTML = '<option value="">Select a client...</option>' +
-                clients.map(c => \`<option value="\${c.id}">\${c.name}</option>\`).join('');
-
-            teamSelect.innerHTML = '<option value="">Unassigned</option>' +
-                team.filter(t => t.active).map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+            populateDropdown(clientSelect, clients, 'id', 'name', 'Select a client...');
+            populateDropdown(teamSelect, team.filter(t => t.active), 'id', 'name', 'Unassigned');
         }
 
         // Save functions
@@ -3547,8 +3544,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // ============================================================
 
         async function loadDashboard() {
-            const response = await fetch('/api/dashboard');
-            const stats = await response.json();
+            try {
+                const response = await fetch('/api/dashboard');
+                const stats = await response.json();
 
             document.getElementById('stat-clients').textContent = stats.totalClients;
             document.getElementById('stat-jobs-month').textContent = stats.jobsThisMonth;
@@ -3605,15 +3603,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('completed-count').textContent = '(' + (stats.completedLast30Days?.length || 0) + ')';
             document.getElementById('completed-jobs-list').innerHTML =
                 renderJobList(stats.completedLast30Days, 'No completed jobs');
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
         }
 
         async function loadClients() {
-            const response = await fetch('/api/clients');
-            clients = await response.json();
+            try {
+                const response = await fetch('/api/clients');
+                clients = await response.json();
 
-            // Always reload jobs to ensure fresh data for stats
-            const jobsResponse = await fetch('/api/jobs');
-            jobs = await jobsResponse.json();
+                // Always reload jobs to ensure fresh data for stats
+                const jobsResponse = await fetch('/api/jobs');
+                jobs = await jobsResponse.json();
 
             // Calculate stats
             const totalClients = clients.length;
@@ -3674,6 +3676,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+            } catch (error) {
+                console.error('Failed to load clients:', error);
+            }
         }
 
         let serviceLocations = [];
@@ -4047,8 +4052,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function loadJobs() {
-            const response = await fetch('/api/jobs');
-            jobs = await response.json();
+            try {
+                const response = await fetch('/api/jobs');
+                jobs = await response.json();
 
             // Populate filter dropdowns
             const clientFilter = document.getElementById('filter-client');
@@ -4058,15 +4064,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const currentClient = clientFilter.value;
             const currentAssigned = assignedFilter.value;
 
-            clientFilter.innerHTML = '<option value="">All Clients</option>' +
-                clients.map(c => \`<option value="\${c.id}">\${c.name}</option>\`).join('');
+            populateDropdown(clientFilter, clients, 'id', 'name', 'All Clients');
             clientFilter.value = currentClient;
 
-            assignedFilter.innerHTML = '<option value="">All Team Members</option>' +
-                team.map(t => \`<option value="\${t.id}">\${t.name}</option>\`).join('');
+            populateDropdown(assignedFilter, team, 'id', 'name', 'All Team Members');
             assignedFilter.value = currentAssigned;
 
             renderJobsTable();
+            } catch (error) {
+                console.error('Failed to load jobs:', error);
+            }
         }
 
         function renderJobsTable() {
@@ -4082,15 +4089,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const clientFilter = document.getElementById('filter-client').value;
             const assignedFilter = document.getElementById('filter-assigned').value;
 
-            const filteredJobs = jobs.filter(j => {
-                if (statusFilter && j.status !== statusFilter) return false;
-                if (clientFilter && j.clientId !== clientFilter) return false;
-                if (assignedFilter && j.assignedTo !== assignedFilter) return false;
-                return true;
-            });
+            const filteredJobs = getFilteredJobs(statusFilter, clientFilter, assignedFilter);
 
             if (filteredJobs.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>No jobs match filters</h3><p>Try adjusting your filters</p></div>';
+                renderEmptyState(container, 'No jobs match filters', 'Try adjusting your filters');
                 return;
             }
 
@@ -4149,12 +4151,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const clientFilter = document.getElementById('filter-client').value;
             const assignedFilter = document.getElementById('filter-assigned').value;
 
-            const filteredJobs = jobs.filter(j => {
-                if (statusFilter && j.status !== statusFilter) return false;
-                if (clientFilter && j.clientId !== clientFilter) return false;
-                if (assignedFilter && j.assignedTo !== assignedFilter) return false;
-                return true;
-            });
+            const filteredJobs = getFilteredJobs(statusFilter, clientFilter, assignedFilter);
 
             if (filteredJobs.length === 0) {
                 alert('No jobs to export');
