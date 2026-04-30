@@ -824,6 +824,7 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
         const totalWithTax = parseFloat(j.total) || 0;
         return {
             ...j,
+            _id: j._id.toString(), // Keep _id as string for invoice links
             id: j._id.toString(),
             clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
             assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null,
