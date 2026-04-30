@@ -1052,26 +1052,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </div>
 
-                <!-- Client Stats -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                    <div class="stat-card">
-                        <h3>Total Clients</h3>
-                        <div class="value" id="stat-total-clients">0</div>
-                    </div>
-                    <div class="stat-card" style="border-left-color: #48bb78;">
-                        <h3>Repeat Clients</h3>
-                        <div class="value" id="stat-repeat-clients">0</div>
-                        <small style="color: #718096;">Multiple jobs</small>
-                    </div>
-                </div>
-
-                <!-- Client Distribution by ZIP -->
+                <!-- Client Stats - Collapsible -->
                 <div class="card" style="margin-bottom: 2rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleZipDistribution()">
-                        <h3>Client Distribution by ZIP Code</h3>
-                        <span id="zip-toggle-icon" style="font-size: 1.5rem; user-select: none;">▼</span>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 1rem;" onclick="toggleClientStats()">
+                        <h3 style="margin: 0;">📊 Client Statistics</h3>
+                        <span id="stats-toggle-icon" style="font-size: 1.5rem; user-select: none;">▶</span>
                     </div>
-                    <div id="zip-distribution" style="padding: 1rem;"></div>
+                    <div id="client-stats-content" style="display: none; padding: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                            <div class="stat-card">
+                                <h3>Total Clients</h3>
+                                <div class="value" id="stat-total-clients">0</div>
+                            </div>
+                            <div class="stat-card" style="border-left-color: #48bb78;">
+                                <h3>Repeat Clients</h3>
+                                <div class="value" id="stat-repeat-clients">0</div>
+                                <small style="color: #718096;">Multiple jobs</small>
+                            </div>
+                        </div>
+
+                        <!-- Client Distribution by ZIP -->
+                        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 1rem;" onclick="toggleZipDistribution()">
+                                <h3 style="margin: 0;">Client Distribution by ZIP Code</h3>
+                                <span id="zip-toggle-icon" style="font-size: 1.5rem; user-select: none;">▶</span>
+                            </div>
+                            <div id="zip-distribution" style="display: none;"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="clients-list"></div>
@@ -3371,6 +3379,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const location = serviceLocations.find(loc => loc.id === id);
             if (location) {
                 location[field] = value;
+            }
+        }
+
+        function toggleClientStats() {
+            const container = document.getElementById('client-stats-content');
+            const icon = document.getElementById('stats-toggle-icon');
+
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                container.style.display = 'none';
+                icon.textContent = '▶';
             }
         }
 
