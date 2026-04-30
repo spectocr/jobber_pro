@@ -4237,7 +4237,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (response.ok) {
                 const users = await response.json();
                 const usersList = document.getElementById('usersList');
-                usersList.innerHTML = users.map(user => \`
+                usersList.innerHTML = users.map(user => {
+                    const lastLoginText = user.lastLogin
+                        ? new Date(user.lastLogin).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })
+                        : 'Never';
+                    return \`
                     <div style="padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <strong>\${user.name}</strong>
@@ -4246,7 +4257,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <span style="color: \${user.role === 'admin' ? '#667eea' : '#48bb78'}; font-weight: 600;">\${user.role.toUpperCase()}</span>
                             </div>
                             <div style="color: #a0aec0; font-size: 0.8rem;">
-                                Created: \${new Date(user.createdAt).toLocaleDateString()}
+                                Created: \${new Date(user.createdAt).toLocaleDateString()} • Last Login: \${lastLoginText}
                             </div>
                         </div>
                         <div>
@@ -4254,7 +4265,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id}')">Delete</button>
                         </div>
                     </div>
-                \`).join('');
+                \`;
+                }).join('');
                 document.getElementById('userManagementSection').style.display = 'block';
             }
         }
