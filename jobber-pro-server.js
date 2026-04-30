@@ -1093,6 +1093,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="btn btn-secondary" onclick="showView('clients')">← Back to Clients</button>
                     <h2 id="client-detail-name"></h2>
                 </div>
+                <!-- Client Relationship Stats -->
+                <div id="client-stats-section" style="margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">📊 Client Relationship Overview</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div class="stat-card">
+                            <h3>Total Jobs</h3>
+                            <div class="value" id="client-stat-total-jobs">0</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #48bb78;">
+                            <h3>Total Revenue</h3>
+                            <div class="value" id="client-stat-total-revenue">$0</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #f59e0b;">
+                            <h3>Avg Job Value</h3>
+                            <div class="value" id="client-stat-avg-job">$0</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #667eea;">
+                            <h3>Total Paid</h3>
+                            <div class="value" id="client-stat-total-paid">$0</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #e53e3e;">
+                            <h3>Outstanding</h3>
+                            <div class="value" id="client-stat-outstanding">$0</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
                     <div>
                         <h3 style="margin-bottom: 1rem; color: #667eea;">Contact Information</h3>
@@ -3556,6 +3583,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Load client jobs
             const clientJobs = jobs.filter(j => j.clientId == client.id || String(j.clientId) === String(client.id));
             const jobsContainer = document.getElementById('client-detail-jobs');
+
+            // Calculate client stats
+            const totalJobs = clientJobs.length;
+            const totalRevenue = clientJobs.reduce((sum, j) => {
+                return sum + (j.totalWithTax || (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0));
+            }, 0);
+            const avgJobValue = totalJobs > 0 ? totalRevenue / totalJobs : 0;
+            const totalPaid = clientJobs.reduce((sum, j) => sum + (parseFloat(j.totalPaid) || 0), 0);
+            const outstanding = totalRevenue - totalPaid;
+
+            // Update stats display
+            document.getElementById('client-stat-total-jobs').textContent = totalJobs;
+            document.getElementById('client-stat-total-revenue').textContent = '$' + totalRevenue.toFixed(2);
+            document.getElementById('client-stat-avg-job').textContent = '$' + avgJobValue.toFixed(2);
+            document.getElementById('client-stat-total-paid').textContent = '$' + totalPaid.toFixed(2);
+            document.getElementById('client-stat-outstanding').textContent = '$' + outstanding.toFixed(2);
 
             if (clientJobs.length === 0) {
                 jobsContainer.innerHTML = '<div class="empty-state"><h3>No jobs yet</h3><p>Create a job for this client</p></div>';
