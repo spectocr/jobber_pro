@@ -2550,11 +2550,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }).join('');
         }
 
-        function removeAttachment(id) {
+        async function removeAttachment(id) {
             const attachment = attachments.find(att => att.id == id);
             if (!attachment) return;
 
             if (confirm(\`Remove "\${attachment.name}"?\`)) {
+                // If file is in S3, delete it from S3
+                if (attachment.s3Key) {
+                    try {
+                        const response = await fetch(\`/api/file/\${attachment.s3Key}\`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            console.error('Failed to delete file from S3');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting file from S3:', error);
+                    }
+                }
+
+                // Remove from attachments array
                 attachments = attachments.filter(att => att.id != id);
                 renderAttachments();
                 markFormDirty();
