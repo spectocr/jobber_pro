@@ -1015,6 +1015,7 @@ app.get('/api/team', isAuthenticated, async (req, res) => {
 app.post('/api/team', isAuthenticated, async (req, res) => {
     const member = req.body;
     let userCreated = false;
+    let userUpdated = false;
 
     // Handle user login creation
     if (member.createUserLogin && member.loginEmail && member.loginPassword) {
@@ -1047,6 +1048,31 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
         delete member.loginPassword;
     }
 
+    // Handle user login update
+    if (member.updateUserLogin && member.userId) {
+        const updateFields = {
+            email: member.loginEmail,
+            name: member.name,
+            updatedAt: new Date()
+        };
+
+        // Only update password if provided
+        if (member.loginPassword) {
+            updateFields.password = await bcrypt.hash(member.loginPassword, 10);
+        }
+
+        await db.collection('users').updateOne(
+            { _id: new ObjectId(member.userId) },
+            { $set: updateFields }
+        );
+        userUpdated = true;
+
+        // Remove login fields from member object before saving
+        delete member.updateUserLogin;
+        delete member.loginEmail;
+        delete member.loginPassword;
+    }
+
     if (member._id) {
         const { _id, ...updateData } = member;
         await db.collection('team').updateOne(
@@ -1058,7 +1084,7 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
         member.active = true;
         await db.collection('team').insertOne(member);
     }
-    res.json({ success: true, userCreated: userCreated });
+    res.json({ success: true, userCreated: userCreated, userUpdated: userUpdated });
 });
 
 app.delete('/api/team/:id', isAuthenticated, async (req, res) => {

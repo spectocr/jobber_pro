@@ -2467,7 +2467,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        function openTeamModal(member = null) {
+        async function openTeamModal(member = null) {
             if (!isAdmin) {
                 alert('You do not have permission to create or edit team members.');
                 return;
@@ -2475,6 +2475,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const form = document.getElementById('teamForm');
             currentEditingTeamId = null;
+
+            // Reset login section
+            document.getElementById('createUserLogin').checked = false;
+            document.getElementById('loginFields').style.display = 'none';
+            document.getElementById('loginEmail').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginPasswordConfirm').value = '';
 
             if (member) {
                 document.getElementById('teamModalTitle').textContent = 'Edit Team Member';
@@ -2487,9 +2494,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         input.value = member[key] || '';
                     }
                 });
+
+                // Check if this team member has a user login
+                if (member.userId) {
+                    // Fetch user data
+                    const response = await fetch('/api/users');
+                    const users = await response.json();
+                    const user = users.find(u => u.id === member.userId);
+
+                    if (user) {
+                        // Show existing login section
+                        document.getElementById('createUserLogin').checked = true;
+                        document.getElementById('loginFields').style.display = 'block';
+                        document.getElementById('loginEmail').value = user.email;
+
+                        // Update the section header and instructions
+                        const loginSection = document.querySelector('#teamModal h3');
+                        loginSection.textContent = 'User Login Access (Existing)';
+                        const loginCheckboxLabel = document.querySelector('#teamModal label[for="createUserLogin"]');
+                        if (loginCheckboxLabel) {
+                            loginCheckboxLabel.innerHTML = '<input type="checkbox" id="createUserLogin" onchange="toggleLoginFields()" style="margin-right: 0.5rem;" checked disabled><span>User login exists for this team member</span>';
+                        }
+
+                        // Update password fields to be optional for editing
+                        document.getElementById('loginPassword').placeholder = 'Leave blank to keep current password';
+                        document.getElementById('loginPasswordConfirm').placeholder = 'Leave blank to keep current password';
+                    }
+                }
             } else {
                 document.getElementById('teamModalTitle').textContent = 'Add Team Member';
                 form.reset();
+
+                // Reset section header
+                const loginSection = document.querySelector('#teamModal h3');
+                loginSection.textContent = 'User Login Access';
             }
 
             document.getElementById('teamModal').classList.add('active');
@@ -3243,31 +3281,63 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 member._id = currentEditingTeamId;
             }
 
-            // Check if user login creation is requested
+            // Check if user login creation/update is requested
             const createLogin = document.getElementById('createUserLogin').checked;
             if (createLogin) {
                 const loginEmail = document.getElementById('loginEmail').value.trim();
                 const loginPassword = document.getElementById('loginPassword').value;
                 const loginPasswordConfirm = document.getElementById('loginPasswordConfirm').value;
 
-                if (!loginEmail || !loginPassword || !loginPasswordConfirm) {
-                    alert('Please fill in all login fields');
+                // For new logins, email and password are required
+                // For existing logins, only email is required (password optional)
+                const existingMember = team.find(t => (t.id == currentEditingTeamId || t._id == currentEditingTeamId));
+                const isNewLogin = !existingMember || !existingMember.userId;
+
+                if (!loginEmail) {
+                    alert('Please provide a login email');
                     return;
                 }
 
-                if (loginPassword !== loginPasswordConfirm) {
-                    alert('Passwords do not match');
-                    return;
-                }
+                if (isNewLogin) {
+                    // Creating new login - password required
+                    if (!loginPassword || !loginPasswordConfirm) {
+                        alert('Please fill in password fields');
+                        return;
+                    }
 
-                if (loginPassword.length < 6) {
-                    alert('Password must be at least 6 characters');
-                    return;
-                }
+                    if (loginPassword !== loginPasswordConfirm) {
+                        alert('Passwords do not match');
+                        return;
+                    }
 
-                member.createUserLogin = true;
-                member.loginEmail = loginEmail;
-                member.loginPassword = loginPassword;
+                    if (loginPassword.length < 6) {
+                        alert('Password must be at least 6 characters');
+                        return;
+                    }
+
+                    member.createUserLogin = true;
+                    member.loginEmail = loginEmail;
+                    member.loginPassword = loginPassword;
+                } else {
+                    // Updating existing login
+                    member.updateUserLogin = true;
+                    member.loginEmail = loginEmail;
+
+                    // Only include password if it was changed
+                    if (loginPassword && loginPasswordConfirm) {
+                        if (loginPassword !== loginPasswordConfirm) {
+                            alert('Passwords do not match');
+                            return;
+                        }
+
+                        if (loginPassword.length < 6) {
+                            alert('Password must be at least 6 characters');
+                            return;
+                        }
+
+                        member.loginPassword = loginPassword;
+                    }
+                }
             }
 
             const response = await fetch('/api/team', {
@@ -3284,6 +3354,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 if (createLogin && result.userCreated) {
                     alert('Team member saved and user login created!\\n\\nEmail: ' + loginEmail + '\\nThey can now log in to clock in/out.');
+                } else if (member.updateUserLogin) {
+                    alert('Team member and login updated successfully!');
                 }
             } else {
                 const error = await response.json();
