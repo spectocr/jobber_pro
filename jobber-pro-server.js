@@ -5105,21 +5105,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             hour12: true
                           })
                         : 'Never';
+                    const role = user.role || (user.isAdmin ? 'admin' : 'user');
                     return \`
                     <div style="padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <strong>\${user.name}</strong>
                             <div style="color: #718096; font-size: 0.9rem;">
                                 \${user.email} •
-                                <span style="color: \${user.role === 'admin' ? '#667eea' : '#48bb78'}; font-weight: 600;">\${user.role.toUpperCase()}</span>
+                                <span style="color: \${role === 'admin' ? '#667eea' : '#48bb78'}; font-weight: 600;">\${role.toUpperCase()}</span>
                             </div>
                             <div style="color: #a0aec0; font-size: 0.8rem;">
                                 Created: \${new Date(user.createdAt).toLocaleDateString()} • Last Login: \${lastLoginText}
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-primary btn-small" onclick="editUser('\${user._id}')" style="margin-right: 0.5rem;">Edit</button>
-                            <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id}')">Delete</button>
+                            <button class="btn btn-primary btn-small" onclick="editUser('\${user._id || user.id}')" style="margin-right: 0.5rem;">Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id || user.id}')">Delete</button>
                         </div>
                     </div>
                 \`;
