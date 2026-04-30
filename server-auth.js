@@ -992,8 +992,23 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
 
 app.get('/api/team', isAuthenticated, async (req, res) => {
     const team = await db.collection('team').find().toArray();
-    // Map _id to id for frontend compatibility
-    const teamWithId = team.map(t => ({ ...t, id: t._id.toString() }));
+    const users = await db.collection('users').find().toArray();
+
+    // Map _id to id and link userId if possible
+    const teamWithId = team.map(t => {
+        const teamMember = { ...t, id: t._id.toString() };
+
+        // If no userId but has email, try to find matching user
+        if (!teamMember.userId && teamMember.email) {
+            const matchingUser = users.find(u => u.email === teamMember.email);
+            if (matchingUser) {
+                teamMember.userId = matchingUser._id.toString();
+            }
+        }
+
+        return teamMember;
+    });
+
     res.json(teamWithId);
 });
 
@@ -1020,8 +1035,11 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
             createdBy: req.session.userName
         };
 
-        await db.collection('users').insertOne(newUser);
+        const result = await db.collection('users').insertOne(newUser);
         userCreated = true;
+
+        // Link the userId to the team member
+        member.userId = result.insertedId.toString();
 
         // Remove login fields from member object before saving
         delete member.createUserLogin;
