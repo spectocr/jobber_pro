@@ -1463,9 +1463,16 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     let client = null;
     if (job.clientId) {
         try {
-            client = await db.collection('clients').findOne({ _id: ObjectId.isValid(job.clientId) ? new ObjectId(job.clientId) : job.clientId });
+            // Try as ObjectId first
+            if (typeof job.clientId === 'string' && job.clientId.length === 24) {
+                client = await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) });
+            } else {
+                client = await db.collection('clients').findOne({ _id: job.clientId });
+            }
         } catch (e) {
             console.error('Error finding client:', e);
+            // Try direct match as fallback
+            client = await db.collection('clients').findOne({ _id: job.clientId });
         }
     }
 
