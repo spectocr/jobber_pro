@@ -3267,7 +3267,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             jobs.forEach(j => {
                 if (j.clientId) {
-                    clientJobCounts[j.clientId] = (clientJobCounts[j.clientId] || 0) + 1;
+                    // Handle both string and ObjectId formats
+                    const clientIdStr = String(j.clientId);
+                    clientJobCounts[clientIdStr] = (clientJobCounts[clientIdStr] || 0) + 1;
                 }
             });
 
@@ -3288,7 +3290,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City, State</th><th>Marketing Channel</th><th>Actions</th></tr></thead><tbody>' +
                 clients.map(c => {
                     const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '-');
-                    const jobCount = clientJobCounts[c.id] || 0;
+                    // Match client ID as string (handles both string and ObjectId)
+                    const jobCount = clientJobCounts[String(c.id)] || 0;
 
                     // Build client name with badges
                     let nameHtml = '';
