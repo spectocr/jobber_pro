@@ -1687,6 +1687,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
             </div>
         </div>
+    </div>
 
     <!-- Client Modal -->
     <div id="clientModal" class="modal">
