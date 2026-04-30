@@ -14,6 +14,8 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const twilio = require('twilio');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -31,6 +33,26 @@ if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER) {
     console.log('✅ Twilio SMS enabled');
 } else {
     console.log('⚠️  Twilio not configured - SMS features disabled');
+}
+
+// AWS S3 setup
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
+
+let s3Client = null;
+if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY && S3_BUCKET_NAME) {
+    s3Client = new S3Client({
+        region: AWS_REGION,
+        credentials: {
+            accessKeyId: AWS_ACCESS_KEY_ID,
+            secretAccessKey: AWS_SECRET_ACCESS_KEY
+        }
+    });
+    console.log('✅ AWS S3 enabled - Bucket:', S3_BUCKET_NAME);
+} else {
+    console.log('⚠️  AWS S3 not configured - Attachments will be stored in MongoDB');
 }
 
 let db = null;
@@ -138,6 +160,68 @@ async function sendSMS(to, message) {
     } catch (error) {
         console.error('❌ SMS error:', error.message);
         return { success: false, error: error.message };
+    }
+}
+
+// S3 Helper Functions
+async function uploadToS3(fileBuffer, fileName, contentType) {
+    if (!s3Client) {
+        throw new Error('S3 not configured');
+    }
+
+    const key = `jobber-attachments/${Date.now()}-${fileName}`;
+    const command = new PutObjectCommand({
+        Bucket: S3_BUCKET_NAME,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: contentType
+    });
+
+    try {
+        await s3Client.send(command);
+        console.log('✅ File uploaded to S3:', key);
+        return key;
+    } catch (error) {
+        console.error('❌ S3 upload error:', error);
+        throw error;
+    }
+}
+
+async function getS3SignedUrl(key, expiresIn = 3600) {
+    if (!s3Client) {
+        throw new Error('S3 not configured');
+    }
+
+    const command = new GetObjectCommand({
+        Bucket: S3_BUCKET_NAME,
+        Key: key
+    });
+
+    try {
+        const url = await getSignedUrl(s3Client, command, { expiresIn });
+        return url;
+    } catch (error) {
+        console.error('❌ S3 signed URL error:', error);
+        throw error;
+    }
+}
+
+async function deleteFromS3(key) {
+    if (!s3Client) {
+        throw new Error('S3 not configured');
+    }
+
+    const command = new DeleteObjectCommand({
+        Bucket: S3_BUCKET_NAME,
+        Key: key
+    });
+
+    try {
+        await s3Client.send(command);
+        console.log('✅ File deleted from S3:', key);
+    } catch (error) {
+        console.error('❌ S3 delete error:', error);
+        throw error;
     }
 }
 
@@ -321,9 +405,9 @@ const app = express();
 // Trust proxy (Heroku uses load balancer)
 app.set('trust proxy', 1);
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Middleware - increase limit for base64 file uploads (50MB max)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Function to setup routes (called after session middleware is ready)
 function setupRoutes() {
@@ -747,6 +831,81 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
         };
     });
     res.json(jobsWithId);
+});
+
+// File upload endpoint - receives base64 data, uploads to S3, returns S3 key
+app.post('/api/upload', isAuthenticated, async (req, res) => {
+    try {
+        const { fileName, fileType, fileData } = req.body;
+
+        if (!fileName || !fileType || !fileData) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // If S3 is configured, upload to S3
+        if (s3Client) {
+            // Extract base64 data (remove data:image/png;base64, prefix)
+            const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+            const fileBuffer = Buffer.from(base64Data, 'base64');
+
+            // Upload to S3
+            const s3Key = await uploadToS3(fileBuffer, fileName, fileType);
+
+            res.json({
+                success: true,
+                s3Key: s3Key,
+                fileName: fileName,
+                fileType: fileType,
+                size: fileBuffer.length
+            });
+        } else {
+            // Fallback: return the base64 data to store in MongoDB
+            res.json({
+                success: true,
+                data: fileData,
+                fileName: fileName,
+                fileType: fileType,
+                size: Buffer.from(fileData.replace(/^data:[^;]+;base64,/, ''), 'base64').length
+            });
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'Failed to upload file' });
+    }
+});
+
+// Get signed URL for S3 file
+app.get('/api/file/:s3Key(*)', isAuthenticated, async (req, res) => {
+    try {
+        const s3Key = req.params.s3Key;
+
+        if (!s3Client) {
+            return res.status(400).json({ error: 'S3 not configured' });
+        }
+
+        // Generate signed URL (valid for 1 hour)
+        const signedUrl = await getS3SignedUrl(s3Key, 3600);
+        res.json({ url: signedUrl });
+    } catch (error) {
+        console.error('Get file error:', error);
+        res.status(500).json({ error: 'Failed to get file URL' });
+    }
+});
+
+// Delete file from S3
+app.delete('/api/file/:s3Key(*)', isAuthenticated, async (req, res) => {
+    try {
+        const s3Key = req.params.s3Key;
+
+        if (s3Client) {
+            await deleteFromS3(s3Key);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete file error:', error);
+        res.status(500).json({ error: 'Failed to delete file' });
+    }
 });
 
 app.post('/api/jobs', isAuthenticated, async (req, res) => {

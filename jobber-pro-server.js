@@ -2468,26 +2468,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!files.length) return;
 
             for (const file of files) {
-                // Check file size (max 5MB)
-                if (file.size > 5 * 1024 * 1024) {
-                    alert(`File "${file.name}" is too large. Maximum size is 5MB.`);
+                // Check file size (max 10MB for S3)
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
                     continue;
                 }
 
                 // Read file as base64
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    const attachment = {
-                        id: Date.now() + Math.random(),
-                        name: file.name,
-                        type: file.type,
-                        size: file.size,
-                        data: e.target.result,
-                        uploadedAt: new Date().toISOString()
-                    };
-                    attachments.push(attachment);
-                    renderAttachments();
-                    markFormDirty();
+                reader.onload = async function(e) {
+                    try {
+                        // Upload to server (will be stored in S3 or MongoDB)
+                        const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                fileName: file.name,
+                                fileType: file.type,
+                                fileData: e.target.result
+                            })
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            const attachment = {
+                                id: Date.now() + Math.random(),
+                                name: file.name,
+                                type: file.type,
+                                size: file.size,
+                                s3Key: result.s3Key, // Will be set if using S3
+                                data: result.data, // Will be set if using MongoDB fallback
+                                uploadedAt: new Date().toISOString()
+                            };
+                            attachments.push(attachment);
+                            renderAttachments();
+                            markFormDirty();
+                        } else {
+                            alert(`Failed to upload "${file.name}"`);
+                        }
+                    } catch (error) {
+                        console.error('Upload error:', error);
+                        alert(`Error uploading "${file.name}"`);
+                    }
                 };
                 reader.readAsDataURL(file);
             }
@@ -2529,33 +2551,75 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             markFormDirty();
         }
 
-        function viewAttachment(id) {
+        async function viewAttachment(id) {
             const attachment = attachments.find(att => att.id == id);
             if (!attachment) return;
 
-            // Open image in a new window
-            const win = window.open('', '_blank');
-            win.document.write(\`
-                <html>
-                    <head><title>\${attachment.name}</title></head>
-                    <body style="margin: 0; display: flex; justify-content: center; align-items: center; background: #000;">
-                        <img src="\${attachment.data}" style="max-width: 100%; max-height: 100vh;" />
-                    </body>
-                </html>
-            \`);
+            try {
+                let imageUrl;
+                if (attachment.s3Key) {
+                    // Get signed URL from S3
+                    const response = await fetch(\`/api/file/\${attachment.s3Key}\`);
+                    if (response.ok) {
+                        const result = await response.json();
+                        imageUrl = result.url;
+                    } else {
+                        alert('Failed to load image');
+                        return;
+                    }
+                } else {
+                    // Use base64 data directly
+                    imageUrl = attachment.data;
+                }
+
+                // Open image in a new window
+                const win = window.open('', '_blank');
+                win.document.write(\`
+                    <html>
+                        <head><title>\${attachment.name}</title></head>
+                        <body style="margin: 0; display: flex; justify-content: center; align-items: center; background: #000;">
+                            <img src="\${imageUrl}" style="max-width: 100%; max-height: 100vh;" />
+                        </body>
+                    </html>
+                \`);
+            } catch (error) {
+                console.error('View attachment error:', error);
+                alert('Failed to view attachment');
+            }
         }
 
-        function downloadAttachment(id) {
+        async function downloadAttachment(id) {
             const attachment = attachments.find(att => att.id == id);
             if (!attachment) return;
 
-            // Create a temporary link and click it
-            const link = document.createElement('a');
-            link.href = attachment.data;
-            link.download = attachment.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            try {
+                let downloadUrl;
+                if (attachment.s3Key) {
+                    // Get signed URL from S3
+                    const response = await fetch(\`/api/file/\${attachment.s3Key}\`);
+                    if (response.ok) {
+                        const result = await response.json();
+                        downloadUrl = result.url;
+                    } else {
+                        alert('Failed to download file');
+                        return;
+                    }
+                } else {
+                    // Use base64 data directly
+                    downloadUrl = attachment.data;
+                }
+
+                // Create a temporary link and click it
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = attachment.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error('Download attachment error:', error);
+                alert('Failed to download attachment');
+            }
         }
 
         function addLaborItem() {
