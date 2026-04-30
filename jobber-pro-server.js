@@ -172,7 +172,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jobber Pro - Field Service Management</title>
+    <title id="page-title">Jobber Pro - Field Service Management</title>
+    <link rel="icon" id="page-favicon" type="image/x-icon" href="">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -1571,7 +1572,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <!-- Company & Billing Tab -->
                 <div id="companyTab" class="settings-tab-content">
                     <form id="settingsForm" style="max-width: 600px;">
-                    <h3 style="margin-bottom: 1rem; color: #667eea;">Company Information</h3>
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">App Branding</h3>
+                    <div class="form-group">
+                        <label>App Name</label>
+                        <input type="text" name="appName" placeholder="Jobber Pro">
+                        <small style="color: #718096; display: block; margin-top: 0.5rem;">This name appears in the browser tab and throughout the app</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Favicon</label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <img id="favicon-preview" src="" alt="Favicon preview" style="width: 32px; height: 32px; display: none; border: 2px solid #e2e8f0; border-radius: 4px;">
+                            <div>
+                                <input type="file" id="favicon-upload" accept="image/*,.ico" style="display: none;" onchange="handleFaviconUpload(event)">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('favicon-upload').click()">Upload Favicon</button>
+                                <button type="button" class="btn btn-danger btn-small" id="remove-favicon" onclick="removeFavicon()" style="display: none; margin-left: 0.5rem;">Remove</button>
+                            </div>
+                        </div>
+                        <small style="color: #718096; display: block; margin-top: 0.5rem;">Recommended: ICO or PNG, 32x32px or 64x64px</small>
+                        <input type="hidden" name="favicon" id="favicon">
+                    </div>
+
+                    <h3 style="margin: 2rem 0 1rem 0; color: #667eea;">Company Information</h3>
                     <div class="form-group">
                         <label>Company Logo</label>
                         <div style="display: flex; align-items: center; gap: 1rem;">
@@ -4941,6 +4962,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             const form = document.getElementById('settingsForm');
+
+            // App branding
+            form.elements.appName.value = settings.appName || 'Jobber Pro';
+            updateAppBranding(settings.appName, settings.favicon);
+
+            // Load favicon if exists
+            if (settings.favicon) {
+                document.getElementById('favicon').value = settings.favicon;
+                const preview = document.getElementById('favicon-preview');
+                preview.src = settings.favicon;
+                preview.style.display = 'block';
+                document.getElementById('remove-favicon').style.display = 'inline-block';
+            }
+
             form.elements.companyName.value = settings.companyName || '';
             form.elements.companyAddress.value = settings.companyAddress || '';
             form.elements.companyPhone.value = settings.companyPhone || '';
@@ -5014,9 +5049,62 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('logo-upload').value = '';
         }
 
+        function handleFaviconUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Check file size (max 100KB)
+            if (file.size > 100000) {
+                alert('File too large! Please use an image under 100KB.');
+                return;
+            }
+
+            // Check file type
+            if (!file.type.match('image.*')) {
+                alert('Please upload an image file (ICO, PNG, etc.)');
+                return;
+            }
+
+            // Read and convert to base64
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                document.getElementById('favicon').value = base64;
+
+                // Show preview
+                const preview = document.getElementById('favicon-preview');
+                preview.src = base64;
+                preview.style.display = 'block';
+                document.getElementById('remove-favicon').style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeFavicon() {
+            document.getElementById('favicon').value = '';
+            document.getElementById('favicon-preview').src = '';
+            document.getElementById('favicon-preview').style.display = 'none';
+            document.getElementById('remove-favicon').style.display = 'none';
+            document.getElementById('favicon-upload').value = '';
+        }
+
+        function updateAppBranding(appName, favicon) {
+            // Update page title
+            const title = appName || 'Jobber Pro';
+            document.getElementById('page-title').textContent = `${title} - Field Service Management`;
+
+            // Update favicon
+            const faviconLink = document.getElementById('page-favicon');
+            if (favicon) {
+                faviconLink.href = favicon;
+            }
+        }
+
         async function saveSettings() {
             const form = document.getElementById('settingsForm');
             const settings = {
+                appName: form.elements.appName.value || 'Jobber Pro',
+                favicon: document.getElementById('favicon').value || null,
                 companyName: form.elements.companyName.value,
                 companyAddress: form.elements.companyAddress.value,
                 companyPhone: form.elements.companyPhone.value,
@@ -5036,8 +5124,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (response.ok) {
                 markFormClean();
                 alert('Settings saved successfully!');
-                // Update header logo
+                // Update header logo and app branding
                 loadHeaderLogo();
+                updateAppBranding(settings.appName, settings.favicon);
             }
         }
 
@@ -6516,6 +6605,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Update clock every second
         updateDateTime();
         setInterval(updateDateTime, 1000);
+
+        // Load app branding on page load
+        (async function() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                updateAppBranding(settings.appName, settings.favicon);
+            } catch (e) {
+                console.error('Failed to load app branding:', e);
+            }
+        })();
 
         // Auto-refresh dashboard every 30 seconds
         setInterval(() => {
