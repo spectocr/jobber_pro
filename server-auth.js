@@ -1669,17 +1669,32 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         </div>
     </div>
 
-    <div class="footer">
-        <p>Thank you for your business!</p>
-        <p>Please remit payment within 30 days.</p>
-    </div>
-
     ${settings.contractTerms ? `
     <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
         <h3 style="color: #667eea; margin-bottom: 15px;">Terms & Conditions</h3>
         <p style="white-space: pre-wrap; line-height: 1.6; color: #333; font-size: 0.9em;">${settings.contractTerms}</p>
     </div>
     ` : ''}
+
+    <div style="margin-top: 60px; padding-top: 30px; border-top: 2px solid #e2e8f0;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="flex: 1;">
+                <p style="margin-bottom: 10px; color: #666; font-weight: 600;">Customer Signature:</p>
+                <div style="border-bottom: 2px solid #333; width: 300px; margin-bottom: 8px;"></div>
+                <p style="color: #999; font-size: 0.85em;">Signature</p>
+            </div>
+            <div style="flex: 1; text-align: right;">
+                <p style="margin-bottom: 10px; color: #666; font-weight: 600;">Date:</p>
+                <div style="border-bottom: 2px solid #333; width: 200px; margin-left: auto; margin-bottom: 8px;"></div>
+                <p style="color: #999; font-size: 0.85em;">Date</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer" style="margin-top: 40px;">
+        <p>Thank you for your business!</p>
+        <p>Please remit payment within 30 days.</p>
+    </div>
 </body>
 </html>`;
 
