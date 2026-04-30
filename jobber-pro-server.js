@@ -4067,13 +4067,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Get all time entries for this member
             const allEntries = await fetch('/api/timeentries').then(r => r.json());
-            const memberEntries = allEntries.filter(e => String(e.userId) === String(member.userId));
+
+            // Try matching by userId first, then fall back to userName
+            let memberEntries = [];
+            if (member.userId) {
+                memberEntries = allEntries.filter(e => String(e.userId) === String(member.userId));
+            }
+
+            // Fallback: match by name if userId doesn't work
+            if (memberEntries.length === 0) {
+                memberEntries = allEntries.filter(e => e.userName === member.name);
+            }
+
+            console.log('Team member:', member.name, 'userId:', member.userId);
+            console.log('Total time entries:', allEntries.length);
+            console.log('Matched entries:', memberEntries.length);
+            console.log('Sample entry:', allEntries[0]);
 
             // Get approved entries
             const approvedEntries = memberEntries.filter(e => e.status === 'approved');
 
             if (approvedEntries.length === 0) {
-                document.getElementById('team-pay-summary').innerHTML = '<div class="empty-state"><p>No approved time entries yet</p></div>';
+                document.getElementById('team-pay-summary').innerHTML = \`
+                    <div class="empty-state">
+                        <p>No approved time entries yet</p>
+                        <small style="color: #718096;">Debug: Found \${memberEntries.length} total entries, 0 approved</small>
+                    </div>\`;
                 document.getElementById('team-pay-history').innerHTML = '';
                 return;
             }
