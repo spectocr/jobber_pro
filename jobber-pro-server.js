@@ -2208,6 +2208,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 event.target.classList.add('active');
             }
 
+            // Save current view to localStorage for persistence on refresh
+            localStorage.setItem('currentView', viewName);
+
             if (viewName === 'dashboard') loadDashboard();
             if (viewName === 'clients') loadClients();
             if (viewName === 'jobs') loadJobs();
@@ -3620,11 +3623,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Update stats display
             document.getElementById('client-stat-total-jobs').textContent = totalJobs;
             document.getElementById('client-stat-since').textContent = clientSince;
-            document.getElementById('client-stat-total-revenue').textContent = '$' + totalRevenue.toFixed(2);
-            document.getElementById('client-stat-net-profit').textContent = '$' + netProfit.toFixed(2);
-            document.getElementById('client-stat-avg-job').textContent = '$' + avgJobValue.toFixed(2);
-            document.getElementById('client-stat-total-paid').textContent = '$' + totalPaid.toFixed(2);
-            document.getElementById('client-stat-outstanding').textContent = '$' + outstanding.toFixed(2);
+            document.getElementById('client-stat-total-revenue').textContent = formatMoney(totalRevenue);
+            document.getElementById('client-stat-net-profit').textContent = formatMoney(netProfit);
+            document.getElementById('client-stat-avg-job').textContent = formatMoney(avgJobValue);
+            document.getElementById('client-stat-total-paid').textContent = formatMoney(totalPaid);
+            document.getElementById('client-stat-outstanding').textContent = formatMoney(outstanding);
 
             if (clientJobs.length === 0) {
                 jobsContainer.innerHTML = '<div class="empty-state"><h3>No jobs yet</h3><p>Create a job for this client</p></div>';
@@ -3641,7 +3644,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <small>\${(j.description || '').substring(0, 50)}</small>
                         </td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                        <td>\${j.totalWithTax ? '$' + j.totalWithTax.toFixed(2) : (j.total ? '$' + calculateTotalWithTax(parseFloat(j.total)).toFixed(2) : '-')}</td>
+                        <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
@@ -3912,7 +3915,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         <td>\${j.hours || 0}</td>
-                        <td>\${j.totalWithTax ? '$' + j.totalWithTax.toFixed(2) : (j.total ? '$' + calculateTotalWithTax(parseFloat(j.total)).toFixed(2) : '-')}</td>
+                        <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
@@ -4428,7 +4431,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.title}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${member ? member.name : 'Unassigned'}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.status.replace('_', ' ')}</td>
-                                    <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${(j.totalWithTax || calculateTotalWithTax(parseFloat(j.total) || 0)).toFixed(2)}</td>
+                                    <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${formatMoney(j.totalWithTax || calculateTotalWithTax(parseFloat(j.total) || 0))}</td>
                                 </tr>
                             \`;
                         }).join('')}
@@ -5767,10 +5770,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
 
             // Update summary cards
-            document.getElementById('payToday').textContent = '$' + todayPay.toFixed(2);
-            document.getElementById('payMTD').textContent = '$' + mtdPay.toFixed(2);
-            document.getElementById('payYTD').textContent = '$' + ytdPay.toFixed(2);
-            document.getElementById('payAllTime').textContent = '$' + allTimePay.toFixed(2);
+            document.getElementById('payToday').textContent = formatMoney(todayPay);
+            document.getElementById('payMTD').textContent = formatMoney(mtdPay);
+            document.getElementById('payYTD').textContent = formatMoney(ytdPay);
+            document.getElementById('payAllTime').textContent = formatMoney(allTimePay);
 
             // Filter entries based on selected period
             const period = document.getElementById('payPeriodFilter').value;
@@ -6033,7 +6036,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             loadHeaderLogo(),
             loadCurrentUser()
         ]).then(() => {
-            loadDashboard();
+            // Restore last viewed page from localStorage
+            const savedView = localStorage.getItem('currentView');
+            const defaultView = isAdmin ? 'dashboard' : 'jobs';
+            const viewToShow = savedView || defaultView;
+
+            // Make sure the view exists and user has permission
+            const adminOnlyViews = ['dashboard', 'clients', 'team', 'expenses', 'reports', 'settings'];
+            if (!isAdmin && adminOnlyViews.includes(viewToShow)) {
+                showView('jobs');
+            } else {
+                showView(viewToShow);
+            }
         });
 
         // Update clock every second
