@@ -4030,7 +4030,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         \${moneyCell}
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
-                            \${isAdmin ? '<button class="btn btn-primary btn-small" onclick="window.open(\'/invoice/${j.id}\', \'_blank\')">📄 Invoice</button>' : ''}
+                            \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                         </td>
                     </tr>\`;
