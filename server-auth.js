@@ -1459,8 +1459,16 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         return res.status(404).send('<h1>Invoice not found</h1>');
     }
 
-    const client = await db.collection('clients').findOne({ _id: job.clientId });
-    const assigned = await db.collection('team').findOne({ _id: job.assignedTo });
+    // Handle clientId as either ObjectId or string
+    let client = null;
+    if (job.clientId) {
+        try {
+            client = await db.collection('clients').findOne({ _id: ObjectId.isValid(job.clientId) ? new ObjectId(job.clientId) : job.clientId });
+        } catch (e) {
+            console.error('Error finding client:', e);
+        }
+    }
+
     const settings = await db.collection('settings').findOne() || {};
 
     // Calculate subtotal from line items
@@ -1583,7 +1591,6 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
         <p><strong>Job:</strong> ${job.title}</p>
         <p><strong>Description:</strong> ${job.description || 'N/A'}</p>
         <p><strong>Date:</strong> ${job.scheduledDate || ''} ${job.scheduledTime || ''}</p>
-        <p><strong>Technician:</strong> ${assigned ? assigned.name : 'Unassigned'}</p>
     </div>
 
     ${(job.laborItems && job.laborItems.length > 0) ? `
