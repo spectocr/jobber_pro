@@ -3667,7 +3667,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const container = document.getElementById('clients-list');
             if (clients.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>No clients yet</h3><p>Add your first client to get started</p></div>';
+                renderEmptyState(container, 'No clients yet', 'Add your first client to get started');
                 return;
             }
 
@@ -4052,7 +4052,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('client-stat-outstanding').textContent = formatMoney(outstanding);
 
             if (clientJobs.length === 0) {
-                jobsContainer.innerHTML = '<div class="empty-state"><h3>No jobs yet</h3><p>Create a job for this client</p></div>';
+                renderEmptyState(jobsContainer, 'No jobs yet', 'Create a job for this client');
                 return;
             }
 
@@ -4103,7 +4103,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const container = document.getElementById('jobs-list');
 
             if (jobs.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>No jobs yet</h3><p>Create your first job to get started</p></div>';
+                renderEmptyState(container, 'No jobs yet', 'Create your first job to get started');
                 return;
             }
 
@@ -4241,7 +4241,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const container = document.getElementById('team-list');
             if (team.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>No team members yet</h3><p>Add your first team member</p></div>';
+                renderEmptyState(container, 'No team members yet', 'Add your first team member');
                 return;
             }
 
@@ -5485,7 +5485,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const container = document.getElementById('expenses-list');
 
             if (expensesToRender.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>No expenses yet</h3><p>Add your first business expense to get started</p></div>';
+                renderEmptyState(container, 'No expenses yet', 'Add your first business expense to get started');
                 return;
             }
 
