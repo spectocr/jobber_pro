@@ -2551,9 +2551,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function removeAttachment(id) {
-            attachments = attachments.filter(att => att.id != id);
-            renderAttachments();
-            markFormDirty();
+            const attachment = attachments.find(att => att.id == id);
+            if (!attachment) return;
+
+            if (confirm(\`Remove "\${attachment.name}"?\`)) {
+                attachments = attachments.filter(att => att.id != id);
+                renderAttachments();
+                markFormDirty();
+            }
         }
 
         async function viewAttachment(id) {
