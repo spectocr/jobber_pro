@@ -1908,13 +1908,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="number" name="hourlyRate" step="0.01" min="0" placeholder="75.00">
                     </div>
 
-                    <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">User Login Access</h3>
-                    <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 id="loginSectionTitle" style="margin-top: 1.5rem; margin-bottom: 0.5rem;">User Login Access</h3>
+                    <div id="loginCheckboxContainer" style="background: #e3f2fd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                         <label style="display: flex; align-items: center; cursor: pointer;">
                             <input type="checkbox" id="createUserLogin" onchange="toggleLoginFields()" style="margin-right: 0.5rem;">
-                            <span>Create user login for this team member</span>
+                            <span id="loginCheckboxText">Create user login for this team member</span>
                         </label>
-                        <small style="color: #666; display: block; margin-top: 0.5rem;">Allow this team member to log in and clock in/out on jobs</small>
+                        <small id="loginCheckboxSubtext" style="color: #666; display: block; margin-top: 0.5rem;">Allow this team member to log in and clock in/out on jobs</small>
                     </div>
 
                     <div id="loginFields" style="display: none;">
@@ -2476,12 +2476,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const form = document.getElementById('teamForm');
             currentEditingTeamId = null;
 
-            // Reset login section
+            // Reset login section to defaults
             document.getElementById('createUserLogin').checked = false;
+            document.getElementById('createUserLogin').disabled = false;
             document.getElementById('loginFields').style.display = 'none';
             document.getElementById('loginEmail').value = '';
             document.getElementById('loginPassword').value = '';
             document.getElementById('loginPasswordConfirm').value = '';
+            document.getElementById('loginPassword').placeholder = 'Minimum 6 characters';
+            document.getElementById('loginPasswordConfirm').placeholder = 'Re-enter password';
+
+            // Reset section texts
+            document.getElementById('loginSectionTitle').textContent = 'User Login Access';
+            document.getElementById('loginCheckboxText').textContent = 'Create user login for this team member';
+            document.getElementById('loginCheckboxSubtext').textContent = 'Allow this team member to log in and clock in/out on jobs';
 
             if (member) {
                 document.getElementById('teamModalTitle').textContent = 'Edit Team Member';
@@ -2505,16 +2513,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     if (user) {
                         // Show existing login section
                         document.getElementById('createUserLogin').checked = true;
+                        document.getElementById('createUserLogin').disabled = true;
                         document.getElementById('loginFields').style.display = 'block';
                         document.getElementById('loginEmail').value = user.email;
 
                         // Update the section header and instructions
-                        const loginSection = document.querySelector('#teamModal h3');
-                        loginSection.textContent = 'User Login Access (Existing)';
-                        const loginCheckboxLabel = document.querySelector('#teamModal label[for="createUserLogin"]');
-                        if (loginCheckboxLabel) {
-                            loginCheckboxLabel.innerHTML = '<input type="checkbox" id="createUserLogin" onchange="toggleLoginFields()" style="margin-right: 0.5rem;" checked disabled><span>User login exists for this team member</span>';
-                        }
+                        document.getElementById('loginSectionTitle').textContent = 'User Login Access (Existing)';
+                        document.getElementById('loginCheckboxText').textContent = 'User login exists for this team member';
+                        document.getElementById('loginCheckboxSubtext').textContent = 'Update email or password below (password optional)';
 
                         // Update password fields to be optional for editing
                         document.getElementById('loginPassword').placeholder = 'Leave blank to keep current password';
@@ -2524,10 +2530,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('teamModalTitle').textContent = 'Add Team Member';
                 form.reset();
-
-                // Reset section header
-                const loginSection = document.querySelector('#teamModal h3');
-                loginSection.textContent = 'User Login Access';
             }
 
             document.getElementById('teamModal').classList.add('active');
