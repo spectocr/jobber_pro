@@ -3600,8 +3600,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Calculate client stats
             const totalJobs = clientJobs.length;
+
+            // Debug: log jobs data
+            console.log('Client Jobs Data:', clientJobs.map(j => ({
+                title: j.title,
+                total: j.total,
+                laborItems: j.laborItems,
+                materialItems: j.materialItems
+            })));
+
             const totalRevenue = clientJobs.reduce((sum, j) => {
-                return sum + (j.totalWithTax || (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0));
+                // j.total already includes tax (calculated as subtotal + taxAmount when job is saved)
+                const jobTotal = parseFloat(j.total) || 0;
+                console.log('Job revenue:', j.title, jobTotal);
+                return sum + jobTotal;
             }, 0);
 
             // Calculate net profit (revenue - labor costs - material costs)
@@ -3616,6 +3628,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const price = parseFloat(item.price) || 0;
                     return mSum + (quantity * price);
                 }, 0);
+                console.log('Job costs:', j.title, 'labor:', laborCost, 'material:', materialCost);
                 return sum + laborCost + materialCost;
             }, 0);
             const netProfit = totalRevenue - totalCosts;
