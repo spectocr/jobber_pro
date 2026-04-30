@@ -4937,6 +4937,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Show/hide user management tab based on admin status
             if (isAdmin) {
                 document.getElementById('usersTab').style.display = 'block';
+                loadUsers(); // Load users when settings loads
             }
 
             const form = document.getElementById('settingsForm');
@@ -5115,7 +5116,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 \`;
                 }).join('');
-                document.getElementById('userManagementSection').style.display = 'block';
             }
         }
 
