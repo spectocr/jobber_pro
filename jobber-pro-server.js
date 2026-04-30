@@ -3606,11 +3606,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Calculate net profit (revenue - labor costs - material costs)
             const totalCosts = clientJobs.reduce((sum, j) => {
-                const laborCost = (j.laborItems || []).reduce((lSum, item) => lSum + (item.hours * item.rate), 0);
-                const materialCost = (j.materialItems || []).reduce((mSum, item) => mSum + (item.quantity * item.price), 0);
+                const laborCost = (j.laborItems || []).reduce((lSum, item) => {
+                    const hours = parseFloat(item.hours) || 0;
+                    const rate = parseFloat(item.rate) || 0;
+                    return lSum + (hours * rate);
+                }, 0);
+                const materialCost = (j.materialItems || []).reduce((mSum, item) => {
+                    const quantity = parseFloat(item.quantity) || 0;
+                    const price = parseFloat(item.price) || 0;
+                    return mSum + (quantity * price);
+                }, 0);
                 return sum + laborCost + materialCost;
             }, 0);
             const netProfit = totalRevenue - totalCosts;
+            console.log('Client Net Profit Calc:', { totalRevenue, totalCosts, netProfit, jobCount: clientJobs.length });
 
             const avgJobValue = totalJobs > 0 ? totalRevenue / totalJobs : 0;
             const totalPaid = clientJobs.reduce((sum, j) => sum + (parseFloat(j.totalPaid) || 0), 0);
