@@ -4000,6 +4000,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const member = team.find(t => t.id == teamId);
             if (!member) return;
 
+            // Load jobs and clients if not already loaded
+            if (jobs.length === 0) {
+                await loadJobs();
+            }
+            if (clients.length === 0) {
+                await loadClients();
+            }
+
             // Show team detail view
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById('team-detail').classList.add('active');
