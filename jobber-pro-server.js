@@ -1096,14 +1096,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <!-- Client Relationship Stats -->
                 <div id="client-stats-section" style="margin-bottom: 2rem;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">📊 Client Relationship Overview</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
                         <div class="stat-card">
                             <h3>Total Jobs</h3>
                             <div class="value" id="client-stat-total-jobs">0</div>
                         </div>
+                        <div class="stat-card" style="border-left-color: #8b5cf6;">
+                            <h3>Client Since</h3>
+                            <div class="value" style="font-size: 1.25rem;" id="client-stat-since">--</div>
+                        </div>
                         <div class="stat-card" style="border-left-color: #48bb78;">
                             <h3>Total Revenue</h3>
                             <div class="value" id="client-stat-total-revenue">$0</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #10b981;">
+                            <h3>Net Profit</h3>
+                            <div class="value" id="client-stat-net-profit">$0</div>
                         </div>
                         <div class="stat-card" style="border-left-color: #f59e0b;">
                             <h3>Avg Job Value</h3>
@@ -3589,13 +3597,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const totalRevenue = clientJobs.reduce((sum, j) => {
                 return sum + (j.totalWithTax || (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0));
             }, 0);
+
+            // Calculate net profit (revenue - labor costs - material costs)
+            const totalCosts = clientJobs.reduce((sum, j) => {
+                const laborCost = (j.laborItems || []).reduce((lSum, item) => lSum + (item.hours * item.rate), 0);
+                const materialCost = (j.materialItems || []).reduce((mSum, item) => mSum + (item.quantity * item.price), 0);
+                return sum + laborCost + materialCost;
+            }, 0);
+            const netProfit = totalRevenue - totalCosts;
+
             const avgJobValue = totalJobs > 0 ? totalRevenue / totalJobs : 0;
             const totalPaid = clientJobs.reduce((sum, j) => sum + (parseFloat(j.totalPaid) || 0), 0);
             const outstanding = totalRevenue - totalPaid;
 
+            // Format client since date
+            const clientSince = client.createdAt ? new Date(client.createdAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            }) : '--';
+
             // Update stats display
             document.getElementById('client-stat-total-jobs').textContent = totalJobs;
+            document.getElementById('client-stat-since').textContent = clientSince;
             document.getElementById('client-stat-total-revenue').textContent = '$' + totalRevenue.toFixed(2);
+            document.getElementById('client-stat-net-profit').textContent = '$' + netProfit.toFixed(2);
             document.getElementById('client-stat-avg-job').textContent = '$' + avgJobValue.toFixed(2);
             document.getElementById('client-stat-total-paid').textContent = '$' + totalPaid.toFixed(2);
             document.getElementById('client-stat-outstanding').textContent = '$' + outstanding.toFixed(2);
