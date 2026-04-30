@@ -1031,6 +1031,7 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
             name: member.name,
             email: member.loginEmail,
             password: hashedPassword,
+            role: 'user',
             isAdmin: false,
             createdAt: new Date(),
             createdBy: req.session.userName
