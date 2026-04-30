@@ -3257,11 +3257,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     if (jobCount > 2) {
                         // Gold star with job count for 3+ jobs
                         nameHtml = \`<span style="color: #f59e0b;">⭐</span> <strong style="color: #d97706;">\${c.name}</strong> <span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 4px;">\${jobCount}</span>\`;
-                    } else if (jobCount > 1) {
-                        // Green star for repeat clients (2 jobs)
+                    } else if (jobCount === 2) {
+                        // Green star for exactly 2 jobs
                         nameHtml = \`<span style="color: #10b981;">⭐</span> <strong style="color: #d97706;">\${c.name}</strong>\`;
                     } else {
-                        // Regular name
+                        // Regular name (0-1 jobs)
                         nameHtml = \`<strong>\${c.name}</strong>\`;
                     }
 
