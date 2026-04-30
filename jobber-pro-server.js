@@ -979,7 +979,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div class="header">
         <div style="display: flex; align-items: center; gap: 1rem;">
             <img id="header-logo" src="" alt="" style="max-height: 50px; max-width: 120px; display: none;">
-            <h1>⚡ Jobber Pro</h1>
+            <h1 id="header-app-name">⚡ Jobber Pro</h1>
         </div>
         <div style="display: flex; align-items: center; gap: 2rem; color: white; font-size: 0.9rem;">
             <div style="display: flex; align-items: center; gap: 1.5rem;">
@@ -5092,6 +5092,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Update page title
             const title = appName || 'Jobber Pro';
             document.getElementById('page-title').textContent = `${title} - Field Service Management`;
+
+            // Update header
+            document.getElementById('header-app-name').textContent = `⚡ ${title}`;
 
             // Update favicon
             const faviconLink = document.getElementById('page-favicon');
