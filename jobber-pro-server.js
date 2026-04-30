@@ -1344,9 +1344,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="btn btn-secondary" onclick="showView('team')">← Back to Team</button>
                     <h2 id="team-detail-name"></h2>
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
+                    <div>
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">Team Member Info</h3>
+                        <div id="team-detail-info" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;"></div>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">Assigned Jobs</h3>
+                        <div id="team-detail-jobs"></div>
+                    </div>
+                </div>
 
                 <!-- Pay Summary Stats -->
-                <div id="team-pay-summary" style="margin-bottom: 2rem;"></div>
+                <div style="margin-top: 2rem;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">Pay Summary</h3>
+                    <div id="team-pay-summary" style="margin-bottom: 2rem;"></div>
+                </div>
 
                 <!-- Pay History -->
                 <div>
@@ -3991,8 +4004,66 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById('team-detail').classList.add('active');
 
-            // Update member name
+            // Update member info
             document.getElementById('team-detail-name').textContent = member.name;
+            document.getElementById('team-detail-info').innerHTML = \`
+                <p style="margin-bottom: 0.75rem;"><strong>Role:</strong> \${member.role}</p>
+                <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(member.phone) || 'N/A'}</p>
+                <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${member.email || 'N/A'}</p>
+                <p style="margin-bottom: 0.75rem;"><strong>Status:</strong> <span class="status-badge \${member.active ? 'status-completed' : 'status-scheduled'}">\${member.active ? 'Active' : 'Inactive'}</span></p>
+            \`;
+
+            // Load member's jobs
+            const memberJobs = jobs.filter(j => j.assignedTo == member.id || String(j.assignedTo) === String(member.id));
+            const jobsContainer = document.getElementById('team-detail-jobs');
+
+            if (memberJobs.length === 0) {
+                jobsContainer.innerHTML = '<div class="empty-state"><h3>No jobs assigned</h3><p>Assign jobs to this team member</p></div>';
+            } else {
+                // Calculate total hours and revenue
+                const totalHours = memberJobs.reduce((sum, j) => sum + (parseFloat(j.hours) || 0), 0);
+                const totalRevenue = memberJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+
+                jobsContainer.innerHTML = \`
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Jobs</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">\${memberJobs.length}</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Hours</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">\${totalHours.toFixed(1)}</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Revenue</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">$\${formatMoney(totalRevenue)}</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+                            <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Avg Rate</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">$\${totalHours > 0 ? (totalRevenue / totalHours).toFixed(2) : '0.00'}/hr</div>
+                        </div>
+                    </div>
+                    <table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Status</th><th>Hours</th><th>Total</th><th>Actions</th></tr></thead><tbody>\` +
+                    memberJobs.map(j => {
+                        const client = clients.find(c => c.id == j.clientId || String(c.id) === String(j.clientId));
+                        return \`<tr>
+                            <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
+                            <td>\${client ? client.name : 'Unknown'}</td>
+                            <td>
+                                <strong>\${j.title}</strong><br>
+                                <small>\${(j.description || '').substring(0, 50)}</small>
+                            </td>
+                            <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
+                            <td>\${j.hours || 0}</td>
+                            <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
+                                <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
+                            </td>
+                        </tr>\`;
+                    }).join('') +
+                    '</tbody></table>';
+            }
 
             // Get all time entries for this member
             const allEntries = await fetch('/api/timeentries').then(r => r.json());
@@ -4002,7 +4073,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const approvedEntries = memberEntries.filter(e => e.status === 'approved');
 
             if (approvedEntries.length === 0) {
-                document.getElementById('team-pay-summary').innerHTML = '<div class="empty-state"><h3>No payment history</h3><p>No approved time entries yet</p></div>';
+                document.getElementById('team-pay-summary').innerHTML = '<div class="empty-state"><p>No approved time entries yet</p></div>';
                 document.getElementById('team-pay-history').innerHTML = '';
                 return;
             }
