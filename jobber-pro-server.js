@@ -2670,16 +2670,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 client._id = currentEditingClientId;
             }
 
-            const response = await fetch('/api/clients', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(client)
-            });
-
-            if (response.ok) {
-                markFormClean();
-                closeModal('clientModal');
-                loadClients();
+            try {
+                await postData('/api/clients', client, {
+                    markClean: true,
+                    closeModal: 'clientModal',
+                    reload: loadClients
+                });
+            } catch (error) {
+                alert('Failed to save client: ' + error.message);
             }
         }
 
@@ -3347,17 +3345,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             console.log('Saving job with attachments:', job.attachments);
 
-            const response = await fetch('/api/jobs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(job)
-            });
-
-            if (response.ok) {
-                markFormClean();
-                closeModal('jobModal');
-                loadJobs();
-                loadDashboard();
+            try {
+                await postData('/api/jobs', job, {
+                    markClean: true,
+                    closeModal: 'jobModal',
+                    reload: () => {
+                        loadJobs();
+                        loadDashboard();
+                    }
+                });
+            } catch (error) {
+                alert('Failed to save job: ' + error.message);
             }
         }
 
@@ -3396,20 +3394,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 if (isNewLogin) {
                     // Creating new login - password required
-                    if (!loginPassword || !loginPasswordConfirm) {
-                        alert('Please fill in password fields');
-                        return;
-                    }
-
-                    if (loginPassword !== loginPasswordConfirm) {
-                        alert('Passwords do not match');
-                        return;
-                    }
-
-                    if (loginPassword.length < 6) {
-                        alert('Password must be at least 6 characters');
-                        return;
-                    }
+                    if (!validatePassword(loginPassword, loginPasswordConfirm)) return;
 
                     member.createUserLogin = true;
                     member.loginEmail = loginEmail;
@@ -3421,41 +3406,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                     // Only include password if it was changed
                     if (loginPassword && loginPasswordConfirm) {
-                        if (loginPassword !== loginPasswordConfirm) {
-                            alert('Passwords do not match');
-                            return;
-                        }
-
-                        if (loginPassword.length < 6) {
-                            alert('Password must be at least 6 characters');
-                            return;
-                        }
-
+                        if (!validatePassword(loginPassword, loginPasswordConfirm)) return;
                         member.loginPassword = loginPassword;
                     }
                 }
             }
 
-            const response = await fetch('/api/team', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(member)
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                markFormClean();
-                closeModal('teamModal');
-                loadTeam();
+            try {
+                const result = await postData('/api/team', member, {
+                    markClean: true,
+                    closeModal: 'teamModal',
+                    reload: loadTeam
+                });
 
                 if (createLogin && result.userCreated) {
                     alert('Team member saved and user login created!\\n\\nEmail: ' + loginEmail + '\\nThey can now log in to clock in/out.');
                 } else if (member.updateUserLogin) {
                     alert('Team member and login updated successfully!');
                 }
-            } else {
-                const error = await response.json();
-                alert('Error: ' + (error.error || 'Failed to save team member'));
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
 
@@ -5221,18 +5191,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 contractTerms: form.elements.contractTerms.value
             };
 
-            const response = await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings)
-            });
-
-            if (response.ok) {
-                markFormClean();
+            try {
+                await postData('/api/settings', settings, { markClean: true });
                 alert('Settings saved successfully!');
                 // Update header logo and app branding
                 loadHeaderLogo();
                 updateAppBranding(settings.appName, settings.favicon);
+            } catch (error) {
+                alert('Failed to save settings: ' + error.message);
             }
         }
 
@@ -5564,15 +5530,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 expense._id = currentEditingExpenseId;
             }
 
-            const response = await fetch('/api/expenses', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(expense)
-            });
-
-            if (response.ok) {
-                closeModal('expenseModal');
-                loadExpenses();
+            try {
+                await postData('/api/expenses', expense, {
+                    closeModal: 'expenseModal',
+                    reload: loadExpenses
+                });
+            } catch (error) {
+                alert('Failed to save expense: ' + error.message);
             }
         }
 
