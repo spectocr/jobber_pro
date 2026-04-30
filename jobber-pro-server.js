@@ -458,13 +458,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             max-width: 600px;
             width: 100%;
             max-height: 90vh;
-            overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .modal-header {
             padding: 1.5rem;
             border-bottom: 2px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+            flex-shrink: 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -476,6 +483,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         .modal-body {
             padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
         }
 
         .modal-footer {
@@ -484,6 +493,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             display: flex;
             justify-content: flex-end;
             gap: 0.5rem;
+            position: sticky;
+            bottom: 0;
+            background: white;
+            z-index: 10;
+            flex-shrink: 0;
         }
 
         .close-btn {
