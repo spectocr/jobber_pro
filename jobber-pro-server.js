@@ -4017,8 +4017,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const memberJobs = jobs.filter(j => j.assignedTo == member.id || String(j.assignedTo) === String(member.id));
             const jobsContainer = document.getElementById('team-detail-jobs');
 
+            console.log('Jobs matching for member:', member.name, 'member.id:', member.id);
+            console.log('Total jobs:', jobs.length);
+            console.log('Sample job assignedTo:', jobs[0]?.assignedTo, 'type:', typeof jobs[0]?.assignedTo);
+            console.log('Matched jobs:', memberJobs.length);
+
             if (memberJobs.length === 0) {
-                jobsContainer.innerHTML = '<div class="empty-state"><h3>No jobs assigned</h3><p>Assign jobs to this team member</p></div>';
+                jobsContainer.innerHTML = \`
+                    <div class="empty-state">
+                        <h3>No jobs assigned</h3>
+                        <p>Assign jobs to this team member</p>
+                        <small style="color: #718096;">Debug: member.id=\${member.id}, found \${jobs.length} total jobs</small>
+                    </div>\`;
             } else {
                 // Calculate total hours and revenue
                 const totalHours = memberJobs.reduce((sum, j) => sum + (parseFloat(j.hours) || 0), 0);
