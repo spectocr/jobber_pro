@@ -2504,27 +2504,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 });
 
                 // Check if this team member has a user login
+                console.log('Team member userId:', member.userId);
                 if (member.userId) {
                     // Fetch user data
-                    const response = await fetch('/api/users');
-                    const users = await response.json();
-                    const user = users.find(u => u.id === member.userId);
+                    try {
+                        const response = await fetch('/api/users');
+                        const users = await response.json();
+                        console.log('Fetched users:', users.length);
+                        console.log('Looking for userId:', member.userId);
+                        const user = users.find(u => u.id === member.userId || u._id === member.userId);
+                        console.log('Found user:', user);
 
-                    if (user) {
-                        // Show existing login section
-                        document.getElementById('createUserLogin').checked = true;
-                        document.getElementById('createUserLogin').disabled = true;
-                        document.getElementById('loginFields').style.display = 'block';
-                        document.getElementById('loginEmail').value = user.email;
+                        if (user) {
+                            // Show existing login section
+                            document.getElementById('createUserLogin').checked = true;
+                            document.getElementById('createUserLogin').disabled = true;
+                            document.getElementById('loginFields').style.display = 'block';
+                            document.getElementById('loginEmail').value = user.email;
 
-                        // Update the section header and instructions
-                        document.getElementById('loginSectionTitle').textContent = 'User Login Access (Existing)';
-                        document.getElementById('loginCheckboxText').textContent = 'User login exists for this team member';
-                        document.getElementById('loginCheckboxSubtext').textContent = 'Update email or password below (password optional)';
+                            // Update the section header and instructions
+                            document.getElementById('loginSectionTitle').textContent = 'User Login Access (Existing)';
+                            document.getElementById('loginCheckboxText').textContent = 'User login exists for this team member';
+                            document.getElementById('loginCheckboxSubtext').textContent = 'Update email or password below (password optional)';
 
-                        // Update password fields to be optional for editing
-                        document.getElementById('loginPassword').placeholder = 'Leave blank to keep current password';
-                        document.getElementById('loginPasswordConfirm').placeholder = 'Leave blank to keep current password';
+                            // Update password fields to be optional for editing
+                            document.getElementById('loginPassword').placeholder = 'Leave blank to keep current password';
+                            document.getElementById('loginPasswordConfirm').placeholder = 'Leave blank to keep current password';
+                        }
+                    } catch (err) {
+                        console.error('Error fetching users:', err);
                     }
                 }
             } else {
