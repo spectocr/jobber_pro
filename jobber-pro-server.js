@@ -2468,15 +2468,84 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let touchPoints = [];
         let attachments = [];
 
+        // Image optimization function
+        async function optimizeImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Set max dimensions (1920px for standard HD)
+                        const MAX_WIDTH = 1920;
+                        const MAX_HEIGHT = 1920;
+
+                        let width = img.width;
+                        let height = img.height;
+
+                        // Only resize if image is larger than max dimensions
+                        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+                            if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                    height = Math.round((height * MAX_WIDTH) / width);
+                                    width = MAX_WIDTH;
+                                }
+                            } else {
+                                if (height > MAX_HEIGHT) {
+                                    width = Math.round((width * MAX_HEIGHT) / height);
+                                    height = MAX_HEIGHT;
+                                }
+                            }
+                        }
+
+                        // Create canvas and resize
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Convert to JPEG with 85% quality (great balance of size/quality)
+                        canvas.toBlob(
+                            (blob) => {
+                                const optimizedFile = new File([blob], file.name.replace(/\\.png$/i, '.jpg'), {
+                                    type: 'image/jpeg',
+                                    lastModified: Date.now()
+                                });
+                                console.log(\`Optimized \${file.name}: \${(file.size / 1024).toFixed(1)}KB → \${(optimizedFile.size / 1024).toFixed(1)}KB (saved \${(((file.size - optimizedFile.size) / file.size) * 100).toFixed(0)}%)\`);
+                                resolve(optimizedFile);
+                            },
+                            'image/jpeg',
+                            0.85
+                        );
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
         async function handleFileSelect(event) {
             const files = event.target.files;
             if (!files.length) return;
 
-            for (const file of files) {
+            for (let file of files) {
                 // Check file size (max 10MB for S3)
                 if (file.size > 10 * 1024 * 1024) {
-                    alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
+                    alert(\`File "\${file.name}" is too large. Maximum size is 10MB.\`);
                     continue;
+                }
+
+                // Optimize images before upload
+                const isImage = file.type.startsWith('image/');
+                if (isImage) {
+                    try {
+                        file = await optimizeImage(file);
+                    } catch (error) {
+                        console.error('Image optimization failed, uploading original:', error);
+                        // Continue with original file if optimization fails
+                    }
                 }
 
                 // Read file as base64
@@ -2509,11 +2578,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             renderAttachments();
                             markFormDirty();
                         } else {
-                            alert(`Failed to upload "${file.name}"`);
+                            alert(\`Failed to upload "\${file.name}"\`);
                         }
                     } catch (error) {
                         console.error('Upload error:', error);
-                        alert(`Error uploading "${file.name}"`);
+                        alert(\`Error uploading "\${file.name}"\`);
                     }
                 };
                 reader.readAsDataURL(file);
