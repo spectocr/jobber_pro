@@ -1762,6 +1762,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <p style="margin: 0; font-weight: 600;">Loading email status...</p>
                     </div>
 
+                    <!-- Google Calendar Integration -->
+                    <div style="margin-bottom: 3rem; padding-bottom: 3rem; border-bottom: 2px solid #e2e8f0;">
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">📅 Google Calendar Integration</h3>
+                        <p style="color: #718096; margin-bottom: 1.5rem;">Automatically sync scheduled jobs to your Google Calendar.</p>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="calendarAutoSync" style="width: auto;">
+                                <span>Automatically create calendar events when jobs are scheduled</span>
+                            </label>
+                            <small style="color: #718096; display: block; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                New jobs with scheduled dates will be added to your Google Calendar automatically
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="calendarSendInvites" style="width: auto;">
+                                <span>Send calendar invites to clients by default</span>
+                            </label>
+                            <small style="color: #718096; display: block; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                Clients will receive a calendar invite email when jobs are created
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="calendarUpdateOnChange" style="width: auto;">
+                                <span>Update calendar events when job details change</span>
+                            </label>
+                            <small style="color: #718096; display: block; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                Calendar events will be updated when you change job date, time, or details
+                            </small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveCalendarSettings()">💾 Save Calendar Settings</button>
+
+                        <div style="margin-top: 2rem; background: #f0f9ff; padding: 1rem; border-left: 4px solid #667eea; border-radius: 4px;">
+                            <strong>ℹ️ Note:</strong> Calendar integration uses the same Gmail API credentials configured below.
+                        </div>
+                    </div>
+
                     <!-- Email Templates Section -->
                     <div style="margin-bottom: 3rem;">
                         <h3 style="margin-bottom: 1rem; color: #667eea;">✉️ Email Templates</h3>
@@ -3567,14 +3609,46 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             console.log('Saving job with attachments:', job.attachments);
 
             try {
-                await postData('/api/jobs', job, {
-                    markClean: true,
-                    closeModal: 'jobModal',
-                    reload: () => {
-                        loadJobs();
-                        loadDashboard();
-                    }
+                const response = await fetch('/api/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(job)
                 });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to save job');
+                }
+
+                // Check if we should auto-create calendar event
+                const isNewJob = !currentEditingJobId;
+                const hasScheduledDate = job.scheduledDate && job.status === 'scheduled';
+
+                if (isNewJob && hasScheduledDate && settings.calendarSettings?.autoSync) {
+                    try {
+                        const calendarResponse = await fetch('/api/calendar/create-event', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                jobId: result.id || result._id,
+                                sendInvite: settings.calendarSettings?.sendInvites || false
+                            })
+                        });
+
+                        if (calendarResponse.ok) {
+                            console.log('✅ Calendar event auto-created');
+                        }
+                    } catch (calError) {
+                        console.warn('Calendar event creation failed:', calError);
+                        // Don't block job save if calendar fails
+                    }
+                }
+
+                markFormClean('jobForm');
+                closeModal('jobModal');
+                loadJobs();
+                loadDashboard();
             } catch (error) {
                 alert('Failed to save job: ' + error.message);
             }
@@ -4338,6 +4412,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
                             \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')" title="Email invoice to client">📧 Email</button>\` : ''}
+                            \${isAdmin && j.calendarEventId ? \`<button class="btn btn-secondary btn-small" onclick="window.open('\${j.calendarEventLink}', '_blank')" title="View calendar event">📅 View</button>\` : ''}
+                            \${isAdmin && !j.calendarEventId && j.scheduledDate && j.status === 'scheduled' ? \`<button class="btn btn-secondary btn-small" onclick="createCalendarEvent('\${j.id}')" title="Add to Google Calendar">📅 Add</button>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                         </td>
                     </tr>\`;
@@ -4354,6 +4430,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('filter-client').value = '';
             document.getElementById('filter-assigned').value = '';
             renderJobsTable();
+        }
+
+        async function createCalendarEvent(jobId) {
+            if (!confirm('Add this job to your Google Calendar?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/calendar/create-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId, sendInvite: false })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✅ Calendar event created!\n\nClick "View" to open it in Google Calendar.');
+                    loadJobs(); // Reload to show View button
+                } else {
+                    alert(`❌ Failed to create calendar event:\n${data.error || 'Unknown error'}\n\nMake sure Calendar is configured in Settings > Email Settings.`);
+                }
+            } catch (error) {
+                alert('❌ Error creating calendar event:\n' + error.message);
+            }
         }
 
         async function emailInvoice(jobId) {
@@ -5518,6 +5619,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('invoiceEmailBody').value = config.templates?.invoiceBody || 'Dear {clientName},\n\nThank you for your business! Your invoice is ready for review.\n\nInvoice #{invoiceNumber}\nJob: {jobTitle}\nTotal: ${total}\n\nView your invoice: {invoiceUrl}\n\nThank you for choosing {companyName}!';
                 document.getElementById('credentialsEmailSubject').value = config.templates?.credentialsSubject || 'Your {companyName} Account Credentials';
                 document.getElementById('credentialsEmailBody').value = config.templates?.credentialsBody || 'Hi {name},\n\nYour account has been created!\n\nEmail: {email}\nTemporary Password: {tempPassword}\n\nLogin at: {loginUrl}\n\nPlease change your password after logging in.';
+
+                // Load calendar settings
+                document.getElementById('calendarAutoSync').checked = config.calendar?.autoSync || false;
+                document.getElementById('calendarSendInvites').checked = config.calendar?.sendInvites || false;
+                document.getElementById('calendarUpdateOnChange').checked = config.calendar?.updateOnChange || false;
             } catch (error) {
                 console.error('Failed to load email settings:', error);
                 const statusDiv = document.getElementById('emailConfigStatus');
@@ -5607,6 +5713,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 content.style.display = 'none';
                 icon.textContent = '▶';
+            }
+        }
+
+        async function saveCalendarSettings() {
+            const calendarSettings = {
+                autoSync: document.getElementById('calendarAutoSync').checked,
+                sendInvites: document.getElementById('calendarSendInvites').checked,
+                updateOnChange: document.getElementById('calendarUpdateOnChange').checked
+            };
+
+            try {
+                const response = await fetch('/api/calendar/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(calendarSettings)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✅ Calendar settings saved successfully!');
+                } else {
+                    alert('❌ Failed to save calendar settings:\n' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('❌ Error saving calendar settings:\n' + error.message);
             }
         }
 

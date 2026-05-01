@@ -17,6 +17,7 @@ const twilio = require('twilio');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const emailService = require('./email-service');
+const calendarService = require('./calendar-service');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -1141,7 +1142,9 @@ app.get('/api/email/config', isAuthenticated, async (req, res) => {
             gmailClientSecret: settings?.gmailClientSecret ? 'configured' : '',
             gmailRefreshToken: settings?.gmailRefreshToken ? 'configured' : '',
             // Include email templates
-            templates: settings?.emailTemplates || {}
+            templates: settings?.emailTemplates || {},
+            // Include calendar settings
+            calendar: settings?.calendarSettings || {}
         };
 
         res.json(config);
@@ -1177,8 +1180,9 @@ app.post('/api/email/config', isAuthenticated, async (req, res) => {
         if (updateFields.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = updateFields.gmailRefreshToken;
         if (updateFields.gmailUser) process.env.GMAIL_USER = updateFields.gmailUser;
 
-        // Reinitialize email service with new credentials
+        // Reinitialize email and calendar services with new credentials
         await emailService.initialize();
+        await calendarService.initialize();
 
         res.json({ success: true, message: 'Email configuration updated' });
     } catch (error) {
@@ -1320,6 +1324,153 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
         res.json({ success: true, message: 'Invoice email sent to ' + client.email });
     } catch (error) {
         console.error('Send invoice error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Google Calendar API
+app.post('/api/calendar/create-event', isAuthenticated, async (req, res) => {
+    try {
+        const { jobId, sendInvite } = req.body;
+        if (!jobId) {
+            return res.status(400).json({ error: 'Job ID required' });
+        }
+
+        // Get job from database
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        // Get client
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) });
+
+        // Get settings
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+
+        // Create calendar event
+        const result = await calendarService.createJobEvent({
+            job: job,
+            client: client,
+            companyName: companyName,
+            sendInvite: sendInvite || false
+        });
+
+        // Save event ID to job
+        await db.collection('jobs').updateOne(
+            { _id: new ObjectId(jobId) },
+            { $set: { calendarEventId: result.eventId, calendarEventLink: result.eventLink } }
+        );
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('Create calendar event error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/calendar/update-event', isAuthenticated, async (req, res) => {
+    try {
+        const { jobId, sendUpdate } = req.body;
+        if (!jobId) {
+            return res.status(400).json({ error: 'Job ID required' });
+        }
+
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job || !job.calendarEventId) {
+            return res.status(404).json({ error: 'Job or calendar event not found' });
+        }
+
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) });
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+
+        await calendarService.updateJobEvent({
+            eventId: job.calendarEventId,
+            job: job,
+            client: client,
+            companyName: companyName,
+            sendUpdate: sendUpdate || false
+        });
+
+        res.json({ success: true, message: 'Calendar event updated' });
+    } catch (error) {
+        console.error('Update calendar event error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/calendar/delete-event', isAuthenticated, async (req, res) => {
+    try {
+        const { jobId, sendUpdate } = req.body;
+        if (!jobId) {
+            return res.status(400).json({ error: 'Job ID required' });
+        }
+
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job || !job.calendarEventId) {
+            return res.status(404).json({ error: 'Job or calendar event not found' });
+        }
+
+        await calendarService.deleteJobEvent(job.calendarEventId, sendUpdate || false);
+
+        // Remove event ID from job
+        await db.collection('jobs').updateOne(
+            { _id: new ObjectId(jobId) },
+            { $unset: { calendarEventId: '', calendarEventLink: '' } }
+        );
+
+        res.json({ success: true, message: 'Calendar event deleted' });
+    } catch (error) {
+        console.error('Delete calendar event error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/calendar/send-invite', isAuthenticated, async (req, res) => {
+    try {
+        const { jobId } = req.body;
+        if (!jobId) {
+            return res.status(400).json({ error: 'Job ID required' });
+        }
+
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job || !job.calendarEventId) {
+            return res.status(404).json({ error: 'Job or calendar event not found' });
+        }
+
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) });
+        if (!client || !client.email) {
+            return res.status(400).json({ error: 'Client email not found' });
+        }
+
+        await calendarService.sendInviteToClient({
+            eventId: job.calendarEventId,
+            clientEmail: client.email
+        });
+
+        res.json({ success: true, message: 'Calendar invite sent to ' + client.email });
+    } catch (error) {
+        console.error('Send calendar invite error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/calendar/settings', isAuthenticated, async (req, res) => {
+    try {
+        const calendarSettings = req.body;
+
+        // Update calendar settings in database
+        await db.collection('settings').updateOne(
+            {},
+            { $set: { calendarSettings: calendarSettings } },
+            { upsert: true }
+        );
+
+        res.json({ success: true, message: 'Calendar settings updated' });
+    } catch (error) {
+        console.error('Calendar settings save error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1930,6 +2081,7 @@ connectDB().then(async () => {
 
     // Initialize email service
     await emailService.initialize();
+    await calendarService.initialize();
 
     // Setup session middleware after DB connection
     app.use(session({
