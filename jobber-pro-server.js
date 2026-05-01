@@ -854,9 +854,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             .form-group input,
             .form-group select,
             .form-group textarea {
-                font-size: 1rem;
-                padding: 0.75rem;
+                font-size: 16px; /* Prevent iOS zoom on focus */
+                padding: 0.875rem;
                 border-radius: 8px;
+                min-height: 44px; /* Apple touch target size */
             }
             .form-group input[type="checkbox"] {
                 width: 1.25rem;
@@ -922,6 +923,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             /* Hide long text on mobile */
             .stat-card .subtext {
                 font-size: 0.75rem;
+            }
+
+            /* Client Modal - Stack City/State/ZIP on mobile */
+            #clientForm > div[style*="grid-template-columns"] {
+                display: block !important;
+            }
+            #clientForm > div[style*="grid-template-columns"] .form-group {
+                margin-bottom: 1rem;
+            }
+
+            /* Service locations on mobile */
+            .service-location-item {
+                padding: 1rem !important;
             }
         }
 
