@@ -1282,6 +1282,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="">All Statuses</option>
                             <option value="draft">Draft</option>
                             <option value="sent">Sent</option>
+                            <option value="in_review">In Review</option>
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
                             <option value="expired">Expired</option>
@@ -4610,6 +4611,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 filteredQuotes.map(q => {
                     const client = findClient(q.clientId);
                     const statusClass = q.status === 'approved' ? 'status-completed' :
+                                       q.status === 'in_review' ? 'status-scheduled' :
                                        q.status === 'rejected' ? 'status-bid_lost' :
                                        q.status === 'expired' ? 'status-bid_lost' :
                                        q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
@@ -4622,13 +4624,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>\${client ? client.name : 'Unknown'}</td>
                         <td><strong>\${q.title}</strong></td>
                         <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
-                        <td><span class="status-badge \${statusClass}">\${q.status}</span></td>
+                        <td><span class="status-badge \${statusClass}">\${q.status.replace('_', ' ')}</span></td>
                         <td>$\${parseFloat(q.total || 0).toFixed(2)}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')" title="Email quote to client">📧 Email</button>\` : ''}
-                            \${q.status === 'approved' && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Convert to Job</button>\` : ''}
+                            \${(q.status === 'approved' || q.status === 'in_review') && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Convert to Job</button>\` : ''}
                             \${q.convertedToJobId ? \`<span style="color: #48bb78;">✓ Converted</span>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </td>

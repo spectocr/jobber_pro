@@ -2519,10 +2519,26 @@ app.post('/quote-action/:token/approve', async (req, res) => {
             return res.status(404).json({ error: 'Quote not found' });
         }
 
+        // Update quote to in_review status
         await db.collection('quotes').updateOne(
             { _id: quote._id },
-            { $set: { status: 'approved', approvedAt: new Date() } }
+            { $set: { status: 'in_review', approvedAt: new Date() } }
         );
+
+        // Get client info
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(quote.clientId) });
+
+        // Create admin message notification
+        await db.collection('client_messages').insertOne({
+            clientId: new ObjectId(quote.clientId),
+            clientName: client?.name || 'Unknown Client',
+            clientEmail: client?.email || '',
+            message: `Client approved quote ${quote.quoteNumber} - "${quote.title}"\n\nTotal: $${parseFloat(quote.total || 0).toFixed(2)}\n\nQuote is now in review status. Please review and schedule the work.`,
+            subject: 'quote',
+            reference: quote.quoteNumber,
+            createdAt: new Date(),
+            read: false
+        });
 
         res.json({ success: true });
     } catch (error) {
