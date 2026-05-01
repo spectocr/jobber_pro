@@ -97,20 +97,25 @@ class EmailService {
 
         try {
             const mailOptions = {
-                from: process.env.GMAIL_USER,
+                from: `"Jobber Pro" <${process.env.GMAIL_USER}>`,
                 to: to,
                 subject: subject,
                 text: text,
                 html: html,
-                attachments: attachments
+                attachments: attachments,
+                headers: {
+                    'X-Priority': '3',
+                    'X-Mailer': 'Jobber Pro',
+                    'Importance': 'Normal'
+                }
             };
 
             const result = await this.transporter.sendMail(mailOptions);
-            console.log('✅ Email sent:', result.messageId);
+            console.log('✅ Email sent to:', to, 'Message ID:', result.messageId);
             return { success: true, messageId: result.messageId };
 
         } catch (error) {
-            console.error('❌ Failed to send email:', error.message);
+            console.error('❌ Failed to send email to:', to, 'Error:', error.message);
             throw error;
         }
     }
@@ -217,7 +222,7 @@ This is an automated message from ${companyName}
         </div>
         <div class="content">
             <p>Dear ${clientName},</p>
-            <p>Thank you for your business! Please find your invoice attached.</p>
+            <p>Thank you for your business! Your invoice is ready for review.</p>
 
             <div class="invoice-box">
                 <h3>Invoice Details</h3>
@@ -251,7 +256,7 @@ Invoice from ${companyName}
 
 Dear ${clientName},
 
-Thank you for your business! Please find your invoice attached.
+Thank you for your business! Your invoice is ready for review.
 
 Invoice Details:
 - Invoice Number: ${invoiceNumber}
