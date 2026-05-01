@@ -1209,6 +1209,37 @@ app.post('/api/email/templates', isAuthenticated, async (req, res) => {
     }
 });
 
+app.post('/api/email/reveal-secrets', isAuthenticated, async (req, res) => {
+    try {
+        const { password } = req.body;
+
+        // Get current user from database
+        const user = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify password
+        const bcrypt = require('bcryptjs');
+        const passwordMatch = await bcrypt.compare(password, user.password);
+
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Incorrect password' });
+        }
+
+        // Get secrets from database
+        const settings = await db.collection('settings').findOne({});
+
+        res.json({
+            gmailClientSecret: settings?.gmailClientSecret || '',
+            gmailRefreshToken: settings?.gmailRefreshToken || ''
+        });
+    } catch (error) {
+        console.error('Reveal secrets error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/api/email/test', isAuthenticated, async (req, res) => {
     try {
         const { to } = req.body;

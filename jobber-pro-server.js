@@ -1870,8 +1870,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
 
                         <div class="form-group">
-                            <label>Gmail Client Secret</label>
-                            <input type="password" id="gmailClientSecret" placeholder="GOCSPX-..." style="font-family: monospace; font-size: 0.9rem;">
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Gmail Client Secret</span>
+                                <button type="button" class="btn btn-secondary btn-small" onclick="revealSecrets()" style="font-size: 0.8rem;">👁️ Reveal Secrets</button>
+                            </label>
+                            <input type="password" id="gmailClientSecret" placeholder="GOCSPX-..." style="font-family: monospace; font-size: 0.9rem;" readonly>
                             <small style="color: #718096; display: block; margin-top: 0.5rem;">
                                 OAuth 2.0 client secret
                             </small>
@@ -1879,7 +1882,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                         <div class="form-group">
                             <label>Gmail Refresh Token</label>
-                            <input type="password" id="gmailRefreshToken" placeholder="1//0..." style="font-family: monospace; font-size: 0.9rem;">
+                            <input type="password" id="gmailRefreshToken" placeholder="1//0..." style="font-family: monospace; font-size: 0.9rem;" readonly>
                             <small style="color: #718096; display: block; margin-top: 0.5rem;">
                                 Generate from OAuth 2.0 Playground
                             </small>
@@ -5606,9 +5609,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
                 if (config.gmailClientSecret) {
                     document.getElementById('gmailClientSecret').placeholder = '••••••••';
+                    document.getElementById('gmailClientSecret').dataset.masked = 'true';
                 }
                 if (config.gmailRefreshToken) {
                     document.getElementById('gmailRefreshToken').placeholder = '••••••••';
+                    document.getElementById('gmailRefreshToken').dataset.masked = 'true';
                 }
                 if (config.gmailUser) {
                     document.getElementById('gmailUser').value = config.gmailUser;
@@ -5677,6 +5682,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
             } catch (error) {
                 alert('❌ Error saving email settings:\n' + error.message);
+            }
+        }
+
+        async function revealSecrets() {
+            const password = prompt('Enter your account password to reveal secrets:');
+            if (!password) return;
+
+            try {
+                // Verify password with backend
+                const response = await fetch('/api/email/reveal-secrets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Reveal and enable editing
+                    const secretField = document.getElementById('gmailClientSecret');
+                    const tokenField = document.getElementById('gmailRefreshToken');
+
+                    if (data.gmailClientSecret) {
+                        secretField.value = data.gmailClientSecret;
+                        secretField.type = 'text';
+                        secretField.readOnly = false;
+                        secretField.dataset.masked = 'false';
+                    }
+
+                    if (data.gmailRefreshToken) {
+                        tokenField.value = data.gmailRefreshToken;
+                        tokenField.type = 'text';
+                        tokenField.readOnly = false;
+                        tokenField.dataset.masked = 'false';
+                    }
+
+                    alert('✅ Secrets revealed! You can now copy or edit them.');
+                } else {
+                    alert('❌ Incorrect password');
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
             }
         }
 
