@@ -998,10 +998,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 text-transform: uppercase;
             }
 
-            /* Client detail - stack vertically and flip order on mobile */
+            /* Client detail - stack vertically, contact first on mobile */
             #client-detail .card > div[style*="grid-template-columns"] {
                 display: flex !important;
-                flex-direction: column-reverse !important;
+                flex-direction: column !important;
                 gap: 2rem !important;
             }
         }
