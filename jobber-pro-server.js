@@ -1879,6 +1879,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <li>Test with the "Send Test Email" button</li>
                         </ol>
                     </div>
+                        </div>
+                    </div>
                     </div>
                 </div>
 
