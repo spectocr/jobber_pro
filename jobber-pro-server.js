@@ -1078,6 +1078,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div class="nav">
         <button class="nav-btn active" onclick="showView('dashboard')" data-admin-only>📊 Dashboard</button>
         <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
+        <button class="nav-btn" onclick="showView('quotes')" data-admin-only>💰 Quotes</button>
         <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
         <button class="nav-btn" onclick="showView('timeclock')">⏱️ Time Clock</button>
         <button class="nav-btn" onclick="showView('mypay')" data-user-only>💵 My Pay</button>
@@ -1264,6 +1265,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="client-detail-jobs"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Quotes View -->
+        <div id="quotes" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Quotes & Estimates</h2>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <select id="filter-quote-status" onchange="filterQuotes()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
+                            <option value="">All Statuses</option>
+                            <option value="draft">Draft</option>
+                            <option value="sent">Sent</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                        <select id="filter-quote-client" onchange="filterQuotes()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
+                            <option value="">All Clients</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="clearQuoteFilters()">Clear Filters</button>
+                        <button class="btn btn-primary" onclick="showAddQuoteModal()">+ New Quote</button>
+                    </div>
+                </div>
+                <div id="quotes-list"></div>
             </div>
         </div>
 
@@ -2215,6 +2241,116 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Quote Modal -->
+    <div id="quoteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="quoteModalTitle">Create Quote</h2>
+                <button class="close-btn" onclick="closeModal('quoteModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="quoteForm">
+                    <input type="hidden" name="id">
+
+                    <div class="form-group">
+                        <label>Quote Number</label>
+                        <input type="text" name="quoteNumber" readonly placeholder="Auto-generated" style="background: #f7fafc;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Client *</label>
+                        <select name="clientId" required id="quoteClientSelect" onchange="handleQuoteClientChange()">
+                            <option value="">Select a client...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="quoteServiceLocationGroup" style="display: none;">
+                        <label>Service Location</label>
+                        <select name="serviceLocationId" id="quoteServiceLocationSelect">
+                            <option value="">Select a location...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Quote Title *</label>
+                        <input type="text" name="title" required placeholder="e.g., Kitchen Renovation">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" rows="3" placeholder="Describe the work to be done..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Valid Until *</label>
+                        <input type="date" name="validUntil" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="status" required>
+                            <option value="draft">Draft</option>
+                            <option value="sent">Sent</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="taxWaived" id="quoteTaxWaivedCheckbox" onchange="updateQuoteTotal()" style="width: auto; cursor: pointer;">
+                            <span>Tax Exempt / Waive Tax</span>
+                        </label>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">Labor</h3>
+                        <div id="quoteLaborItems"></div>
+                        <button type="button" class="btn btn-secondary" onclick="addQuoteLaborItem()" style="margin-top: 0.5rem;">+ Add Labor</button>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">Materials</h3>
+                        <div id="quoteMaterialItems"></div>
+                        <button type="button" class="btn btn-secondary" onclick="addQuoteMaterialItem()" style="margin-top: 0.5rem;">+ Add Material</button>
+                    </div>
+
+                    <div style="margin-top: 2rem; padding: 1rem; background-color: #f7fafc; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>Subtotal:</span>
+                            <span>$<span id="quoteSubtotal">0.00</span></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>Tax:</span>
+                            <span>$<span id="quoteTax">0.00</span></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;">
+                            <strong>Total:</strong>
+                            <strong>$<span id="quoteTotal">0.00</span></strong>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                        <h3 style="margin-bottom: 1rem;">Notes</h3>
+                        <div class="form-group">
+                            <label>Internal Notes (not visible to client)</label>
+                            <textarea name="notes" rows="2" placeholder="Notes for your reference only..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Client Notes (shown on quote)</label>
+                            <textarea name="clientNotes" rows="3" placeholder="Additional information for the client..."></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('quoteModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveQuote()">Save Quote</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Team Modal -->
     <div id="teamModal" class="modal">
         <div class="modal-content">
@@ -2507,6 +2643,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <script>
         let clients = [];
         let jobs = [];
+        let quotes = [];
         let settings = {};
         let team = [];
         let expenses = [];
@@ -2583,6 +2720,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             if (viewName === 'dashboard') loadDashboard();
             if (viewName === 'clients') loadClients();
+            if (viewName === 'quotes') loadQuotes();
             if (viewName === 'jobs') loadJobs();
             if (viewName === 'timeclock') loadTimeClock();
             if (viewName === 'mypay') loadMyPay();
@@ -2617,6 +2755,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (jobForm) {
                 jobForm.addEventListener('input', markFormDirty);
                 jobForm.addEventListener('change', markFormDirty);
+            }
+
+            // Quote form
+            const quoteForm = document.getElementById('quoteForm');
+            if (quoteForm) {
+                quoteForm.addEventListener('input', markFormDirty);
+                quoteForm.addEventListener('change', markFormDirty);
             }
 
             // Team form
@@ -4362,6 +4507,333 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 console.error('Failed to load jobs:', error);
             }
         }
+
+        // ===== QUOTES FUNCTIONS =====
+
+        let quoteLaborItems = [];
+        let quoteMaterialItems = [];
+        let currentEditingQuoteId = null;
+
+        async function loadQuotes() {
+            try {
+                const response = await fetch('/api/quotes');
+                quotes = await response.json();
+
+                // Populate filter dropdown
+                const clientFilter = document.getElementById('filter-quote-client');
+                const currentClient = clientFilter.value;
+                populateDropdown(clientFilter, clients, 'id', 'name', 'All Clients');
+                clientFilter.value = currentClient;
+
+                renderQuotesTable();
+            } catch (error) {
+                console.error('Failed to load quotes:', error);
+            }
+        }
+
+        function renderQuotesTable() {
+            const container = document.getElementById('quotes-list');
+
+            if (quotes.length === 0) {
+                renderEmptyState(container, 'No quotes yet', 'Create your first quote to get started');
+                return;
+            }
+
+            const statusFilter = document.getElementById('filter-quote-status').value;
+            const clientFilter = document.getElementById('filter-quote-client').value;
+
+            const filteredQuotes = quotes.filter(q => {
+                if (statusFilter && q.status !== statusFilter) return false;
+                if (clientFilter && q.clientId !== clientFilter) return false;
+                return true;
+            });
+
+            if (filteredQuotes.length === 0) {
+                renderEmptyState(container, 'No quotes match filters', 'Try adjusting your filters');
+                return;
+            }
+
+            container.innerHTML = '<table><thead><tr><th>Quote #</th><th>Client</th><th>Title</th><th>Valid Until</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
+                filteredQuotes.map(q => {
+                    const client = findClient(q.clientId);
+                    const statusClass = q.status === 'approved' ? 'status-completed' :
+                                       q.status === 'rejected' ? 'status-bid_lost' :
+                                       q.status === 'expired' ? 'status-bid_lost' :
+                                       q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
+
+                    const validUntil = new Date(q.validUntil);
+                    const isExpired = validUntil < new Date() && q.status === 'sent';
+
+                    return \`<tr>
+                        <td>\${q.quoteNumber}</td>
+                        <td>\${client ? client.name : 'Unknown'}</td>
+                        <td><strong>\${q.title}</strong></td>
+                        <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
+                        <td><span class="status-badge \${statusClass}">\${q.status}</span></td>
+                        <td>$\${parseFloat(q.total || 0).toFixed(2)}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
+                            <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
+                            \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')" title="Email quote to client">📧 Email</button>\` : ''}
+                            \${q.status === 'approved' && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Convert to Job</button>\` : ''}
+                            \${q.convertedToJobId ? \`<span style="color: #48bb78;">✓ Converted</span>\` : ''}
+                            <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
+                        </td>
+                    </tr>\`;
+                }).join('') +
+                '</tbody></table>';
+        }
+
+        function filterQuotes() {
+            renderQuotesTable();
+        }
+
+        function clearQuoteFilters() {
+            document.getElementById('filter-quote-status').value = '';
+            document.getElementById('filter-quote-client').value = '';
+            renderQuotesTable();
+        }
+
+        function showAddQuoteModal() {
+            currentEditingQuoteId = null;
+            document.getElementById('quoteModalTitle').textContent = 'Create Quote';
+            document.getElementById('quoteForm').reset();
+
+            // Clear line items
+            quoteLaborItems = [];
+            quoteMaterialItems = [];
+            renderQuoteLaborItems();
+            renderQuoteMaterialItems();
+
+            // Populate client dropdown
+            const clientSelect = document.getElementById('quoteClientSelect');
+            populateDropdown(clientSelect, clients, 'id', 'name', 'Select a client...');
+
+            // Set default valid until date (30 days from now)
+            const defaultValidUntil = new Date();
+            defaultValidUntil.setDate(defaultValidUntil.getDate() + 30);
+            document.querySelector('[name="validUntil"]').value = defaultValidUntil.toISOString().split('T')[0];
+
+            updateQuoteTotal();
+            openModal('quoteModal');
+            markFormClean('quoteForm');
+        }
+
+        function handleQuoteClientChange() {
+            const clientId = document.getElementById('quoteClientSelect').value;
+            const client = clients.find(c => (c.id == clientId || c._id == clientId));
+
+            const serviceLocationGroup = document.getElementById('quoteServiceLocationGroup');
+            const serviceLocationSelect = document.getElementById('quoteServiceLocationSelect');
+
+            if (client && client.serviceLocations && client.serviceLocations.length > 0) {
+                serviceLocationGroup.style.display = 'block';
+                serviceLocationSelect.innerHTML = '<option value="">Primary address</option>' +
+                    client.serviceLocations.map((loc, idx) =>
+                        \`<option value="\${idx}">\${loc.name || 'Location ' + (idx + 1)}</option>\`
+                    ).join('');
+            } else {
+                serviceLocationGroup.style.display = 'none';
+            }
+        }
+
+        function addQuoteLaborItem() {
+            quoteLaborItems.push({ description: '', hours: 0, rate: 0 });
+            renderQuoteLaborItems();
+            updateQuoteTotal();
+        }
+
+        function addQuoteMaterialItem() {
+            quoteMaterialItems.push({ description: '', quantity: 0, price: 0 });
+            renderQuoteMaterialItems();
+            updateQuoteTotal();
+        }
+
+        function renderQuoteLaborItems() {
+            const container = document.getElementById('quoteLaborItems');
+            container.innerHTML = quoteLaborItems.map((item, index) => \`
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                    <input type="text" placeholder="Description" value="\${item.description}" onchange="quoteLaborItems[\${index}].description = this.value; updateQuoteTotal()" style="padding: 0.5rem;">
+                    <input type="number" placeholder="Hours" value="\${item.hours}" onchange="quoteLaborItems[\${index}].hours = parseFloat(this.value) || 0; updateQuoteTotal()" step="0.25" style="padding: 0.5rem;">
+                    <input type="number" placeholder="Rate" value="\${item.rate}" onchange="quoteLaborItems[\${index}].rate = parseFloat(this.value) || 0; updateQuoteTotal()" step="0.01" style="padding: 0.5rem;">
+                    <button type="button" class="btn btn-danger btn-small" onclick="quoteLaborItems.splice(\${index}, 1); renderQuoteLaborItems(); updateQuoteTotal()">Remove</button>
+                </div>
+            \`).join('');
+        }
+
+        function renderQuoteMaterialItems() {
+            const container = document.getElementById('quoteMaterialItems');
+            container.innerHTML = quoteMaterialItems.map((item, index) => \`
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                    <input type="text" placeholder="Description" value="\${item.description}" onchange="quoteMaterialItems[\${index}].description = this.value; updateQuoteTotal()" style="padding: 0.5rem;">
+                    <input type="number" placeholder="Qty" value="\${item.quantity}" onchange="quoteMaterialItems[\${index}].quantity = parseFloat(this.value) || 0; updateQuoteTotal()" step="1" style="padding: 0.5rem;">
+                    <input type="number" placeholder="Price" value="\${item.price}" onchange="quoteMaterialItems[\${index}].price = parseFloat(this.value) || 0; updateQuoteTotal()" step="0.01" style="padding: 0.5rem;">
+                    <button type="button" class="btn btn-danger btn-small" onclick="quoteMaterialItems.splice(\${index}, 1); renderQuoteMaterialItems(); updateQuoteTotal()">Remove</button>
+                </div>
+            \`).join('');
+        }
+
+        function updateQuoteTotal() {
+            const laborTotal = quoteLaborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
+            const materialTotal = quoteMaterialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+            const subtotal = laborTotal + materialTotal;
+
+            const taxWaived = document.getElementById('quoteTaxWaivedCheckbox').checked;
+            const taxRate = settings.taxRate || 0.06625;
+            const taxAmount = taxWaived ? 0 : subtotal * taxRate;
+            const total = subtotal + taxAmount;
+
+            document.getElementById('quoteSubtotal').textContent = subtotal.toFixed(2);
+            document.getElementById('quoteTax').textContent = taxAmount.toFixed(2);
+            document.getElementById('quoteTotal').textContent = total.toFixed(2);
+        }
+
+        async function saveQuote() {
+            const form = document.getElementById('quoteForm');
+            const formData = new FormData(form);
+            const quote = Object.fromEntries(formData);
+
+            if (currentEditingQuoteId) {
+                quote._id = currentEditingQuoteId;
+            }
+
+            quote.laborItems = quoteLaborItems;
+            quote.materialItems = quoteMaterialItems;
+            quote.taxWaived = document.getElementById('quoteTaxWaivedCheckbox').checked;
+
+            const laborTotal = quoteLaborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
+            const materialTotal = quoteMaterialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+            const subtotal = laborTotal + materialTotal;
+            const taxRate = settings.taxRate || 0.06625;
+            const taxAmount = quote.taxWaived ? 0 : subtotal * taxRate;
+
+            quote.subtotal = subtotal;
+            quote.taxAmount = taxAmount;
+            quote.total = subtotal + taxAmount;
+
+            try {
+                await postData('/api/quotes', quote, {
+                    markClean: true,
+                    closeModal: 'quoteModal',
+                    reload: loadQuotes
+                });
+            } catch (error) {
+                alert('Failed to save quote: ' + error.message);
+            }
+        }
+
+        async function editQuote(quoteId) {
+            const quote = quotes.find(q => q.id == quoteId || q._id == quoteId);
+            if (!quote) {
+                alert('Quote not found');
+                return;
+            }
+
+            currentEditingQuoteId = quote.id || quote._id;
+            document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
+
+            // Populate form
+            const form = document.getElementById('quoteForm');
+            form.elements.quoteNumber.value = quote.quoteNumber || '';
+            form.elements.clientId.value = quote.clientId;
+            form.elements.title.value = quote.title;
+            form.elements.description.value = quote.description || '';
+            form.elements.validUntil.value = quote.validUntil;
+            form.elements.status.value = quote.status;
+            form.elements.notes.value = quote.notes || '';
+            form.elements.clientNotes.value = quote.clientNotes || '';
+            document.getElementById('quoteTaxWaivedCheckbox').checked = quote.taxWaived || false;
+
+            // Load line items
+            quoteLaborItems = quote.laborItems || [];
+            quoteMaterialItems = quote.materialItems || [];
+
+            renderQuoteLaborItems();
+            renderQuoteMaterialItems();
+            handleQuoteClientChange();
+
+            if (quote.serviceLocationId) {
+                form.elements.serviceLocationId.value = quote.serviceLocationId;
+            }
+
+            updateQuoteTotal();
+            openModal('quoteModal');
+            markFormClean('quoteForm');
+        }
+
+        async function deleteQuote(quoteId) {
+            if (!confirm('Are you sure you want to delete this quote?')) return;
+
+            try {
+                await fetch(\`/api/quotes/\${quoteId}\`, { method: 'DELETE' });
+                await loadQuotes();
+            } catch (error) {
+                alert('Failed to delete quote: ' + error.message);
+            }
+        }
+
+        async function emailQuote(quoteId) {
+            const quote = quotes.find(q => q.id == quoteId || q._id == quoteId);
+            if (!quote) {
+                alert('Quote not found');
+                return;
+            }
+
+            const client = findClient(quote.clientId);
+            if (!client || !client.email) {
+                alert('Cannot send quote: Client has no email address.\\n\\nPlease add an email to the client profile first.');
+                return;
+            }
+
+            if (!confirm(\`Send quote to \${client.name} at \${client.email}?\`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/quotes/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quoteId: quote.id || quote._id })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(\`✅ Quote sent successfully to \${client.email}!\`);
+                    await loadQuotes();
+                } else {
+                    alert(\`❌ Failed to send quote email:\\n\${data.error || 'Unknown error'}\\n\\nMake sure email is configured in Settings > Email Settings.\`);
+                }
+            } catch (error) {
+                alert('❌ Error sending quote: ' + error.message);
+            }
+        }
+
+        async function convertQuoteToJob(quoteId) {
+            if (!confirm('Convert this approved quote to a job? This will create a new job with all the quote details.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(\`/api/quotes/\${quoteId}/convert\`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(\`✅ Quote converted to job successfully!\\n\\nJob #\${data.jobId} has been created.\`);
+                    await loadQuotes();
+                    await loadJobs();
+                } else {
+                    alert(\`❌ Failed to convert quote:\\n\${data.error || 'Unknown error'}\`);
+                }
+            } catch (error) {
+                alert('❌ Error converting quote: ' + error.message);
+            }
+        }
+
+        // ===== END QUOTES FUNCTIONS =====
 
         function renderJobsTable() {
             const container = document.getElementById('jobs-list');
