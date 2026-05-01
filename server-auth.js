@@ -2693,7 +2693,7 @@ app.post('/api/client-portal/message', async (req, res) => {
 });
 
 // Admin Messages API - Get all client messages
-app.get('/api/client-messages', requireAuth, async (req, res) => {
+app.get('/api/client-messages', isAuthenticated, async (req, res) => {
     try {
         const messages = await db.collection('client_messages')
             .find({})
@@ -2716,7 +2716,7 @@ app.get('/api/client-messages', requireAuth, async (req, res) => {
 });
 
 // Admin Messages API - Mark as read
-app.post('/api/client-messages/:id/read', requireAuth, async (req, res) => {
+app.post('/api/client-messages/:id/read', isAuthenticated, async (req, res) => {
     try {
         const messageId = new ObjectId(req.params.id);
 
@@ -2733,7 +2733,7 @@ app.post('/api/client-messages/:id/read', requireAuth, async (req, res) => {
 });
 
 // Admin Messages API - Delete message
-app.delete('/api/client-messages/:id', requireAuth, async (req, res) => {
+app.delete('/api/client-messages/:id', isAuthenticated, async (req, res) => {
     try {
         const messageId = new ObjectId(req.params.id);
 
