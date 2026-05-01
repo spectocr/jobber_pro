@@ -938,6 +938,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             .service-location-item {
                 padding: 1rem !important;
             }
+
+            /* Client detail jobs table - make scrollable on mobile */
+            #client-detail-jobs table {
+                display: block;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                white-space: nowrap;
+            }
+            #client-detail-jobs table thead,
+            #client-detail-jobs table tbody,
+            #client-detail-jobs table tr {
+                display: table;
+                width: 100%;
+                table-layout: fixed;
+            }
+            #client-detail-jobs table th,
+            #client-detail-jobs table td {
+                font-size: 0.85rem;
+                padding: 0.5rem 0.25rem;
+            }
+            #client-detail-jobs .btn-small {
+                padding: 0.4rem 0.5rem;
+                font-size: 0.75rem;
+            }
         }
 
         @media (max-width: 480px) {
