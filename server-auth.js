@@ -2692,6 +2692,60 @@ app.post('/api/client-portal/message', async (req, res) => {
     }
 });
 
+// Admin Messages API - Get all client messages
+app.get('/api/client-messages', requireAuth, async (req, res) => {
+    try {
+        const messages = await db.collection('client_messages')
+            .find({})
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        res.json(messages.map(msg => ({
+            id: msg._id.toString(),
+            clientId: msg.clientId.toString(),
+            clientName: msg.clientName,
+            clientEmail: msg.clientEmail,
+            message: msg.message,
+            createdAt: msg.createdAt,
+            read: msg.read || false
+        })));
+    } catch (error) {
+        console.error('Get messages error:', error);
+        res.status(500).json({ error: 'Failed to load messages' });
+    }
+});
+
+// Admin Messages API - Mark as read
+app.post('/api/client-messages/:id/read', requireAuth, async (req, res) => {
+    try {
+        const messageId = new ObjectId(req.params.id);
+
+        await db.collection('client_messages').updateOne(
+            { _id: messageId },
+            { $set: { read: true } }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Mark read error:', error);
+        res.status(500).json({ error: 'Failed to mark message as read' });
+    }
+});
+
+// Admin Messages API - Delete message
+app.delete('/api/client-messages/:id', requireAuth, async (req, res) => {
+    try {
+        const messageId = new ObjectId(req.params.id);
+
+        await db.collection('client_messages').deleteOne({ _id: messageId });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete message error:', error);
+        res.status(500).json({ error: 'Failed to delete message' });
+    }
+});
+
 // Client Portal API - Logout
 app.post('/api/client-portal/logout', (req, res) => {
     req.session.destroy();

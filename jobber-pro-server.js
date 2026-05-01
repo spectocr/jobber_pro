@@ -1085,6 +1085,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
         <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
         <button class="nav-btn" onclick="showView('expenses')" data-admin-only>💰 Expenses</button>
+        <button class="nav-btn" onclick="showView('messages')" data-admin-only>💬 Messages</button>
         <button class="nav-btn" onclick="showView('reports')" data-admin-only>📈 Reports</button>
         <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
     </div>
@@ -1504,6 +1505,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h3 style="margin-bottom: 1rem; color: #667eea;">Payment History</h3>
                     <div id="team-pay-history"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Messages View -->
+        <div id="messages" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Client Messages</h2>
+                    <button class="btn btn-secondary" onclick="loadMessages()">🔄 Refresh</button>
+                </div>
+                <div id="messages-list"></div>
             </div>
         </div>
 
@@ -2715,7 +2727,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Navigation
         function showView(viewName) {
             // Check permissions - users can only access jobs and calendar
-            const adminOnlyViews = ['dashboard', 'clients', 'team', 'expenses', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'messages', 'reports', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewName)) {
                 alert('You do not have permission to access this section.');
                 return;
@@ -2749,6 +2761,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
             if (viewName === 'expenses') loadExpenses();
+            if (viewName === 'messages') loadMessages();
             if (viewName === 'reports') loadReports();
             if (viewName === 'settings') {
                 loadSettings();
@@ -6554,6 +6567,70 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Expenses Functions
         let currentEditingExpenseId = null;
+
+        async function loadMessages() {
+            try {
+                const response = await fetch('/api/client-messages');
+                const messages = await response.json();
+
+                const container = document.getElementById('messages-list');
+
+                if (messages.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #718096;"><p>No messages yet</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">Client messages will appear here</p></div>';
+                    return;
+                }
+
+                container.innerHTML = messages.map(msg => {
+                    const date = new Date(msg.createdAt).toLocaleString();
+                    const isUnread = !msg.read;
+
+                    return `
+                        <div style="background: ${isUnread ? '#fffacd' : 'white'}; border: 2px solid ${isUnread ? '#f59e0b' : '#e2e8f0'}; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                                <div>
+                                    <h3 style="margin: 0; color: #2d3748;">${msg.clientName}</h3>
+                                    <p style="margin: 0.25rem 0 0 0; color: #718096; font-size: 0.9rem;">${msg.clientEmail}</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <p style="margin: 0; color: #718096; font-size: 0.85rem;">${date}</p>
+                                    ${isUnread ? '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">NEW</span>' : ''}
+                                </div>
+                            </div>
+                            <div style="background: white; padding: 1rem; border-radius: 4px; border-left: 3px solid #667eea; margin-bottom: 1rem;">
+                                <p style="margin: 0; white-space: pre-wrap; line-height: 1.6;">${msg.message}</p>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                ${isUnread ? `<button class="btn btn-primary btn-small" onclick="markMessageRead('${msg.id || msg._id}')">Mark as Read</button>` : ''}
+                                <a href="tel:${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>
+                                <button class="btn btn-danger btn-small" onclick="deleteMessage('${msg.id || msg._id}')">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+            }
+        }
+
+        async function markMessageRead(messageId) {
+            try {
+                await fetch(`/api/client-messages/${messageId}/read`, { method: 'POST' });
+                loadMessages();
+            } catch (error) {
+                alert('Failed to mark message as read');
+            }
+        }
+
+        async function deleteMessage(messageId) {
+            if (!confirm('Delete this message?')) return;
+
+            try {
+                await fetch(`/api/client-messages/${messageId}`, { method: 'DELETE' });
+                loadMessages();
+            } catch (error) {
+                alert('Failed to delete message');
+            }
+        }
 
         async function loadExpenses() {
             const response = await fetch('/api/expenses');
