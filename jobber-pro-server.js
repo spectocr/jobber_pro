@@ -1085,7 +1085,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
         <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
         <button class="nav-btn" onclick="showView('expenses')" data-admin-only>💰 Expenses</button>
-        <button class="nav-btn" onclick="showView('messages')" data-admin-only>💬 Messages</button>
+        <button class="nav-btn" onclick="showView('messages')" data-admin-only style="position: relative;">
+            💬 Messages
+            <span id="messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #e53e3e; color: white; border-radius: 10px; padding: 2px 6px; font-size: 0.7rem; font-weight: bold;"></span>
+        </button>
         <button class="nav-btn" onclick="showView('reports')" data-admin-only>📈 Reports</button>
         <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
     </div>
@@ -6575,6 +6578,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 const container = document.getElementById('messages-list');
 
+                // Update badge
+                updateMessagesBadge(messages);
+
                 if (messages.length === 0) {
                     container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #718096;"><p>No messages yet</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">Client messages will appear here</p></div>';
                     return;
@@ -6609,6 +6615,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }).join('');
             } catch (error) {
                 console.error('Failed to load messages:', error);
+            }
+        }
+
+        function updateMessagesBadge(messages) {
+            const unreadCount = messages.filter(m => !m.read).length;
+            const badge = document.getElementById('messages-badge');
+
+            if (unreadCount > 0) {
+                badge.textContent = unreadCount;
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        async function checkUnreadMessages() {
+            try {
+                const response = await fetch('/api/client-messages');
+                const messages = await response.json();
+                updateMessagesBadge(messages);
+            } catch (error) {
+                console.error('Failed to check unread messages:', error);
             }
         }
 
@@ -7851,11 +7879,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const viewToShow = savedView || defaultView;
 
             // Make sure the view exists and user has permission
-            const adminOnlyViews = ['dashboard', 'clients', 'team', 'expenses', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'messages', 'reports', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewToShow)) {
                 showView('jobs');
             } else {
                 showView(viewToShow);
+            }
+
+            // Check for unread messages (admins only)
+            if (isAdmin) {
+                checkUnreadMessages();
+                // Poll for new messages every 30 seconds
+                setInterval(checkUnreadMessages, 30000);
             }
         });
 
