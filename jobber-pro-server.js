@@ -1641,6 +1641,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="settings-tab" onclick="switchSettingsTab('messaging')" data-tab="messaging">
                             📱 SMS Messaging
                         </button>
+                        <button class="settings-tab" onclick="switchSettingsTab('email')" data-tab="email">
+                            📧 Email Settings
+                        </button>
                         <button class="settings-tab" onclick="switchSettingsTab('account')" data-tab="account">
                             🔒 Account & Password
                         </button>
@@ -1748,6 +1751,87 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         • Payment is recorded (receipt confirmation)<br>
                         Use the 📱 button next to clients to send custom messages.
                     </small>
+                    </div>
+                </div>
+
+                <!-- Email Settings Tab -->
+                <div id="emailTab" class="settings-tab-content" style="display: none;">
+                    <div style="max-width: 800px;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">📧 Gmail API Configuration</h3>
+
+                    <div id="emailConfigStatus" style="padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border: 2px solid #e2e8f0;">
+                        <p style="margin: 0; font-weight: 600;">Loading email status...</p>
+                    </div>
+
+                    <div style="background: #fffacd; padding: 1rem; border-left: 4px solid #f59e0b; margin-bottom: 1.5rem; border-radius: 4px;">
+                        <strong>ℹ️ Setup Required:</strong>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                            To use email functionality, you need to set up Gmail API credentials.
+                            <a href="https://github.com/anthropics/claude-code" target="_blank" style="color: #667eea;">View Setup Guide</a>
+                        </p>
+                    </div>
+
+                    <form id="emailSettingsForm">
+                        <div class="form-group">
+                            <label>Gmail Client ID</label>
+                            <input type="text" id="gmailClientId" placeholder="your-app.apps.googleusercontent.com" style="font-family: monospace; font-size: 0.9rem;">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                From Google Cloud Console OAuth 2.0 credentials
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Gmail Client Secret</label>
+                            <input type="password" id="gmailClientSecret" placeholder="GOCSPX-..." style="font-family: monospace; font-size: 0.9rem;">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                OAuth 2.0 client secret
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Gmail Refresh Token</label>
+                            <input type="password" id="gmailRefreshToken" placeholder="1//0..." style="font-family: monospace; font-size: 0.9rem;">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                Generate from OAuth 2.0 Playground
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Gmail User Email</label>
+                            <input type="email" id="gmailUser" placeholder="your-email@gmail.com">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                The Gmail account to send emails from
+                            </small>
+                        </div>
+
+                        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                            <button type="button" class="btn btn-primary" onclick="saveEmailSettings()">💾 Save Email Settings</button>
+                            <button type="button" class="btn btn-secondary" onclick="testEmailConnection()">📧 Send Test Email</button>
+                        </div>
+                    </form>
+
+                    <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">Email Features</h3>
+                        <ul style="color: #4a5568; line-height: 1.8;">
+                            <li>📨 <strong>User Credentials:</strong> Send login info to new team members</li>
+                            <li>📄 <strong>Invoice Emails:</strong> Email invoices directly to clients</li>
+                            <li>✉️ <strong>Professional Templates:</strong> Beautiful HTML email designs</li>
+                            <li>🔒 <strong>Secure OAuth2:</strong> No password storage, token-based authentication</li>
+                        </ul>
+                    </div>
+
+                    <div style="margin-top: 2rem; background: #f7fafc; padding: 1.5rem; border-radius: 8px;">
+                        <h4 style="margin: 0 0 1rem 0; color: #2d3748;">📚 Quick Setup Guide</h4>
+                        <ol style="color: #4a5568; line-height: 1.8; padding-left: 1.5rem;">
+                            <li>Go to <a href="https://console.cloud.google.com/" target="_blank" style="color: #667eea;">Google Cloud Console</a></li>
+                            <li>Create a new project or select existing</li>
+                            <li>Enable Gmail API</li>
+                            <li>Create OAuth 2.0 credentials</li>
+                            <li>Use <a href="https://developers.google.com/oauthplayground" target="_blank" style="color: #667eea;">OAuth Playground</a> to get refresh token</li>
+                            <li>Enter credentials above and click Save</li>
+                            <li>Test with the "Send Test Email" button</li>
+                        </ol>
+                    </div>
                     </div>
                 </div>
 
@@ -5079,6 +5163,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (selectedTab) {
                 selectedTab.classList.add('active');
             }
+
+            // Load tab-specific data
+            if (tabName === 'email') {
+                loadEmailSettings();
+            }
         }
 
         async function loadSettings() {
@@ -5293,6 +5382,126 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('passwordForm').reset();
             } else {
                 alert(data.error || 'Password change failed');
+            }
+        }
+
+        // Email Settings
+        async function loadEmailSettings() {
+            try {
+                const response = await fetch('/api/email/config');
+                const config = await response.json();
+
+                // Update status display
+                const statusDiv = document.getElementById('emailConfigStatus');
+                if (config.configured) {
+                    statusDiv.innerHTML = `
+                        <p style="margin: 0; color: #48bb78; font-weight: 600;">✅ Email is configured and ready</p>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #4a5568;">
+                            Sending from: ${config.gmailUser || 'Not set'}
+                        </p>
+                    `;
+                    statusDiv.style.background = '#f0fdf4';
+                    statusDiv.style.borderColor = '#48bb78';
+                } else {
+                    statusDiv.innerHTML = `
+                        <p style="margin: 0; color: #f59e0b; font-weight: 600;">⚠️ Email not configured</p>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #4a5568;">
+                            Enter Gmail API credentials below to enable email functionality
+                        </p>
+                    `;
+                    statusDiv.style.background = '#fffbeb';
+                    statusDiv.style.borderColor = '#f59e0b';
+                }
+
+                // Load existing values (masked for security)
+                if (config.gmailClientId) {
+                    document.getElementById('gmailClientId').value = config.gmailClientId;
+                }
+                if (config.gmailClientSecret) {
+                    document.getElementById('gmailClientSecret').placeholder = '••••••••';
+                }
+                if (config.gmailRefreshToken) {
+                    document.getElementById('gmailRefreshToken').placeholder = '••••••••';
+                }
+                if (config.gmailUser) {
+                    document.getElementById('gmailUser').value = config.gmailUser;
+                }
+            } catch (error) {
+                console.error('Failed to load email settings:', error);
+                const statusDiv = document.getElementById('emailConfigStatus');
+                statusDiv.innerHTML = `
+                    <p style="margin: 0; color: #e53e3e; font-weight: 600;">❌ Error loading email settings</p>
+                    <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">${error.message}</p>
+                `;
+                statusDiv.style.background = '#fef2f2';
+                statusDiv.style.borderColor = '#e53e3e';
+            }
+        }
+
+        async function saveEmailSettings() {
+            const clientId = document.getElementById('gmailClientId').value.trim();
+            const clientSecret = document.getElementById('gmailClientSecret').value.trim();
+            const refreshToken = document.getElementById('gmailRefreshToken').value.trim();
+            const gmailUser = document.getElementById('gmailUser').value.trim();
+
+            if (!clientId || !gmailUser) {
+                alert('Client ID and Gmail User Email are required');
+                return;
+            }
+
+            // Only include secret/token if they were actually entered (not just placeholder)
+            const emailConfig = {
+                gmailClientId: clientId,
+                gmailUser: gmailUser
+            };
+
+            if (clientSecret && !clientSecret.startsWith('•')) {
+                emailConfig.gmailClientSecret = clientSecret;
+            }
+            if (refreshToken && !refreshToken.startsWith('•')) {
+                emailConfig.gmailRefreshToken = refreshToken;
+            }
+
+            try {
+                const response = await fetch('/api/email/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(emailConfig)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✅ Email settings saved successfully!\n\nNote: Server will restart to apply changes.');
+                    loadEmailSettings(); // Reload to show updated status
+                } else {
+                    alert('❌ Failed to save email settings:\n' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('❌ Error saving email settings:\n' + error.message);
+            }
+        }
+
+        async function testEmailConnection() {
+            const testEmail = prompt('Enter email address to send test message:');
+            if (!testEmail) return;
+
+            try {
+                const response = await fetch('/api/email/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to: testEmail })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✅ Test email sent successfully!\n\nCheck ' + testEmail + ' for the test message.');
+                } else {
+                    alert('❌ Failed to send test email:\n' + (data.error || 'Unknown error') + '\n\nMake sure your Gmail API credentials are correct.');
+                }
+            } catch (error) {
+                alert('❌ Error sending test email:\n' + error.message);
             }
         }
 

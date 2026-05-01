@@ -540,6 +540,73 @@ const handleRequest = async (req, res) => {
         return;
     }
 
+    // Email Configuration Routes
+    if (path === '/api/email/config' && req.method === 'GET') {
+        try {
+            const settings = await db.collection('settings').findOne({});
+
+            const config = {
+                configured: !!(settings?.gmailClientId && settings?.gmailClientSecret && settings?.gmailRefreshToken && settings?.gmailUser),
+                gmailClientId: settings?.gmailClientId || '',
+                gmailUser: settings?.gmailUser || '',
+                // Don't send secrets to client
+                gmailClientSecret: settings?.gmailClientSecret ? 'configured' : '',
+                gmailRefreshToken: settings?.gmailRefreshToken ? 'configured' : ''
+            };
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(config));
+        } catch (error) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message }));
+        }
+        return;
+    }
+
+    if (path === '/api/email/config' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const emailConfig = JSON.parse(body);
+
+                // Get existing settings
+                const settings = await db.collection('settings').findOne({}) || {};
+
+                // Update only the fields that were provided
+                const updateFields = {};
+                if (emailConfig.gmailClientId) updateFields.gmailClientId = emailConfig.gmailClientId;
+                if (emailConfig.gmailClientSecret) updateFields.gmailClientSecret = emailConfig.gmailClientSecret;
+                if (emailConfig.gmailRefreshToken) updateFields.gmailRefreshToken = emailConfig.gmailRefreshToken;
+                if (emailConfig.gmailUser) updateFields.gmailUser = emailConfig.gmailUser;
+
+                // Update settings in database
+                await db.collection('settings').updateOne(
+                    {},
+                    { $set: updateFields },
+                    { upsert: true }
+                );
+
+                // Update environment variables for email service
+                if (updateFields.gmailClientId) process.env.GMAIL_CLIENT_ID = updateFields.gmailClientId;
+                if (updateFields.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = updateFields.gmailClientSecret;
+                if (updateFields.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = updateFields.gmailRefreshToken;
+                if (updateFields.gmailUser) process.env.GMAIL_USER = updateFields.gmailUser;
+
+                // Reinitialize email service with new credentials
+                await emailService.initialize();
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: 'Email configuration updated' }));
+            } catch (error) {
+                console.error('Email config save error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+
     // Email Routes
     if (path === '/api/email/test' && req.method === 'POST') {
         let body = '';
@@ -688,6 +755,19 @@ const handleRequest = async (req, res) => {
 
 // Start server after DB connection
 connectDB().then(async () => {
+    // Load email settings from database and set env vars
+    try {
+        const settings = await db.collection('settings').findOne({});
+        if (settings) {
+            if (settings.gmailClientId) process.env.GMAIL_CLIENT_ID = settings.gmailClientId;
+            if (settings.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = settings.gmailClientSecret;
+            if (settings.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = settings.gmailRefreshToken;
+            if (settings.gmailUser) process.env.GMAIL_USER = settings.gmailUser;
+        }
+    } catch (error) {
+        console.error('Failed to load email settings from database:', error);
+    }
+
     // Initialize email service
     await emailService.initialize();
 
