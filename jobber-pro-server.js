@@ -939,28 +939,63 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 padding: 1rem !important;
             }
 
-            /* Client detail jobs table - make scrollable on mobile */
-            #client-detail-jobs table {
+            /* Client detail jobs - card layout on mobile */
+            #client-detail-jobs table thead {
+                display: none;
+            }
+            #client-detail-jobs table,
+            #client-detail-jobs table tbody {
                 display: block;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-                white-space: nowrap;
             }
-            #client-detail-jobs table thead,
-            #client-detail-jobs table tbody,
             #client-detail-jobs table tr {
-                display: table;
-                width: 100%;
-                table-layout: fixed;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto auto auto;
+                gap: 0.5rem;
+                background: #f7fafc;
+                padding: 1rem;
+                border-radius: 8px;
+                margin-bottom: 0.75rem;
+                border: 1px solid #e2e8f0;
             }
-            #client-detail-jobs table th,
             #client-detail-jobs table td {
-                font-size: 0.85rem;
-                padding: 0.5rem 0.25rem;
+                display: flex;
+                flex-direction: column;
+                padding: 0;
             }
-            #client-detail-jobs .btn-small {
-                padding: 0.4rem 0.5rem;
+            #client-detail-jobs table tr td:nth-child(1) {
+                grid-column: 1;
+                grid-row: 1;
+            }
+            #client-detail-jobs table tr td:nth-child(2) {
+                grid-column: 2;
+                grid-row: 1;
+            }
+            #client-detail-jobs table tr td:nth-child(3) {
+                grid-column: 1;
+                grid-row: 2;
+            }
+            #client-detail-jobs table tr td:nth-child(4) {
+                grid-column: 2;
+                grid-row: 2;
+            }
+            #client-detail-jobs table tr td:nth-child(5) {
+                grid-column: 1 / -1;
+                grid-row: 3;
+                display: flex;
+                flex-direction: row;
+                gap: 0.5rem;
+            }
+            #client-detail-jobs table tr td:nth-child(5) button {
+                flex: 1;
+            }
+            #client-detail-jobs table td::before {
+                content: attr(data-label);
+                font-weight: 600;
                 font-size: 0.75rem;
+                color: #718096;
+                margin-bottom: 0.25rem;
+                text-transform: uppercase;
             }
         }
 
@@ -4066,15 +4101,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             jobsContainer.innerHTML = '<table><thead><tr><th>Date</th><th>Job</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
                 clientJobs.map(j => {
                     const assigned = findTeamMember(j.assignedTo);
+                    // Format date more compactly for mobile
+                    const dateObj = new Date(j.scheduledDate);
+                    const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return \`<tr>
-                        <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
-                        <td>
+                        <td data-label="Date">\${shortDate}<br><small>\${j.scheduledTime || ''}</small></td>
+                        <td data-label="Job">
                             <strong>\${j.title}</strong><br>
                             <small>\${(j.description || '').substring(0, 50)}</small>
                         </td>
-                        <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                        <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
-                        <td>
+                        <td data-label="Status"><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
+                        <td data-label="Total">\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
+                        <td data-label="Actions">
                             <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/invoice/${j.id}', '_blank')">📄</button>
                         </td>
