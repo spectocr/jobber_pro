@@ -993,6 +993,194 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+// Quotes API
+app.get('/api/quotes', isAuthenticated, async (req, res) => {
+    const quotes = await db.collection('quotes').find().sort({ createdAt: -1 }).toArray();
+    const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
+    res.json(quotesWithId);
+});
+
+app.post('/api/quotes', isAuthenticated, async (req, res) => {
+    const quote = req.body;
+    const isUpdate = !!quote._id;
+
+    // Generate quote number if new
+    if (!isUpdate) {
+        const year = new Date().getFullYear();
+        const count = await db.collection('quotes').countDocuments({}) + 1;
+        quote.quoteNumber = `Q-${year}-${String(count).padStart(3, '0')}`;
+    }
+
+    // Generate secure token for public viewing
+    if (!quote.secureToken) {
+        const crypto = require('crypto');
+        quote.secureToken = crypto.randomUUID();
+    }
+
+    // Convert clientId to ObjectId
+    if (quote.clientId && typeof quote.clientId === 'string' && quote.clientId.length === 24) {
+        quote.clientId = new ObjectId(quote.clientId);
+    }
+
+    // Get client name
+    if (quote.clientId) {
+        const client = await db.collection('clients').findOne({ _id: quote.clientId });
+        quote.clientName = client ? client.name : '';
+    }
+
+    // Set created/updated timestamps and user
+    quote.createdByName = req.session.userName;
+    quote.createdBy = new ObjectId(req.session.userId);
+
+    if (quote._id) {
+        const { _id, ...updateData } = quote;
+        await db.collection('quotes').updateOne(
+            { _id: new ObjectId(_id) },
+            { $set: { ...updateData, updatedAt: new Date() } }
+        );
+        res.json({ success: true, id: _id });
+    } else {
+        quote.createdAt = new Date();
+        quote.status = quote.status || 'draft';
+        const result = await db.collection('quotes').insertOne(quote);
+        res.json({ success: true, id: result.insertedId.toString() });
+    }
+});
+
+app.delete('/api/quotes/:id', isAuthenticated, async (req, res) => {
+    await db.collection('quotes').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+});
+
+app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
+    try {
+        const { quoteId } = req.body;
+
+        const quote = await db.collection('quotes').findOne({ _id: new ObjectId(quoteId) });
+        if (!quote) {
+            return res.status(404).json({ error: 'Quote not found' });
+        }
+
+        const client = await db.collection('clients').findOne({ _id: quote.clientId });
+        if (!client || !client.email) {
+            return res.status(400).json({ error: 'Client email not found' });
+        }
+
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+
+        // Get quote URL
+        const quoteUrl = req.get('host')
+            ? `https://${req.get('host')}/quote-view/${quote.secureToken}`
+            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/quote-view/${quote.secureToken}`;
+
+        // Send email
+        const subject = `Quote #${quote.quoteNumber} from ${companyName}`;
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #667eea; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-radius: 0 0 8px 8px; }
+        .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { text-align: center; color: #888; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Quote from ${companyName}</h1>
+        </div>
+        <div class="content">
+            <p>Dear ${client.name},</p>
+            <p>Thank you for your interest! We've prepared a quote for: <strong>${quote.title}</strong></p>
+            <p><strong>Quote Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>
+            <p><strong>Valid Until:</strong> ${quote.validUntil}</p>
+            <a href="${quoteUrl}" class="button">View Full Quote & Approve</a>
+            <p>Click the button above to view the complete quote and approve it online.</p>
+        </div>
+        <div class="footer">
+            <p>${companyName}</p>
+            <p>This is an automated quote notification</p>
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        await emailService.sendEmail({
+            to: client.email,
+            subject: subject,
+            html: html,
+            text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: $${parseFloat(quote.total || 0).toFixed(2)}\nValid until: ${quote.validUntil}`
+        });
+
+        // Update quote status to sent
+        await db.collection('quotes').updateOne(
+            { _id: new ObjectId(quoteId) },
+            { $set: { status: 'sent', sentAt: new Date() } }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Send quote email error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne({ _id: new ObjectId(req.params.id) });
+        if (!quote) {
+            return res.status(404).json({ error: 'Quote not found' });
+        }
+
+        if (quote.status !== 'approved') {
+            return res.status(400).json({ error: 'Only approved quotes can be converted to jobs' });
+        }
+
+        // Create job from quote
+        const job = {
+            clientId: quote.clientId,
+            title: quote.title,
+            description: quote.description,
+            laborItems: quote.laborItems || [],
+            materialItems: quote.materialItems || [],
+            taxWaived: quote.taxWaived || false,
+            total: quote.total,
+            totalPaid: 0,
+            balanceOwed: quote.total,
+            status: 'scheduled',
+            scheduledDate: new Date().toISOString().split('T')[0], // Today
+            payments: [],
+            touchPoints: [],
+            attachments: [],
+            createdAt: new Date(),
+            notes: `Converted from Quote #${quote.quoteNumber}\n\n${quote.notes || ''}`
+        };
+
+        if (quote.serviceLocationId) {
+            job.serviceLocationId = quote.serviceLocationId;
+        }
+
+        const result = await db.collection('jobs').insertOne(job);
+
+        // Mark quote as converted
+        await db.collection('quotes').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { convertedToJobId: result.insertedId } }
+        );
+
+        res.json({ success: true, jobId: result.insertedId.toString() });
+    } catch (error) {
+        console.error('Convert quote error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/team', isAuthenticated, async (req, res) => {
     const team = await db.collection('team').find().toArray();
     const users = await db.collection('users').find().toArray();
@@ -2078,6 +2266,285 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
 
     res.send(invoiceHTML);
 });
+
+// Public Quote Viewing (no authentication required)
+app.get('/quote-view/:token', async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
+
+        if (!quote) {
+            return res.status(404).send('<h1>Quote not found</h1><p>This quote may have been deleted or the link is invalid.</p>');
+        }
+
+        const client = await db.collection('clients').findOne({ _id: quote.clientId });
+        const settings = await db.collection('settings').findOne({});
+
+        const companyName = settings?.companyName || 'Your Company';
+        const companyLogo = settings?.companyLogo || '';
+
+        const subtotal = quote.subtotal || 0;
+        const taxAmount = quote.taxAmount || 0;
+        const total = quote.total || 0;
+
+        const validUntil = new Date(quote.validUntil);
+        const isExpired = validUntil < new Date() && quote.status === 'sent';
+
+        const statusBadge = quote.status === 'approved' ? '<span style="background: #48bb78; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600;">✓ APPROVED</span>' :
+                           quote.status === 'rejected' ? '<span style="background: #e53e3e; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600;">✗ REJECTED</span>' :
+                           isExpired ? '<span style="background: #f59e0b; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600;">⚠ EXPIRED</span>' :
+                           '<span style="background: #667eea; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600;">📋 PENDING</span>';
+
+        const showButtons = quote.status === 'sent' && !isExpired;
+
+        const quoteHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote #${quote.quoteNumber} - ${companyName}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; padding: 2rem; background: #f7fafc; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 3px solid #667eea; }
+        .logo { max-width: 200px; margin-bottom: 1rem; }
+        h1 { color: #667eea; margin-bottom: 0.5rem; }
+        .status { text-align: center; margin: 2rem 0; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0; }
+        .info-section h3 { color: #667eea; margin-bottom: 0.5rem; font-size: 1rem; }
+        .info-section p { margin: 0.25rem 0; }
+        table { width: 100%; border-collapse: collapse; margin: 2rem 0; }
+        thead { background: #667eea; color: white; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { font-weight: 600; }
+        .totals { background: #f7fafc; padding: 1.5rem; border-radius: 8px; margin: 2rem 0; }
+        .totals-row { display: flex; justify-content: space-between; margin: 0.5rem 0; }
+        .totals-row.total { font-weight: bold; font-size: 1.5rem; color: #667eea; padding-top: 1rem; border-top: 2px solid #cbd5e0; }
+        .actions { text-align: center; margin: 2rem 0; display: flex; gap: 1rem; justify-content: center; }
+        .btn { padding: 1rem 2rem; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
+        .btn-approve { background: #48bb78; color: white; }
+        .btn-reject { background: #e53e3e; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .notes { background: #fffacd; padding: 1rem; border-left: 4px solid #f59e0b; margin: 2rem 0; border-radius: 4px; }
+        .footer { text-align: center; color: #718096; font-size: 0.9rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e2e8f0; }
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            .container { padding: 1rem; }
+            .info-grid { grid-template-columns: 1fr; gap: 1rem; }
+            .actions { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" class="logo">` : `<h1>${companyName}</h1>`}
+            <h2>Quote #${quote.quoteNumber}</h2>
+        </div>
+
+        <div class="status">
+            ${statusBadge}
+        </div>
+
+        <div class="info-grid">
+            <div class="info-section">
+                <h3>Quote For:</h3>
+                <p><strong>${client ? client.name : 'Client'}</strong></p>
+                ${client?.email ? `<p>${client.email}</p>` : ''}
+                ${client?.phone ? `<p>${client.phone}</p>` : ''}
+                ${client?.address ? `<p>${client.address}</p>` : ''}
+            </div>
+            <div class="info-section">
+                <h3>Quote Details:</h3>
+                <p><strong>Date:</strong> ${new Date(quote.createdAt).toLocaleDateString()}</p>
+                <p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>
+                ${quote.createdByName ? `<p><strong>Prepared By:</strong> ${quote.createdByName}</p>` : ''}
+            </div>
+        </div>
+
+        <div>
+            <h3 style="color: #667eea; margin: 2rem 0 1rem 0;">${quote.title}</h3>
+            ${quote.description ? `<p style="margin-bottom: 2rem;">${quote.description}</p>` : ''}
+        </div>
+
+        ${quote.laborItems && quote.laborItems.length > 0 ? `
+        <h3 style="color: #667eea; margin-top: 2rem;">Labor</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th style="text-align: center;">Hours</th>
+                    <th style="text-align: right;">Rate</th>
+                    <th style="text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${quote.laborItems.map(item => `
+                <tr>
+                    <td>${item.description}</td>
+                    <td style="text-align: center;">${item.hours}</td>
+                    <td style="text-align: right;">$${parseFloat(item.rate).toFixed(2)}</td>
+                    <td style="text-align: right;">$${(item.hours * item.rate).toFixed(2)}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        ` : ''}
+
+        ${quote.materialItems && quote.materialItems.length > 0 ? `
+        <h3 style="color: #667eea; margin-top: 2rem;">Materials</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th style="text-align: center;">Quantity</th>
+                    <th style="text-align: right;">Price</th>
+                    <th style="text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${quote.materialItems.map(item => `
+                <tr>
+                    <td>${item.description}</td>
+                    <td style="text-align: center;">${item.quantity}</td>
+                    <td style="text-align: right;">$${parseFloat(item.price).toFixed(2)}</td>
+                    <td style="text-align: right;">$${(item.quantity * item.price).toFixed(2)}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        ` : ''}
+
+        <div class="totals">
+            <div class="totals-row">
+                <span>Subtotal:</span>
+                <span>$${subtotal.toFixed(2)}</span>
+            </div>
+            <div class="totals-row">
+                <span>Tax ${quote.taxWaived ? '(EXEMPT)' : `(${((settings?.taxRate || 0.06625) * 100).toFixed(3)}%)`}:</span>
+                <span>$${taxAmount.toFixed(2)}</span>
+            </div>
+            <div class="totals-row total">
+                <span>Total:</span>
+                <span>$${total.toFixed(2)}</span>
+            </div>
+        </div>
+
+        ${quote.clientNotes ? `
+        <div class="notes">
+            <h4 style="margin-bottom: 0.5rem;">Notes:</h4>
+            <p style="white-space: pre-wrap;">${quote.clientNotes}</p>
+        </div>
+        ` : ''}
+
+        ${showButtons ? `
+        <div class="actions">
+            <button class="btn btn-approve" onclick="approveQuote()">✓ Approve Quote</button>
+            <button class="btn btn-reject" onclick="rejectQuote()">✗ Decline Quote</button>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+            <p>Thank you for considering ${companyName}</p>
+            <p>Quote generated on ${new Date(quote.createdAt).toLocaleDateString()}</p>
+        </div>
+    </div>
+
+    <script>
+        async function approveQuote() {
+            if (!confirm('Approve this quote?')) return;
+
+            try {
+                const response = await fetch('/quote-action/${quote.secureToken}/approve', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    alert('✅ Quote approved! ${companyName} will be in touch shortly.');
+                    location.reload();
+                } else {
+                    alert('Failed to approve quote. Please try again or contact us directly.');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function rejectQuote() {
+            const reason = prompt('Optional: Let us know why you declined (or leave blank):');
+
+            try {
+                const response = await fetch('/quote-action/${quote.secureToken}/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: reason || '' })
+                });
+
+                if (response.ok) {
+                    alert('Quote declined. Thank you for your time.');
+                    location.reload();
+                } else {
+                    alert('Failed to decline quote. Please try again or contact us directly.');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>`;
+
+        res.send(quoteHTML);
+    } catch (error) {
+        console.error('Quote view error:', error);
+        res.status(500).send('<h1>Error loading quote</h1>');
+    }
+});
+
+// Quote approval/rejection actions (public)
+app.post('/quote-action/:token/approve', async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
+        if (!quote) {
+            return res.status(404).json({ error: 'Quote not found' });
+        }
+
+        await db.collection('quotes').updateOne(
+            { _id: quote._id },
+            { $set: { status: 'approved', approvedAt: new Date() } }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/quote-action/:token/reject', async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
+        if (!quote) {
+            return res.status(404).json({ error: 'Quote not found' });
+        }
+
+        const { reason } = req.body;
+
+        await db.collection('quotes').updateOne(
+            { _id: quote._id },
+            { $set: {
+                status: 'rejected',
+                rejectedAt: new Date(),
+                rejectionReason: reason || ''
+            }}
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 } // End setupRoutes
 
 // Start server
