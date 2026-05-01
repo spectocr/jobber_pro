@@ -796,6 +796,15 @@ app.get('/api/clients', isAuthenticated, async (req, res) => {
 
 app.post('/api/clients', isAuthenticated, async (req, res) => {
     const client = req.body;
+
+    // Hash portal password if provided
+    if (client.portalPassword) {
+        client.portalPassword = await bcrypt.hash(client.portalPassword, 10);
+    } else if (client.portalPassword === null) {
+        // Explicitly remove portal access
+        client.portalPassword = null;
+    }
+
     if (client._id) {
         const { _id, ...updateData } = client;
         await db.collection('clients').updateOne(
@@ -2543,6 +2552,150 @@ app.post('/quote-action/:token/reject', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// Client Portal Routes
+app.get('/client-login', (req, res) => {
+    const fs = require('fs');
+    const html = fs.readFileSync('./client-login.html', 'utf8');
+    res.send(html);
+});
+
+app.get('/client-portal', (req, res) => {
+    if (!req.session.clientId) {
+        return res.redirect('/client-login');
+    }
+    const fs = require('fs');
+    const html = fs.readFileSync('./client-portal.html', 'utf8');
+    res.send(html);
+});
+
+// Client Portal API - Login
+app.post('/api/client-portal/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Find client by email
+        const client = await db.collection('clients').findOne({ email: email.toLowerCase() });
+
+        if (!client) {
+            return res.status(401).json({ error: 'Invalid email or access code' });
+        }
+
+        // Check if client has portal access set up
+        if (!client.portalPassword) {
+            return res.status(401).json({ error: 'Portal access not set up. Contact us to enable portal access.' });
+        }
+
+        // Verify password
+        const passwordMatch = await bcrypt.compare(password, client.portalPassword);
+
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Invalid email or access code' });
+        }
+
+        // Set session
+        req.session.clientId = client._id.toString();
+        req.session.clientName = client.name;
+        req.session.isClientPortal = true;
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Client portal login error:', error);
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+// Client Portal API - Get client data
+app.get('/api/client-portal/me', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        const clientId = new ObjectId(req.session.clientId);
+
+        // Get client
+        const client = await db.collection('clients').findOne({ _id: clientId });
+        if (!client) {
+            return res.status(404).json({ error: 'Client not found' });
+        }
+
+        // Get client's quotes
+        const quotes = await db.collection('quotes')
+            .find({ clientId: clientId })
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        // Get client's jobs
+        const jobs = await db.collection('jobs')
+            .find({ clientId: clientId })
+            .sort({ scheduledDate: -1 })
+            .toArray();
+
+        // Get settings for branding
+        const settings = await db.collection('settings').findOne({}) || {};
+
+        // Add id field for frontend
+        const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
+        const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
+
+        res.json({
+            client: {
+                name: client.name,
+                email: client.email,
+                phone: client.phone
+            },
+            quotes: quotesWithId,
+            jobs: jobsWithId,
+            settings: {
+                appName: settings.appName || 'Jobber Pro',
+                favicon: settings.favicon || '',
+                companyName: settings.companyName || 'Your Company'
+            }
+        });
+    } catch (error) {
+        console.error('Get client data error:', error);
+        res.status(500).json({ error: 'Failed to load data' });
+    }
+});
+
+// Client Portal API - Send message
+app.post('/api/client-portal/message', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        const { message } = req.body;
+        const clientId = new ObjectId(req.session.clientId);
+
+        // Get client
+        const client = await db.collection('clients').findOne({ _id: clientId });
+
+        // Save message to database
+        await db.collection('client_messages').insertOne({
+            clientId: clientId,
+            clientName: client.name,
+            clientEmail: client.email,
+            message: message,
+            createdAt: new Date(),
+            read: false
+        });
+
+        // TODO: Send notification to admin (SMS/Email)
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Send message error:', error);
+        res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
+// Client Portal API - Logout
+app.post('/api/client-portal/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ success: true });
 });
 
 } // End setupRoutes

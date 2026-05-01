@@ -2084,6 +2084,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Notes</label>
                         <textarea name="notes"></textarea>
                     </div>
+
+                    <div style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">🔐 Client Portal Access</h3>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="enablePortalAccess" onchange="togglePortalFields()" style="width: auto; cursor: pointer;">
+                                <span>Enable Client Portal access for this client</span>
+                            </label>
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                Allows client to view their quotes, jobs, and invoices online
+                            </small>
+                        </div>
+                        <div id="portalFields" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label>Portal Access Code</label>
+                                <input type="text" id="portalPassword" placeholder="Set a simple access code (e.g., 1234)" autocomplete="new-password">
+                                <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                    Client will use this code to log in at /client-login
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -3052,6 +3074,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             populateDropdown(teamSelect, team.filter(t => t.active), 'id', 'name', 'Unassigned');
         }
 
+        function togglePortalFields() {
+            const enabled = document.getElementById('enablePortalAccess').checked;
+            document.getElementById('portalFields').style.display = enabled ? 'block' : 'none';
+        }
+
         // Save functions
         async function saveClient() {
             const form = document.getElementById('clientForm');
@@ -3064,6 +3091,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Add service locations if property management is enabled
             if (client.isPropertyManagement) {
                 client.serviceLocations = serviceLocations;
+            }
+
+            // Portal access
+            const enablePortal = document.getElementById('enablePortalAccess').checked;
+            const portalPassword = document.getElementById('portalPassword').value;
+
+            if (enablePortal && portalPassword) {
+                client.portalPassword = portalPassword;
+            } else if (!enablePortal) {
+                client.portalPassword = null; // Remove access
             }
 
             // If editing, include the _id
