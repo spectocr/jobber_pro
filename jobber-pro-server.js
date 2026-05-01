@@ -3328,7 +3328,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         type: att.type,
                         size: att.size,
                         s3Key: att.s3Key,
-                        uploadedAt: att.uploadedAt
+                        uploadedAt: att.uploadedAt,
+                        comment: att.comment // Preserve comment field
                     };
                 }
                 return att; // Keep full data for MongoDB fallback
