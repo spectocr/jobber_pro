@@ -23,6 +23,12 @@ class EmailService {
      * - GMAIL_USER (email address to send from)
      */
     async initialize() {
+        // Reset state first
+        this.initialized = false;
+        this.oauth2Client = null;
+        this.gmail = null;
+        this.transporter = null;
+
         try {
             const clientId = process.env.GMAIL_CLIENT_ID;
             const clientSecret = process.env.GMAIL_CLIENT_SECRET;
@@ -31,7 +37,7 @@ class EmailService {
 
             if (!clientId || !clientSecret || !refreshToken || !userEmail) {
                 console.warn('⚠️  Gmail API credentials not configured. Email functionality disabled.');
-                console.warn('   Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_USER in .env');
+                console.warn('   Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_USER');
                 return false;
             }
 

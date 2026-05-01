@@ -5472,7 +5472,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const data = await response.json();
 
                 if (response.ok) {
-                    alert('✅ Email settings saved successfully!\n\nNote: Server will restart to apply changes.');
+                    alert('✅ Email settings saved successfully!\n\nEmail service has been reinitialized. Try sending a test email!');
                     loadEmailSettings(); // Reload to show updated status
                 } else {
                     alert('❌ Failed to save email settings:\n' + (data.error || 'Unknown error'));
