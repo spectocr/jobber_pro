@@ -1220,7 +1220,6 @@ app.post('/api/email/reveal-secrets', isAuthenticated, async (req, res) => {
         }
 
         // Verify password
-        const bcrypt = require('bcryptjs');
         const passwordMatch = await bcrypt.compare(password, user.password);
 
         if (!passwordMatch) {
