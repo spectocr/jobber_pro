@@ -208,6 +208,14 @@
         <div class="card">
             <h2>💬 Send Message</h2>
             <form class="message-form" onsubmit="sendMessage(event)">
+                <select id="messageSubject" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit;">
+                    <option value="">General question</option>
+                    <option value="quote">About a quote</option>
+                    <option value="job">About a job</option>
+                </select>
+                <select id="quoteJobSelect" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; display: none;">
+                    <option value="">Select...</option>
+                </select>
                 <textarea id="messageText" placeholder="Ask a question or send a message..." rows="4" required></textarea>
                 <button type="submit" class="btn btn-primary">Send Message</button>
             </form>
@@ -239,6 +247,7 @@
 
                 renderQuotes(clientData.quotes);
                 renderJobs(clientData.jobs);
+                setupMessageForm();
             } catch (error) {
                 console.error('Failed to load client data:', error);
                 window.location.href = '/client-login';
@@ -299,21 +308,64 @@
             }).join('');
         }
 
+        function setupMessageForm() {
+            const subjectSelect = document.getElementById('messageSubject');
+            const quoteJobSelect = document.getElementById('quoteJobSelect');
+
+            subjectSelect.addEventListener('change', () => {
+                const subject = subjectSelect.value;
+                quoteJobSelect.style.display = (subject === 'quote' || subject === 'job') ? 'block' : 'none';
+                quoteJobSelect.innerHTML = '<option value="">Select...</option>';
+
+                if (subject === 'quote' && clientData.quotes) {
+                    clientData.quotes.forEach(quote => {
+                        const option = document.createElement('option');
+                        option.value = quote.quoteNumber;
+                        option.textContent = `${quote.quoteNumber} - ${quote.title}`;
+                        quoteJobSelect.appendChild(option);
+                    });
+                } else if (subject === 'job' && clientData.jobs) {
+                    clientData.jobs.forEach(job => {
+                        const option = document.createElement('option');
+                        option.value = job.id;
+                        option.textContent = job.title;
+                        quoteJobSelect.appendChild(option);
+                    });
+                }
+            });
+        }
+
         async function sendMessage(event) {
             event.preventDefault();
 
+            const subject = document.getElementById('messageSubject').value;
+            const quoteJobRef = document.getElementById('quoteJobSelect').value;
             const message = document.getElementById('messageText').value;
+
+            let messagePrefix = '';
+            if (subject === 'quote' && quoteJobRef) {
+                messagePrefix = `Re: Quote ${quoteJobRef}\n\n`;
+            } else if (subject === 'job' && quoteJobRef) {
+                const job = clientData.jobs.find(j => j.id === quoteJobRef);
+                messagePrefix = `Re: Job "${job?.title || 'Job'}"\n\n`;
+            }
 
             try {
                 const response = await fetch('/api/client-portal/message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({
+                        message: messagePrefix + message,
+                        subject: subject,
+                        reference: quoteJobRef
+                    })
                 });
 
                 if (response.ok) {
                     alert('✅ Message sent! We\'ll get back to you soon.');
                     document.getElementById('messageText').value = '';
+                    document.getElementById('messageSubject').value = '';
+                    document.getElementById('quoteJobSelect').style.display = 'none';
                 } else {
                     alert('❌ Failed to send message. Please try again.');
                 }

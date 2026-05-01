@@ -2667,7 +2667,7 @@ app.post('/api/client-portal/message', async (req, res) => {
             return res.status(401).json({ error: 'Not authenticated' });
         }
 
-        const { message } = req.body;
+        const { message, subject, reference } = req.body;
         const clientId = new ObjectId(req.session.clientId);
 
         // Get client
@@ -2679,6 +2679,8 @@ app.post('/api/client-portal/message', async (req, res) => {
             clientName: client.name,
             clientEmail: client.email,
             message: message,
+            subject: subject || '',
+            reference: reference || '',
             createdAt: new Date(),
             read: false
         });
@@ -2706,6 +2708,8 @@ app.get('/api/client-messages', isAuthenticated, async (req, res) => {
             clientName: msg.clientName,
             clientEmail: msg.clientEmail,
             message: msg.message,
+            subject: msg.subject || '',
+            reference: msg.reference || '',
             createdAt: msg.createdAt,
             read: msg.read || false
         })));

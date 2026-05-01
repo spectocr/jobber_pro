@@ -6590,11 +6590,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const date = new Date(msg.createdAt).toLocaleString();
                     const isUnread = !msg.read;
 
+                    // Build subject badge
+                    let subjectBadge = '';
+                    if (msg.subject === 'quote' && msg.reference) {
+                        subjectBadge = `<span style="background: #667eea; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">📋 ${msg.reference}</span>`;
+                    } else if (msg.subject === 'job' && msg.reference) {
+                        subjectBadge = `<span style="background: #48bb78; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">🔨 Job</span>`;
+                    }
+
                     return `
                         <div style="background: ${isUnread ? '#fffacd' : 'white'}; border: 2px solid ${isUnread ? '#f59e0b' : '#e2e8f0'}; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
                                 <div>
-                                    <h3 style="margin: 0; color: #2d3748;">${msg.clientName}</h3>
+                                    <h3 style="margin: 0; color: #2d3748;">${msg.clientName}${subjectBadge}</h3>
                                     <p style="margin: 0.25rem 0 0 0; color: #718096; font-size: 0.9rem;">${msg.clientEmail}</p>
                                 </div>
                                 <div style="text-align: right;">
@@ -6607,7 +6615,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
                                 ${isUnread ? `<button class="btn btn-primary btn-small" onclick="markMessageRead('${msg.id || msg._id}')">Mark as Read</button>` : ''}
-                                <a href="tel:${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>
+                                <a href="mailto:${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>
                                 <button class="btn btn-danger btn-small" onclick="deleteMessage('${msg.id || msg._id}')">Delete</button>
                             </div>
                         </div>
