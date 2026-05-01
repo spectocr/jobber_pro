@@ -1219,10 +1219,10 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
         // Generate temp password if not already set
         const tempPassword = user.tempPassword || 'ChangeMe123!';
 
-        // Get login URL
-        const loginUrl = process.env.HEROKU_APP_NAME
-            ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com/`
-            : `http://localhost:${PORT}/`;
+        // Get login URL - use request host or fallback to Heroku domain
+        const loginUrl = req.get('host')
+            ? `https://${req.get('host')}/`
+            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/`;
 
         await emailService.sendUserCredentials({
             to: user.email,
@@ -1269,10 +1269,10 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
         // Generate invoice number
         const invoiceNumber = job.invoiceNumber || `INV-${job._id.toString().slice(-8).toUpperCase()}`;
 
-        // Get invoice URL
-        const invoiceUrl = process.env.HEROKU_APP_NAME
-            ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com/invoice/${job._id}`
-            : `http://localhost:${PORT}/invoice/${job._id}`;
+        // Get invoice URL - use request host or fallback to Heroku domain
+        const invoiceUrl = req.get('host')
+            ? `https://${req.get('host')}/invoice/${job._id}`
+            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/invoice/${job._id}`;
 
         await emailService.sendInvoice({
             to: client.email,
