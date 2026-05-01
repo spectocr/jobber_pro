@@ -1780,13 +1780,27 @@ connectDB().then(async () => {
     try {
         const settings = await db.collection('settings').findOne({});
         if (settings) {
-            if (settings.gmailClientId) process.env.GMAIL_CLIENT_ID = settings.gmailClientId;
-            if (settings.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = settings.gmailClientSecret;
-            if (settings.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = settings.gmailRefreshToken;
-            if (settings.gmailUser) process.env.GMAIL_USER = settings.gmailUser;
+            if (settings.gmailClientId) {
+                process.env.GMAIL_CLIENT_ID = settings.gmailClientId;
+                console.log('📧 Loaded Gmail Client ID from database');
+            }
+            if (settings.gmailClientSecret) {
+                process.env.GMAIL_CLIENT_SECRET = settings.gmailClientSecret;
+                console.log('📧 Loaded Gmail Client Secret from database');
+            }
+            if (settings.gmailRefreshToken) {
+                process.env.GMAIL_REFRESH_TOKEN = settings.gmailRefreshToken;
+                console.log('📧 Loaded Gmail Refresh Token from database');
+            }
+            if (settings.gmailUser) {
+                process.env.GMAIL_USER = settings.gmailUser;
+                console.log('📧 Loaded Gmail User from database:', settings.gmailUser);
+            }
+        } else {
+            console.log('⚠️  No settings found in database');
         }
     } catch (error) {
-        console.error('Failed to load email settings from database:', error);
+        console.error('❌ Failed to load email settings from database:', error);
     }
 
     // Initialize email service

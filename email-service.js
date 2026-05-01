@@ -85,7 +85,14 @@ class EmailService {
      */
     async sendEmail({ to, subject, html, text, attachments = [] }) {
         if (!this.initialized) {
-            throw new Error('Email service not initialized. Check Gmail API credentials.');
+            const error = new Error('Email service not initialized. Check Gmail API credentials in Settings > Email Settings.');
+            console.error('❌ Email not initialized. Env vars:', {
+                hasClientId: !!process.env.GMAIL_CLIENT_ID,
+                hasClientSecret: !!process.env.GMAIL_CLIENT_SECRET,
+                hasRefreshToken: !!process.env.GMAIL_REFRESH_TOKEN,
+                hasUser: !!process.env.GMAIL_USER
+            });
+            throw error;
         }
 
         try {
