@@ -997,6 +997,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 margin-bottom: 0.25rem;
                 text-transform: uppercase;
             }
+
+            /* Client detail - stack vertically and flip order on mobile */
+            #client-detail .card > div[style*="grid-template-columns"] {
+                display: flex !important;
+                flex-direction: column-reverse !important;
+                gap: 2rem !important;
+            }
         }
 
         @media (max-width: 480px) {
