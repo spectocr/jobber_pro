@@ -4652,7 +4652,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelector('[name="validUntil"]').value = defaultValidUntil.toISOString().split('T')[0];
 
             updateQuoteTotal();
-            openModal('quoteModal');
+            document.getElementById('quoteModal').classList.add('active');
             markFormClean('quoteForm');
         }
 
@@ -4794,7 +4794,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             updateQuoteTotal();
-            openModal('quoteModal');
+            document.getElementById('quoteModal').classList.add('active');
             markFormClean('quoteForm');
         }
 
