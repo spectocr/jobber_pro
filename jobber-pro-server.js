@@ -926,10 +926,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             /* Client Modal - Stack City/State/ZIP on mobile */
-            #clientForm > div[style*="grid-template-columns"] {
+            .city-state-zip-grid {
                 display: block !important;
+                grid-template-columns: none !important;
             }
-            #clientForm > div[style*="grid-template-columns"] .form-group {
+            .city-state-zip-grid .form-group {
                 margin-bottom: 1rem;
             }
 
@@ -1758,7 +1759,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Street Line 3</label>
                         <input type="text" name="addressLine3">
                     </div>
-                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+                    <div class="city-state-zip-grid" style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label>City</label>
                             <input type="text" name="city" id="clientCity">
