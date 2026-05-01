@@ -121,10 +121,28 @@ class EmailService {
     }
 
     /**
+     * Replace template variables with actual values
+     */
+    replaceVariables(template, variables) {
+        let result = template;
+        for (const [key, value] of Object.entries(variables)) {
+            const regex = new RegExp(`\\{${key}\\}`, 'g');
+            result = result.replace(regex, value);
+        }
+        return result;
+    }
+
+    /**
      * Send user sign-on credentials
      */
-    async sendUserCredentials({ to, name, email, tempPassword, companyName, loginUrl }) {
-        const subject = `Your ${companyName} Account Credentials`;
+    async sendUserCredentials({ to, name, email, tempPassword, companyName, loginUrl, customSubject, customBody }) {
+        // Use custom templates if provided, otherwise use defaults
+        const subjectTemplate = customSubject || `Your {companyName} Account Credentials`;
+        const bodyTemplate = customBody || `Hi {name},\n\nYour account has been created!\n\nEmail: {email}\nTemporary Password: {tempPassword}\n\nLogin at: {loginUrl}\n\nPlease change your password after logging in.`;
+
+        const variables = { name, email, tempPassword, companyName, loginUrl };
+        const subject = this.replaceVariables(subjectTemplate, variables);
+        const textBody = this.replaceVariables(bodyTemplate, variables);
 
         const html = `
 <!DOCTYPE html>
@@ -147,20 +165,7 @@ class EmailService {
             <h1>Welcome to ${companyName}</h1>
         </div>
         <div class="content">
-            <p>Hi ${name},</p>
-            <p>Your account has been created! You can now access the ${companyName} system.</p>
-
-            <div class="credentials">
-                <h3>Your Login Credentials:</h3>
-                <p><strong>Email:</strong> <code>${email}</code></p>
-                <p><strong>Temporary Password:</strong> <code>${tempPassword}</code></p>
-            </div>
-
-            <p><strong>⚠️ Important:</strong> Please change your password after logging in for the first time.</p>
-
-            <a href="${loginUrl}" class="button">Login Now</a>
-
-            <p>If you have any questions or need assistance, please don't hesitate to contact us.</p>
+            <div style="white-space: pre-wrap; line-height: 1.6;">${textBody.replace(/\n/g, '<br>')}</div>
         </div>
         <div class="footer">
             <p>This is an automated message from ${companyName}</p>
@@ -171,23 +176,7 @@ class EmailService {
 </html>
         `;
 
-        const text = `
-Welcome to ${companyName}!
-
-Your account has been created. Here are your login credentials:
-
-Email: ${email}
-Temporary Password: ${tempPassword}
-
-Login at: ${loginUrl}
-
-IMPORTANT: Please change your password after logging in for the first time.
-
-If you have any questions, please contact us.
-
----
-This is an automated message from ${companyName}
-        `.trim();
+        const text = textBody;
 
         return this.sendEmail({ to, subject, html, text });
     }
@@ -195,8 +184,14 @@ This is an automated message from ${companyName}
     /**
      * Send invoice to client
      */
-    async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName }) {
-        const subject = `Invoice #${invoiceNumber} from ${companyName}`;
+    async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName, customSubject, customBody }) {
+        // Use custom templates if provided, otherwise use defaults
+        const subjectTemplate = customSubject || `Invoice #{invoiceNumber} from {companyName}`;
+        const bodyTemplate = customBody || `Dear {clientName},\n\nThank you for your business! Your invoice is ready for review.\n\nInvoice #{invoiceNumber}\nJob: {jobTitle}\nTotal: ${total}\n\nView your invoice: {invoiceUrl}\n\nThank you for choosing {companyName}!`;
+
+        const variables = { clientName, invoiceNumber, jobTitle, total: parseFloat(total).toFixed(2), invoiceUrl, companyName };
+        const subject = this.replaceVariables(subjectTemplate, variables);
+        const textBody = this.replaceVariables(bodyTemplate, variables);
 
         const html = `
 <!DOCTYPE html>
@@ -221,26 +216,7 @@ This is an automated message from ${companyName}
             <h1>📄 Invoice from ${companyName}</h1>
         </div>
         <div class="content">
-            <p>Dear ${clientName},</p>
-            <p>Thank you for your business! Your invoice is ready for review.</p>
-
-            <div class="invoice-box">
-                <h3>Invoice Details</h3>
-                <p><strong>Invoice Number:</strong> ${invoiceNumber}</p>
-                <p><strong>Job:</strong> ${jobTitle}</p>
-                <p><strong>Total Amount:</strong> <span class="total">$${parseFloat(total).toFixed(2)}</span></p>
-            </div>
-
-            ${invoiceUrl ? `<a href="${invoiceUrl}" class="button">View Invoice Online</a>` : ''}
-
-            <div class="note">
-                <strong>💡 Payment Information:</strong><br>
-                Please reference Invoice #${invoiceNumber} when making payment.
-            </div>
-
-            <p>If you have any questions about this invoice, please don't hesitate to contact us.</p>
-
-            <p>Thank you for choosing ${companyName}!</p>
+            <div style="white-space: pre-wrap; line-height: 1.6;">${textBody.replace(/\n/g, '<br>')}</div>
         </div>
         <div class="footer">
             <p>${companyName}</p>
@@ -251,30 +227,7 @@ This is an automated message from ${companyName}
 </html>
         `;
 
-        const text = `
-Invoice from ${companyName}
-
-Dear ${clientName},
-
-Thank you for your business! Your invoice is ready for review.
-
-Invoice Details:
-- Invoice Number: ${invoiceNumber}
-- Job: ${jobTitle}
-- Total Amount: $${parseFloat(total).toFixed(2)}
-
-${invoiceUrl ? `View online: ${invoiceUrl}` : ''}
-
-Payment Information:
-Please reference Invoice #${invoiceNumber} when making payment.
-
-If you have any questions, please contact us.
-
-Thank you for choosing ${companyName}!
-
----
-${companyName}
-        `.trim();
+        const text = textBody;
 
         const attachments = [];
         if (pdfBuffer) {

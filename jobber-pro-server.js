@@ -1757,19 +1757,66 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <!-- Email Settings Tab -->
                 <div id="emailTab" class="settings-tab-content" style="display: none;">
                     <div style="max-width: 800px;">
-                    <h3 style="margin-bottom: 1rem; color: #667eea;">📧 Gmail API Configuration</h3>
 
                     <div id="emailConfigStatus" style="padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border: 2px solid #e2e8f0;">
                         <p style="margin: 0; font-weight: 600;">Loading email status...</p>
                     </div>
 
-                    <div style="background: #fffacd; padding: 1rem; border-left: 4px solid #f59e0b; margin-bottom: 1.5rem; border-radius: 4px;">
-                        <strong>ℹ️ Setup Required:</strong>
-                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-                            To use email functionality, you need to set up Gmail API credentials.
-                            <a href="https://github.com/anthropics/claude-code" target="_blank" style="color: #667eea;">View Setup Guide</a>
-                        </p>
+                    <!-- Email Templates Section -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">✉️ Email Templates</h3>
+                        <p style="color: #718096; margin-bottom: 1.5rem;">Customize the email templates sent to clients and team members.</p>
+
+                        <div class="form-group">
+                            <label style="font-weight: 600; font-size: 1rem;">Invoice Email Subject</label>
+                            <input type="text" id="invoiceEmailSubject" placeholder="Invoice #{invoiceNumber} from {companyName}">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                Variables: {invoiceNumber}, {companyName}, {clientName}, {total}
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 600; font-size: 1rem;">Invoice Email Body</label>
+                            <textarea id="invoiceEmailBody" rows="8" placeholder="Dear {clientName},&#10;&#10;Thank you for your business! Your invoice is ready for review.&#10;&#10;Invoice #{invoiceNumber}&#10;Job: {jobTitle}&#10;Total: ${total}&#10;&#10;View your invoice: {invoiceUrl}"></textarea>
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                Variables: {clientName}, {invoiceNumber}, {jobTitle}, {total}, {invoiceUrl}, {companyName}
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 600; font-size: 1rem;">User Credentials Email Subject</label>
+                            <input type="text" id="credentialsEmailSubject" placeholder="Your {companyName} Account Credentials">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                Variables: {companyName}
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 600; font-size: 1rem;">User Credentials Email Body</label>
+                            <textarea id="credentialsEmailBody" rows="8" placeholder="Hi {name},&#10;&#10;Your account has been created!&#10;&#10;Email: {email}&#10;Temporary Password: {tempPassword}&#10;&#10;Login at: {loginUrl}&#10;&#10;Please change your password after logging in."></textarea>
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
+                                Variables: {name}, {email}, {tempPassword}, {loginUrl}, {companyName}
+                            </small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveEmailTemplates()">💾 Save Email Templates</button>
                     </div>
+
+                    <!-- Collapsible Gmail API Configuration -->
+                    <div style="border-top: 2px solid #e2e8f0; padding-top: 2rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 1rem; background: #f7fafc; border-radius: 8px; margin-bottom: 1rem;" onclick="toggleGmailApiConfig()">
+                            <h3 style="margin: 0; color: #667eea;">⚙️ Gmail API Configuration</h3>
+                            <span id="gmailApiToggleIcon" style="font-size: 1.5rem; user-select: none;">▶</span>
+                        </div>
+
+                        <div id="gmailApiConfigContent" style="display: none;">
+                            <div style="background: #fffacd; padding: 1rem; border-left: 4px solid #f59e0b; margin-bottom: 1.5rem; border-radius: 4px;">
+                                <strong>ℹ️ Setup Required:</strong>
+                                <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                                    To use email functionality, you need to set up Gmail API credentials.
+                                    <a href="https://github.com/anthropics/claude-code" target="_blank" style="color: #667eea;">View Setup Guide</a>
+                                </p>
+                            </div>
 
                     <form id="emailSettingsForm">
                         <div class="form-group">
@@ -5463,6 +5510,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (config.gmailUser) {
                     document.getElementById('gmailUser').value = config.gmailUser;
                 }
+
+                // Load email templates
+                document.getElementById('invoiceEmailSubject').value = config.templates?.invoiceSubject || 'Invoice #{invoiceNumber} from {companyName}';
+                document.getElementById('invoiceEmailBody').value = config.templates?.invoiceBody || 'Dear {clientName},\n\nThank you for your business! Your invoice is ready for review.\n\nInvoice #{invoiceNumber}\nJob: {jobTitle}\nTotal: ${total}\n\nView your invoice: {invoiceUrl}\n\nThank you for choosing {companyName}!';
+                document.getElementById('credentialsEmailSubject').value = config.templates?.credentialsSubject || 'Your {companyName} Account Credentials';
+                document.getElementById('credentialsEmailBody').value = config.templates?.credentialsBody || 'Hi {name},\n\nYour account has been created!\n\nEmail: {email}\nTemporary Password: {tempPassword}\n\nLogin at: {loginUrl}\n\nPlease change your password after logging in.';
             } catch (error) {
                 console.error('Failed to load email settings:', error);
                 const statusDiv = document.getElementById('emailConfigStatus');
@@ -5539,6 +5592,46 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
             } catch (error) {
                 alert('❌ Error sending test email:\n' + error.message);
+            }
+        }
+
+        function toggleGmailApiConfig() {
+            const content = document.getElementById('gmailApiConfigContent');
+            const icon = document.getElementById('gmailApiToggleIcon');
+
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+
+        async function saveEmailTemplates() {
+            const templates = {
+                invoiceSubject: document.getElementById('invoiceEmailSubject').value,
+                invoiceBody: document.getElementById('invoiceEmailBody').value,
+                credentialsSubject: document.getElementById('credentialsEmailSubject').value,
+                credentialsBody: document.getElementById('credentialsEmailBody').value
+            };
+
+            try {
+                const response = await fetch('/api/email/templates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(templates)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✅ Email templates saved successfully!');
+                } else {
+                    alert('❌ Failed to save email templates:\n' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('❌ Error saving email templates:\n' + error.message);
             }
         }
 

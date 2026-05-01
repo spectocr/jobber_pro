@@ -1139,7 +1139,9 @@ app.get('/api/email/config', isAuthenticated, async (req, res) => {
             gmailUser: settings?.gmailUser || '',
             // Don't send secrets to client
             gmailClientSecret: settings?.gmailClientSecret ? 'configured' : '',
-            gmailRefreshToken: settings?.gmailRefreshToken ? 'configured' : ''
+            gmailRefreshToken: settings?.gmailRefreshToken ? 'configured' : '',
+            // Include email templates
+            templates: settings?.emailTemplates || {}
         };
 
         res.json(config);
@@ -1185,6 +1187,24 @@ app.post('/api/email/config', isAuthenticated, async (req, res) => {
     }
 });
 
+app.post('/api/email/templates', isAuthenticated, async (req, res) => {
+    try {
+        const templates = req.body;
+
+        // Update templates in database
+        await db.collection('settings').updateOne(
+            {},
+            { $set: { emailTemplates: templates } },
+            { upsert: true }
+        );
+
+        res.json({ success: true, message: 'Email templates updated' });
+    } catch (error) {
+        console.error('Email templates save error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/api/email/test', isAuthenticated, async (req, res) => {
     try {
         const { to } = req.body;
@@ -1224,13 +1244,19 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
             ? `https://${req.get('host')}/`
             : `https://jobber-pro-app-1e22b180e222.herokuapp.com/`;
 
+        // Get custom email templates if configured
+        const customSubject = settings?.emailTemplates?.credentialsSubject;
+        const customBody = settings?.emailTemplates?.credentialsBody;
+
         await emailService.sendUserCredentials({
             to: user.email,
             name: user.name,
             email: user.email,
             tempPassword: tempPassword,
             companyName: companyName,
-            loginUrl: loginUrl
+            loginUrl: loginUrl,
+            customSubject: customSubject,
+            customBody: customBody
         });
 
         res.json({ success: true, message: 'Credentials email sent to ' + user.email });
@@ -1274,6 +1300,10 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             ? `https://${req.get('host')}/invoice/${job._id}`
             : `https://jobber-pro-app-1e22b180e222.herokuapp.com/invoice/${job._id}`;
 
+        // Get custom email templates if configured
+        const customSubject = settings?.emailTemplates?.invoiceSubject;
+        const customBody = settings?.emailTemplates?.invoiceBody;
+
         await emailService.sendInvoice({
             to: client.email,
             clientName: client.name,
@@ -1282,7 +1312,9 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             total: total,
             invoiceUrl: invoiceUrl,
             pdfBuffer: null,
-            companyName: companyName
+            companyName: companyName,
+            customSubject: customSubject,
+            customBody: customBody
         });
 
         res.json({ success: true, message: 'Invoice email sent to ' + client.email });
