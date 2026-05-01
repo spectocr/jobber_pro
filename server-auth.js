@@ -1151,7 +1151,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             return res.status(400).json({ error: 'Only approved or in-review quotes can be converted to jobs' });
         }
 
-        // Create job from quote
+        // Create job from quote with "prospecting" status (needs review/scheduling)
         const job = {
             clientId: quote.clientId,
             title: quote.title,
@@ -1162,13 +1162,13 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             total: quote.total,
             totalPaid: 0,
             balanceOwed: quote.total,
-            status: 'scheduled',
-            scheduledDate: new Date().toISOString().split('T')[0], // Today
+            status: 'prospecting',
+            scheduledDate: '',
             payments: [],
             touchPoints: [],
             attachments: [],
             createdAt: new Date(),
-            notes: `Converted from Quote #${quote.quoteNumber}\n\n${quote.notes || ''}`
+            notes: `Converted from Quote #${quote.quoteNumber}\n\nNeeds scheduling review.\n\n${quote.notes || ''}`
         };
 
         if (quote.serviceLocationId) {
