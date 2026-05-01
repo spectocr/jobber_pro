@@ -2753,6 +2753,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     continue;
                 }
 
+                // Prompt for comment
+                const comment = prompt(\`Add a description for "\${file.name}":\`, '');
+                if (comment === null) {
+                    // User clicked cancel, skip this file
+                    continue;
+                }
+
                 // Optimize images before upload
                 const isImage = file.type.startsWith('image/');
                 if (isImage) {
@@ -2788,7 +2795,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 size: file.size,
                                 s3Key: result.s3Key, // Will be set if using S3
                                 data: result.data, // Will be set if using MongoDB fallback
-                                uploadedAt: new Date().toISOString()
+                                uploadedAt: new Date().toISOString(),
+                                comment: comment.trim() // Add comment field
                             };
                             attachments.push(attachment);
                             renderAttachments();
@@ -2826,6 +2834,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div style="flex: 1;">
                             <div style="font-weight: 600; color: #2d3748;">\${att.name}</div>
                             <div style="font-size: 0.85rem; color: #718096;">\${sizeKB} KB</div>
+                            \${att.comment ? \`<div style="font-size: 0.9rem; color: #4a5568; margin-top: 0.25rem; font-style: italic;">"\${att.comment}"</div>\` : ''}
                         </div>
                         \${isImage ? \`<button type="button" class="btn btn-secondary btn-small" onclick="viewAttachment('\${att.id}')">View</button>\` : ''}
                         <button type="button" class="btn btn-secondary btn-small" onclick="downloadAttachment('\${att.id}')">Download</button>
