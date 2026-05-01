@@ -16,6 +16,7 @@ const path = require('path');
 const twilio = require('twilio');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const emailService = require('./email-service');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -1127,6 +1128,77 @@ app.post('/api/settings', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+// Email Configuration API
+app.get('/api/email/config', isAuthenticated, async (req, res) => {
+    try {
+        const settings = await db.collection('settings').findOne({});
+
+        const config = {
+            configured: !!(settings?.gmailClientId && settings?.gmailClientSecret && settings?.gmailRefreshToken && settings?.gmailUser),
+            gmailClientId: settings?.gmailClientId || '',
+            gmailUser: settings?.gmailUser || '',
+            // Don't send secrets to client
+            gmailClientSecret: settings?.gmailClientSecret ? 'configured' : '',
+            gmailRefreshToken: settings?.gmailRefreshToken ? 'configured' : ''
+        };
+
+        res.json(config);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/email/config', isAuthenticated, async (req, res) => {
+    try {
+        const emailConfig = req.body;
+
+        // Get existing settings
+        const settings = await db.collection('settings').findOne({}) || {};
+
+        // Update only the fields that were provided
+        const updateFields = {};
+        if (emailConfig.gmailClientId) updateFields.gmailClientId = emailConfig.gmailClientId;
+        if (emailConfig.gmailClientSecret) updateFields.gmailClientSecret = emailConfig.gmailClientSecret;
+        if (emailConfig.gmailRefreshToken) updateFields.gmailRefreshToken = emailConfig.gmailRefreshToken;
+        if (emailConfig.gmailUser) updateFields.gmailUser = emailConfig.gmailUser;
+
+        // Update settings in database
+        await db.collection('settings').updateOne(
+            {},
+            { $set: updateFields },
+            { upsert: true }
+        );
+
+        // Update environment variables for email service
+        if (updateFields.gmailClientId) process.env.GMAIL_CLIENT_ID = updateFields.gmailClientId;
+        if (updateFields.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = updateFields.gmailClientSecret;
+        if (updateFields.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = updateFields.gmailRefreshToken;
+        if (updateFields.gmailUser) process.env.GMAIL_USER = updateFields.gmailUser;
+
+        // Reinitialize email service with new credentials
+        await emailService.initialize();
+
+        res.json({ success: true, message: 'Email configuration updated' });
+    } catch (error) {
+        console.error('Email config save error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/email/test', isAuthenticated, async (req, res) => {
+    try {
+        const { to } = req.body;
+        if (!to) {
+            return res.status(400).json({ error: 'Email recipient required' });
+        }
+
+        await emailService.sendTestEmail(to);
+        res.json({ success: true, message: 'Test email sent' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Time Entries API
 app.get('/api/timeentries', isAuthenticated, async (req, res) => {
     const entries = await db.collection('timeentries').find().sort({ clockIn: -1 }).toArray();
@@ -1703,7 +1775,23 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
 } // End setupRoutes
 
 // Start server
-connectDB().then(() => {
+connectDB().then(async () => {
+    // Load email settings from database and set env vars
+    try {
+        const settings = await db.collection('settings').findOne({});
+        if (settings) {
+            if (settings.gmailClientId) process.env.GMAIL_CLIENT_ID = settings.gmailClientId;
+            if (settings.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = settings.gmailClientSecret;
+            if (settings.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = settings.gmailRefreshToken;
+            if (settings.gmailUser) process.env.GMAIL_USER = settings.gmailUser;
+        }
+    } catch (error) {
+        console.error('Failed to load email settings from database:', error);
+    }
+
+    // Initialize email service
+    await emailService.initialize();
+
     // Setup session middleware after DB connection
     app.use(session({
         secret: SESSION_SECRET,
