@@ -1177,10 +1177,10 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
 
         const result = await db.collection('jobs').insertOne(job);
 
-        // Mark quote as converted
+        // Mark quote as converted and set to approved status
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(req.params.id) },
-            { $set: { convertedToJobId: result.insertedId } }
+            { $set: { convertedToJobId: result.insertedId, status: 'approved' } }
         );
 
         res.json({ success: true, jobId: result.insertedId.toString() });
