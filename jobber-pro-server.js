@@ -4288,6 +4288,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
+                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')" title="Email invoice to client">📧 Email</button>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                         </td>
                     </tr>\`;
@@ -4304,6 +4305,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('filter-client').value = '';
             document.getElementById('filter-assigned').value = '';
             renderJobsTable();
+        }
+
+        async function emailInvoice(jobId) {
+            const job = jobs.find(j => j.id == jobId || j._id == jobId);
+            if (!job) {
+                alert('Job not found');
+                return;
+            }
+
+            const client = findClient(job.clientId);
+            if (!client || !client.email) {
+                alert('Cannot send invoice: Client has no email address.\n\nPlease add an email to the client profile first.');
+                return;
+            }
+
+            if (!confirm(\`Send invoice to ${client.name} at ${client.email}?\`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/email/send-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: job._id || job.id })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(\`✅ Invoice emailed successfully to ${client.email}!\`);
+                } else {
+                    alert(\`❌ Failed to send invoice email:\n${data.error || 'Unknown error'}\n\nMake sure email is configured in Settings > Email Settings.\`);
+                }
+            } catch (error) {
+                alert(\`❌ Error sending invoice email:\n${error.message}\`);
+            }
         }
 
         function exportJobsToExcel() {
@@ -5546,6 +5583,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </div>
                         </div>
                         <div>
+                            <button class="btn btn-secondary btn-small" onclick="emailUserCredentials('\${user._id || user.id}')" style="margin-right: 0.5rem;" title="Email login credentials">📧 Email Login</button>
                             <button class="btn btn-primary btn-small" onclick="editUser('\${user._id || user.id}')" style="margin-right: 0.5rem;">Edit</button>
                             <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id || user.id}')">Delete</button>
                         </div>
@@ -5636,6 +5674,49 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadUsers();
             } else {
                 alert(data.error || 'Failed to save user');
+            }
+        }
+
+        async function emailUserCredentials(userId) {
+            const response = await fetch('/api/users');
+            if (!response.ok) {
+                alert('Failed to load user information');
+                return;
+            }
+
+            const users = await response.json();
+            const user = users.find(u => (u._id || u.id) == userId);
+
+            if (!user) {
+                alert('User not found');
+                return;
+            }
+
+            if (!user.email) {
+                alert('User has no email address');
+                return;
+            }
+
+            if (!confirm(\`Send login credentials to ${user.name} at ${user.email}?\n\nNote: This will include their current/temporary password.\`)) {
+                return;
+            }
+
+            try {
+                const emailResponse = await fetch('/api/email/send-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user._id || user.id })
+                });
+
+                const data = await emailResponse.json();
+
+                if (emailResponse.ok) {
+                    alert(\`✅ Login credentials emailed to ${user.email}!\`);
+                } else {
+                    alert(\`❌ Failed to send credentials email:\n${data.error || 'Unknown error'}\n\nMake sure email is configured in Settings > Email Settings.\`);
+                }
+            } catch (error) {
+                alert(\`❌ Error sending credentials email:\n${error.message}\`);
             }
         }
 

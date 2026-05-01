@@ -1199,6 +1199,99 @@ app.post('/api/email/test', isAuthenticated, async (req, res) => {
     }
 });
 
+app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID required' });
+        }
+
+        // Get user from database
+        const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Get settings for company name
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+
+        // Generate temp password if not already set
+        const tempPassword = user.tempPassword || 'ChangeMe123!';
+
+        // Get login URL
+        const loginUrl = process.env.HEROKU_APP_NAME
+            ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com/`
+            : `http://localhost:${PORT}/`;
+
+        await emailService.sendUserCredentials({
+            to: user.email,
+            name: user.name,
+            email: user.email,
+            tempPassword: tempPassword,
+            companyName: companyName,
+            loginUrl: loginUrl
+        });
+
+        res.json({ success: true, message: 'Credentials email sent to ' + user.email });
+    } catch (error) {
+        console.error('Send credentials error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
+    try {
+        const { jobId } = req.body;
+        if (!jobId) {
+            return res.status(400).json({ error: 'Job ID required' });
+        }
+
+        // Get job from database
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        // Get client
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) });
+        if (!client || !client.email) {
+            return res.status(400).json({ error: 'Client email not found' });
+        }
+
+        // Get settings
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+
+        // Calculate total
+        const total = job.total || 0;
+
+        // Generate invoice number
+        const invoiceNumber = job.invoiceNumber || `INV-${job._id.toString().slice(-8).toUpperCase()}`;
+
+        // Get invoice URL
+        const invoiceUrl = process.env.HEROKU_APP_NAME
+            ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com/invoice/${job._id}`
+            : `http://localhost:${PORT}/invoice/${job._id}`;
+
+        await emailService.sendInvoice({
+            to: client.email,
+            clientName: client.name,
+            invoiceNumber: invoiceNumber,
+            jobTitle: job.title,
+            total: total,
+            invoiceUrl: invoiceUrl,
+            pdfBuffer: null,
+            companyName: companyName
+        });
+
+        res.json({ success: true, message: 'Invoice email sent to ' + client.email });
+    } catch (error) {
+        console.error('Send invoice error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Time Entries API
 app.get('/api/timeentries', isAuthenticated, async (req, res) => {
     const entries = await db.collection('timeentries').find().sort({ clockIn: -1 }).toArray();
