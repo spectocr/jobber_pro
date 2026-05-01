@@ -1147,8 +1147,8 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             return res.status(404).json({ error: 'Quote not found' });
         }
 
-        if (quote.status !== 'approved') {
-            return res.status(400).json({ error: 'Only approved quotes can be converted to jobs' });
+        if (quote.status !== 'approved' && quote.status !== 'in_review') {
+            return res.status(400).json({ error: 'Only approved or in-review quotes can be converted to jobs' });
         }
 
         // Create job from quote
