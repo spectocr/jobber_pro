@@ -709,6 +709,300 @@ app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
     }
 });
 
+// Privacy Policy page (public)
+app.get('/privacy', (req, res) => {
+    const settings = { companyName: 'Jobber Pro' }; // Will fetch from DB if needed
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - ${settings.companyName}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; background: white; min-height: 100vh; }
+        h1 { color: #667eea; font-size: 2.5em; margin-bottom: 0.5em; }
+        h2 { color: #667eea; font-size: 1.8em; margin-top: 1.5em; margin-bottom: 0.5em; }
+        h3 { color: #555; font-size: 1.3em; margin-top: 1.2em; margin-bottom: 0.4em; }
+        p { margin-bottom: 1em; }
+        ul { margin-left: 2em; margin-bottom: 1em; }
+        li { margin-bottom: 0.5em; }
+        .updated { color: #888; font-size: 0.9em; margin-bottom: 2em; }
+        .footer { margin-top: 3em; padding-top: 2em; border-top: 2px solid #e2e8f0; text-align: center; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
+
+        <p>At ${settings.companyName}, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, share, and protect your information when you use our services.</p>
+
+        <h2>1. Information We Collect</h2>
+
+        <h3>Personal Information</h3>
+        <p>We collect information that you provide directly to us, including:</p>
+        <ul>
+            <li><strong>Contact Information:</strong> Name, email address, phone number, and mailing address</li>
+            <li><strong>Account Information:</strong> Username, password, and account preferences</li>
+            <li><strong>Service Information:</strong> Details about the services you request, job history, quotes, and invoices</li>
+            <li><strong>Payment Information:</strong> Payment method details (processed securely through our payment processors)</li>
+            <li><strong>Communication Data:</strong> Messages, notes, and other communications with us</li>
+        </ul>
+
+        <h3>Automatically Collected Information</h3>
+        <ul>
+            <li><strong>Usage Data:</strong> How you interact with our services</li>
+            <li><strong>Device Information:</strong> IP address, browser type, operating system</li>
+            <li><strong>Cookies:</strong> We use cookies to maintain your session and improve your experience</li>
+        </ul>
+
+        <h2>2. How We Use Your Information</h2>
+        <p>We use your information to:</p>
+        <ul>
+            <li>Provide, maintain, and improve our services</li>
+            <li>Process and fulfill service requests</li>
+            <li>Send you quotes, invoices, and service updates</li>
+            <li>Communicate with you about your account and services</li>
+            <li>Send appointment reminders and service notifications via SMS</li>
+            <li>Respond to your inquiries and provide customer support</li>
+            <li>Analyze usage patterns to improve our platform</li>
+            <li>Comply with legal obligations and enforce our terms</li>
+        </ul>
+
+        <h2>3. SMS/Text Messaging</h2>
+        <p>By providing your phone number, you consent to receive text messages from us regarding:</p>
+        <ul>
+            <li>Service appointment confirmations and reminders</li>
+            <li>Job status updates</li>
+            <li>Invoice and payment notifications</li>
+            <li>Important account information</li>
+        </ul>
+        <p><strong>Opting Out:</strong> You may opt out of receiving text messages at any time by replying STOP to any message or contacting us directly. Message and data rates may apply.</p>
+
+        <h2>4. Information Sharing</h2>
+        <p>We do not sell your personal information. We may share your information with:</p>
+        <ul>
+            <li><strong>Service Providers:</strong> Third parties who perform services on our behalf (email, SMS, payment processing)</li>
+            <li><strong>Legal Requirements:</strong> When required by law or to protect our rights</li>
+            <li><strong>Business Transfers:</strong> In connection with a merger, sale, or acquisition</li>
+        </ul>
+
+        <h2>5. Data Security</h2>
+        <p>We implement appropriate security measures to protect your personal information, including:</p>
+        <ul>
+            <li>Encryption of sensitive data</li>
+            <li>Secure servers and databases</li>
+            <li>Access controls and authentication</li>
+            <li>Regular security assessments</li>
+        </ul>
+
+        <h2>6. Your Rights</h2>
+        <p>You have the right to:</p>
+        <ul>
+            <li><strong>Access:</strong> Request a copy of your personal information</li>
+            <li><strong>Correction:</strong> Update or correct your information</li>
+            <li><strong>Deletion:</strong> Request deletion of your information</li>
+            <li><strong>Opt-Out:</strong> Unsubscribe from marketing communications or SMS messages</li>
+            <li><strong>Data Portability:</strong> Request your data in a portable format</li>
+        </ul>
+
+        <h2>7. Data Retention</h2>
+        <p>We retain your information for as long as necessary to provide our services and comply with legal obligations. You may request deletion of your data at any time, subject to legal retention requirements.</p>
+
+        <h2>8. Children's Privacy</h2>
+        <p>Our services are not intended for individuals under 18 years of age. We do not knowingly collect personal information from children.</p>
+
+        <h2>9. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the "Last Updated" date.</p>
+
+        <h2>10. Contact Us</h2>
+        <p>If you have questions about this Privacy Policy or wish to exercise your privacy rights, please contact us:</p>
+        <ul>
+            <li>Email: privacy@jobber-pro.com</li>
+            <li>Phone: Contact us through our main business line</li>
+        </ul>
+
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} ${settings.companyName}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+    `);
+});
+
+// Terms and Conditions page (public)
+app.get('/terms', (req, res) => {
+    const settings = { companyName: 'Jobber Pro' };
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms and Conditions - ${settings.companyName}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; background: white; min-height: 100vh; }
+        h1 { color: #667eea; font-size: 2.5em; margin-bottom: 0.5em; }
+        h2 { color: #667eea; font-size: 1.8em; margin-top: 1.5em; margin-bottom: 0.5em; }
+        h3 { color: #555; font-size: 1.3em; margin-top: 1.2em; margin-bottom: 0.4em; }
+        p { margin-bottom: 1em; }
+        ul { margin-left: 2em; margin-bottom: 1em; }
+        li { margin-bottom: 0.5em; }
+        .updated { color: #888; font-size: 0.9em; margin-bottom: 2em; }
+        .footer { margin-top: 3em; padding-top: 2em; border-top: 2px solid #e2e8f0; text-align: center; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Terms and Conditions</h1>
+        <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
+
+        <p>Welcome to ${settings.companyName}. By accessing or using our services, you agree to be bound by these Terms and Conditions. Please read them carefully.</p>
+
+        <h2>1. Acceptance of Terms</h2>
+        <p>By using our platform, mobile application, or services, you accept and agree to these Terms and Conditions and our Privacy Policy. If you do not agree, you may not use our services.</p>
+
+        <h2>2. Description of Services</h2>
+        <p>${settings.companyName} provides a field service management platform that enables:</p>
+        <ul>
+            <li>Job scheduling and management</li>
+            <li>Quote creation and approval</li>
+            <li>Invoicing and payment processing</li>
+            <li>Client communication via SMS and email</li>
+            <li>Service history tracking</li>
+        </ul>
+
+        <h2>3. User Accounts</h2>
+
+        <h3>Account Creation</h3>
+        <ul>
+            <li>You must provide accurate and complete information</li>
+            <li>You are responsible for maintaining the confidentiality of your account credentials</li>
+            <li>You are responsible for all activities under your account</li>
+            <li>You must notify us immediately of any unauthorized access</li>
+        </ul>
+
+        <h3>Account Termination</h3>
+        <p>We reserve the right to suspend or terminate accounts that violate these terms or engage in fraudulent, abusive, or illegal activities.</p>
+
+        <h2>4. SMS/Text Messaging Terms</h2>
+
+        <h3>Consent to Receive Messages</h3>
+        <p>By providing your phone number, you expressly consent to receive text messages from us regarding:</p>
+        <ul>
+            <li>Service appointments and reminders</li>
+            <li>Job status updates</li>
+            <li>Invoice and payment notifications</li>
+            <li>Account-related information</li>
+        </ul>
+
+        <h3>Message Frequency</h3>
+        <p>Message frequency varies based on your service activity. You may receive multiple messages per week during active service periods.</p>
+
+        <h3>Opt-Out</h3>
+        <p>You may opt out at any time by:</p>
+        <ul>
+            <li>Replying STOP to any text message</li>
+            <li>Contacting us directly to update your preferences</li>
+            <li>Updating your communication preferences in your account settings</li>
+        </ul>
+
+        <h3>Carrier Charges</h3>
+        <p>Message and data rates may apply. Please check with your mobile carrier for details about your messaging plan.</p>
+
+        <h2>5. Payment Terms</h2>
+        <ul>
+            <li>Payment is due according to the terms specified on your invoice</li>
+            <li>Late payments may be subject to fees or service suspension</li>
+            <li>We accept various payment methods as indicated on invoices</li>
+            <li>All prices are in USD unless otherwise stated</li>
+        </ul>
+
+        <h2>6. Service Quotes</h2>
+        <ul>
+            <li>Quotes are valid for the period specified on the quote</li>
+            <li>Prices may change after quote expiration</li>
+            <li>Final costs may vary based on actual work performed</li>
+            <li>Quote acceptance constitutes agreement to proceed with services</li>
+        </ul>
+
+        <h2>7. Cancellation and Refund Policy</h2>
+        <ul>
+            <li>Cancellations must be made at least 24 hours before scheduled service</li>
+            <li>Late cancellations may be subject to fees</li>
+            <li>Refunds are handled on a case-by-case basis</li>
+            <li>Service credits may be offered in lieu of refunds</li>
+        </ul>
+
+        <h2>8. User Conduct</h2>
+        <p>You agree not to:</p>
+        <ul>
+            <li>Use the service for any illegal purpose</li>
+            <li>Attempt to gain unauthorized access to our systems</li>
+            <li>Interfere with or disrupt the service</li>
+            <li>Impersonate others or provide false information</li>
+            <li>Transmit viruses, malware, or harmful code</li>
+            <li>Scrape, copy, or duplicate content without permission</li>
+        </ul>
+
+        <h2>9. Intellectual Property</h2>
+        <p>All content, features, and functionality of our platform are owned by ${settings.companyName} and protected by copyright, trademark, and other intellectual property laws.</p>
+
+        <h2>10. Limitation of Liability</h2>
+        <p>To the fullest extent permitted by law:</p>
+        <ul>
+            <li>We provide services "as is" without warranties of any kind</li>
+            <li>We are not liable for indirect, incidental, or consequential damages</li>
+            <li>Our total liability is limited to the amount you paid for services</li>
+            <li>We are not responsible for third-party content or services</li>
+        </ul>
+
+        <h2>11. Indemnification</h2>
+        <p>You agree to indemnify and hold harmless ${settings.companyName} from any claims, damages, or expenses arising from your use of our services or violation of these terms.</p>
+
+        <h2>12. Dispute Resolution</h2>
+        <p>Any disputes will be resolved through:</p>
+        <ul>
+            <li>Good faith negotiation</li>
+            <li>Mediation if negotiation fails</li>
+            <li>Binding arbitration as a final resort</li>
+        </ul>
+
+        <h2>13. Modifications to Terms</h2>
+        <p>We reserve the right to modify these terms at any time. Changes will be effective upon posting. Continued use of our services constitutes acceptance of modified terms.</p>
+
+        <h2>14. Governing Law</h2>
+        <p>These terms are governed by the laws of the jurisdiction in which our business operates, without regard to conflict of law principles.</p>
+
+        <h2>15. Severability</h2>
+        <p>If any provision of these terms is found to be unenforceable, the remaining provisions will remain in full force and effect.</p>
+
+        <h2>16. Contact Information</h2>
+        <p>For questions about these Terms and Conditions:</p>
+        <ul>
+            <li>Email: support@jobber-pro.com</li>
+            <li>Phone: Contact us through our main business line</li>
+        </ul>
+
+        <h2>17. Acknowledgment</h2>
+        <p>By using ${settings.companyName}, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions and our Privacy Policy.</p>
+
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} ${settings.companyName}. All rights reserved.</p>
+            <p><a href="/privacy" style="color: #667eea; text-decoration: none;">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+</html>
+    `);
+});
+
 // Main app (protected)
 app.get('/', (req, res) => {
     if (!req.session || !req.session.userId) {
