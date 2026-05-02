@@ -836,16 +836,113 @@ app.post('/api/clients', isAuthenticated, async (req, res) => {
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
         );
+        res.json({ success: true, id: _id });
     } else {
         client.createdAt = new Date();
-        await db.collection('clients').insertOne(client);
+        const result = await db.collection('clients').insertOne(client);
+        res.json({ success: true, id: result.insertedId.toString() });
     }
-    res.json({ success: true });
 });
 
 app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
     await db.collection('clients').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
+});
+
+app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
+    try {
+        const { clientId } = req.body;
+
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(clientId) });
+        if (!client) {
+            return res.status(404).json({ error: 'Client not found' });
+        }
+
+        if (!client.email) {
+            return res.status(400).json({ error: 'Client does not have an email address' });
+        }
+
+        if (!client.portalPassword) {
+            return res.status(400).json({ error: 'Client does not have portal access enabled' });
+        }
+
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+
+        // Get portal URL
+        const portalUrl = req.get('host')
+            ? `https://${req.get('host')}/client-login`
+            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/client-login`;
+
+        // Note: We cannot retrieve the plaintext password since it's hashed
+        // So we include instructions to contact support if they forgot it
+        const subject = `Your ${companyName} Client Portal Access`;
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #667eea; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-radius: 0 0 8px 8px; }
+        .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .info-box { background: white; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }
+        .footer { text-align: center; color: #888; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to Your Client Portal</h1>
+        </div>
+        <div class="content">
+            <p>Dear ${client.name},</p>
+            <p>Your client portal has been set up! You can now view your quotes, jobs, and invoices online anytime.</p>
+
+            <div class="info-box">
+                <p><strong>📧 Your Email:</strong> ${client.email}</p>
+                <p><strong>🔐 Your Access Code:</strong> Use the code we provided you</p>
+                <p style="color: #718096; font-size: 0.9em; margin-top: 10px;">
+                    (If you don't have your access code, please contact us)
+                </p>
+            </div>
+
+            <div style="text-align: center;">
+                <a href="${portalUrl}" class="button">Access Your Portal</a>
+            </div>
+
+            <p><strong>What you can do in the portal:</strong></p>
+            <ul>
+                <li>View and approve quotes</li>
+                <li>Track job progress</li>
+                <li>View and download invoices</li>
+                <li>See your complete service history</li>
+            </ul>
+
+            <p>If you have any questions or need assistance, please don't hesitate to contact us.</p>
+        </div>
+        <div class="footer">
+            <p>${companyName}</p>
+            <p>This is an automated notification</p>
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        await emailService.sendEmail({
+            to: client.email,
+            subject: subject,
+            html: html,
+            text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: Use the code provided to you\n\nIf you need your access code, please contact us.`
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Send portal info error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/api/jobs', isAuthenticated, async (req, res) => {

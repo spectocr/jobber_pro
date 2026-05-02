@@ -2155,6 +2155,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     Client will use this code to log in at /client-login
                                 </small>
                             </div>
+                            <button type="button" class="btn btn-secondary" id="sendPortalInfoBtn" onclick="sendPortalInfo()" style="display: none; margin-top: 0.5rem;">
+                                📧 Email Portal Login Info to Client
+                            </button>
                         </div>
                     </div>
                 </form>
@@ -2906,11 +2909,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (client.address && !client.addressLine1) {
                     form.elements.addressLine1.value = client.address;
                 }
+
+                // Handle portal access
+                const hasPortalAccess = !!client.portalPassword;
+                document.getElementById('enablePortalAccess').checked = hasPortalAccess;
+                if (hasPortalAccess) {
+                    document.getElementById('portalPassword').value = ''; // Can't show hashed password
+                    document.getElementById('portalPassword').placeholder = 'Leave blank to keep existing code, or enter new code';
+                }
+                togglePortalFields();
             } else {
                 document.getElementById('clientModalTitle').textContent = 'Add Client';
                 form.reset();
                 serviceLocations = [];
                 document.getElementById('propertyManagementFields').style.display = 'none';
+                document.getElementById('enablePortalAccess').checked = false;
+                document.getElementById('portalPassword').value = '';
+                document.getElementById('portalPassword').placeholder = 'Set a simple access code (e.g., 1234)';
+                togglePortalFields();
                 renderServiceLocations();
             }
 
@@ -3173,6 +3189,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function togglePortalFields() {
             const enabled = document.getElementById('enablePortalAccess').checked;
             document.getElementById('portalFields').style.display = enabled ? 'block' : 'none';
+
+            // Show send button only if editing existing client with portal access
+            const isEditing = currentEditingClientId !== null;
+            const sendBtn = document.getElementById('sendPortalInfoBtn');
+            sendBtn.style.display = (enabled && isEditing) ? 'block' : 'none';
+        }
+
+        async function sendPortalInfo() {
+            if (!currentEditingClientId) {
+                alert('Please save the client first before sending portal info');
+                return;
+            }
+
+            const client = clients.find(c => (c.id || c._id) == currentEditingClientId);
+            if (!client) {
+                alert('Client not found');
+                return;
+            }
+
+            if (!client.email) {
+                alert('Client does not have an email address');
+                return;
+            }
+
+            if (!client.portalPassword) {
+                alert('Client does not have portal access enabled');
+                return;
+            }
+
+            if (!confirm(\`Send portal login information to \${client.email}?\`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/clients/send-portal-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId: currentEditingClientId })
+                });
+
+                if (!response.ok) throw new Error('Failed to send email');
+
+                alert(\`✅ Portal login info sent to \${client.email}!\`);
+            } catch (error) {
+                alert('Failed to send portal info: ' + error.message);
+            }
         }
 
         // Save functions
