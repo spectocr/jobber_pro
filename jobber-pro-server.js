@@ -1340,6 +1340,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <select id="filter-status" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
                             <option value="">All Statuses</option>
+                            <option value="ACTIVE_WORK" selected>🔥 Active Work (excludes completed)</option>
                             <option value="prospecting">Prospecting</option>
                             <option value="scheduled">Scheduled</option>
                             <option value="in_progress">In Progress</option>
@@ -4060,7 +4061,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Get filtered jobs
         function getFilteredJobs(statusFilter, clientFilter, assignedFilter) {
             return jobs.filter(j => {
-                if (statusFilter && j.status !== statusFilter) return false;
+                // Special filter: Active Work excludes completed and invoiced jobs
+                if (statusFilter === 'ACTIVE_WORK') {
+                    if (j.status === 'completed' || j.status === 'invoiced') return false;
+                } else if (statusFilter && j.status !== statusFilter) {
+                    return false;
+                }
                 if (clientFilter && j.clientId !== clientFilter) return false;
                 if (assignedFilter && j.assignedTo !== assignedFilter) return false;
                 return true;
