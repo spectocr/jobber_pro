@@ -4956,7 +4956,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Populate form
             const form = document.getElementById('quoteForm');
             form.elements.quoteNumber.value = quote.quoteNumber || '';
-            form.elements.clientId.value = quote.clientId;
+            // Convert ObjectId to string if needed
+            form.elements.clientId.value = (quote.clientId && quote.clientId.$oid) ? quote.clientId.$oid : (quote.clientId || '');
             form.elements.title.value = quote.title;
             form.elements.description.value = quote.description || '';
             form.elements.validUntil.value = quote.validUntil;
