@@ -1275,6 +1275,36 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
     }
 });
 
+// Backfill audit logs for existing quotes
+app.post('/api/quotes/migrate-audit-logs', isAuthenticated, async (req, res) => {
+    try {
+        const quotes = await db.collection('quotes').find({ auditLog: { $exists: false } }).toArray();
+        let updated = 0;
+
+        for (const quote of quotes) {
+            const initialEntry = {
+                timestamp: quote.createdAt || new Date(),
+                userName: quote.createdByName || 'System',
+                userId: quote.createdBy || null,
+                action: 'created',
+                newStatus: quote.status || 'draft',
+                note: `Quote created (backfilled audit log)`
+            };
+
+            await db.collection('quotes').updateOne(
+                { _id: quote._id },
+                { $set: { auditLog: [initialEntry] } }
+            );
+            updated++;
+        }
+
+        res.json({ success: true, quotesUpdated: updated });
+    } catch (error) {
+        console.error('Migrate audit logs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/team', isAuthenticated, async (req, res) => {
     const team = await db.collection('team').find().toArray();
     const users = await db.collection('users').find().toArray();
