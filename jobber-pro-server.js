@@ -2178,9 +2178,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <input type="hidden" name="id">
                     <div class="form-group">
                         <label>Client *</label>
-                        <select name="clientId" required id="jobClientSelect" onchange="handleClientChange()">
-                            <option value="">Select a client...</option>
-                        </select>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <select name="clientId" required id="jobClientSelect" onchange="handleClientChange()" style="flex: 1;">
+                                <option value="">Select a client...</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" onclick="openClientModalFromJob()" style="white-space: nowrap;">+ Add Client</button>
+                        </div>
                     </div>
                     <div class="form-group" id="serviceLocationGroup" style="display: none;">
                         <label>Service Location</label>
@@ -2332,9 +2335,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Client *</label>
-                        <select name="clientId" required id="quoteClientSelect" onchange="handleQuoteClientChange()">
-                            <option value="">Select a client...</option>
-                        </select>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <select name="clientId" required id="quoteClientSelect" onchange="handleQuoteClientChange()" style="flex: 1;">
+                                <option value="">Select a client...</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" onclick="openClientModalFromQuote()" style="white-space: nowrap;">+ Add Client</button>
+                        </div>
                     </div>
 
                     <div class="form-group" id="quoteServiceLocationGroup" style="display: none;">
@@ -3161,14 +3167,59 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             try {
-                await postData('/api/clients', client, {
-                    markClean: true,
-                    closeModal: 'clientModal',
-                    reload: loadClients
+                const response = await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(client)
                 });
+
+                if (!response.ok) throw new Error('Failed to save client');
+
+                const savedClient = await response.json();
+
+                // Mark form as clean
+                markFormClean('clientForm');
+
+                // Reload clients list
+                await loadClients();
+
+                // Close client modal
+                closeModal('clientModal');
+
+                // If opened from job/quote context, reopen that modal and select the new client
+                if (clientModalContext === 'job') {
+                    setTimeout(() => {
+                        openJobModal();
+                        document.getElementById('jobClientSelect').value = savedClient.id || savedClient._id;
+                        handleClientChange();
+                    }, 100);
+                } else if (clientModalContext === 'quote') {
+                    setTimeout(() => {
+                        openQuoteModal();
+                        document.getElementById('quoteClientSelect').value = savedClient.id || savedClient._id;
+                        handleQuoteClientChange();
+                    }, 100);
+                }
+
+                // Reset context
+                clientModalContext = null;
+
             } catch (error) {
                 alert('Failed to save client: ' + error.message);
             }
+        }
+
+        // Track context when opening client modal from job/quote
+        let clientModalContext = null;
+
+        function openClientModalFromJob() {
+            clientModalContext = 'job';
+            openClientModal();
+        }
+
+        function openClientModalFromQuote() {
+            clientModalContext = 'quote';
+            openClientModal();
         }
 
         let laborItems = [];
