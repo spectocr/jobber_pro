@@ -710,15 +710,18 @@ app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
 });
 
 // Privacy Policy page (public)
-app.get('/privacy', (req, res) => {
-    const settings = { companyName: 'Jobber Pro' }; // Will fetch from DB if needed
+app.get('/privacy', async (req, res) => {
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.companyName || 'Jobber Pro';
+    const companyEmail = settings.companyEmail || 'contact@jobber-pro.com';
+    const companyPhone = settings.companyPhone || '(555) 555-5555';
     res.send(`
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - ${settings.companyName}</title>
+    <title>Privacy Policy - ${companyName}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
@@ -738,7 +741,7 @@ app.get('/privacy', (req, res) => {
         <h1>Privacy Policy</h1>
         <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
 
-        <p>At ${settings.companyName}, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, share, and protect your information when you use our services.</p>
+        <p>At ${companyName}, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, share, and protect your information when you use our services.</p>
 
         <h2>1. Information We Collect</h2>
 
@@ -821,12 +824,12 @@ app.get('/privacy', (req, res) => {
         <h2>10. Contact Us</h2>
         <p>If you have questions about this Privacy Policy or wish to exercise your privacy rights, please contact us:</p>
         <ul>
-            <li>Email: privacy@jobber-pro.com</li>
-            <li>Phone: Contact us through our main business line</li>
+            <li>Email: ${companyEmail}</li>
+            <li>Phone: ${companyPhone}</li>
         </ul>
 
         <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} ${settings.companyName}. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -835,15 +838,18 @@ app.get('/privacy', (req, res) => {
 });
 
 // Terms and Conditions page (public)
-app.get('/terms', (req, res) => {
-    const settings = { companyName: 'Jobber Pro' };
+app.get('/terms', async (req, res) => {
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.companyName || 'Jobber Pro';
+    const companyEmail = settings.companyEmail || 'contact@jobber-pro.com';
+    const companyPhone = settings.companyPhone || '(555) 555-5555';
     res.send(`
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms and Conditions - ${settings.companyName}</title>
+    <title>Terms and Conditions - ${companyName}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
@@ -863,13 +869,13 @@ app.get('/terms', (req, res) => {
         <h1>Terms and Conditions</h1>
         <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
 
-        <p>Welcome to ${settings.companyName}. By accessing or using our services, you agree to be bound by these Terms and Conditions. Please read them carefully.</p>
+        <p>Welcome to ${companyName}. By accessing or using our services, you agree to be bound by these Terms and Conditions. Please read them carefully.</p>
 
         <h2>1. Acceptance of Terms</h2>
         <p>By using our platform, mobile application, or services, you accept and agree to these Terms and Conditions and our Privacy Policy. If you do not agree, you may not use our services.</p>
 
         <h2>2. Description of Services</h2>
-        <p>${settings.companyName} provides a field service management platform that enables:</p>
+        <p>${companyName} provides a field service management platform that enables:</p>
         <ul>
             <li>Job scheduling and management</li>
             <li>Quote creation and approval</li>
@@ -952,7 +958,7 @@ app.get('/terms', (req, res) => {
         </ul>
 
         <h2>9. Intellectual Property</h2>
-        <p>All content, features, and functionality of our platform are owned by ${settings.companyName} and protected by copyright, trademark, and other intellectual property laws.</p>
+        <p>All content, features, and functionality of our platform are owned by ${companyName} and protected by copyright, trademark, and other intellectual property laws.</p>
 
         <h2>10. Limitation of Liability</h2>
         <p>To the fullest extent permitted by law:</p>
@@ -964,7 +970,7 @@ app.get('/terms', (req, res) => {
         </ul>
 
         <h2>11. Indemnification</h2>
-        <p>You agree to indemnify and hold harmless ${settings.companyName} from any claims, damages, or expenses arising from your use of our services or violation of these terms.</p>
+        <p>You agree to indemnify and hold harmless ${companyName} from any claims, damages, or expenses arising from your use of our services or violation of these terms.</p>
 
         <h2>12. Dispute Resolution</h2>
         <p>Any disputes will be resolved through:</p>
@@ -986,15 +992,15 @@ app.get('/terms', (req, res) => {
         <h2>16. Contact Information</h2>
         <p>For questions about these Terms and Conditions:</p>
         <ul>
-            <li>Email: support@jobber-pro.com</li>
-            <li>Phone: Contact us through our main business line</li>
+            <li>Email: ${companyEmail}</li>
+            <li>Phone: ${companyPhone}</li>
         </ul>
 
         <h2>17. Acknowledgment</h2>
-        <p>By using ${settings.companyName}, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions and our Privacy Policy.</p>
+        <p>By using ${companyName}, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions and our Privacy Policy.</p>
 
         <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} ${settings.companyName}. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.</p>
             <p><a href="/privacy" style="color: #667eea; text-decoration: none;">Privacy Policy</a></p>
         </div>
     </div>
