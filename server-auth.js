@@ -971,12 +971,43 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
 
     if (job._id) {
         const { _id, ...updateData } = job;
+
+        // Add audit log entry if status changed
+        if (oldJob && oldJob.status !== job.status) {
+            const auditEntry = {
+                timestamp: new Date(),
+                userName: req.session.userName,
+                userId: new ObjectId(req.session.userId),
+                action: 'status_change',
+                oldStatus: oldJob.status,
+                newStatus: job.status,
+                note: `Status changed from ${oldJob.status} to ${job.status}`
+            };
+
+            // Initialize audit log if doesn't exist
+            if (!updateData.auditLog) {
+                updateData.auditLog = oldJob.auditLog || [];
+            }
+            updateData.auditLog.push(auditEntry);
+        }
+
         await db.collection('jobs').updateOne(
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
         );
     } else {
         job.createdAt = new Date();
+
+        // Add initial audit log entry
+        job.auditLog = [{
+            timestamp: new Date(),
+            userName: req.session.userName,
+            userId: new ObjectId(req.session.userId),
+            action: 'created',
+            newStatus: job.status || 'prospecting',
+            note: `Job created with status: ${job.status || 'prospecting'}`
+        }];
+
         await db.collection('jobs').insertOne(job);
     }
 
@@ -1305,6 +1336,36 @@ app.post('/api/quotes/migrate-audit-logs', isAuthenticated, async (req, res) => 
         res.json({ success: true, quotesUpdated: updated });
     } catch (error) {
         console.error('Migrate audit logs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Backfill audit logs for existing jobs
+app.post('/api/jobs/migrate-audit-logs', isAuthenticated, async (req, res) => {
+    try {
+        const jobs = await db.collection('jobs').find({ auditLog: { $exists: false } }).toArray();
+        let updated = 0;
+
+        for (const job of jobs) {
+            const initialEntry = {
+                timestamp: job.createdAt || new Date(),
+                userName: 'System',
+                userId: null,
+                action: 'created',
+                newStatus: job.status || 'prospecting',
+                note: `Job created (backfilled audit log)`
+            };
+
+            await db.collection('jobs').updateOne(
+                { _id: job._id },
+                { $set: { auditLog: [initialEntry] } }
+            );
+            updated++;
+        }
+
+        res.json({ success: true, jobsUpdated: updated });
+    } catch (error) {
+        console.error('Migrate job audit logs error:', error);
         res.status(500).json({ error: error.message });
     }
 });

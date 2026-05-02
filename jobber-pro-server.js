@@ -2308,6 +2308,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button type="button" class="btn btn-primary" onclick="addTouchPoint()">Add Note</button>
                         </div>
                     </div>
+
+                    <!-- Audit Log -->
+                    <div id="jobAuditLogSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
+                        <div id="jobAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -3008,6 +3014,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadLaborActuals(job._id || job.id);
             } else {
                 document.getElementById('laborActualsSection').style.display = 'none';
+            }
+
+            // Show and populate audit log if exists
+            if (job && job.auditLog && job.auditLog.length > 0) {
+                document.getElementById('jobAuditLogSection').style.display = 'block';
+                const auditLogHtml = job.auditLog
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                    .map(entry => {
+                        const date = new Date(entry.timestamp);
+                        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                        const actionColor = entry.action === 'created' ? '#48bb78' :
+                                          entry.action === 'status_change' ? '#ed8936' : '#718096';
+                        return `
+                            <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f7fafc; border-left: 4px solid ${actionColor}; border-radius: 4px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <strong style="color: ${actionColor};">${entry.action.replace(/_/g, ' ').toUpperCase()}</strong>
+                                    <span style="color: #718096; font-size: 0.875rem;">${dateStr}</span>
+                                </div>
+                                <div style="color: #4a5568; font-size: 0.9rem;">${entry.note}</div>
+                                <div style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.25rem;">by ${entry.userName}</div>
+                            </div>
+                        `;
+                    }).join('');
+                document.getElementById('jobAuditLog').innerHTML = auditLogHtml;
+            } else {
+                document.getElementById('jobAuditLogSection').style.display = 'none';
             }
 
             document.getElementById('jobModal').classList.add('active');
