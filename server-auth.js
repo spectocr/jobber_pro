@@ -1068,6 +1068,29 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
 
     if (quote._id) {
         const { _id, ...updateData } = quote;
+
+        // Get existing quote to check for status change
+        const existingQuote = await db.collection('quotes').findOne({ _id: new ObjectId(_id) });
+
+        // Add audit log entry if status changed
+        if (existingQuote && existingQuote.status !== quote.status) {
+            const auditEntry = {
+                timestamp: new Date(),
+                userName: req.session.userName,
+                userId: new ObjectId(req.session.userId),
+                action: 'status_change',
+                oldStatus: existingQuote.status,
+                newStatus: quote.status,
+                note: `Status changed from ${existingQuote.status} to ${quote.status}`
+            };
+
+            // Initialize audit log if doesn't exist
+            if (!updateData.auditLog) {
+                updateData.auditLog = existingQuote.auditLog || [];
+            }
+            updateData.auditLog.push(auditEntry);
+        }
+
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
@@ -1076,6 +1099,17 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
     } else {
         quote.createdAt = new Date();
         quote.status = quote.status || 'draft';
+
+        // Add initial audit log entry
+        quote.auditLog = [{
+            timestamp: new Date(),
+            userName: req.session.userName,
+            userId: new ObjectId(req.session.userId),
+            action: 'created',
+            newStatus: quote.status,
+            note: `Quote created with status: ${quote.status}`
+        }];
+
         const result = await db.collection('quotes').insertOne(quote);
         res.json({ success: true, id: result.insertedId.toString() });
     }
@@ -1152,10 +1186,23 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
             text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: $${parseFloat(quote.total || 0).toFixed(2)}\nValid until: ${quote.validUntil}`
         });
 
-        // Update quote status to sent
+        // Update quote status to sent and add audit log
+        const auditEntry = {
+            timestamp: new Date(),
+            userName: req.session.userName,
+            userId: new ObjectId(req.session.userId),
+            action: 'sent_email',
+            oldStatus: quote.status,
+            newStatus: 'sent',
+            note: `Quote emailed to ${client.email}`
+        };
+
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(quoteId) },
-            { $set: { status: 'sent', sentAt: new Date() } }
+            {
+                $set: { status: 'sent', sentAt: new Date() },
+                $push: { auditLog: auditEntry }
+            }
         );
 
         res.json({ success: true });
@@ -1202,10 +1249,23 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
 
         const result = await db.collection('jobs').insertOne(job);
 
-        // Mark quote as converted and set to approved status
+        // Mark quote as converted and add audit log
+        const auditEntry = {
+            timestamp: new Date(),
+            userName: req.session.userName,
+            userId: new ObjectId(req.session.userId),
+            action: 'converted_to_job',
+            oldStatus: quote.status,
+            newStatus: 'approved',
+            note: `Quote converted to Job #${result.insertedId.toString().slice(-6)}`
+        };
+
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(req.params.id) },
-            { $set: { convertedToJobId: result.insertedId, status: 'approved' } }
+            {
+                $set: { convertedToJobId: result.insertedId, status: 'approved' },
+                $push: { auditLog: auditEntry }
+            }
         );
 
         res.json({ success: true, jobId: result.insertedId.toString() });
