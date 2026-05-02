@@ -114,7 +114,7 @@ class DataManager {
             totalAccountsReceivable: jobs
                 .filter(j => j.status === 'completed' || j.status === 'invoiced')
                 .reduce((sum, j) => {
-                    const total = parseFloat(j.total) || 0;
+                    const total = j.totalWithTax || parseFloat(j.total) || 0;
                     const paid = parseFloat(j.totalPaid) || 0;
                     return sum + Math.max(0, total - paid);
                 }, 0),
@@ -122,13 +122,13 @@ class DataManager {
             accountsReceivableJobs: jobs
                 .filter(j => {
                     if (j.status !== 'completed' && j.status !== 'invoiced') return false;
-                    const total = parseFloat(j.total) || 0;
+                    const total = j.totalWithTax || parseFloat(j.total) || 0;
                     const paid = parseFloat(j.totalPaid) || 0;
                     return total > paid;
                 })
                 .map(j => ({
                     ...j,
-                    balanceOwed: (parseFloat(j.total) || 0) - (parseFloat(j.totalPaid) || 0)
+                    balanceOwed: (j.totalWithTax || parseFloat(j.total) || 0) - (parseFloat(j.totalPaid) || 0)
                 }))
                 .sort((a, b) => b.balanceOwed - a.balanceOwed),
 
