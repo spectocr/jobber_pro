@@ -4953,11 +4953,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             currentEditingQuoteId = quote.id || quote._id;
             document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
 
+            // Populate client dropdown first
+            const clientSelect = document.getElementById('quoteClientSelect');
+            populateDropdown(clientSelect, clients, 'id', 'name', 'Select a client...');
+
             // Populate form
             const form = document.getElementById('quoteForm');
             form.elements.quoteNumber.value = quote.quoteNumber || '';
-            // Convert ObjectId to string if needed
-            form.elements.clientId.value = (quote.clientId && quote.clientId.$oid) ? quote.clientId.$oid : (quote.clientId || '');
+            // Set client after dropdown is populated
+            form.elements.clientId.value = quote.clientId || '';
             form.elements.title.value = quote.title;
             form.elements.description.value = quote.description || '';
             form.elements.validUntil.value = quote.validUntil;
