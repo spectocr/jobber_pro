@@ -755,6 +755,28 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
 
     const totalProfit = totalRevenue - totalMaterialCosts;
 
+    // Accounts Receivable calculation
+    const totalAccountsReceivable = jobsMapped
+        .filter(j => j.status === 'completed' || j.status === 'invoiced')
+        .reduce((sum, j) => {
+            const total = j.totalWithTax || parseFloat(j.total) || 0;
+            const paid = parseFloat(j.totalPaid) || 0;
+            return sum + Math.max(0, total - paid);
+        }, 0);
+
+    const accountsReceivableJobs = jobsMapped
+        .filter(j => {
+            if (j.status !== 'completed' && j.status !== 'invoiced') return false;
+            const total = j.totalWithTax || parseFloat(j.total) || 0;
+            const paid = parseFloat(j.totalPaid) || 0;
+            return total > paid;
+        })
+        .map(j => ({
+            ...j,
+            balanceOwed: (j.totalWithTax || parseFloat(j.total) || 0) - (parseFloat(j.totalPaid) || 0)
+        }))
+        .sort((a, b) => b.balanceOwed - a.balanceOwed);
+
     const stats = {
         totalClients: clientsWithId.length,
         totalJobs: jobsMapped.length,
@@ -768,6 +790,8 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         bidLost: jobsMapped.filter(j => j.status === 'bid_lost').length,
         revenueThisMonth: totalRevenue,
         profitThisMonth: totalProfit,
+        totalAccountsReceivable: totalAccountsReceivable,
+        accountsReceivableJobs: accountsReceivableJobs,
         upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
