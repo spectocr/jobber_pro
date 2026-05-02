@@ -769,7 +769,8 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
             if (j.status !== 'completed' && j.status !== 'invoiced') return false;
             const total = j.totalWithTax || parseFloat(j.total) || 0;
             const paid = parseFloat(j.totalPaid) || 0;
-            return total > paid;
+            const balance = total - paid;
+            return balance > 0.01; // Exclude if balance is less than 1 cent (handles floating point precision)
         })
         .map(j => ({
             ...j,
