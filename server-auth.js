@@ -2054,7 +2054,7 @@ app.post('/api/sms/reminders', isAuthenticated, async (req, res) => {
 });
 
 // Invoice generation (protected)
-app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
+app.get('/invoice/:jobId', async (req, res) => {
     let job = null;
     try {
         // Try to find job by ObjectId
