@@ -3186,18 +3186,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Close client modal
                 closeModal('clientModal');
 
-                // If opened from job/quote context, reopen that modal and select the new client
+                // If opened from job/quote context, reopen that modal and restore data
                 if (clientModalContext === 'job') {
                     setTimeout(() => {
                         openJobModal();
+
+                        // Restore form data
+                        if (savedJobFormData) {
+                            const form = document.getElementById('jobForm');
+                            for (let [key, value] of savedJobFormData.entries()) {
+                                const input = form.elements[key];
+                                if (input && key !== 'clientId') {
+                                    input.value = value;
+                                }
+                            }
+                        }
+
+                        // Set the new client
                         document.getElementById('jobClientSelect').value = savedClient.id || savedClient._id;
                         handleClientChange();
+
+                        savedJobFormData = null;
                     }, 100);
                 } else if (clientModalContext === 'quote') {
                     setTimeout(() => {
                         openQuoteModal();
+
+                        // Restore form data
+                        if (savedQuoteFormData) {
+                            const form = document.getElementById('quoteForm');
+                            for (let [key, value] of savedQuoteFormData.entries()) {
+                                const input = form.elements[key];
+                                if (input && key !== 'clientId') {
+                                    input.value = value;
+                                }
+                            }
+                        }
+
+                        // Set the new client
                         document.getElementById('quoteClientSelect').value = savedClient.id || savedClient._id;
                         handleQuoteClientChange();
+
+                        savedQuoteFormData = null;
                     }, 100);
                 }
 
@@ -3211,15 +3241,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Track context when opening client modal from job/quote
         let clientModalContext = null;
+        let savedJobFormData = null;
+        let savedQuoteFormData = null;
 
         function openClientModalFromJob() {
+            // Save current job form data
+            const form = document.getElementById('jobForm');
+            savedJobFormData = new FormData(form);
+
             clientModalContext = 'job';
-            openClientModal();
+            closeModal('jobModal');
+            setTimeout(() => openClientModal(), 100);
         }
 
         function openClientModalFromQuote() {
+            // Save current quote form data
+            const form = document.getElementById('quoteForm');
+            savedQuoteFormData = new FormData(form);
+
             clientModalContext = 'quote';
-            openClientModal();
+            closeModal('quoteModal');
+            setTimeout(() => openClientModal(), 100);
         }
 
         let laborItems = [];
