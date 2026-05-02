@@ -2254,6 +2254,28 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     </table>
     ` : ''}
 
+    ${(job.payments && job.payments.length > 0) ? `
+    <h3 style="color: #667eea; margin-top: 30px; margin-bottom: 15px;">Payments Received</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Method</th>
+                <th style="text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${job.payments.map(payment => `
+            <tr>
+                <td>${payment.date || 'N/A'}</td>
+                <td>${payment.method ? payment.method.charAt(0).toUpperCase() + payment.method.slice(1) : 'N/A'}</td>
+                <td style="text-align: right;">$${parseFloat(payment.amount || 0).toFixed(2)}</td>
+            </tr>
+            `).join('')}
+        </tbody>
+    </table>
+    ` : ''}
+
     <div class="totals">
         <div class="totals-row">
             <span>Subtotal:</span>
@@ -2264,9 +2286,19 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             <span>$${tax.toFixed(2)}</span>
         </div>
         <div class="totals-row total">
-            <span>Total:</span>
+            <span>Total Due:</span>
             <span>$${total.toFixed(2)}</span>
         </div>
+        ${totalPaid > 0 ? `
+        <div class="totals-row" style="color: #48bb78;">
+            <span>Payments Received:</span>
+            <span>-$${totalPaid.toFixed(2)}</span>
+        </div>
+        <div class="totals-row total" style="color: ${balance > 0.01 ? '#e53e3e' : '#48bb78'};">
+            <span>Balance ${balance < 0.01 ? '(PAID IN FULL)' : 'Due'}:</span>
+            <span>$${balance.toFixed(2)}</span>
+        </div>
+        ` : ''}
     </div>
 
     ${settings.contractTerms ? `
