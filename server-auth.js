@@ -2103,6 +2103,11 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     const balance = total - totalPaid;
     const isPaidInFull = Math.abs(balance) < 0.01; // Consider paid if balance is less than 1 cent
 
+    // Format money with commas and 2 decimals
+    const formatMoney = (amount) => {
+        return parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     // Format phone numbers
     const formatPhone = (phone) => {
         if (!phone) return '';
@@ -2223,7 +2228,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             ${job.laborItems.map(item => `
             <tr>
                 <td>${item.description}</td>
-                <td style="text-align: right;">$${(item.hours * item.rate).toFixed(2)}</td>
+                <td style="text-align: right;">$${formatMoney(item.hours * item.rate)}</td>
             </tr>
             `).join('')}
         </tbody>
@@ -2246,8 +2251,8 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             <tr>
                 <td>${item.description}</td>
                 <td style="text-align: center;">${item.quantity}</td>
-                <td style="text-align: right;">$${parseFloat(item.price).toFixed(2)}</td>
-                <td style="text-align: right;">$${(item.quantity * item.price).toFixed(2)}</td>
+                <td style="text-align: right;">$${formatMoney(item.price)}</td>
+                <td style="text-align: right;">$${formatMoney(item.quantity * item.price)}</td>
             </tr>
             `).join('')}
         </tbody>
@@ -2269,7 +2274,7 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
             <tr>
                 <td>${payment.date || 'N/A'}</td>
                 <td>${payment.method ? payment.method.charAt(0).toUpperCase() + payment.method.slice(1) : 'N/A'}</td>
-                <td style="text-align: right;">$${parseFloat(payment.amount || 0).toFixed(2)}</td>
+                <td style="text-align: right;">$${formatMoney(payment.amount || 0)}</td>
             </tr>
             `).join('')}
         </tbody>
@@ -2279,24 +2284,24 @@ app.get('/invoice/:jobId', isAuthenticated, async (req, res) => {
     <div class="totals">
         <div class="totals-row">
             <span>Subtotal:</span>
-            <span>$${subtotal.toFixed(2)}</span>
+            <span>$${formatMoney(subtotal)}</span>
         </div>
         <div class="totals-row">
             <span>Tax ${taxWaived ? '(EXEMPT)' : `(${((settings.taxRate || 0.06625) * 100).toFixed(3)}%)`}:</span>
-            <span>$${tax.toFixed(2)}</span>
+            <span>$${formatMoney(tax)}</span>
         </div>
         <div class="totals-row total">
             <span>Total Due:</span>
-            <span>$${total.toFixed(2)}</span>
+            <span>$${formatMoney(total)}</span>
         </div>
         ${totalPaid > 0 ? `
         <div class="totals-row" style="color: #48bb78;">
             <span>Payments Received:</span>
-            <span>-$${totalPaid.toFixed(2)}</span>
+            <span>-$${formatMoney(totalPaid)}</span>
         </div>
         <div class="totals-row total" style="color: ${balance > 0.01 ? '#e53e3e' : '#48bb78'};">
             <span>Balance ${balance < 0.01 ? '(PAID IN FULL)' : 'Due'}:</span>
-            <span>$${balance.toFixed(2)}</span>
+            <span>$${formatMoney(balance)}</span>
         </div>
         ` : ''}
     </div>
