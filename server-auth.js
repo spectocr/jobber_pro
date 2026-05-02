@@ -1030,7 +1030,11 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
 // Quotes API
 app.get('/api/quotes', isAuthenticated, async (req, res) => {
     const quotes = await db.collection('quotes').find().sort({ createdAt: -1 }).toArray();
-    const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
+    const quotesWithId = quotes.map(q => ({
+        ...q,
+        id: q._id.toString(),
+        clientId: q.clientId ? q.clientId.toString() : null
+    }));
     res.json(quotesWithId);
 });
 
