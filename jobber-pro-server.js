@@ -110,6 +110,28 @@ class DataManager {
                 .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
                 .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
 
+            // Accounts Receivable - all unpaid balances
+            totalAccountsReceivable: jobs
+                .filter(j => j.status === 'completed' || j.status === 'invoiced')
+                .reduce((sum, j) => {
+                    const total = parseFloat(j.total) || 0;
+                    const paid = parseFloat(j.totalPaid) || 0;
+                    return sum + Math.max(0, total - paid);
+                }, 0),
+
+            accountsReceivableJobs: jobs
+                .filter(j => {
+                    if (j.status !== 'completed' && j.status !== 'invoiced') return false;
+                    const total = parseFloat(j.total) || 0;
+                    const paid = parseFloat(j.totalPaid) || 0;
+                    return total > paid;
+                })
+                .map(j => ({
+                    ...j,
+                    balanceOwed: (parseFloat(j.total) || 0) - (parseFloat(j.totalPaid) || 0)
+                }))
+                .sort((a, b) => b.balanceOwed - a.balanceOwed),
+
             // Three tile categories
             upcomingJobs: jobs
                 .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
@@ -1141,6 +1163,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h3>Bid Lost</h3>
                     <div class="value" id="stat-bid-lost">0</div>
                 </div>
+                <div class="stat-card" style="border-left-color: #e53e3e;">
+                    <h3>Accounts Receivable</h3>
+                    <div class="value" id="stat-ar">$0</div>
+                </div>
             </div>
 
             <!-- Job Status Tiles -->
@@ -1167,6 +1193,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <h2>✅ Completed <span id="completed-count" style="color: #718096; font-size: 0.9em;">(0)</span></h2>
                     </div>
                     <div id="completed-jobs-list"></div>
+                </div>
+
+                <!-- Accounts Receivable Tile -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>💰 Accounts Receivable <span id="ar-count" style="color: #718096; font-size: 0.9em;">(0)</span></h2>
+                    </div>
+                    <div id="ar-jobs-list"></div>
                 </div>
             </div>
         </div>
@@ -4060,6 +4094,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-completed').textContent = stats.completed;
             document.getElementById('stat-invoiced').textContent = stats.invoiced;
             document.getElementById('stat-bid-lost').textContent = stats.bidLost;
+            document.getElementById('stat-ar').textContent = formatMoney(stats.totalAccountsReceivable || 0);
 
             // Render job list helper function
             const renderJobList = (jobs, emptyMessage) => {
@@ -4103,6 +4138,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('completed-count').textContent = '(' + (stats.completedLast30Days?.length || 0) + ')';
             document.getElementById('completed-jobs-list').innerHTML =
                 renderJobList(stats.completedLast30Days, 'No completed jobs');
+
+            // Accounts Receivable tile
+            document.getElementById('ar-count').textContent = '(' + (stats.accountsReceivableJobs?.length || 0) + ')';
+            const arJobs = stats.accountsReceivableJobs || [];
+            if (arJobs.length === 0) {
+                document.getElementById('ar-jobs-list').innerHTML = '<div class="empty-state" style="padding: 2rem;"><p style="color: #a0aec0;">No outstanding balances</p></div>';
+            } else {
+                document.getElementById('ar-jobs-list').innerHTML = '<div style="max-height: 400px; overflow-y: auto;"><table style="font-size: 0.875rem;"><tbody>' +
+                    arJobs.map(j => {
+                        const client = findClient(j.clientId);
+                        const balanceOwed = j.balanceOwed || 0;
+                        return `<tr style="cursor: pointer; border-bottom: 1px solid #e2e8f0;" onclick="editJob('${j.id}')">
+                            <td style="padding: 0.75rem;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">${j.title}</div>
+                                <div style="font-size: 0.75rem; color: #718096;">
+                                    ${client ? client.name : 'Unknown'} • ${j.scheduledDate || 'No date'}
+                                </div>
+                            </td>
+                            <td style="padding: 0.75rem; text-align: right;">
+                                <div style="font-weight: 700; color: #e53e3e; font-size: 1rem;">${formatMoney(balanceOwed)}</div>
+                                <div style="font-size: 0.7rem; color: #718096;">owed</div>
+                            </td>
+                        </tr>`;
+                    }).join('') +
+                    '</tbody></table></div>';
+            }
             } catch (error) {
                 console.error('Failed to load dashboard:', error);
             }
