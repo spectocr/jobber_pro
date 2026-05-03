@@ -118,8 +118,8 @@ class EmailService {
     }
 
     async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName, customSubject, customBody }) {
-        const subjectTemplate = customSubject || `Invoice #{invoiceNumber} from {companyName}`;
-        const bodyTemplate = customBody || `Dear {clientName},\n\nThank you for your business! Your invoice is ready.\n\nInvoice #{invoiceNumber}\nJob: {jobTitle}\nTotal: $${parseFloat(total).toFixed(2)}\n\nView your invoice: {invoiceUrl}\n\nThank you for choosing {companyName}!`;
+        const subjectTemplate = customSubject || `Your job summary from {companyName} — {jobTitle}`;
+        const bodyTemplate = customBody || `Hi {clientName},\n\nGreat news — your job is complete! Here's a summary of the work done.\n\nJob: {jobTitle}\nAmount due: ${parseFloat(total).toFixed(2)}\nReference: #{invoiceNumber}\n\nYou can view the full details and print a copy here:\n{invoiceUrl}\n\nThanks for choosing {companyName}. We appreciate your business!\n\nIf you have any questions, just reply to this email.`;
 
         const variables = { clientName, invoiceNumber, jobTitle, total: parseFloat(total).toFixed(2), invoiceUrl, companyName };
         const subject = this.replaceVariables(subjectTemplate, variables);
@@ -129,20 +129,26 @@ class EmailService {
 <html>
 <head>
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #667eea; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-radius: 0 0 8px 8px; }
-        .footer { text-align: center; color: #888; font-size: 12px; margin-top: 30px; }
+        body { font-family: Arial, sans-serif; line-height: 1.8; color: #222; background: #fff; }
+        .container { max-width: 580px; margin: 0 auto; padding: 30px 20px; }
+        .summary { background: #f7f9fc; border-left: 4px solid #667eea; padding: 16px 20px; margin: 24px 0; border-radius: 0 8px 8px 0; }
+        .summary p { margin: 4px 0; }
+        a { color: #667eea; }
+        .footer { color: #999; font-size: 12px; margin-top: 40px; border-top: 1px solid #eee; padding-top: 16px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header"><h1>Invoice from ${companyName}</h1></div>
-        <div class="content">
-            <div style="white-space: pre-wrap; line-height: 1.6;">${textBody.replace(/\n/g, '<br>')}</div>
+        <p>Hi ${clientName},</p>
+        <p>Your job is complete. Here's a summary of the work done by ${companyName}.</p>
+        <div class="summary">
+            <p><strong>Job:</strong> ${jobTitle}</p>
+            <p><strong>Amount due:</strong> $${parseFloat(total).toFixed(2)}</p>
+            <p><strong>Reference:</strong> #${invoiceNumber}</p>
         </div>
-        <div class="footer"><p>${companyName}</p></div>
+        <p><a href="${invoiceUrl}">View full details and print a copy</a></p>
+        <p>Thanks for choosing ${companyName}. If you have any questions just reply to this email.</p>
+        <div class="footer">${companyName}</div>
     </div>
 </body>
 </html>`;
