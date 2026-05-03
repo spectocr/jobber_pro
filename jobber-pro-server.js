@@ -457,6 +457,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             color: #4a5568;
         }
 
+        .status-to_be_scheduled {
+            background: #fefcbf;
+            color: #744210;
+        }
+
         .settings-tab {
             padding: 0.75rem 1.5rem;
             background: none;
@@ -690,6 +695,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         .calendar-job:hover {
             background: #5568d3;
         }
+        .calendar-job.to_be_scheduled { background: #d69e2e; }
         .calendar-job.in_progress { background: #ed8936; }
         .calendar-job.completed { background: #48bb78; }
         .calendar-job.invoiced { background: #9f7aea; }
@@ -1143,6 +1149,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h3>Prospecting</h3>
                     <div class="value" id="stat-prospecting">0</div>
                 </div>
+                <div class="stat-card" style="border-left-color: #d69e2e;">
+                    <h3>To Be Scheduled</h3>
+                    <div class="value" id="stat-to-be-scheduled">0</div>
+                </div>
                 <div class="stat-card" style="border-left-color: #4299e1;">
                     <h3>Scheduled</h3>
                     <div class="value" id="stat-scheduled">0</div>
@@ -1342,6 +1352,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="">All Statuses</option>
                             <option value="ACTIVE_WORK" selected>🔥 Active Work (excludes completed)</option>
                             <option value="prospecting">Prospecting</option>
+                            <option value="to_be_scheduled">To Be Scheduled</option>
                             <option value="scheduled">Scheduled</option>
                             <option value="in_progress">In Progress</option>
                             <option value="completed">Completed</option>
@@ -2220,6 +2231,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Status *</label>
                         <select name="status" required>
                             <option value="prospecting">Prospecting</option>
+                            <option value="to_be_scheduled">To Be Scheduled</option>
                             <option value="scheduled">Scheduled</option>
                             <option value="in_progress">In Progress</option>
                             <option value="completed">Completed</option>
@@ -4288,6 +4300,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-jobs-today').textContent = stats.jobsToday;
 
             document.getElementById('stat-prospecting').textContent = stats.prospecting;
+            document.getElementById('stat-to-be-scheduled').textContent = stats.toBeScheduled;
             document.getElementById('stat-scheduled').textContent = stats.scheduled;
             document.getElementById('stat-in-progress').textContent = stats.inProgress;
             document.getElementById('stat-completed').textContent = stats.completed;
@@ -5937,6 +5950,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </thead>
                     <tbody>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Prospecting</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.prospecting || 0}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.prospecting || 0) / total * 100).toFixed(1)}%</td></tr>
+                        <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">To Be Scheduled</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.to_be_scheduled || 0}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.to_be_scheduled || 0) / total * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Scheduled</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.scheduled}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.scheduled / total) * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">In Progress</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.in_progress}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.in_progress / total) * 100).toFixed(1)}%</td></tr>
                         <tr><td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Completed</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${statusCounts.completed}</td><td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${((statusCounts.completed / total) * 100).toFixed(1)}%</td></tr>

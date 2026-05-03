@@ -1084,6 +1084,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         jobsToday: jobsMapped.filter(j => j.scheduledDate === today).length,
         jobsThisMonth: jobsMapped.filter(j => j.scheduledDate && j.scheduledDate.startsWith(thisMonth)).length,
         prospecting: jobsMapped.filter(j => j.status === 'prospecting').length,
+        toBeScheduled: jobsMapped.filter(j => j.status === 'to_be_scheduled').length,
         scheduled: jobsMapped.filter(j => j.status === 'scheduled').length,
         inProgress: jobsMapped.filter(j => j.status === 'in_progress').length,
         completed: jobsMapped.filter(j => j.status === 'completed').length,
