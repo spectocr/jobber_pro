@@ -2074,14 +2074,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 <!-- User Management Tab (Admin Only) -->
                 <div id="usersTab-content" class="settings-tab-content" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h3 style="margin: 0; color: #667eea;">User Management</h3>
-                        <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+                    <h3 style="margin: 0 0 1rem 0; color: #667eea;">User Management</h3>
+
+                    <!-- Sub-tabs -->
+                    <div style="display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0;">
+                        <button id="umTab-business" onclick="switchUserMgmtTab('business')" style="padding: 0.6rem 1.25rem; background: none; border: none; border-bottom: 3px solid #667eea; color: #667eea; font-weight: 600; cursor: pointer; font-size: 0.95rem; margin-bottom: -2px;">🏢 Business Users</button>
+                        <button id="umTab-portal" onclick="switchUserMgmtTab('portal')" style="padding: 0.6rem 1.25rem; background: none; border: none; border-bottom: 3px solid transparent; color: #718096; font-weight: 600; cursor: pointer; font-size: 0.95rem; margin-bottom: -2px;">🏠 Client Portal Users</button>
                     </div>
-                    <div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 1rem;">
-                        <strong>⚠️ Important:</strong> User's full name must exactly match their Team Member name for Time Clock job assignments to work.
+
+                    <!-- Business Users panel -->
+                    <div id="umPanel-business">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <span style="color: #718096; font-size: 0.9rem;">Staff and admin accounts that log into the app.</span>
+                            <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+                        </div>
+                        <div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 1rem;">
+                            <strong>⚠️ Important:</strong> User's full name must exactly match their Team Member name for Time Clock job assignments to work.
+                        </div>
+                        <div id="usersList"></div>
                     </div>
-                    <div id="usersList"></div>
+
+                    <!-- Client Portal Users panel -->
+                    <div id="umPanel-portal" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <span style="color: #718096; font-size: 0.9rem;">Clients with access to the client portal.</span>
+                        </div>
+                        <div id="portalUsersList"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -6736,6 +6755,81 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 console.error('Failed to load users:', response.status);
             }
+        }
+
+        function switchUserMgmtTab(tab) {
+            const tabs = ['business', 'portal'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(\`umTab-\${t}\`);
+                const panel = document.getElementById(\`umPanel-\${t}\`);
+                if (t === tab) {
+                    btn.style.borderBottomColor = '#667eea';
+                    btn.style.color = '#667eea';
+                    panel.style.display = '';
+                } else {
+                    btn.style.borderBottomColor = 'transparent';
+                    btn.style.color = '#718096';
+                    panel.style.display = 'none';
+                }
+            });
+            if (tab === 'portal') loadPortalUsers();
+        }
+
+        async function loadPortalUsers() {
+            const container = document.getElementById('portalUsersList');
+            try {
+                const response = await fetch('/api/clients');
+                const allClients = await response.json();
+                const portalClients = allClients.filter(c => c.portalPassword);
+
+                if (portalClients.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;"><p>No clients have portal access yet.</p><p style="font-size:0.9rem;margin-top:0.5rem;">Enable portal access when editing a client, then send them the portal email.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = \`
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f8f9fa;border-bottom:2px solid #e2e8f0;">
+                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Client</th>
+                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Email</th>
+                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Phone</th>
+                                <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            \${portalClients.map(c => \`
+                                <tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+                                    <td style="padding:0.85rem 1rem;font-weight:500;color:#2d3748;">\${c.name}</td>
+                                    <td style="padding:0.85rem 1rem;color:#718096;">\${c.email || '—'}</td>
+                                    <td style="padding:0.85rem 1rem;color:#718096;">\${c.phone || '—'}</td>
+                                    <td style="padding:0.85rem 1rem;text-align:right;">
+                                        \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Resend Email</button>\` : ''}
+                                        <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name}')" title="Remove portal access">Revoke</button>
+                                    </td>
+                                </tr>
+                            \`).join('')}
+                        </tbody>
+                    </table>
+                    <p style="margin-top:0.75rem;color:#a0aec0;font-size:0.8rem;text-align:right;">\${portalClients.length} client\${portalClients.length !== 1 ? 's' : ''} with portal access</p>
+                \`;
+            } catch (error) {
+                container.innerHTML = '<p style="color:#e53e3e;padding:1rem;">Failed to load portal users</p>';
+            }
+        }
+
+        async function revokePortalAccess(clientId, clientName) {
+            if (!confirm(\`Remove portal access for \${clientName}? They will no longer be able to log into the client portal.\`)) return;
+            const client = clients.find(c => c.id === clientId);
+            if (!client) return;
+            const updated = { ...client, _id: clientId, portalPassword: null };
+            await fetch('/api/clients', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updated)
+            });
+            await loadClients();
+            loadPortalUsers();
         }
 
         function showAddUserModal() {
