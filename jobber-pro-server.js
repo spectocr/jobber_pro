@@ -3266,21 +3266,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (matches.length === 0) {
                 dropdown.innerHTML = '<div style="padding:0.75rem 1rem;color:#718096;">No clients found</div>';
             } else {
-                dropdown.innerHTML = matches.slice(0, 20).map(c =>
-                    \`<div onmousedown="selectJobClient('\${c.id}', \${JSON.stringify(c.name).replace(/'/g, "\\\\'")})"
-                          style="padding:0.75rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;"
-                          onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
-                        <span style="font-weight:500;">\${c.name}</span>
-                        \${c.phone ? \`<span style="color:#a0aec0;font-size:0.85rem;margin-left:0.5rem;">\${c.phone}</span>\` : ''}
-                    </div>\`
-                ).join('');
+                dropdown.innerHTML = matches.slice(0, 20).map(c => {
+                    const phone = c.phone ? ' — ' + c.phone : '';
+                    return '<div onmousedown="selectJobClient(\'' + c.id + '\')" style="padding:0.75rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'\'"><span style="font-weight:500;">' + c.name + '</span><span style="color:#a0aec0;font-size:0.85rem;">' + phone + '</span></div>';
+                }).join('');
             }
             dropdown.style.display = 'block';
         }
 
-        function selectJobClient(clientId, clientName) {
+        function selectJobClient(clientId) {
+            const client = clients.find(c => c.id == clientId);
             document.getElementById('jobClientSelect').value = clientId;
-            document.getElementById('jobClientInput').value = clientName;
+            document.getElementById('jobClientInput').value = client ? client.name : '';
             document.getElementById('clientTypeaheadDropdown').style.display = 'none';
             handleClientChange();
         }
