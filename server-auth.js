@@ -244,7 +244,7 @@ const LOGIN_HTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Jobber Pro</title>
+    <title>Login - {{APP_NAME}}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -338,7 +338,7 @@ const LOGIN_HTML = `<!DOCTYPE html>
 </head>
 <body>
     <div class="login-container">
-        <h1>⚡ Jobber Pro</h1>
+        <h1>⚡ {{APP_NAME}}</h1>
         <p>Sign in to your account</p>
 
         <div id="error" class="error"></div>
@@ -414,18 +414,28 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Function to setup routes (called after session middleware is ready)
 function setupRoutes() {
 // Routes
-app.get('/login', (req, res) => {
+async function buildAuthHtml(html) {
+    try {
+        const settings = await db.collection('settings').findOne({});
+        const appName = settings?.appName || 'GSD Handyman Service';
+        return html.replace(/\{\{APP_NAME\}\}/g, appName);
+    } catch {
+        return html.replace(/\{\{APP_NAME\}\}/g, 'GSD Handyman Service');
+    }
+}
+
+app.get('/login', async (req, res) => {
     if (req.session.userId) {
         return res.redirect('/');
     }
-    res.send(LOGIN_HTML);
+    res.send(await buildAuthHtml(LOGIN_HTML));
 });
 
-app.get('/register', (req, res) => {
+app.get('/register', async (req, res) => {
     if (req.session.userId) {
         return res.redirect('/');
     }
-    res.send(REGISTER_HTML);
+    res.send(await buildAuthHtml(REGISTER_HTML));
 });
 
 app.post('/api/auth/register', async (req, res) => {
