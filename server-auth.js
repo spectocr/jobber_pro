@@ -1171,9 +1171,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
         const companyName = settings?.companyName || 'Your Company';
 
         // Get portal URL
-        const portalUrl = req.get('host')
-            ? `https://${req.get('host')}/client-login`
-            : `https://app.gsdhandymanservice.com/client-login`;
+        const portalUrl = `${process.env.APP_URL}/client-login`;
 
         // Note: We cannot retrieve the plaintext password since it's hashed
         // So we include instructions to contact support if they forgot it
@@ -1571,9 +1569,7 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         const companyName = settings?.companyName || 'Your Company';
 
         // Get quote URL
-        const quoteUrl = req.get('host')
-            ? `https://${req.get('host')}/quote-view/${quote.secureToken}`
-            : `https://app.gsdhandymanservice.com/quote-view/${quote.secureToken}`;
+        const quoteUrl = `${process.env.APP_URL}/quote-view/${quote.secureToken}`;
 
         // Send email
         const subject = `Quote #${quote.quoteNumber} from ${companyName}`;
@@ -2001,9 +1997,7 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
         const tempPassword = user.tempPassword || 'ChangeMe123!';
 
         // Get login URL - use request host or fallback to Heroku domain
-        const loginUrl = req.get('host')
-            ? `https://${req.get('host')}/`
-            : `https://app.gsdhandymanservice.com/`;
+        const loginUrl = `${process.env.APP_URL}/`;
 
         // Get custom email templates if configured
         const customSubject = settings?.emailTemplates?.credentialsSubject;
@@ -2057,9 +2051,7 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
         const invoiceNumber = job.invoiceNumber || `INV-${job._id.toString().slice(-8).toUpperCase()}`;
 
         // Get invoice URL - use request host or fallback to Heroku domain
-        const invoiceUrl = req.get('host')
-            ? `https://${req.get('host')}/invoice/${job._id}`
-            : `https://app.gsdhandymanservice.com/invoice/${job._id}`;
+        const invoiceUrl = `${process.env.APP_URL}/invoice/${job._id}`;
 
         // Get custom email templates if configured
         const customSubject = settings?.emailTemplates?.invoiceSubject;
