@@ -1173,7 +1173,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
         // Get portal URL
         const portalUrl = req.get('host')
             ? `https://${req.get('host')}/client-login`
-            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/client-login`;
+            : `https://app.gsdhandymanservice.com/client-login`;
 
         // Note: We cannot retrieve the plaintext password since it's hashed
         // So we include instructions to contact support if they forgot it
@@ -1573,7 +1573,7 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         // Get quote URL
         const quoteUrl = req.get('host')
             ? `https://${req.get('host')}/quote-view/${quote.secureToken}`
-            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/quote-view/${quote.secureToken}`;
+            : `https://app.gsdhandymanservice.com/quote-view/${quote.secureToken}`;
 
         // Send email
         const subject = `Quote #${quote.quoteNumber} from ${companyName}`;
@@ -2003,7 +2003,7 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
         // Get login URL - use request host or fallback to Heroku domain
         const loginUrl = req.get('host')
             ? `https://${req.get('host')}/`
-            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/`;
+            : `https://app.gsdhandymanservice.com/`;
 
         // Get custom email templates if configured
         const customSubject = settings?.emailTemplates?.credentialsSubject;
@@ -2059,7 +2059,7 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
         // Get invoice URL - use request host or fallback to Heroku domain
         const invoiceUrl = req.get('host')
             ? `https://${req.get('host')}/invoice/${job._id}`
-            : `https://jobber-pro-app-1e22b180e222.herokuapp.com/invoice/${job._id}`;
+            : `https://app.gsdhandymanservice.com/invoice/${job._id}`;
 
         // Get custom email templates if configured
         const customSubject = settings?.emailTemplates?.invoiceSubject;
