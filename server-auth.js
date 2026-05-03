@@ -3261,6 +3261,11 @@ app.post('/api/client-portal/login', async (req, res) => {
         req.session.clientName = client.name;
         req.session.isClientPortal = true;
 
+        await db.collection('clients').updateOne(
+            { _id: client._id },
+            { $set: { lastPortalLogin: new Date() } }
+        );
+
         res.json({ success: true });
     } catch (error) {
         console.error('Client portal login error:', error);

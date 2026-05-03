@@ -6794,21 +6794,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Client</th>
                                 <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Email</th>
                                 <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Phone</th>
+                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Last Portal Login</th>
                                 <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            \${portalClients.map(c => \`
+                            \${portalClients.map(c => {
+                                const lastLogin = c.lastPortalLogin
+                                    ? new Date(c.lastPortalLogin).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                                    : '<span style="color:#a0aec0;">Never</span>';
+                                return \`
                                 <tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
                                     <td style="padding:0.85rem 1rem;font-weight:500;color:#2d3748;">\${c.name}</td>
                                     <td style="padding:0.85rem 1rem;color:#718096;">\${c.email || '—'}</td>
                                     <td style="padding:0.85rem 1rem;color:#718096;">\${c.phone || '—'}</td>
+                                    <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${lastLogin}</td>
                                     <td style="padding:0.85rem 1rem;text-align:right;">
                                         \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Resend Email</button>\` : ''}
                                         <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name}')" title="Remove portal access">Revoke</button>
                                     </td>
-                                </tr>
-                            \`).join('')}
+                                </tr>\`;
+                            }).join('')}
                         </tbody>
                     </table>
                     <p style="margin-top:0.75rem;color:#a0aec0;font-size:0.8rem;text-align:right;">\${portalClients.length} client\${portalClients.length !== 1 ? 's' : ''} with portal access</p>
