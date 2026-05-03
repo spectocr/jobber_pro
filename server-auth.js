@@ -359,9 +359,6 @@ const LOGIN_HTML = `<!DOCTYPE html>
         <div class="register-link" style="margin-top: 1rem;">
             <a href="/forgot-password" style="color: #667eea; text-decoration: none; font-size: 0.9rem;">Forgot your password?</a>
         </div>
-        <div class="register-link">
-            Don't have an account? <a href="/register">Sign up</a>
-        </div>
     </div>
 
     <script>
@@ -574,12 +571,7 @@ app.get('/login', async (req, res) => {
     res.send(await buildAuthHtml(LOGIN_HTML));
 });
 
-app.get('/register', async (req, res) => {
-    if (req.session.userId) {
-        return res.redirect('/');
-    }
-    res.send(await buildAuthHtml(REGISTER_HTML));
-});
+app.get('/register', (req, res) => res.redirect('/login'));
 
 app.get('/forgot-password', (req, res) => res.send(FORGOT_PASSWORD_HTML));
 app.get('/reset-password', (req, res) => res.send(RESET_PASSWORD_HTML));
@@ -653,53 +645,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
 });
 
-app.post('/api/auth/register', async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
-
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: 'All fields are required' });
-        }
-
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters' });
-        }
-
-        // Check if user exists
-        const existing = await db.collection('users').findOne({ email: email.toLowerCase() });
-        if (existing) {
-            return res.status(400).json({ error: 'Email already registered' });
-        }
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create user
-        const result = await db.collection('users').insertOne({
-            name,
-            email: email.toLowerCase(),
-            password: hashedPassword,
-            role: 'user',
-            createdAt: new Date()
-        });
-
-        req.session.userId = result.insertedId;
-        req.session.userEmail = email;
-        req.session.userName = name;
-
-        // Save session before responding
-        req.session.save((err) => {
-            if (err) {
-                console.error('Session save error:', err);
-                return res.status(500).json({ error: 'Registration failed' });
-            }
-            res.json({ success: true });
-        });
-    } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ error: 'Registration failed' });
-    }
-});
+app.post('/api/auth/register', (req, res) => res.status(403).json({ error: 'Registration is not available' }));
 
 app.post('/api/auth/login', async (req, res) => {
     try {
