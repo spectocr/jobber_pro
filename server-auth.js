@@ -11,6 +11,7 @@ const MongoStore = require('connect-mongo');
 const bcrypt = require('bcrypt');
 const { MongoClient, ObjectId } = require('mongodb');
 const { exec } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const twilio = require('twilio');
@@ -355,6 +356,9 @@ const LOGIN_HTML = `<!DOCTYPE html>
             <button type="submit" class="btn">Sign In</button>
         </form>
 
+        <div class="register-link" style="margin-top: 1rem;">
+            <a href="/forgot-password" style="color: #667eea; text-decoration: none; font-size: 0.9rem;">Forgot your password?</a>
+        </div>
         <div class="register-link">
             Don't have an account? <a href="/register">Sign up</a>
         </div>
@@ -401,6 +405,145 @@ const REGISTER_HTML = LOGIN_HTML.replace('Sign in to your account', 'Create your
     .replace("Don't have an account? <a href=\"/register\">Sign up</a>", 'Already have an account? <a href="/login">Sign in</a>')
     .replace('<input type="email" id="email"', '<div class="form-group"><label for="name">Full Name</label><input type="text" id="name" name="name" required></div><div class="form-group"><label for="email">Email Address</label><input type="email" id="email"');
 
+const FORGOT_PASSWORD_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .container { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 400px; }
+        h1 { color: #667eea; margin-bottom: 0.5rem; font-size: 1.75rem; }
+        p { color: #718096; margin-bottom: 1.5rem; font-size: 0.95rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #4a5568; font-weight: 600; }
+        input { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; margin-bottom: 1.5rem; }
+        input:focus { outline: none; border-color: #667eea; }
+        .btn { width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .message { padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
+        .message.success { background: #f0fff4; border: 1px solid #9ae6b4; color: #276749; display: block; }
+        .message.error { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; display: block; }
+        .back { text-align: center; margin-top: 1.5rem; }
+        .back a { color: #667eea; text-decoration: none; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reset Password</h1>
+        <p>Enter your email and we'll send you a link to reset your password.</p>
+        <div id="message" class="message"></div>
+        <form id="forgotForm">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" required autocomplete="email" placeholder="you@example.com">
+            <button type="submit" class="btn">Send Reset Link</button>
+        </form>
+        <div class="back"><a href="/login">← Back to sign in</a></div>
+    </div>
+    <script>
+        document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('message');
+            msg.className = 'message';
+            try {
+                const res = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: document.getElementById('email').value })
+                });
+                msg.className = 'message success';
+                msg.textContent = 'If that email exists, a reset link has been sent. Check your inbox.';
+                document.getElementById('forgotForm').style.display = 'none';
+            } catch (err) {
+                msg.className = 'message error';
+                msg.textContent = 'Something went wrong. Please try again.';
+            }
+        });
+    </script>
+</body>
+</html>`;
+
+const RESET_PASSWORD_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set New Password</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .container { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 400px; }
+        h1 { color: #667eea; margin-bottom: 0.5rem; font-size: 1.75rem; }
+        p { color: #718096; margin-bottom: 1.5rem; font-size: 0.95rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #4a5568; font-weight: 600; }
+        .form-group { margin-bottom: 1.25rem; }
+        input { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; }
+        input:focus { outline: none; border-color: #667eea; }
+        .btn { width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+        .message { padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
+        .message.success { background: #f0fff4; border: 1px solid #9ae6b4; color: #276749; display: block; }
+        .message.error { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; display: block; }
+        .back { text-align: center; margin-top: 1.5rem; }
+        .back a { color: #667eea; text-decoration: none; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Set New Password</h1>
+        <p>Choose a strong password for your account.</p>
+        <div id="message" class="message"></div>
+        <form id="resetForm">
+            <div class="form-group">
+                <label for="password">New Password</label>
+                <input type="password" id="password" required minlength="8" placeholder="At least 8 characters">
+            </div>
+            <div class="form-group">
+                <label for="confirm">Confirm Password</label>
+                <input type="password" id="confirm" required placeholder="Repeat your password">
+            </div>
+            <button type="submit" class="btn">Set Password</button>
+        </form>
+        <div class="back"><a href="/login">← Back to sign in</a></div>
+    </div>
+    <script>
+        const token = new URLSearchParams(window.location.search).get('token');
+        if (!token) window.location.href = '/login';
+
+        document.getElementById('resetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('message');
+            const password = document.getElementById('password').value;
+            const confirm = document.getElementById('confirm').value;
+            if (password !== confirm) {
+                msg.className = 'message error';
+                msg.textContent = 'Passwords do not match.';
+                return;
+            }
+            try {
+                const res = await fetch('/api/auth/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    msg.className = 'message success';
+                    msg.textContent = 'Password updated! Redirecting to login...';
+                    document.getElementById('resetForm').style.display = 'none';
+                    setTimeout(() => window.location.href = '/login', 2000);
+                } else {
+                    msg.className = 'message error';
+                    msg.textContent = data.error || 'Reset failed. The link may have expired.';
+                }
+            } catch (err) {
+                msg.className = 'message error';
+                msg.textContent = 'Something went wrong. Please try again.';
+            }
+        });
+    </script>
+</body>
+</html>`;
+
 // Start Express app
 const app = express();
 
@@ -436,6 +579,78 @@ app.get('/register', async (req, res) => {
         return res.redirect('/');
     }
     res.send(await buildAuthHtml(REGISTER_HTML));
+});
+
+app.get('/forgot-password', (req, res) => res.send(FORGOT_PASSWORD_HTML));
+app.get('/reset-password', (req, res) => res.send(RESET_PASSWORD_HTML));
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email required' });
+
+        const user = await db.collection('users').findOne({ email: email.toLowerCase() });
+        // Always return success to avoid user enumeration
+        if (!user) return res.json({ success: true });
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+        await db.collection('users').updateOne(
+            { _id: user._id },
+            { $set: { resetToken: token, resetTokenExpiry: expiry } }
+        );
+
+        const settings = await db.collection('settings').findOne({});
+        const appName = settings?.appName || 'GSD Handyman Service';
+        const resetUrl = `${process.env.APP_URL}/reset-password?token=${token}`;
+
+        await emailService.sendEmail({
+            to: user.email,
+            subject: `${appName} — Password Reset`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:2rem;">
+                <h2 style="color:#667eea;">Reset Your Password</h2>
+                <p>Hi ${user.name},</p>
+                <p>Click the button below to reset your password. This link expires in 1 hour.</p>
+                <div style="text-align:center;margin:2rem 0;">
+                    <a href="${resetUrl}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:0.875rem 2rem;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a>
+                </div>
+                <p style="color:#718096;font-size:0.85rem;">If you didn't request this, you can safely ignore this email.</p>
+            </div>`,
+            text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour.`
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ error: 'Failed to send reset email' });
+    }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) return res.status(400).json({ error: 'Token and password required' });
+        if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+        const user = await db.collection('users').findOne({
+            resetToken: token,
+            resetTokenExpiry: { $gt: new Date() }
+        });
+
+        if (!user) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
+
+        const hashed = await bcrypt.hash(password, 10);
+        await db.collection('users').updateOne(
+            { _id: user._id },
+            { $set: { password: hashed }, $unset: { resetToken: '', resetTokenExpiry: '', tempPassword: '' } }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
 });
 
 app.post('/api/auth/register', async (req, res) => {
