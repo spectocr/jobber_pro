@@ -8691,7 +8691,7 @@ const handleRequest = async (req, res) => {
 
     <div class="footer">
         <p>Thank you for your business!</p>
-        <p>Please remit payment within 30 days.</p>
+        <p>Please remit payment within 3 days.</p>
     </div>
 </body>
 </html>`;
