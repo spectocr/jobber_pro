@@ -2242,10 +2242,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <input type="hidden" name="id">
                     <div class="form-group">
                         <label>Client *</label>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <select name="clientId" required id="jobClientSelect" onchange="handleClientChange()" style="flex: 1;">
-                                <option value="">Select a client...</option>
-                            </select>
+                        <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                            <div style="position: relative; flex: 1;">
+                                <input type="text" id="jobClientInput" placeholder="Type to search clients..." autocomplete="off" oninput="filterClientTypeahead()" onfocus="filterClientTypeahead()" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+                                <input type="hidden" name="clientId" id="jobClientSelect">
+                                <div id="clientTypeaheadDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:2px solid #667eea; border-top:none; border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
+                            </div>
                             <button type="button" class="btn btn-secondary" onclick="openClientModalFromJob()" style="white-space: nowrap;">+ Add Client</button>
                         </div>
                     </div>
@@ -3069,6 +3071,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     console.log('No attachments in job data');
                 }
 
+                // Sync typeahead text input with the loaded clientId
+                const loadedClientId = form.elements['clientId'] && form.elements['clientId'].value;
+                if (loadedClientId) {
+                    const loadedClient = clients.find(c => c.id == loadedClientId || c._id == loadedClientId);
+                    if (loadedClient) document.getElementById('jobClientInput').value = loadedClient.name;
+                }
+
                 // Trigger client change to populate service locations
                 handleClientChange();
 
@@ -3080,6 +3089,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
+                document.getElementById('jobClientInput').value = '';
+                document.getElementById('clientTypeaheadDropdown').style.display = 'none';
                 document.getElementById('serviceLocationGroup').style.display = 'none';
             }
 
@@ -3241,12 +3252,54 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function populateJobSelects() {
-            const clientSelect = document.getElementById('jobClientSelect');
             const teamSelect = document.getElementById('jobTeamSelect');
-
-            populateDropdown(clientSelect, clients, 'id', 'name', 'Select a client...');
             populateDropdown(teamSelect, team.filter(t => t.active), 'id', 'name', 'Unassigned');
         }
+
+        function filterClientTypeahead() {
+            const q = document.getElementById('jobClientInput').value.toLowerCase();
+            const dropdown = document.getElementById('clientTypeaheadDropdown');
+            const matches = q
+                ? clients.filter(c => c.name.toLowerCase().includes(q) || (c.phone || '').includes(q))
+                : clients;
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = '<div style="padding:0.75rem 1rem;color:#718096;">No clients found</div>';
+            } else {
+                dropdown.innerHTML = matches.slice(0, 20).map(c =>
+                    \`<div onmousedown="selectJobClient('\${c.id}', \${JSON.stringify(c.name).replace(/'/g, "\\\\'")})"
+                          style="padding:0.75rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;"
+                          onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+                        <span style="font-weight:500;">\${c.name}</span>
+                        \${c.phone ? \`<span style="color:#a0aec0;font-size:0.85rem;margin-left:0.5rem;">\${c.phone}</span>\` : ''}
+                    </div>\`
+                ).join('');
+            }
+            dropdown.style.display = 'block';
+        }
+
+        function selectJobClient(clientId, clientName) {
+            document.getElementById('jobClientSelect').value = clientId;
+            document.getElementById('jobClientInput').value = clientName;
+            document.getElementById('clientTypeaheadDropdown').style.display = 'none';
+            handleClientChange();
+        }
+
+        function setJobClientById(clientId) {
+            const client = clients.find(c => c.id == clientId || c._id == clientId);
+            document.getElementById('jobClientSelect').value = clientId;
+            document.getElementById('jobClientInput').value = client ? client.name : '';
+            document.getElementById('clientTypeaheadDropdown').style.display = 'none';
+            handleClientChange();
+        }
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('jobClientInput');
+            const dropdown = document.getElementById('clientTypeaheadDropdown');
+            if (dropdown && !dropdown.contains(e.target) && e.target !== wrapper) {
+                dropdown.style.display = 'none';
+            }
+        });
 
         function togglePortalFields() {
             const enabled = document.getElementById('enablePortalAccess').checked;
@@ -3365,8 +3418,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         }
 
                         // Set the new client
-                        document.getElementById('jobClientSelect').value = savedClient.id || savedClient._id;
-                        handleClientChange();
+                        setJobClientById(savedClient.id || savedClient._id);
 
                         savedJobFormData = null;
                     }, 100);
