@@ -1237,6 +1237,19 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
             text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: Use the code provided to you\n\nIf you need your access code, please contact us.`
         });
 
+        await db.collection('email_logs').insertOne({
+            type: 'portal_access',
+            to: client.email,
+            toName: client.name,
+            subject: subject,
+            trigger: 'Portal access email sent manually',
+            relatedId: client._id,
+            relatedTitle: client.name,
+            sentBy: req.session.userName || 'admin',
+            sentAt: new Date(),
+            status: 'sent'
+        });
+
         res.json({ success: true });
     } catch (error) {
         console.error('Send portal info error:', error);
@@ -1615,6 +1628,19 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
             text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: $${parseFloat(quote.total || 0).toFixed(2)}\nValid until: ${quote.validUntil}`
         });
 
+        await db.collection('email_logs').insertOne({
+            type: 'quote',
+            to: client.email,
+            toName: client.name,
+            subject: subject,
+            trigger: `Quote #${quote.quoteNumber} — ${quote.title}`,
+            relatedId: quote._id,
+            relatedTitle: quote.title,
+            sentBy: req.session.userName || 'admin',
+            sentAt: new Date(),
+            status: 'sent'
+        });
+
         // Update quote status to sent and add audit log
         const auditEntry = {
             timestamp: new Date(),
@@ -1970,6 +1996,20 @@ app.post('/api/email/test', isAuthenticated, async (req, res) => {
         }
 
         await emailService.sendTestEmail(to);
+
+        await db.collection('email_logs').insertOne({
+            type: 'test',
+            to: to,
+            toName: to,
+            subject: 'GSD Handyman Service — Email Test',
+            trigger: 'Manual test email sent from settings',
+            relatedId: null,
+            relatedTitle: null,
+            sentBy: req.session.userName || 'admin',
+            sentAt: new Date(),
+            status: 'sent'
+        });
+
         res.json({ success: true, message: 'Test email sent' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -2012,6 +2052,19 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
             loginUrl: loginUrl,
             customSubject: customSubject,
             customBody: customBody
+        });
+
+        await db.collection('email_logs').insertOne({
+            type: 'credentials',
+            to: user.email,
+            toName: user.name,
+            subject: `Your ${companyName} Account Credentials`,
+            trigger: `Login credentials sent to team member ${user.name}`,
+            relatedId: user._id,
+            relatedTitle: user.name,
+            sentBy: req.session.userName || 'admin',
+            sentAt: new Date(),
+            status: 'sent'
         });
 
         res.json({ success: true, message: 'Credentials email sent to ' + user.email });
@@ -2070,9 +2123,36 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             customBody: customBody
         });
 
+        await db.collection('email_logs').insertOne({
+            type: 'invoice',
+            to: client.email,
+            toName: client.name,
+            subject: `Your job summary from ${companyName} — ${job.title}`,
+            trigger: `Invoice #${invoiceNumber} for job "${job.title}" — $${parseFloat(total).toFixed(2)}`,
+            relatedId: job._id,
+            relatedTitle: job.title,
+            sentBy: req.session.userName || 'admin',
+            sentAt: new Date(),
+            status: 'sent'
+        });
+
         res.json({ success: true, message: 'Invoice email sent to ' + client.email });
     } catch (error) {
         console.error('Send invoice error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Email Logs
+app.get('/api/email-logs', isAuthenticated, async (req, res) => {
+    try {
+        const logs = await db.collection('email_logs')
+            .find()
+            .sort({ sentAt: -1 })
+            .limit(500)
+            .toArray();
+        res.json(logs.map(l => ({ ...l, id: l._id.toString(), _id: l._id.toString() })));
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });

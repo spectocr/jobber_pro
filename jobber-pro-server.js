@@ -1560,12 +1560,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         <!-- Messages View -->
         <div id="messages" class="view">
-            <div class="card">
-                <div class="card-header">
-                    <h2>Client Messages</h2>
-                    <button class="btn btn-secondary" onclick="loadMessages()">🔄 Refresh</button>
+            <div style="display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0;">
+                <button id="msg-tab-inbound" onclick="switchMessagesTab('inbound')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid #667eea; color: #667eea; font-weight: 600; cursor: pointer; font-size: 1rem; margin-bottom: -2px;">💬 Client Messages</button>
+                <button id="msg-tab-outbound" onclick="switchMessagesTab('outbound')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid transparent; color: #718096; font-weight: 600; cursor: pointer; font-size: 1rem; margin-bottom: -2px;">📤 Email History</button>
+            </div>
+
+            <!-- Inbound client messages -->
+            <div id="msg-panel-inbound">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Client Messages</h2>
+                        <button class="btn btn-secondary" onclick="loadMessages()">🔄 Refresh</button>
+                    </div>
+                    <div id="messages-list"></div>
                 </div>
-                <div id="messages-list"></div>
+            </div>
+
+            <!-- Outbound email history -->
+            <div id="msg-panel-outbound" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Email History</h2>
+                        <button class="btn btn-secondary" onclick="loadEmailLogs()">🔄 Refresh</button>
+                    </div>
+                    <div style="margin-bottom: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                        <select id="email-log-filter" onchange="filterEmailLogs()" style="padding: 0.5rem 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                            <option value="">All Types</option>
+                            <option value="invoice">Invoices</option>
+                            <option value="quote">Quotes</option>
+                            <option value="credentials">Credentials</option>
+                            <option value="portal_access">Portal Access</option>
+                            <option value="test">Test Emails</option>
+                        </select>
+                        <input type="text" id="email-log-search" placeholder="🔍 Search recipient or subject..." oninput="filterEmailLogs()" style="flex: 1; min-width: 200px; padding: 0.5rem 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                    </div>
+                    <div id="email-logs-list"></div>
+                </div>
             </div>
         </div>
 
@@ -6880,6 +6910,106 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Expenses Functions
         let currentEditingExpenseId = null;
+
+        let allEmailLogs = [];
+
+        function switchMessagesTab(tab) {
+            const inboundPanel = document.getElementById('msg-panel-inbound');
+            const outboundPanel = document.getElementById('msg-panel-outbound');
+            const inboundBtn = document.getElementById('msg-tab-inbound');
+            const outboundBtn = document.getElementById('msg-tab-outbound');
+
+            if (tab === 'inbound') {
+                inboundPanel.style.display = '';
+                outboundPanel.style.display = 'none';
+                inboundBtn.style.borderBottomColor = '#667eea';
+                inboundBtn.style.color = '#667eea';
+                outboundBtn.style.borderBottomColor = 'transparent';
+                outboundBtn.style.color = '#718096';
+            } else {
+                inboundPanel.style.display = 'none';
+                outboundPanel.style.display = '';
+                outboundBtn.style.borderBottomColor = '#667eea';
+                outboundBtn.style.color = '#667eea';
+                inboundBtn.style.borderBottomColor = 'transparent';
+                inboundBtn.style.color = '#718096';
+                loadEmailLogs();
+            }
+        }
+
+        async function loadEmailLogs() {
+            try {
+                const response = await fetch('/api/email-logs');
+                allEmailLogs = await response.json();
+                filterEmailLogs();
+            } catch (error) {
+                document.getElementById('email-logs-list').innerHTML = '<p style="color:#e53e3e;padding:1rem;">Failed to load email history</p>';
+            }
+        }
+
+        function filterEmailLogs() {
+            const typeFilter = document.getElementById('email-log-filter').value;
+            const searchVal = (document.getElementById('email-log-search').value || '').toLowerCase();
+            const filtered = allEmailLogs.filter(log => {
+                const matchType = !typeFilter || log.type === typeFilter;
+                const matchSearch = !searchVal ||
+                    (log.toName || '').toLowerCase().includes(searchVal) ||
+                    (log.to || '').toLowerCase().includes(searchVal) ||
+                    (log.subject || '').toLowerCase().includes(searchVal) ||
+                    (log.trigger || '').toLowerCase().includes(searchVal);
+                return matchType && matchSearch;
+            });
+            renderEmailLogs(filtered);
+        }
+
+        function renderEmailLogs(logs) {
+            const container = document.getElementById('email-logs-list');
+            if (logs.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;"><p>No emails found</p><p style="font-size:0.9rem;margin-top:0.5rem;">Emails sent from the app will appear here</p></div>';
+                return;
+            }
+
+            const typeConfig = {
+                invoice:      { icon: '🧾', label: 'Invoice',      color: '#667eea', bg: '#ebf4ff' },
+                quote:        { icon: '📋', label: 'Quote',        color: '#38a169', bg: '#f0fff4' },
+                credentials:  { icon: '🔑', label: 'Credentials',  color: '#d69e2e', bg: '#fffff0' },
+                portal_access:{ icon: '🏠', label: 'Portal Access',color: '#805ad5', bg: '#faf5ff' },
+                test:         { icon: '🧪', label: 'Test',         color: '#718096', bg: '#f7fafc' }
+            };
+
+            container.innerHTML = \`
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f8f9fa;border-bottom:2px solid #e2e8f0;">
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:110px;">Type</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Recipient</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Triggered By</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:130px;">Sent By</th>
+                            <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;width:160px;">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${logs.map(log => {
+                            const cfg = typeConfig[log.type] || typeConfig.test;
+                            const date = new Date(log.sentAt).toLocaleString();
+                            return \`<tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+                                <td style="padding:0.85rem 1rem;">
+                                    <span style="background:\${cfg.bg};color:\${cfg.color};padding:0.25rem 0.6rem;border-radius:20px;font-size:0.8rem;font-weight:600;white-space:nowrap;">\${cfg.icon} \${cfg.label}</span>
+                                </td>
+                                <td style="padding:0.85rem 1rem;">
+                                    <div style="font-weight:500;color:#2d3748;">\${log.toName || ''}</div>
+                                    <div style="font-size:0.82rem;color:#718096;">\${log.to}</div>
+                                </td>
+                                <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${log.trigger || '—'}</td>
+                                <td style="padding:0.85rem 1rem;color:#718096;font-size:0.9rem;">\${log.sentBy || '—'}</td>
+                                <td style="padding:0.85rem 1rem;text-align:right;color:#718096;font-size:0.85rem;white-space:nowrap;">\${date}</td>
+                            </tr>\`;
+                        }).join('')}
+                    </tbody>
+                </table>
+                <p style="margin-top:0.75rem;color:#a0aec0;font-size:0.8rem;text-align:right;">\${logs.length} email\${logs.length !== 1 ? 's' : ''} shown</p>
+            \`;
+        }
 
         async function loadMessages() {
             try {
