@@ -1908,20 +1908,14 @@ app.get('/api/email/config', isAuthenticated, async (req, res) => {
     try {
         const settings = await db.collection('settings').findOne({});
 
-        const config = {
-            configured: !!(settings?.gmailClientId && settings?.gmailClientSecret && settings?.gmailRefreshToken && settings?.gmailUser),
-            gmailClientId: settings?.gmailClientId || '',
-            gmailUser: settings?.gmailUser || '',
-            // Don't send secrets to client
-            gmailClientSecret: settings?.gmailClientSecret ? 'configured' : '',
-            gmailRefreshToken: settings?.gmailRefreshToken ? 'configured' : '',
-            // Include email templates
+        res.json({
+            configured: !!(process.env.SES_ACCESS_KEY_ID && process.env.SES_SECRET_ACCESS_KEY && process.env.SES_FROM_EMAIL),
+            fromEmail: process.env.SES_FROM_EMAIL || '',
+            fromName: process.env.SES_FROM_NAME || '',
+            provider: 'AWS SES',
             templates: settings?.emailTemplates || {},
-            // Include calendar settings
             calendar: settings?.calendarSettings || {}
-        };
-
-        res.json(config);
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1931,31 +1925,18 @@ app.post('/api/email/config', isAuthenticated, async (req, res) => {
     try {
         const emailConfig = req.body;
 
-        // Get existing settings
-        const settings = await db.collection('settings').findOne({}) || {};
-
-        // Update only the fields that were provided
         const updateFields = {};
-        if (emailConfig.gmailClientId) updateFields.gmailClientId = emailConfig.gmailClientId;
-        if (emailConfig.gmailClientSecret) updateFields.gmailClientSecret = emailConfig.gmailClientSecret;
-        if (emailConfig.gmailRefreshToken) updateFields.gmailRefreshToken = emailConfig.gmailRefreshToken;
-        if (emailConfig.gmailUser) updateFields.gmailUser = emailConfig.gmailUser;
+        if (emailConfig.emailTemplates) updateFields.emailTemplates = emailConfig.emailTemplates;
+        if (emailConfig.calendarSettings) updateFields.calendarSettings = emailConfig.calendarSettings;
 
-        // Update settings in database
-        await db.collection('settings').updateOne(
-            {},
-            { $set: updateFields },
-            { upsert: true }
-        );
+        if (Object.keys(updateFields).length > 0) {
+            await db.collection('settings').updateOne(
+                {},
+                { $set: updateFields },
+                { upsert: true }
+            );
+        }
 
-        // Update environment variables for email service
-        if (updateFields.gmailClientId) process.env.GMAIL_CLIENT_ID = updateFields.gmailClientId;
-        if (updateFields.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = updateFields.gmailClientSecret;
-        if (updateFields.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = updateFields.gmailRefreshToken;
-        if (updateFields.gmailUser) process.env.GMAIL_USER = updateFields.gmailUser;
-
-        // Reinitialize email and calendar services with new credentials
-        await emailService.initialize();
         await calendarService.initialize();
 
         res.json({ success: true, message: 'Email configuration updated' });
@@ -1983,35 +1964,6 @@ app.post('/api/email/templates', isAuthenticated, async (req, res) => {
     }
 });
 
-app.post('/api/email/reveal-secrets', isAuthenticated, async (req, res) => {
-    try {
-        const { password } = req.body;
-
-        // Get current user from database
-        const user = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        // Verify password
-        const passwordMatch = await bcrypt.compare(password, user.password);
-
-        if (!passwordMatch) {
-            return res.status(401).json({ error: 'Incorrect password' });
-        }
-
-        // Get secrets from database
-        const settings = await db.collection('settings').findOne({});
-
-        res.json({
-            gmailClientSecret: settings?.gmailClientSecret || '',
-            gmailRefreshToken: settings?.gmailRefreshToken || ''
-        });
-    } catch (error) {
-        console.error('Reveal secrets error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 app.post('/api/email/test', isAuthenticated, async (req, res) => {
     try {
@@ -3390,31 +3342,17 @@ app.post('/api/client-portal/logout', (req, res) => {
 
 // Start server
 connectDB().then(async () => {
-    // Load email settings from database and set env vars
+    // Load Google Calendar OAuth credentials from database
     try {
         const settings = await db.collection('settings').findOne({});
         if (settings) {
-            if (settings.gmailClientId) {
-                process.env.GMAIL_CLIENT_ID = settings.gmailClientId;
-                console.log('📧 Loaded Gmail Client ID from database');
-            }
-            if (settings.gmailClientSecret) {
-                process.env.GMAIL_CLIENT_SECRET = settings.gmailClientSecret;
-                console.log('📧 Loaded Gmail Client Secret from database');
-            }
-            if (settings.gmailRefreshToken) {
-                process.env.GMAIL_REFRESH_TOKEN = settings.gmailRefreshToken;
-                console.log('📧 Loaded Gmail Refresh Token from database');
-            }
-            if (settings.gmailUser) {
-                process.env.GMAIL_USER = settings.gmailUser;
-                console.log('📧 Loaded Gmail User from database:', settings.gmailUser);
-            }
-        } else {
-            console.log('⚠️  No settings found in database');
+            if (settings.gmailClientId) process.env.GMAIL_CLIENT_ID = settings.gmailClientId;
+            if (settings.gmailClientSecret) process.env.GMAIL_CLIENT_SECRET = settings.gmailClientSecret;
+            if (settings.gmailRefreshToken) process.env.GMAIL_REFRESH_TOKEN = settings.gmailRefreshToken;
+            if (settings.gmailUser) process.env.GMAIL_USER = settings.gmailUser;
         }
     } catch (error) {
-        console.error('❌ Failed to load email settings from database:', error);
+        console.error('❌ Failed to load Google Calendar credentials from database:', error);
     }
 
     // Initialize email service
