@@ -605,9 +605,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
                 <p>Hi ${user.name},</p>
                 <p>Click the button below to reset your password. This link expires in 1 hour.</p>
                 <div style="text-align:center;margin:2rem 0;">
-                    <a href="${resetUrl}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:0.875rem 2rem;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a>
+                    <a href="${resetUrl}" style="display:inline-block;background-color:#667eea;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;font-family:Arial,sans-serif;">Reset Password</a>
                 </div>
-                <p style="color:#718096;font-size:0.85rem;">If you didn't request this, you can safely ignore this email.</p>
+                <p style="color:#718096;font-size:0.85rem;">Or copy and paste this link into your browser:<br><a href="${resetUrl}" style="color:#667eea;">${resetUrl}</a></p>
+                <p style="color:#718096;font-size:0.85rem;margin-top:1rem;">If you didn't request this, you can safely ignore this email.</p>
             </div>`,
             text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour.`
         });
