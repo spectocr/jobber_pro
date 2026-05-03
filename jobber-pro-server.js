@@ -5641,7 +5641,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
                     <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                         <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total Payouts</div>
-                        <div style="font-size: 2rem; font-weight: 700;">$\${formatMoney(totalPayouts)}</div>
+                        <div style="font-size: 2rem; font-weight: 700;">\${formatMoney(totalPayouts)}</div>
                     </div>
                     <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
                         <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Total Hours</div>
@@ -5649,7 +5649,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
                         <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Avg Rate</div>
-                        <div style="font-size: 2rem; font-weight: 700; color: #1a202c;">$\${avgHourlyRate.toFixed(2)}/hr</div>
+                        <div style="font-size: 2rem; font-weight: 700; color: #1a202c;">\${formatMoney(avgHourlyRate)}/hr</div>
                     </div>
                     <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0;">
                         <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.5rem;">Total Entries</div>
@@ -5863,7 +5863,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 Object.keys(expensesByCategory).forEach(cat => {
                     categoryBreakdown += '<tr><td style="padding: 0.5rem; padding-left: 2rem; color: #4a5568;">' +
                         (categoryLabels[cat] || cat) + ':</td><td style="text-align: right;">$' +
-                        expensesByCategory[cat].toFixed(2) + '</td></tr>';
+                        formatMoney(expensesByCategory[cat]) + '</td></tr>';
                 });
 
                 document.getElementById('tax-reconciliation-report').innerHTML = \`
@@ -6010,11 +6010,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h4 style="margin-bottom: 0.5rem; color: #2d3748;">Revenue Summary - \${period}</h4>
                     <table style="width: 100%; margin-top: 1rem;">
                         <tr><td style="padding: 0.5rem;">Total Jobs:</td><td style="text-align: right; font-weight: 600;">\${completedJobs.length}</td></tr>
-                        <tr><td style="padding: 0.5rem;">Labor Revenue:</td><td style="text-align: right;">$\${laborTotal.toFixed(2)}</td></tr>
-                        <tr><td style="padding: 0.5rem;">Material Revenue:</td><td style="text-align: right;">$\${materialTotal.toFixed(2)}</td></tr>
-                        <tr style="border-top: 2px solid #e2e8f0;"><td style="padding: 0.5rem; font-weight: 600;">Subtotal:</td><td style="text-align: right; font-weight: 600;">$\${subtotal.toFixed(2)}</td></tr>
-                        <tr><td style="padding: 0.5rem;">Tax (\${((settings.taxRate || 0.06625) * 100).toFixed(3)}%):</td><td style="text-align: right;">$\${tax.toFixed(2)}</td></tr>
-                        <tr style="border-top: 2px solid #667eea; color: #667eea;"><td style="padding: 0.5rem; font-weight: 700; font-size: 1.2rem;">Total Revenue:</td><td style="text-align: right; font-weight: 700; font-size: 1.2rem;">$\${total.toFixed(2)}</td></tr>
+                        <tr><td style="padding: 0.5rem;">Labor Revenue:</td><td style="text-align: right;">\${formatMoney(laborTotal)}</td></tr>
+                        <tr><td style="padding: 0.5rem;">Material Revenue:</td><td style="text-align: right;">\${formatMoney(materialTotal)}</td></tr>
+                        <tr style="border-top: 2px solid #e2e8f0;"><td style="padding: 0.5rem; font-weight: 600;">Subtotal:</td><td style="text-align: right; font-weight: 600;">\${formatMoney(subtotal)}</td></tr>
+                        <tr><td style="padding: 0.5rem;">Tax (\${((settings.taxRate || 0.06625) * 100).toFixed(3)}%):</td><td style="text-align: right;">\${formatMoney(tax)}</td></tr>
+                        <tr style="border-top: 2px solid #667eea; color: #667eea;"><td style="padding: 0.5rem; font-weight: 700; font-size: 1.2rem;">Total Revenue:</td><td style="text-align: right; font-weight: 700; font-size: 1.2rem;">\${formatMoney(total)}</td></tr>
                     </table>
                 </div>
             \`;
@@ -6102,7 +6102,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <tr>
                                 <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${name}</td>
                                 <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${stats.count}</td>
-                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${stats.revenue.toFixed(2)}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${formatMoney(stats.revenue)}</td>
                             </tr>
                         \`).join('')}
                     </tbody>
@@ -6143,7 +6143,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <tr>
                                 <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${name}</td>
                                 <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${stats.count}</td>
-                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${stats.revenue.toFixed(2)}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${formatMoney(stats.revenue)}</td>
                             </tr>
                         \`).join('')}
                     </tbody>
@@ -6176,12 +6176,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         \${sortedMonths.map(([month, revenue]) => \`
                             <tr>
                                 <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</td>
-                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">$\${revenue.toFixed(2)}</td>
+                                <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${formatMoney(revenue)}</td>
                             </tr>
                         \`).join('')}
                         <tr style="background: #f8f9fa; font-weight: 600;">
                             <td style="padding: 0.75rem;">Total</td>
-                            <td style="padding: 0.75rem; text-align: right;">$\${sortedMonths.reduce((sum, [_, rev]) => sum + rev, 0).toFixed(2)}</td>
+                            <td style="padding: 0.75rem; text-align: right;">\${formatMoney(sortedMonths.reduce((sum, [_, rev]) => sum + rev, 0))}</td>
                         </tr>
                     </tbody>
                 </table>
