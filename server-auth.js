@@ -1201,10 +1201,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
 
             <div class="info-box">
                 <p><strong>📧 Your Email:</strong> ${client.email}</p>
-                <p><strong>🔐 Your Access Code:</strong> Use the code we provided you</p>
-                <p style="color: #718096; font-size: 0.9em; margin-top: 10px;">
-                    (If you don't have your access code, please contact us)
-                </p>
+                <p><strong>🔐 Your Access Code:</strong> The last 4 digits of your phone number on file</p>
             </div>
 
             <div style="text-align: center;">
@@ -1234,7 +1231,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
             to: client.email,
             subject: subject,
             html: html,
-            text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: Use the code provided to you\n\nIf you need your access code, please contact us.`
+            text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: The last 4 digits of your phone number on file`
         });
 
         await db.collection('email_logs').insertOne({
