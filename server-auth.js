@@ -2040,10 +2040,16 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
         const settings = await db.collection('settings').findOne({});
         const companyName = settings?.companyName || 'Your Company';
 
-        // Generate temp password if not already set
-        const tempPassword = user.tempPassword || 'ChangeMe123!';
+        // Generate a new random temp password, hash it, and save it so the email is always valid
+        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        const tempPassword = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        const hashedTemp = await bcrypt.hash(tempPassword, 10);
+        await db.collection('users').updateOne(
+            { _id: user._id },
+            { $set: { password: hashedTemp, tempPassword: tempPassword } }
+        );
 
-        // Get login URL - use request host or fallback to Heroku domain
+        // Get login URL
         const loginUrl = `${process.env.APP_URL}/`;
 
         // Get custom email templates if configured
