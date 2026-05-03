@@ -4738,7 +4738,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('client-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${client.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(client.phone) || 'N/A'}</p>
-                <p style="margin-bottom: 0.75rem;"><strong>Address:</strong><br>\${(client.address || 'N/A').replace(/\\n/g, '<br>')}</p>
+                <p style="margin-bottom: 0.75rem;"><strong>Address:</strong><br>\${
+                    (client.addressLine1 || client.address)
+                        ? [client.addressLine1, client.addressLine2, client.addressLine3, [client.city, client.state].filter(Boolean).join(', '), client.zipCode].filter(Boolean).join('<br>')
+                        : (client.address ? client.address.replace(/\\n/g, '<br>') : 'N/A')
+                }</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Notes:</strong><br>\${client.notes || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem; color: #718096; font-size: 0.875rem;"><strong>Added:</strong> \${new Date(client.createdAt).toLocaleDateString()}</p>
             \`;
