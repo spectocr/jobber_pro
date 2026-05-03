@@ -3620,13 +3620,14 @@ connectDB().then(async () => {
         store: MongoStore.create({
             client: client,
             dbName: DB_NAME,
-            touchAfter: 24 * 3600
+            touchAfter: 0
         }),
         cookie: {
-            maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+            maxAge: 1000 * 60 * 60, // 1 hour
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production'
-        }
+        },
+        rolling: true
     }));
 
     // Setup routes after session middleware
