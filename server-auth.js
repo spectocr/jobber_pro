@@ -2904,7 +2904,7 @@ app.get('/invoice/:jobId', async (req, res) => {
 
     <div class="footer" style="margin-top: 40px;">
         <p>Thank you for your business!</p>
-        <p>Please remit payment within 30 days.</p>
+        <p>Please remit payment within 3 days.</p>
     </div>
 </body>
 </html>`;
