@@ -2099,6 +2099,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <span style="color: #718096; font-size: 0.9rem;">Clients with access to the client portal.</span>
                         </div>
+                        <input type="text" id="portalUserSearch" placeholder="🔍 Search by name..." oninput="filterPortalUsers()" style="width: 100%; padding: 0.6rem 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 1rem; font-size: 0.95rem;">
                         <div id="portalUsersList"></div>
                     </div>
                 </div>
@@ -6775,50 +6776,61 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (tab === 'portal') loadPortalUsers();
         }
 
+        let allPortalClients = [];
+
+        function filterPortalUsers() {
+            const q = (document.getElementById('portalUserSearch').value || '').toLowerCase();
+            const filtered = q ? allPortalClients.filter(c => c.name.toLowerCase().includes(q)) : allPortalClients;
+            renderPortalUsers(filtered);
+        }
+
+        function renderPortalUsers(portalClients) {
+            const container = document.getElementById('portalUsersList');
+            if (portalClients.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;"><p>No clients found.</p></div>';
+                return;
+            }
+            container.innerHTML = \`
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f8f9fa;border-bottom:2px solid #e2e8f0;">
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Client</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Email</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Phone</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Last Portal Login</th>
+                            <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${portalClients.map(c => {
+                            const lastLogin = c.lastPortalLogin
+                                ? new Date(c.lastPortalLogin).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                                : '<span style="color:#a0aec0;">Never</span>';
+                            return \`
+                            <tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+                                <td style="padding:0.85rem 1rem;font-weight:500;color:#2d3748;">\${c.name}</td>
+                                <td style="padding:0.85rem 1rem;color:#718096;">\${c.email || '—'}</td>
+                                <td style="padding:0.85rem 1rem;color:#718096;">\${c.phone || '—'}</td>
+                                <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${lastLogin}</td>
+                                <td style="padding:0.85rem 1rem;text-align:right;">
+                                    \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Resend Email</button>\` : ''}
+                                    <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name}')" title="Remove portal access">Revoke</button>
+                                </td>
+                            </tr>\`;
+                        }).join('')}
+                    </tbody>
+                </table>
+                <p style="margin-top:0.75rem;color:#a0aec0;font-size:0.8rem;text-align:right;">\${portalClients.length} client\${portalClients.length !== 1 ? 's' : ''} with portal access</p>
+            \`;
+        }
+
         async function loadPortalUsers() {
             const container = document.getElementById('portalUsersList');
             try {
                 const response = await fetch('/api/clients');
                 const allClients = await response.json();
-                const portalClients = allClients.filter(c => c.portalPassword);
-
-                if (portalClients.length === 0) {
-                    container.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;"><p>No clients have portal access yet.</p><p style="font-size:0.9rem;margin-top:0.5rem;">Enable portal access when editing a client, then send them the portal email.</p></div>';
-                    return;
-                }
-
-                container.innerHTML = \`
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead>
-                            <tr style="background:#f8f9fa;border-bottom:2px solid #e2e8f0;">
-                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Client</th>
-                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Email</th>
-                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Phone</th>
-                                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Last Portal Login</th>
-                                <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            \${portalClients.map(c => {
-                                const lastLogin = c.lastPortalLogin
-                                    ? new Date(c.lastPortalLogin).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
-                                    : '<span style="color:#a0aec0;">Never</span>';
-                                return \`
-                                <tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
-                                    <td style="padding:0.85rem 1rem;font-weight:500;color:#2d3748;">\${c.name}</td>
-                                    <td style="padding:0.85rem 1rem;color:#718096;">\${c.email || '—'}</td>
-                                    <td style="padding:0.85rem 1rem;color:#718096;">\${c.phone || '—'}</td>
-                                    <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${lastLogin}</td>
-                                    <td style="padding:0.85rem 1rem;text-align:right;">
-                                        \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Resend Email</button>\` : ''}
-                                        <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name}')" title="Remove portal access">Revoke</button>
-                                    </td>
-                                </tr>\`;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                    <p style="margin-top:0.75rem;color:#a0aec0;font-size:0.8rem;text-align:right;">\${portalClients.length} client\${portalClients.length !== 1 ? 's' : ''} with portal access</p>
-                \`;
+                allPortalClients = allClients.filter(c => c.portalPassword);
+                renderPortalUsers(allPortalClients);
             } catch (error) {
                 container.innerHTML = '<p style="color:#e53e3e;padding:1rem;">Failed to load portal users</p>';
             }
