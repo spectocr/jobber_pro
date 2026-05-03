@@ -1359,9 +1359,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="invoiced">Invoiced</option>
                             <option value="bid_lost">Bid Lost</option>
                         </select>
-                        <select id="filter-client" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
-                            <option value="">All Clients</option>
-                        </select>
+                        <input type="text" id="filter-client" placeholder="🔍 Search client..." oninput="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                         <select id="filter-assigned" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                             <option value="">All Team Members</option>
                         </select>
@@ -4371,7 +4369,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 } else if (statusFilter && j.status !== statusFilter) {
                     return false;
                 }
-                if (clientFilter && j.clientId !== clientFilter) return false;
+                if (clientFilter) {
+                    const jClient = findClient(j.clientId);
+                    if (!jClient || !jClient.name.toLowerCase().includes(clientFilter.toLowerCase())) return false;
+                }
                 if (assignedFilter && j.assignedTo !== assignedFilter) return false;
                 return true;
             });
@@ -4919,16 +4920,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 jobs = await response.json();
 
             // Populate filter dropdowns
-            const clientFilter = document.getElementById('filter-client');
             const assignedFilter = document.getElementById('filter-assigned');
-
-            // Preserve current selections
-            const currentClient = clientFilter.value;
             const currentAssigned = assignedFilter.value;
-
-            populateDropdown(clientFilter, clients, 'id', 'name', 'All Clients');
-            clientFilter.value = currentClient;
-
             populateDropdown(assignedFilter, team, 'id', 'name', 'All Team Members');
             assignedFilter.value = currentAssigned;
 
