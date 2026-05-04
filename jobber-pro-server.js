@@ -4997,7 +4997,43 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Quote #</th><th>Client</th><th>Title</th><th>Valid Until</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
+            const isMobile = window.innerWidth < 768;
+
+            if (isMobile) {
+                container.innerHTML = filteredQuotes.map(q => {
+                    const client = findClient(q.clientId);
+                    const statusClass = q.status === 'approved' ? 'status-completed' :
+                                       q.status === 'in_review' ? 'status-scheduled' :
+                                       q.status === 'rejected' ? 'status-bid_lost' :
+                                       q.status === 'expired' ? 'status-bid_lost' :
+                                       q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
+                    const validUntil = new Date(q.validUntil);
+                    const isExpired = validUntil < new Date() && q.status === 'sent';
+
+                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
+                            <div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                                <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${q.title}</div>
+                            </div>
+                            <span class="status-badge \${statusClass}" style="white-space:nowrap;margin-left:0.5rem;">\${q.status.replace('_', ' ')}</span>
+                        </div>
+                        <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
+                            #\${q.quoteNumber} · Valid: \${q.validUntil}\${isExpired ? ' <span style="color:#e53e3e;">(Expired)</span>' : ''}
+                        </div>
+                        <div style="font-size:1rem;font-weight:700;color:#2d3748;margin-bottom:0.75rem;">\${formatMoney(parseFloat(q.total || 0))}</div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
+                            <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
+                            \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')">📧 Email</button>\` : ''}
+                            \${(q.status === 'approved' || q.status === 'in_review') && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Job</button>\` : ''}
+                            \${q.convertedToJobId ? \`<span style="color:#48bb78;font-size:0.85rem;">✓ Converted</span>\` : ''}
+                            <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
+                        </div>
+                    </div>\`;
+                }).join('');
+            } else {
+                container.innerHTML = '<table><thead><tr><th>Quote #</th><th>Client</th><th>Title</th><th>Valid Until</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
                 filteredQuotes.map(q => {
                     const client = findClient(q.clientId);
                     const statusClass = q.status === 'approved' ? 'status-completed' :
@@ -5027,6 +5063,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+            }
         }
 
         function filterQuotes() {
