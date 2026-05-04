@@ -1075,6 +1075,21 @@ app.post('/api/public/quote-request', async (req, res) => {
     }
 });
 
+// Leads API
+app.get('/api/leads', isAuthenticated, async (req, res) => {
+    const leads = await db.collection('leads').find().sort({ createdAt: -1 }).toArray();
+    res.json(leads.map(l => ({ ...l, id: l._id.toString() })));
+});
+
+app.patch('/api/leads/:id', isAuthenticated, async (req, res) => {
+    const { status, note } = req.body;
+    await db.collection('leads').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { status, note, updatedAt: new Date() } }
+    );
+    res.json({ success: true });
+});
+
 // Privacy Policy page (public)
 app.get('/privacy', async (req, res) => {
     const settings = await db.collection('settings').findOne() || {};

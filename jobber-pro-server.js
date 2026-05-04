@@ -1153,6 +1153,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             💬 Messages
             <span id="messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #e53e3e; color: white; border-radius: 10px; padding: 2px 6px; font-size: 0.7rem; font-weight: bold;"></span>
         </button>
+        <button class="nav-btn" onclick="showView('leads')" data-admin-only style="position:relative;">
+            🎯 Leads
+            <span id="leads-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
+        </button>
         <button class="nav-btn" onclick="showView('reports')" data-admin-only>📈 Reports</button>
         <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
     </div>
@@ -1630,6 +1634,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div id="email-logs-list"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Leads View -->
+        <div id="leads" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🎯 Website Leads</h2>
+                    <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+                        <select id="lead-status-filter" onchange="filterLeads()" style="padding:0.6rem 0.875rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <option value="">All Statuses</option>
+                            <option value="new">New</option>
+                            <option value="contacted">Contacted</option>
+                            <option value="quoted">Quoted</option>
+                            <option value="won">Won</option>
+                            <option value="lost">Lost</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="leads-list"></div>
             </div>
         </div>
 
@@ -2909,6 +2933,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'messages') loadMessages();
             if (viewName === 'reports') loadReports();
+            if (viewName === 'leads') loadLeads();
             if (viewName === 'settings') {
                 loadSettings();
                 loadUsers();
@@ -7457,6 +7482,100 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        let allLeads = [];
+
+        async function loadLeads() {
+            const response = await fetch('/api/leads');
+            allLeads = await response.json();
+            updateLeadsBadge();
+            renderLeads();
+        }
+
+        function updateLeadsBadge() {
+            const newCount = allLeads.filter(l => l.status === 'new').length;
+            const badge = document.getElementById('leads-badge');
+            if (badge) {
+                badge.textContent = newCount;
+                badge.style.display = newCount > 0 ? 'inline' : 'none';
+            }
+        }
+
+        function filterLeads() { renderLeads(); }
+
+        function renderLeads() {
+            const container = document.getElementById('leads-list');
+            const statusFilter = document.getElementById('lead-status-filter').value;
+            const filtered = statusFilter ? allLeads.filter(l => l.status === statusFilter) : allLeads;
+
+            if (filtered.length === 0) {
+                renderEmptyState(container, 'No leads yet', 'Quote requests from your website will appear here');
+                return;
+            }
+
+            const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
+
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                container.innerHTML = filtered.map(l => {
+                    const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const color = statusColors[l.status] || '#6b7280';
+                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
+                            <div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${l.name}</div>
+                                <div style="color:#4a5568;font-size:0.9rem;">\${l.service}</div>
+                            </div>
+                            <span style="background:\${color};color:white;padding:2px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;white-space:nowrap;margin-left:0.5rem;">\${l.status}</span>
+                        </div>
+                        \${l.phone ? \`<div style="color:#4a5568;font-size:0.85rem;">📞 <a href="tel:\${l.phone}" style="color:inherit;">\${l.phone}</a></div>\` : ''}
+                        \${l.city ? \`<div style="color:#718096;font-size:0.85rem;">📍 \${l.city}</div>\` : ''}
+                        <div style="color:#718096;font-size:0.8rem;margin-top:0.25rem;">📅 \${date} · via \${l.contactPref || 'phone'}</div>
+                        \${l.description ? \`<div style="color:#4a5568;font-size:0.85rem;margin-top:0.5rem;padding:0.5rem;background:#f8f9fa;border-radius:6px;">\${l.description}</div>\` : ''}
+                        \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">Note: \${l.note}</div>\` : ''}
+                        <div style="margin-top:0.75rem;">
+                            <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;width:100%;">
+                                \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                            </select>
+                        </div>
+                    </div>\`;
+                }).join('');
+            } else {
+                container.innerHTML = \`<table><thead><tr><th>Date</th><th>Name</th><th>Contact</th><th>Service</th><th>Location</th><th>Contact Via</th><th>Notes</th><th>Status</th></tr></thead><tbody>\` +
+                filtered.map(l => {
+                    const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const color = statusColors[l.status] || '#6b7280';
+                    return \`<tr>
+                        <td style="white-space:nowrap;">\${date}</td>
+                        <td><strong>\${l.name}</strong></td>
+                        <td>
+                            \${l.phone ? \`<a href="tel:\${l.phone}" style="color:#1d6fa4;">\${l.phone}</a>\` : ''}
+                            \${l.email ? \`<br><small style="color:#6b7280;">\${l.email}</small>\` : ''}
+                        </td>
+                        <td>\${l.service}</td>
+                        <td>\${l.city || '-'}</td>
+                        <td>\${l.contactPref || 'phone'}</td>
+                        <td style="max-width:180px;font-size:0.85rem;color:#6b7280;">\${l.description ? l.description.substring(0,60) + (l.description.length > 60 ? '...' : '') : '-'}</td>
+                        <td>
+                            <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.35rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;background:\${color};color:white;">
+                                \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" style="background:white;color:#1f2937;" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                            </select>
+                        </td>
+                    </tr>\`;
+                }).join('') + \`</tbody></table>\`;
+            }
+        }
+
+        async function updateLeadStatus(id, status) {
+            await fetch(\`/api/leads/\${id}\`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            const lead = allLeads.find(l => l.id === id);
+            if (lead) lead.status = status;
+            updateLeadsBadge();
+        }
+
         async function loadExpenses() {
             const response = await fetch('/api/expenses');
             expenses = await response.json();
@@ -8742,11 +8861,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 showView(viewToShow);
             }
 
-            // Check for unread messages (admins only)
+            // Check for unread messages and leads (admins only)
             if (isAdmin) {
                 checkUnreadMessages();
+                updateLeadsBadge();
                 // Poll for new messages every 30 seconds
                 setInterval(checkUnreadMessages, 30000);
+                // Poll leads badge every 60 seconds
+                setInterval(updateLeadsBadge, 60000);
             }
         });
 
