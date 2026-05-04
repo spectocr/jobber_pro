@@ -1032,6 +1032,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 flex-direction: column !important;
                 gap: 2rem !important;
             }
+
+            /* Team detail - stack vertically on mobile */
+            .team-detail-grid {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 1.5rem !important;
+            }
         }
 
         @media (max-width: 480px) {
@@ -1531,7 +1538,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="btn btn-secondary" onclick="showView('team')">← Back to Team</button>
                     <h2 id="team-detail-name"></h2>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;" class="team-detail-grid">
                     <div>
                         <h3 style="margin-bottom: 1rem; color: #667eea;">Team Member Info</h3>
                         <div id="team-detail-info" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;"></div>
@@ -5677,7 +5684,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const totalHours = memberJobs.reduce((sum, j) => sum + (parseFloat(j.hours) || 0), 0);
                 const totalRevenue = memberJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
 
-                jobsContainer.innerHTML = \`
+                const isMobile = window.innerWidth < 768;
+                const statsGrid = \`
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
                         <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
                             <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Jobs</div>
@@ -5689,14 +5697,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                         <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
                             <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Total Revenue</div>
-                            <div style="font-size: 1.5rem; font-weight: 700;">$\${formatMoney(totalRevenue)}</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">\${formatMoney(totalRevenue)}</div>
                         </div>
                         <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
                             <div style="font-size: 0.875rem; color: #718096; margin-bottom: 0.25rem;">Avg Rate</div>
-                            <div style="font-size: 1.5rem; font-weight: 700;">$\${totalHours > 0 ? (totalRevenue / totalHours).toFixed(2) : '0.00'}/hr</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">\${totalHours > 0 ? formatMoney(totalRevenue / totalHours) : '$0.00'}/hr</div>
                         </div>
-                    </div>
-                    <table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Status</th><th>Hours</th><th>Total</th><th>Actions</th></tr></thead><tbody>\` +
+                    </div>\`;
+
+                const jobsHtml = isMobile
+                    ? memberJobs.map(j => {
+                        const client = clients.find(c => c.id == j.clientId || String(c.id) === String(j.clientId));
+                        const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
+                        return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.35rem;">
+                                <div>
+                                    <div style="font-size:1rem;font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                                    <div style="font-weight:600;color:#4a5568;font-size:0.9rem;">\${j.title}</div>
+                                </div>
+                                <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace('_', ' ')}</span>
+                            </div>
+                            <div style="color:#718096;font-size:0.85rem;margin-bottom:0.5rem;">\${j.scheduledDate || 'No date'}\${j.scheduledTime ? ' · ' + j.scheduledTime : ''}\${j.hours ? ' · ' + j.hours + 'h' : ''}</div>
+                            \${total > 0 ? \`<div style="font-weight:700;color:#2d3748;margin-bottom:0.5rem;">\${formatMoney(total)}</div>\` : ''}
+                            <div style="display:flex;gap:0.5rem;">
+                                <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
+                                <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
+                            </div>
+                        </div>\`;
+                    }).join('')
+                    : '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Status</th><th>Hours</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
                     memberJobs.map(j => {
                         const client = clients.find(c => c.id == j.clientId || String(c.id) === String(j.clientId));
                         return \`<tr>
@@ -5710,12 +5739,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <td>\${j.hours || 0}</td>
                             <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
                             <td>
-                                <button class="btn btn-secondary btn-small" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})'>Edit</button>
-                                <button class="btn btn-primary btn-small" onclick="window.open('/invoice/${j.id}', '_blank')">📄</button>
+                                <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
+                                <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
                             </td>
                         </tr>\`;
-                    }).join('') +
-                    '</tbody></table>';
+                    }).join('') + '</tbody></table>';
+
+                jobsContainer.innerHTML = statsGrid + jobsHtml;
             }
 
             // Get all time entries for this member
