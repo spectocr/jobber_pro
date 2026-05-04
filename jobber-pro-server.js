@@ -1532,11 +1532,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <!-- Calendar View -->
         <div id="calendar" class="view calendar-view">
             <div class="card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
-                    <h2>Calendar</h2>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <button class="btn btn-secondary" onclick="changeMonth(-1)">‹ Prev</button>
-                        <h2 id="calendar-month-year" style="min-width: 200px; text-align: center;"></h2>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-shrink: 0; flex-wrap: wrap; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="changeMonth(-1)">‹ Prev</button>
+                    <h2 id="calendar-month-year" style="text-align: center; flex: 1; min-width: 120px;"></h2>
+                    <div style="display: flex; gap: 0.5rem;">
                         <button class="btn btn-secondary" onclick="changeMonth(1)">Next ›</button>
                         <button class="btn btn-primary" onclick="goToToday()">Today</button>
                     </div>
