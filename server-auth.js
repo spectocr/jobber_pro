@@ -894,39 +894,35 @@ app.get('/request-quote', (req, res) => {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #1f2937; padding: 2rem 1.5rem; }
-  h2 { font-size: 1.35rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.35rem; }
-  .subtitle { color: #6b7280; font-size: 0.9rem; margin-bottom: 1.75rem; }
-  .form-group { margin-bottom: 1.1rem; }
-  label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 0.35rem; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #1f2937; padding: 1.25rem 1.25rem 1rem; overflow: hidden; }
+  h2 { font-size: 1.1rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.2rem; }
+  .subtitle { color: #6b7280; font-size: 0.8rem; margin-bottom: 1rem; }
+  .form-group { margin-bottom: 0.65rem; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; color: #374151; margin-bottom: 0.2rem; }
   input, select, textarea {
-    width: 100%; padding: 0.7rem 0.875rem;
-    border: 2px solid #e5e7eb; border-radius: 8px;
-    font-size: 0.95rem; font-family: inherit; color: #1f2937;
+    width: 100%; padding: 0.45rem 0.65rem;
+    border: 1.5px solid #e5e7eb; border-radius: 6px;
+    font-size: 0.875rem; font-family: inherit; color: #1f2937;
     outline: none; transition: border-color 0.2s;
   }
   input:focus, select:focus, textarea:focus { border-color: #1d6fa4; }
-  textarea { resize: vertical; min-height: 90px; }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-  @media (max-width: 400px) { .row { grid-template-columns: 1fr; } }
+  textarea { resize: none; height: 70px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
   .submit-btn {
-    width: 100%; padding: 0.875rem;
+    width: 100%; padding: 0.65rem;
     background: #0f1c2e; color: white;
-    border: none; border-radius: 8px;
-    font-size: 1rem; font-weight: 600;
-    cursor: pointer; margin-top: 0.5rem;
+    border: none; border-radius: 6px;
+    font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; margin-top: 0.25rem;
     transition: background 0.2s;
   }
   .submit-btn:hover { background: #1a2f4a; }
   .submit-btn:disabled { background: #9ca3af; cursor: not-allowed; }
-  .success {
-    text-align: center; padding: 2rem 1rem;
-    display: none;
-  }
-  .success .check { font-size: 3rem; margin-bottom: 1rem; }
-  .success h3 { font-size: 1.2rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.5rem; }
-  .success p { color: #6b7280; font-size: 0.9rem; }
-  .error-msg { color: #dc2626; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+  .success { text-align: center; padding: 2rem 1rem; display: none; }
+  .success .check { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .success h3 { font-size: 1.1rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.4rem; }
+  .success p { color: #6b7280; font-size: 0.85rem; }
+  .error-msg { color: #dc2626; font-size: 0.75rem; margin-top: 0.35rem; display: none; }
 </style>
 </head>
 <body>
@@ -954,24 +950,26 @@ app.get('/request-quote', (req, res) => {
         <input type="email" name="email" placeholder="john@email.com">
       </div>
     </div>
-    <div class="form-group">
-      <label>Service Needed *</label>
-      <select name="service" required>
-        <option value="">Select a service...</option>
-        <option>Electrical</option>
-        <option>Plumbing</option>
-        <option>Carpentry / Wood</option>
-        <option>General Handyman</option>
-        <option>Other</option>
-      </select>
+    <div class="row">
+      <div class="form-group">
+        <label>Service *</label>
+        <select name="service" required>
+          <option value="">Select...</option>
+          <option>Electrical</option>
+          <option>Plumbing</option>
+          <option>Carpentry / Wood</option>
+          <option>General Handyman</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>City / Town</label>
+        <input type="text" name="city" placeholder="Vineland...">
+      </div>
     </div>
     <div class="form-group">
       <label>Describe the Work</label>
       <textarea name="description" placeholder="Tell us what needs to be done..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>City / Town</label>
-      <input type="text" name="city" placeholder="e.g. Vineland, Millville...">
     </div>
     <div class="form-group">
       <label>Best Way to Reach You</label>
@@ -988,9 +986,15 @@ app.get('/request-quote', (req, res) => {
 <div class="success" id="successMsg">
   <div class="check">✅</div>
   <h3>Request Received!</h3>
-  <p>Thanks! We'll be in touch shortly.<br>Questions? Call us at <strong>856-872-4636</strong>.</p>
+  <p>Thanks! We'll be in touch shortly.<br>Call us at <strong>856-872-4636</strong>.</p>
 </div>
 <script>
+function notifyHeight() {
+  window.parent.postMessage({ type: 'quoteFormHeight', height: document.body.scrollHeight }, '*');
+}
+window.addEventListener('load', notifyHeight);
+new ResizeObserver(notifyHeight).observe(document.body);
+
 document.getElementById('quoteForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
@@ -1008,6 +1012,7 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
     if (!res.ok) throw new Error();
     document.getElementById('formWrap').style.display = 'none';
     document.getElementById('successMsg').style.display = 'block';
+    notifyHeight();
   } catch {
     err.style.display = 'block';
     btn.disabled = false;
