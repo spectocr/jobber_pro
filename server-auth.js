@@ -881,6 +881,195 @@ app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
     }
 });
 
+// Public quote request page (embedded as iframe on gsdhandymanservice.com)
+app.get('/request-quote', (req, res) => {
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://gsdhandymanservice.com https://www.gsdhandymanservice.com");
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request a Quote</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #1f2937; padding: 2rem 1.5rem; }
+  h2 { font-size: 1.35rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.35rem; }
+  .subtitle { color: #6b7280; font-size: 0.9rem; margin-bottom: 1.75rem; }
+  .form-group { margin-bottom: 1.1rem; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 0.35rem; }
+  input, select, textarea {
+    width: 100%; padding: 0.7rem 0.875rem;
+    border: 2px solid #e5e7eb; border-radius: 8px;
+    font-size: 0.95rem; font-family: inherit; color: #1f2937;
+    outline: none; transition: border-color 0.2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #1d6fa4; }
+  textarea { resize: vertical; min-height: 90px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 400px) { .row { grid-template-columns: 1fr; } }
+  .submit-btn {
+    width: 100%; padding: 0.875rem;
+    background: #0f1c2e; color: white;
+    border: none; border-radius: 8px;
+    font-size: 1rem; font-weight: 600;
+    cursor: pointer; margin-top: 0.5rem;
+    transition: background 0.2s;
+  }
+  .submit-btn:hover { background: #1a2f4a; }
+  .submit-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+  .success {
+    text-align: center; padding: 2rem 1rem;
+    display: none;
+  }
+  .success .check { font-size: 3rem; margin-bottom: 1rem; }
+  .success h3 { font-size: 1.2rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.5rem; }
+  .success p { color: #6b7280; font-size: 0.9rem; }
+  .error-msg { color: #dc2626; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+</style>
+</head>
+<body>
+<div id="formWrap">
+  <h2>Request a Free Quote</h2>
+  <p class="subtitle">We'll get back to you within a few hours.</p>
+  <form id="quoteForm">
+    <div class="row">
+      <div class="form-group">
+        <label>First Name *</label>
+        <input type="text" name="firstName" required placeholder="John">
+      </div>
+      <div class="form-group">
+        <label>Last Name *</label>
+        <input type="text" name="lastName" required placeholder="Smith">
+      </div>
+    </div>
+    <div class="row">
+      <div class="form-group">
+        <label>Phone *</label>
+        <input type="tel" name="phone" required placeholder="856-555-1234">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="john@email.com">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Service Needed *</label>
+      <select name="service" required>
+        <option value="">Select a service...</option>
+        <option>Electrical</option>
+        <option>Plumbing</option>
+        <option>Carpentry / Wood</option>
+        <option>General Handyman</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Describe the Work</label>
+      <textarea name="description" placeholder="Tell us what needs to be done..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>City / Town</label>
+      <input type="text" name="city" placeholder="e.g. Vineland, Millville...">
+    </div>
+    <div class="form-group">
+      <label>Best Way to Reach You</label>
+      <select name="contactPref">
+        <option value="phone">Phone call</option>
+        <option value="text">Text message</option>
+        <option value="email">Email</option>
+      </select>
+    </div>
+    <p class="error-msg" id="errorMsg">Something went wrong. Please try again or call 856-872-4636.</p>
+    <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
+  </form>
+</div>
+<div class="success" id="successMsg">
+  <div class="check">✅</div>
+  <h3>Request Received!</h3>
+  <p>Thanks! We'll be in touch shortly.<br>Questions? Call us at <strong>856-872-4636</strong>.</p>
+</div>
+<script>
+document.getElementById('quoteForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const err = document.getElementById('errorMsg');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  err.style.display = 'none';
+  const data = Object.fromEntries(new FormData(this));
+  try {
+    const res = await fetch('/api/public/quote-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error();
+    document.getElementById('formWrap').style.display = 'none';
+    document.getElementById('successMsg').style.display = 'block';
+  } catch {
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Submit Request';
+  }
+});
+</script>
+</body>
+</html>`);
+});
+
+// Public quote request API
+app.post('/api/public/quote-request', async (req, res) => {
+    try {
+        const { firstName, lastName, phone, email, service, description, city, contactPref } = req.body;
+        if (!firstName || !lastName || !phone || !service) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const lead = {
+            firstName, lastName,
+            name: `${firstName} ${lastName}`,
+            phone, email: email || '',
+            service, description: description || '',
+            city: city || '',
+            contactPref: contactPref || 'phone',
+            source: 'website',
+            status: 'new',
+            createdAt: new Date()
+        };
+
+        await db.collection('leads').insertOne(lead);
+
+        // Email notification to Franz
+        if (emailService.initialized) {
+            await emailService.sendEmail({
+                to: 'franzthehandyman@gmail.com',
+                subject: `New Quote Request — ${service} — ${firstName} ${lastName}`,
+                html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                    <h2 style="color:#0f1c2e;">New Quote Request</h2>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;width:140px;">Name</td><td>${firstName} ${lastName}</td></tr>
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Phone</td><td><a href="tel:${phone}">${phone}</a></td></tr>
+                        ${email ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Email</td><td>${email}</td></tr>` : ''}
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Service</td><td>${service}</td></tr>
+                        ${city ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Location</td><td>${city}</td></tr>` : ''}
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Contact Via</td><td>${contactPref}</td></tr>
+                        ${description ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Description</td><td>${description}</td></tr>` : ''}
+                    </table>
+                    <p style="margin-top:20px;color:#6b7280;font-size:0.85rem;">Submitted via gsdhandymanservice.com</p>
+                </div>`,
+                text: `New Quote Request\n\nName: ${firstName} ${lastName}\nPhone: ${phone}\nEmail: ${email || 'N/A'}\nService: ${service}\nLocation: ${city || 'N/A'}\nContact Via: ${contactPref}\n\n${description || ''}`
+            });
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Quote request error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Privacy Policy page (public)
 app.get('/privacy', async (req, res) => {
     const settings = await db.collection('settings').findOne() || {};
