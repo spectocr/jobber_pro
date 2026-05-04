@@ -884,7 +884,7 @@ app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
 // Public quote request page (embedded as iframe on gsdhandymanservice.com)
 app.get('/request-quote', (req, res) => {
     res.removeHeader('X-Frame-Options');
-    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://gsdhandymanservice.com https://www.gsdhandymanservice.com");
+    res.setHeader('Content-Security-Policy', "frame-ancestors *");
     res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
