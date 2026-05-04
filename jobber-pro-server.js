@@ -2240,9 +2240,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <input type="hidden" name="id">
                     <div class="form-group">
                         <label>Client *</label>
-                        <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
-                            <div style="position: relative; flex: 1;">
-                                <input type="text" id="jobClientInput" placeholder="Type to search clients..." autocomplete="off" oninput="filterClientTypeahead()" onfocus="filterClientTypeahead()" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
+                            <div style="position: relative; flex: 1; min-width: 200px;">
+                                <input type="text" id="jobClientInput" placeholder="Type to search clients..." autocomplete="off" oninput="filterClientTypeahead()" onfocus="filterClientTypeahead()" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
                                 <input type="hidden" name="clientId" id="jobClientSelect">
                                 <div id="clientTypeaheadDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:2px solid #667eea; border-top:none; border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
                             </div>
