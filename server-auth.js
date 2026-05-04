@@ -894,7 +894,7 @@ app.get('/request-quote', (req, res) => {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #1f2937; padding: 1.25rem 1.25rem 1rem; overflow: hidden; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #1f2937; padding: 1.25rem 1.25rem 1rem; overflow-x: hidden; }
   h2 { font-size: 1.1rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.2rem; }
   .subtitle { color: #6b7280; font-size: 0.8rem; margin-bottom: 1rem; }
   .form-group { margin-bottom: 0.65rem; }
@@ -929,8 +929,10 @@ app.get('/request-quote', (req, res) => {
     background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;
     padding: 0.5rem 0.65rem; margin-bottom: 0.65rem;
     font-size: 0.78rem; color: #1e40af; display: flex; gap: 0.4rem; align-items: flex-start;
+    word-break: break-word; overflow-wrap: break-word; min-width: 0;
   }
   .photo-hint span { flex-shrink: 0; }
+  .photo-hint .hint-text { flex: 1; min-width: 0; }
   .upload-zone {
     border: 2px dashed #d1d5db; border-radius: 8px;
     padding: 0.75rem; text-align: center;
@@ -1017,7 +1019,7 @@ app.get('/request-quote', (req, res) => {
       <label>Photos <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
       <div class="photo-hint">
         <span>📸</span>
-        <span>Adding photos helps us give you a more accurate estimate — snap the area that needs work before submitting.</span>
+        <span class="hint-text">Adding photos helps us give you a more accurate estimate — snap the area that needs work before submitting.</span>
       </div>
       <div class="upload-zone" id="uploadZone">
         <input type="file" id="photoInput" accept="image/*" multiple>
