@@ -4516,22 +4516,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City, State</th><th>Marketing Channel</th><th>Actions</th></tr></thead><tbody>' +
+            const isMobile = window.innerWidth < 768;
+
+            if (isMobile) {
+                container.innerHTML = clients.map(c => {
+                    const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '');
+                    const jobCount = clientJobCounts[String(c.id)] || 0;
+                    let starHtml = '';
+                    if (jobCount > 2) starHtml = \`<span style="color:#f59e0b;">★</span> \`;
+                    else if (jobCount === 2) starHtml = \`<span style="color:#10b981;">★</span> \`;
+
+                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;" onclick="viewClientDetail('\${c.id}')">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.35rem;">
+                            <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${starHtml}\${c.name}\${jobCount > 2 ? \` <span style="background:#fbbf24;color:#78350f;padding:1px 6px;border-radius:10px;font-size:0.75rem;font-weight:600;">\${jobCount}</span>\` : ''}</div>
+                        </div>
+                        \${c.phone ? \`<div style="color:#4a5568;font-size:0.9rem;">📞 \${formatPhoneNumber(c.phone)}</div>\` : ''}
+                        \${c.email ? \`<div style="color:#4a5568;font-size:0.9rem;">✉️ \${c.email}</div>\` : ''}
+                        \${cityState ? \`<div style="color:#718096;font-size:0.85rem;margin-top:0.2rem;">📍 \${cityState}</div>\` : ''}
+                        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;" onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary btn-small" onclick="openSMSModal('\${c.phone}', '\${c.id}', null)">📱 Text</button>
+                            <button class="btn btn-secondary btn-small" onclick="editClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteClient('\${c.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
+                        </div>
+                    </div>\`;
+                }).join('');
+            } else {
+                container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City, State</th><th>Marketing Channel</th><th>Actions</th></tr></thead><tbody>' +
                 clients.map(c => {
                     const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '-');
-                    // Match client ID as string (handles both string and ObjectId)
                     const jobCount = clientJobCounts[String(c.id)] || 0;
 
-                    // Build client name with badges
                     let nameHtml = '';
                     if (jobCount > 2) {
-                        // Gold star with job count for 3+ jobs
                         nameHtml = \`<span style="color: #f59e0b; font-size: 1.1rem;">★</span> <strong style="color: #d97706;">\${c.name}</strong> <span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 4px;">\${jobCount}</span>\`;
                     } else if (jobCount === 2) {
-                        // Green star for exactly 2 jobs (regular black name)
                         nameHtml = \`<span style="color: #10b981; font-size: 1.1rem;">★</span> <strong>\${c.name}</strong>\`;
                     } else {
-                        // Regular name (0-1 jobs)
                         nameHtml = \`<strong>\${c.name}</strong>\`;
                     }
 
@@ -4549,6 +4569,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+            }
             } catch (error) {
                 console.error('Failed to load clients:', error);
             }
