@@ -5572,7 +5572,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            container.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>City, State</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+            const isMobile = window.innerWidth < 768;
+
+            if (isMobile) {
+                container.innerHTML = team.map(t => {
+                    const cityState = [t.city, t.state].filter(x => x).join(', ');
+                    return \`<div class="team-card" data-search="\${t.name.toLowerCase()} \${(t.role||'').toLowerCase()} \${(t.email||'').toLowerCase()}" style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;" onclick="viewTeamDetail('\${t.id}')">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
+                            <div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${t.name}</div>
+                                <div style="color:#4a5568;font-size:0.9rem;margin-top:0.1rem;">\${t.role || ''}</div>
+                            </div>
+                            <span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}" style="white-space:nowrap;margin-left:0.5rem;">\${t.active ? 'Active' : 'Inactive'}</span>
+                        </div>
+                        \${t.phone ? \`<div style="color:#4a5568;font-size:0.9rem;">📞 \${formatPhoneNumber(t.phone)}</div>\` : ''}
+                        \${t.email ? \`<div style="color:#4a5568;font-size:0.9rem;">✉️ \${t.email}</div>\` : ''}
+                        \${cityState ? \`<div style="color:#718096;font-size:0.85rem;margin-top:0.2rem;">📍 \${cityState}</div>\` : ''}
+                        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;" onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
+                        </div>
+                    </div>\`;
+                }).join('');
+            } else {
+                container.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>City, State</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 team.map(t => {
                     const cityState = [t.city, t.state].filter(x => x).join(', ') || '-';
                     return \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
@@ -5589,18 +5612,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+            }
         }
 
         function filterTeam() {
             const searchTerm = document.getElementById('team-search').value.toLowerCase();
-            const table = document.querySelector('#team-list table');
-            if (!table) return;
-
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                document.querySelectorAll('#team-list .team-card').forEach(card => {
+                    card.style.display = card.dataset.search.includes(searchTerm) ? '' : 'none';
+                });
+            } else {
+                const table = document.querySelector('#team-list table');
+                if (!table) return;
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    row.style.display = row.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+                });
+            }
         }
 
         async function viewTeamDetail(teamId) {
