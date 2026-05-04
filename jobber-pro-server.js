@@ -1066,8 +1066,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             .calendar-day-mobile.selected { background: #667eea; border-color: #4c51bf; }
             .calendar-day-mobile.selected .day-num { color: white !important; }
             .calendar-day-mobile .day-num { font-size: 0.8rem; font-weight: 600; color: #1a202c; }
-            .cal-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
-            .cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+            .cal-badge { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: white; margin-top: 2px; }
         }
 
         @media (max-width: 480px) {
@@ -8506,8 +8505,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 if (isMobile) {
                     day.className = 'calendar-day-mobile' + (dateStr === today ? ' today' : '');
-                    const dots = dayJobs.map(j => \`<div class="cal-dot" style="background:\${statusDotColor[j.status] || '#667eea'}"></div>\`).join('');
-                    day.innerHTML = \`<div class="day-num">\${i}</div><div class="cal-dots">\${dots}</div>\`;
+                    const badge = dayJobs.length > 0
+                        ? \`<div class="cal-badge" style="background:\${statusDotColor[dayJobs[0].status] || '#667eea'}">\${dayJobs.length}</div>\`
+                        : '';
+                    day.innerHTML = \`<div class="day-num">\${i}</div>\${badge}\`;
                     day.addEventListener('click', () => showCalendarAgenda(dateStr, dayJobs, day));
                 } else {
                     day.className = 'calendar-day' + (dateStr === today ? ' today' : '');
