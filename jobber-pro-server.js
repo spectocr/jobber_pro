@@ -5313,6 +5313,43 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
+            const isMobile = window.innerWidth < 768;
+
+            if (isMobile) {
+                container.innerHTML = filteredJobs.map(j => {
+                    const client = findClient(j.clientId);
+                    const assigned = findTeamMember(j.assignedTo);
+                    const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
+                    const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
+                    const owed = total - paid;
+                    const isPaidInFull = Math.abs(owed) < 0.01;
+
+                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                            <div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                                <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${j.title}</div>
+                            </div>
+                            <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace(/_/g, ' ')}</span>
+                        </div>
+                        <div style="color:#718096;font-size:0.85rem;margin-bottom:0.5rem;">
+                            \${j.scheduledDate ? \`📅 \${j.scheduledDate}\${j.scheduledTime ? ' · ' + j.scheduledTime : ''}\` : 'No date set'}
+                            \${assigned ? \` · 👷 \${assigned.name}\` : ''}
+                        </div>
+                        \${isAdmin && total > 0 ? \`<div style="font-size:0.85rem;margin-bottom:0.75rem;">
+                            <span style="color:#4a5568;">Billed: \${formatMoney(total)}</span> ·
+                            <span style="color:#48bb78;">Paid: \${formatMoney(paid)}</span> ·
+                            <span style="color:\${isPaidInFull ? '#48bb78' : '#e53e3e'};">Owed: \${formatMoney(Math.max(0, owed))}</span>
+                        </div>\` : ''}
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
+                            \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
+                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')">📧 Email</button>\` : ''}
+                            <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
+                        </div>
+                    </div>\`;
+                }).join('');
+            } else {
             const moneyColumn = isAdmin ? '<th>Billed / Paid / Owed</th>' : '';
             container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + '<th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
@@ -5352,6 +5389,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
+            }
         }
 
         function filterJobs() {
