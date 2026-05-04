@@ -1208,7 +1208,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         ...j,
         id: j._id.toString(),
         clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
-        assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
+        assignedTo: Array.isArray(j.assignedTo) ? j.assignedTo.map(id => id.toString()) : ((j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? [j.assignedTo.toString()] : [])
     }));
 
     // job.total is already stored WITH tax included (or without if taxWaived)
@@ -1441,7 +1441,7 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
             _id: j._id.toString(), // Keep _id as string for invoice links
             id: j._id.toString(),
             clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
-            assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null,
+            assignedTo: Array.isArray(j.assignedTo) ? j.assignedTo.map(id => id.toString()) : ((j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? [j.assignedTo.toString()] : []),
             totalWithTax: totalWithTax
         };
     });
@@ -1540,11 +1540,13 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         delete job.clientId;
     }
 
-    // Convert assignedTo to ObjectId or remove if invalid
-    if (job.assignedTo && job.assignedTo !== 'undefined' && typeof job.assignedTo === 'string' && job.assignedTo.length === 24) {
-        job.assignedTo = new ObjectId(job.assignedTo);
-    } else if (!job.assignedTo || job.assignedTo === 'undefined' || job.assignedTo === '') {
-        delete job.assignedTo;
+    // Convert assignedTo array of ID strings to ObjectIds
+    if (job.assignedTo) {
+        const ids = Array.isArray(job.assignedTo) ? job.assignedTo : (typeof job.assignedTo === 'string' ? JSON.parse(job.assignedTo) : []);
+        const validIds = ids.filter(id => id && id.length === 24);
+        job.assignedTo = validIds.length > 0 ? validIds.map(id => new ObjectId(id)) : [];
+    } else {
+        job.assignedTo = [];
     }
 
     if (job._id) {
@@ -2682,7 +2684,7 @@ app.get('/api/calendar', isAuthenticated, async (req, res) => {
         ...j,
         id: j._id.toString(),
         clientId: (j.clientId && j.clientId !== 'undefined' && typeof j.clientId === 'object') ? j.clientId.toString() : null,
-        assignedTo: (j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? j.assignedTo.toString() : null
+        assignedTo: Array.isArray(j.assignedTo) ? j.assignedTo.map(id => id.toString()) : ((j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? [j.assignedTo.toString()] : [])
     }));
     res.json(dataWithId);
 });

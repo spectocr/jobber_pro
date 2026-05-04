@@ -167,7 +167,8 @@ class DataManager {
         // Handle both string and number IDs for client matching
         const client = this.getClients().find(c => c.id == job.clientId || String(c.id) === String(job.clientId));
         const team = this.getTeam();
-        const assigned = team.find(t => t.id == job.assignedTo || String(t.id) === String(job.assignedTo));
+        const assignedIds = Array.isArray(job.assignedTo) ? job.assignedTo : (job.assignedTo ? [job.assignedTo] : []);
+        const assignedNames = assignedIds.map(id => { const m = team.find(t => t.id == id || String(t.id) === String(id)); return m ? m.name : null; }).filter(Boolean).join(', ') || 'Unassigned';
         const settings = this.getSettings();
 
         const subtotal = parseFloat(job.total) || 0;
@@ -2298,9 +2299,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div class="form-group">
                         <label>Assigned To</label>
-                        <select name="assignedTo" id="jobTeamSelect" onchange="handleTeamMemberChange()">
-                            <option value="">Unassigned</option>
-                        </select>
+                        <div id="jobTeamCheckboxes" style="background:#f8f9fa; border:2px solid #e2e8f0; border-radius:8px; padding:0.75rem; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem;"></div>
                     </div>
                     <div class="form-group">
                         <label>Status *</label>
@@ -3109,12 +3108,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const locationSelect = document.getElementById('jobServiceLocationSelect');
                     locationSelect.value = job.serviceLocationId;
                 }
+
+                // Check assigned team members
+                const assignedIds = Array.isArray(job.assignedTo) ? job.assignedTo : (job.assignedTo ? [job.assignedTo] : []);
+                document.querySelectorAll('.job-team-cb').forEach(cb => {
+                    cb.checked = assignedIds.includes(cb.value);
+                });
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
                 document.getElementById('jobClientInput').value = '';
                 document.getElementById('clientTypeaheadDropdown').style.display = 'none';
                 document.getElementById('serviceLocationGroup').style.display = 'none';
+                document.querySelectorAll('.job-team-cb').forEach(cb => cb.checked = false);
             }
 
             renderLineItems();
@@ -3275,8 +3281,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function populateJobSelects() {
-            const teamSelect = document.getElementById('jobTeamSelect');
-            populateDropdown(teamSelect, team.filter(t => t.active), 'id', 'name', 'Unassigned');
+            const container = document.getElementById('jobTeamCheckboxes');
+            const activeTeam = team.filter(t => t.active);
+            if (activeTeam.length === 0) {
+                container.innerHTML = '<span style="color:#718096;font-size:0.875rem;">No active team members</span>';
+                return;
+            }
+            container.innerHTML = activeTeam.map(t => \`
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:normal;">
+                    <input type="checkbox" class="job-team-cb" value="\${t.id}" onchange="handleTeamMemberChange()" style="width:1rem;height:1rem;">
+                    <span>\${t.name}</span>
+                </label>\`).join('');
         }
 
         function filterClientTypeahead() {
@@ -3824,25 +3839,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function handleTeamMemberChange() {
-            const selectElement = document.getElementById('jobTeamSelect');
-            const selectedTeamId = selectElement.value;
-
-            if (!selectedTeamId) return;
-
-            const teamMember = team.find(t => t.id == selectedTeamId);
+            const checked = Array.from(document.querySelectorAll('.job-team-cb:checked'));
+            if (checked.length !== 1) return;
+            const teamMember = team.find(t => t.id == checked[0].value);
             if (!teamMember || !teamMember.hourlyRate) return;
 
-            // Update all existing labor items with the team member's rate
-            laborItems.forEach(item => {
-                item.rate = parseFloat(teamMember.hourlyRate);
-            });
-
-            // If no labor items exist, add one with the team member's rate
+            laborItems.forEach(item => { item.rate = parseFloat(teamMember.hourlyRate); });
             if (laborItems.length === 0) {
-                const id = Date.now();
-                laborItems.push({ id, description: '', hours: 0, rate: parseFloat(teamMember.hourlyRate) });
+                laborItems.push({ id: Date.now(), description: '', hours: 0, rate: parseFloat(teamMember.hourlyRate) });
             }
-
             renderLineItems();
             markFormDirty();
         }
@@ -4133,6 +4138,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 job._id = currentEditingJobId;
             }
 
+            // Collect assigned team members from checkboxes
+            job.assignedTo = Array.from(document.querySelectorAll('.job-team-cb:checked')).map(cb => cb.value);
+
             // Add line items, payments, touch points, and attachments
             job.laborItems = laborItems;
             job.materialItems = materialItems;
@@ -4359,6 +4367,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             return team.find(t => t.id == id) || null;
         }
 
+        // Get display names for assignedTo (handles array or legacy single value)
+        function getAssignedNames(assignedTo) {
+            const ids = Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [assignedTo] : []);
+            if (ids.length === 0) return 'Unassigned';
+            const names = ids.map(id => { const m = findTeamMember(id); return m ? m.name : null; }).filter(Boolean);
+            if (names.length === 0) return 'Unassigned';
+            if (names.length <= 2) return names.join(', ');
+            return names[0] + ' +' + (names.length - 1);
+        }
+
+        function isAssignedTo(job, memberId) {
+            const ids = Array.isArray(job.assignedTo) ? job.assignedTo : (job.assignedTo ? [job.assignedTo] : []);
+            return ids.some(id => String(id) === String(memberId));
+        }
+
         // Validate password
         function validatePassword(password, confirmPassword) {
             if (!password || !confirmPassword) {
@@ -4398,7 +4421,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const jClient = findClient(j.clientId);
                     if (!jClient || !jClient.name.toLowerCase().includes(clientFilter.toLowerCase())) return false;
                 }
-                if (assignedFilter && j.assignedTo !== assignedFilter) return false;
+                if (assignedFilter && !isAssignedTo(j, assignedFilter)) return false;
                 return true;
             });
         }
@@ -4442,13 +4465,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return '<div style="max-height: 400px; overflow-y: auto;"><table style="font-size: 0.875rem;"><tbody>' +
                     jobs.map(j => {
                         const client = findClient(j.clientId);
-                        const assigned = findTeamMember(j.assignedTo);
+                        const assignedNames = getAssignedNames(j.assignedTo);
                         return \`<tr style="cursor: pointer; border-bottom: 1px solid #e2e8f0;" onclick="editJob('\${j.id}')">
                             <td style="padding: 0.75rem;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">\${j.title}</div>
                                 <div style="font-size: 0.75rem; color: #718096;">
                                     \${client ? client.name : 'Unknown'} • \${j.scheduledDate || 'No date'}
-                                    \${assigned ? ' • ' + assigned.name : ''}
+                                    \${assignedNames !== 'Unassigned' ? ' • ' + assignedNames : ''}
                                 </div>
                             </td>
                         </tr>\`;
@@ -4939,7 +4962,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             jobsContainer.innerHTML = '<table><thead><tr><th>Date</th><th>Job</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
                 clientJobs.map(j => {
-                    const assigned = findTeamMember(j.assignedTo);
                     // Format date more compactly for mobile
                     const dateObj = new Date(j.scheduledDate);
                     const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -5401,7 +5423,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (isMobile) {
                 container.innerHTML = filteredJobs.map(j => {
                     const client = findClient(j.clientId);
-                    const assigned = findTeamMember(j.assignedTo);
+                    const assignedNames = getAssignedNames(j.assignedTo);
                     const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                     const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
                     const owed = total - paid;
@@ -5417,7 +5439,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                         <div style="color:#718096;font-size:0.85rem;margin-bottom:0.5rem;">
                             \${j.scheduledDate ? \`📅 \${j.scheduledDate}\${j.scheduledTime ? ' · ' + j.scheduledTime : ''}\` : 'No date set'}
-                            \${assigned ? \` · 👷 \${assigned.name}\` : ''}
+                            \${assignedNames !== 'Unassigned' ? \` · 👷 \${assignedNames}\` : ''}
                         </div>
                         \${isAdmin && total > 0 ? \`<div style="font-size:0.85rem;margin-bottom:0.75rem;">
                             <span style="color:#4a5568;">Billed: \${formatMoney(total)}</span> ·
@@ -5437,7 +5459,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + '<th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
                     const client = findClient(j.clientId);
-                    const assigned = findTeamMember(j.assignedTo);
+                    const assignedNames = getAssignedNames(j.assignedTo);
 
                     let moneyCell = '';
                     if (isAdmin) {
@@ -5458,7 +5480,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
                         <td>\${client ? client.name : 'Unknown'}</td>
                         <td><strong>\${j.title}</strong><br><small>\${j.description || ''}</small></td>
-                        <td>\${assigned ? assigned.name : 'Unassigned'}</td>
+                        <td>\${assignedNames}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         \${moneyCell}
                         <td>
@@ -5565,7 +5587,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             exportToCSV(filteredJobs, headers, `jobs_export_${timestamp}.csv`, (j) => {
                 const client = findClient(j.clientId);
-                const assigned = findTeamMember(j.assignedTo);
                 const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                 const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
                 const owed = total - paid;
@@ -5578,7 +5599,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     client ? client.name : 'Unknown',
                     j.title || '',
                     (j.description || '').replace(/"/g, '""'),
-                    assigned ? assigned.name : 'Unassigned',
+                    getAssignedNames(j.assignedTo),
                     j.status.replace('_', ' '),
                     total.toFixed(2),
                     paid.toFixed(2),
@@ -5682,7 +5703,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             \`;
 
             // Load member's jobs
-            const memberJobs = jobs.filter(j => j.assignedTo == member.id || String(j.assignedTo) === String(member.id));
+            const memberJobs = jobs.filter(j => isAssignedTo(j, member.id));
             const jobsContainer = document.getElementById('team-detail-jobs');
 
             console.log('Jobs matching for member:', member.name, 'member.id:', member.id);
@@ -6130,7 +6151,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     if (!j.scheduledDate) return false;
                     if (j.scheduledDate < startDate || j.scheduledDate > endDate) return false;
                     if (clientFilter && j.clientId !== clientFilter) return false;
-                    if (teamFilter && j.assignedTo !== teamFilter) return false;
+                    if (teamFilter && !isAssignedTo(j, teamFilter)) return false;
                     if (statusFilter && j.status !== statusFilter) return false;
                     return true;
                 });
@@ -6286,8 +6307,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const teamStats = {};
 
             filteredJobs.forEach(j => {
-                const member = team.find(t => t.id === j.assignedTo);
-                const memberName = member ? member.name : 'Unassigned';
+                const memberName = getAssignedNames(j.assignedTo);
 
                 if (!teamStats[memberName]) {
                     teamStats[memberName] = { count: 0, revenue: 0 };
@@ -6376,13 +6396,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <tbody>
                         \${filteredJobs.map(j => {
                             const client = clients.find(c => c.id === j.clientId);
-                            const member = team.find(t => t.id === j.assignedTo);
                             return \`
                                 <tr>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.scheduledDate}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${client ? client.name : 'Unknown'}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.title}</td>
-                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${member ? member.name : 'Unassigned'}</td>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${getAssignedNames(j.assignedTo)}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.status.replace('_', ' ')}</td>
                                     <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${formatMoney(j.totalWithTax || calculateTotalWithTax(parseFloat(j.total) || 0))}</td>
                                 </tr>
@@ -7761,7 +7780,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (matchingTeamMember) {
                     // Filter jobs to only those assigned to this team member
                     // Use loose comparison to handle string/number ID differences
-                    activeJobs = activeJobs.filter(j => j.assignedTo && String(j.assignedTo) === String(matchingTeamMember.id));
+                    activeJobs = activeJobs.filter(j => isAssignedTo(j, matchingTeamMember.id));
 
                     console.log('User:', currentUser.name, 'Team Member ID:', matchingTeamMember.id, 'Found jobs:', activeJobs.length);
                 } else {
@@ -8836,7 +8855,7 @@ const handleRequest = async (req, res) => {
 
             // Convert empty strings to null for proper handling
             if (job.clientId === '') job.clientId = null;
-            if (job.assignedTo === '') job.assignedTo = null;
+            if (!Array.isArray(job.assignedTo)) job.assignedTo = [];
 
             if (job.id) {
                 // Update existing
@@ -9012,7 +9031,7 @@ const handleRequest = async (req, res) => {
         <p><strong>Job:</strong> ${job.title}</p>
         <p><strong>Description:</strong> ${job.description || 'N/A'}</p>
         <p><strong>Date:</strong> ${job.scheduledDate || ''} ${job.scheduledTime || ''}</p>
-        <p><strong>Technician:</strong> ${assigned ? assigned.name : 'Unassigned'}</p>
+        <p><strong>Technician:</strong> ${assignedNames}</p>
     </div>
 
     ${(job.laborItems && job.laborItems.length > 0) ? `
