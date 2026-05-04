@@ -919,25 +919,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             /* Calendar */
             .calendar-view.active {
-                height: calc(100vh - 150px);
-            }
-            .calendar-day-header {
-                font-size: 0.7rem;
-                padding: 0.5rem 0.25rem;
-            }
-            .calendar-day {
-                padding: 0.25rem;
-                min-height: 60px;
-            }
-            .day-number {
-                font-size: 0.75rem;
-            }
-            .calendar-job {
-                font-size: 0.65rem;
-                padding: 0.2rem 0.3rem;
+                height: auto;
+                min-height: 0;
             }
             #calendar-grid {
-                gap: 0.5px;
+                gap: 1px;
+                grid-auto-rows: auto !important;
+            }
+            .calendar-day-header {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.2rem;
             }
 
             /* Reports */
@@ -1039,6 +1030,44 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 flex-direction: column !important;
                 gap: 1.5rem !important;
             }
+
+            /* Settings tabs - horizontal scroll on mobile */
+            .settings-tabs-bar {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .settings-tabs-bar::-webkit-scrollbar { display: none; }
+            .settings-tabs-bar > div {
+                display: flex;
+                gap: 0;
+                min-width: max-content;
+            }
+            .settings-tab {
+                padding: 0.6rem 0.9rem !important;
+                font-size: 0.8rem !important;
+                white-space: nowrap;
+            }
+
+            /* Calendar mobile: compact grid */
+            .calendar-day-mobile {
+                background: white;
+                border: 1px solid #e2e8f0;
+                padding: 0.3rem;
+                min-height: 48px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                cursor: pointer;
+                user-select: none;
+            }
+            .calendar-day-mobile.today { background: #edf2ff; border-color: #667eea; }
+            .calendar-day-mobile.other-month { background: #f7fafc; opacity: 0.5; }
+            .calendar-day-mobile.selected { background: #667eea; border-color: #4c51bf; }
+            .calendar-day-mobile.selected .day-num { color: white !important; }
+            .calendar-day-mobile .day-num { font-size: 0.8rem; font-weight: 600; color: #1a202c; }
+            .cal-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
+            .cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
         }
 
         @media (max-width: 480px) {
@@ -1086,7 +1115,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 font-size: 0.65rem;
             }
             .calendar-view.active {
-                height: calc(100vh - 100px);
+                height: auto;
             }
         }
     </style>
@@ -1514,6 +1543,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </div>
                 <div id="calendar-grid" style="flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; border: 1px solid #e2e8f0; grid-auto-rows: 1fr; overflow: auto;"></div>
+                <div id="calendar-agenda" style="display:none; margin-top:1rem; padding-top:1rem; border-top:2px solid #e2e8f0;"></div>
             </div>
         </div>
 
@@ -1756,23 +1786,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
 
                 <!-- Settings Tabs -->
-                <div style="border-bottom: 2px solid #e2e8f0; margin-bottom: 2rem;">
+                <div class="settings-tabs-bar" style="border-bottom: 2px solid #e2e8f0; margin-bottom: 2rem;">
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="settings-tab active" onclick="switchSettingsTab('company')" data-tab="company">
-                            🏢 Company & Billing
-                        </button>
-                        <button class="settings-tab" onclick="switchSettingsTab('messaging')" data-tab="messaging">
-                            📱 SMS Messaging
-                        </button>
-                        <button class="settings-tab" onclick="switchSettingsTab('email')" data-tab="email">
-                            📧 Email Settings
-                        </button>
-                        <button class="settings-tab" onclick="switchSettingsTab('account')" data-tab="account">
-                            🔒 Account & Password
-                        </button>
-                        <button class="settings-tab" id="usersTab" onclick="switchSettingsTab('users')" data-tab="users" style="display: none;">
-                            👥 User Management
-                        </button>
+                        <button class="settings-tab active" onclick="switchSettingsTab('company')" data-tab="company">🏢 Company</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('messaging')" data-tab="messaging">📱 SMS</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('email')" data-tab="email">📧 Email</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('account')" data-tab="account">🔒 Account</button>
+                        <button class="settings-tab" id="usersTab" onclick="switchSettingsTab('users')" data-tab="users" style="display: none;">👥 Users</button>
                     </div>
                 </div>
 
@@ -8447,9 +8467,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const grid = document.getElementById('calendar-grid');
             grid.innerHTML = '';
+            const agendaPanel = document.getElementById('calendar-agenda');
+            agendaPanel.style.display = 'none';
+
+            const isMobile = window.innerWidth < 768;
+            const today = new Date().toISOString().split('T')[0];
+
+            const statusDotColor = {
+                scheduled: '#667eea', to_be_scheduled: '#d69e2e', in_progress: '#ed8936',
+                completed: '#48bb78', invoiced: '#9f7aea', prospecting: '#a0aec0', bid_lost: '#fc8181'
+            };
 
             // Day headers
-            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const dayNames = isMobile ? ['S','M','T','W','T','F','S'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
             dayNames.forEach(day => {
                 const header = document.createElement('div');
                 header.className = 'calendar-day-header';
@@ -8457,46 +8487,93 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 grid.appendChild(header);
             });
 
-            // Previous month days
+            // Previous month filler days
             const prevMonthDays = new Date(currentYear, currentMonth - 1, 0).getDate();
             for (let i = startDay - 1; i >= 0; i--) {
                 const day = document.createElement('div');
-                day.className = 'calendar-day other-month';
-                day.innerHTML = \`<div class="day-number">\${prevMonthDays - i}</div>\`;
+                day.className = isMobile ? 'calendar-day-mobile other-month' : 'calendar-day other-month';
+                day.innerHTML = isMobile
+                    ? \`<div class="day-num">\${prevMonthDays - i}</div>\`
+                    : \`<div class="day-number">\${prevMonthDays - i}</div>\`;
                 grid.appendChild(day);
             }
 
             // Current month days
-            const today = new Date().toISOString().split('T')[0];
             for (let i = 1; i <= daysInMonth; i++) {
                 const dateStr = \`\${currentYear}-\${String(currentMonth).padStart(2, '0')}-\${String(i).padStart(2, '0')}\`;
-                const day = document.createElement('div');
-                day.className = 'calendar-day';
-                if (dateStr === today) day.classList.add('today');
-
-                let html = \`<div class="day-number">\${i}</div>\`;
-
                 const dayJobs = calendarJobs.filter(j => j.scheduledDate === dateStr);
-                dayJobs.forEach(j => {
-                    const client = findClient(j.clientId);
-                    html += \`<div class="calendar-job \${j.status}" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})' title="\${j.title} - \${client ? client.name : 'Unknown'}">\${j.title}</div>\`;
-                });
+                const day = document.createElement('div');
 
-                day.innerHTML = html;
+                if (isMobile) {
+                    day.className = 'calendar-day-mobile' + (dateStr === today ? ' today' : '');
+                    const dots = dayJobs.map(j => \`<div class="cal-dot" style="background:\${statusDotColor[j.status] || '#667eea'}"></div>\`).join('');
+                    day.innerHTML = \`<div class="day-num">\${i}</div><div class="cal-dots">\${dots}</div>\`;
+                    day.addEventListener('click', () => showCalendarAgenda(dateStr, dayJobs, day));
+                } else {
+                    day.className = 'calendar-day' + (dateStr === today ? ' today' : '');
+                    let html = \`<div class="day-number">\${i}</div>\`;
+                    dayJobs.forEach(j => {
+                        const client = findClient(j.clientId);
+                        html += \`<div class="calendar-job \${j.status}" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})' title="\${j.title} - \${client ? client.name : 'Unknown'}">\${j.title}</div>\`;
+                    });
+                    day.innerHTML = html;
+                }
                 grid.appendChild(day);
             }
 
-            // Next month days
+            // Next month filler days
             const totalCells = startDay + daysInMonth;
             const remainingCells = 7 - (totalCells % 7);
             if (remainingCells < 7) {
                 for (let i = 1; i <= remainingCells; i++) {
                     const day = document.createElement('div');
-                    day.className = 'calendar-day other-month';
-                    day.innerHTML = \`<div class="day-number">\${i}</div>\`;
+                    day.className = isMobile ? 'calendar-day-mobile other-month' : 'calendar-day other-month';
+                    day.innerHTML = isMobile
+                        ? \`<div class="day-num">\${i}</div>\`
+                        : \`<div class="day-number">\${i}</div>\`;
                     grid.appendChild(day);
                 }
             }
+
+            // Auto-show today's agenda on mobile
+            if (isMobile) {
+                const todayJobs = calendarJobs.filter(j => j.scheduledDate === today);
+                const todayEl = grid.querySelector('.calendar-day-mobile.today');
+                if (todayEl) showCalendarAgenda(today, todayJobs, todayEl);
+            }
+        }
+
+        function showCalendarAgenda(dateStr, dayJobs, dayEl) {
+            // Highlight selected day
+            document.querySelectorAll('.calendar-day-mobile.selected').forEach(el => el.classList.remove('selected'));
+            if (dayEl) dayEl.classList.add('selected');
+
+            const agendaPanel = document.getElementById('calendar-agenda');
+            const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+
+            if (dayJobs.length === 0) {
+                agendaPanel.style.display = 'block';
+                agendaPanel.innerHTML = \`<div style="font-weight:700;font-size:1rem;color:#2d3748;margin-bottom:0.75rem;">\${label}</div>
+                    <p style="color:#718096;">No jobs scheduled</p>\`;
+                return;
+            }
+
+            const cards = dayJobs.map(j => {
+                const client = findClient(j.clientId);
+                return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.875rem;margin-bottom:0.75rem;" onclick='editJob("\${j.id}")'>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                            <div style="color:#4a5568;font-size:0.9rem;">\${j.title}</div>
+                        </div>
+                        <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace(/_/g,' ')}</span>
+                    </div>
+                    \${j.scheduledTime ? \`<div style="color:#718096;font-size:0.85rem;margin-top:0.3rem;">⏰ \${j.scheduledTime}</div>\` : ''}
+                </div>\`;
+            }).join('');
+
+            agendaPanel.style.display = 'block';
+            agendaPanel.innerHTML = \`<div style="font-weight:700;font-size:1rem;color:#2d3748;margin-bottom:0.75rem;">\${label} · \${dayJobs.length} job\${dayJobs.length !== 1 ? 's' : ''}</div>\${cards}\`;
         }
 
         function changeMonth(delta) {
