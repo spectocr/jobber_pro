@@ -923,6 +923,47 @@ app.get('/request-quote', (req, res) => {
   .success h3 { font-size: 1.1rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.4rem; }
   .success p { color: #6b7280; font-size: 0.85rem; }
   .error-msg { color: #dc2626; font-size: 0.75rem; margin-top: 0.35rem; display: none; }
+
+  /* Photo upload */
+  .photo-hint {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;
+    padding: 0.5rem 0.65rem; margin-bottom: 0.65rem;
+    font-size: 0.78rem; color: #1e40af; display: flex; gap: 0.4rem; align-items: flex-start;
+  }
+  .photo-hint span { flex-shrink: 0; }
+  .upload-zone {
+    border: 2px dashed #d1d5db; border-radius: 8px;
+    padding: 0.75rem; text-align: center;
+    cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: #1d6fa4; background: #f0f7ff; }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-zone-inner { pointer-events: none; }
+  .upload-icon { font-size: 1.4rem; margin-bottom: 0.2rem; }
+  .upload-zone p { font-size: 0.78rem; color: #6b7280; margin: 0; }
+  .upload-zone strong { color: #1d6fa4; }
+  .upload-zone .max-note { font-size: 0.7rem; color: #9ca3af; margin-top: 0.15rem; }
+  .photo-previews { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+  .photo-thumb {
+    position: relative; width: 64px; height: 64px;
+    border-radius: 6px; overflow: hidden; border: 1.5px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-thumb .remove-photo {
+    position: absolute; top: 2px; right: 2px;
+    background: rgba(0,0,0,0.6); color: white;
+    border: none; border-radius: 50%; width: 16px; height: 16px;
+    font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .photo-thumb .compressing {
+    position: absolute; inset: 0; background: rgba(255,255,255,0.8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; color: #6b7280;
+  }
+  .photo-count { font-size: 0.72rem; color: #6b7280; margin-top: 0.3rem; }
 </style>
 </head>
 <body>
@@ -971,6 +1012,25 @@ app.get('/request-quote', (req, res) => {
       <label>Describe the Work</label>
       <textarea name="description" placeholder="Tell us what needs to be done..."></textarea>
     </div>
+
+    <div class="form-group">
+      <label>Photos <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+      <div class="photo-hint">
+        <span>📸</span>
+        <span>Adding photos helps us give you a more accurate estimate — snap the area that needs work before submitting.</span>
+      </div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="photoInput" accept="image/*" multiple>
+        <div class="upload-zone-inner">
+          <div class="upload-icon">📷</div>
+          <p><strong>Tap to add photos</strong> or drag & drop</p>
+          <p class="max-note">Up to 5 photos · JPG, PNG, HEIC</p>
+        </div>
+      </div>
+      <div class="photo-previews" id="photoPreviews"></div>
+      <div class="photo-count" id="photoCount"></div>
+    </div>
+
     <div class="form-group">
       <label>Best Way to Reach You</label>
       <select name="contactPref">
@@ -995,14 +1055,97 @@ function notifyHeight() {
 window.addEventListener('load', notifyHeight);
 new ResizeObserver(notifyHeight).observe(document.body);
 
+// ── Photo handling ──────────────────────────────────────────────
+const MAX_PHOTOS = 5;
+const MAX_DIM = 1200;
+const QUALITY = 0.72;
+let compressedPhotos = []; // array of base64 strings
+
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > MAX_DIM || h > MAX_DIM) {
+          if (w >= h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+          else { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', QUALITY));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPreviews() {
+  const wrap = document.getElementById('photoPreviews');
+  const count = document.getElementById('photoCount');
+  wrap.innerHTML = '';
+  compressedPhotos.forEach((b64, i) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = \`<img src="\${b64}"><button type="button" class="remove-photo" aria-label="Remove photo">✕</button>\`;
+    thumb.querySelector('.remove-photo').addEventListener('click', () => {
+      compressedPhotos.splice(i, 1);
+      renderPreviews();
+    });
+    wrap.appendChild(thumb);
+  });
+  const remaining = MAX_PHOTOS - compressedPhotos.length;
+  count.textContent = compressedPhotos.length > 0
+    ? \`\${compressedPhotos.length} photo\${compressedPhotos.length > 1 ? 's' : ''} added\${remaining > 0 ? \` · \${remaining} more allowed\` : ' (max reached)'}\`
+    : '';
+  // show/hide upload zone
+  document.getElementById('uploadZone').style.display = compressedPhotos.length >= MAX_PHOTOS ? 'none' : '';
+  notifyHeight();
+}
+
+async function handleFiles(files) {
+  const toAdd = Array.from(files).slice(0, MAX_PHOTOS - compressedPhotos.length);
+  if (!toAdd.length) return;
+
+  // Add placeholder thumbs while compressing
+  const startIdx = compressedPhotos.length;
+  toAdd.forEach(() => compressedPhotos.push(null));
+  renderPreviews();
+  // Show spinner in placeholders
+  document.querySelectorAll('.photo-thumb img').forEach((img, i) => {
+    if (i >= startIdx) img.closest('.photo-thumb').innerHTML += '<div class="compressing">...</div>';
+  });
+
+  const compressed = await Promise.all(toAdd.map(compressImage));
+  compressed.forEach((b64, i) => { compressedPhotos[startIdx + i] = b64; });
+  renderPreviews();
+}
+
+const photoInput = document.getElementById('photoInput');
+photoInput.addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
+
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+
+// ── Form submit ────────────────────────────────────────────────
 document.getElementById('quoteForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
   const err = document.getElementById('errorMsg');
   btn.disabled = true;
-  btn.textContent = 'Sending...';
+  btn.textContent = compressedPhotos.filter(Boolean).length > 0 ? 'Sending photos...' : 'Sending...';
   err.style.display = 'none';
   const data = Object.fromEntries(new FormData(this));
+  data.photos = compressedPhotos.filter(Boolean);
   try {
     const res = await fetch('/api/public/quote-request', {
       method: 'POST',
@@ -1027,10 +1170,12 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
 // Public quote request API
 app.post('/api/public/quote-request', async (req, res) => {
     try {
-        const { firstName, lastName, phone, email, service, description, city, contactPref } = req.body;
+        const { firstName, lastName, phone, email, service, description, city, contactPref, photos } = req.body;
         if (!firstName || !lastName || !phone || !service) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+
+        const validPhotos = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 5) : [];
 
         const lead = {
             firstName, lastName,
@@ -1039,6 +1184,7 @@ app.post('/api/public/quote-request', async (req, res) => {
             service, description: description || '',
             city: city || '',
             contactPref: contactPref || 'phone',
+            photos: validPhotos,
             source: 'website',
             status: 'new',
             createdAt: new Date()
@@ -1048,9 +1194,12 @@ app.post('/api/public/quote-request', async (req, res) => {
 
         // Email notification to Franz
         if (emailService.initialized) {
+            const photoHtml = validPhotos.length > 0
+                ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${validPhotos.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>`
+                : '';
             await emailService.sendEmail({
                 to: 'franzthehandyman@gmail.com',
-                subject: `New Quote Request — ${service} — ${firstName} ${lastName}`,
+                subject: `New Quote Request — ${service} — ${firstName} ${lastName}${validPhotos.length ? ` (${validPhotos.length} photo${validPhotos.length > 1 ? 's' : ''})` : ''}`,
                 html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                     <h2 style="color:#0f1c2e;">New Quote Request</h2>
                     <table style="width:100%;border-collapse:collapse;">
@@ -1061,10 +1210,11 @@ app.post('/api/public/quote-request', async (req, res) => {
                         ${city ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Location</td><td>${city}</td></tr>` : ''}
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Contact Via</td><td>${contactPref}</td></tr>
                         ${description ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Description</td><td>${description}</td></tr>` : ''}
+                        ${photoHtml}
                     </table>
                     <p style="margin-top:20px;color:#6b7280;font-size:0.85rem;">Submitted via gsdhandymanservice.com</p>
                 </div>`,
-                text: `New Quote Request\n\nName: ${firstName} ${lastName}\nPhone: ${phone}\nEmail: ${email || 'N/A'}\nService: ${service}\nLocation: ${city || 'N/A'}\nContact Via: ${contactPref}\n\n${description || ''}`
+                text: `New Quote Request\n\nName: ${firstName} ${lastName}\nPhone: ${phone}\nEmail: ${email || 'N/A'}\nService: ${service}\nLocation: ${city || 'N/A'}\nContact Via: ${contactPref}\nPhotos: ${validPhotos.length}\n\n${description || ''}`
             });
         }
 

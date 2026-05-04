@@ -7514,6 +7514,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
 
+            const photoStrip = (photos) => {
+                if (!photos || !photos.length) return '';
+                return \`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">\${
+                    photos.map(p => \`<img src="\${p}" style="width:72px;height:54px;object-fit:cover;border-radius:5px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="window.open(this.src)" title="Click to expand">\`).join('')
+                }</div>\`;
+            };
+
             const isMobile = window.innerWidth < 768;
             if (isMobile) {
                 container.innerHTML = filtered.map(l => {
@@ -7531,6 +7538,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         \${l.city ? \`<div style="color:#718096;font-size:0.85rem;">📍 \${l.city}</div>\` : ''}
                         <div style="color:#718096;font-size:0.8rem;margin-top:0.25rem;">📅 \${date} · via \${l.contactPref || 'phone'}</div>
                         \${l.description ? \`<div style="color:#4a5568;font-size:0.85rem;margin-top:0.5rem;padding:0.5rem;background:#f8f9fa;border-radius:6px;">\${l.description}</div>\` : ''}
+                        \${photoStrip(l.photos)}
                         \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">Note: \${l.note}</div>\` : ''}
                         <div style="margin-top:0.75rem;">
                             <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;width:100%;">
@@ -7540,7 +7548,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
                 }).join('');
             } else {
-                container.innerHTML = \`<table><thead><tr><th>Date</th><th>Name</th><th>Contact</th><th>Service</th><th>Location</th><th>Contact Via</th><th>Notes</th><th>Status</th></tr></thead><tbody>\` +
+                container.innerHTML = \`<table><thead><tr><th>Date</th><th>Name</th><th>Contact</th><th>Service</th><th>Location</th><th>Description & Photos</th><th>Status</th></tr></thead><tbody>\` +
                 filtered.map(l => {
                     const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     const color = statusColors[l.status] || '#6b7280';
@@ -7553,8 +7561,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>
                         <td>\${l.service}</td>
                         <td>\${l.city || '-'}</td>
-                        <td>\${l.contactPref || 'phone'}</td>
-                        <td style="max-width:180px;font-size:0.85rem;color:#6b7280;">\${l.description ? l.description.substring(0,60) + (l.description.length > 60 ? '...' : '') : '-'}</td>
+                        <td style="max-width:220px;">
+                            \${l.description ? \`<div style="font-size:0.85rem;color:#4a5568;margin-bottom:0.3rem;">\${l.description.substring(0,80)}\${l.description.length > 80 ? '...' : ''}</div>\` : ''}
+                            \${photoStrip(l.photos)}
+                        </td>
                         <td>
                             <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.35rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;background:\${color};color:white;">
                                 \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" style="background:white;color:#1f2937;" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
