@@ -1179,6 +1179,24 @@ app.post('/api/public/quote-request', async (req, res) => {
 
         const validPhotos = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 5) : [];
 
+        // Upload photos to S3 under leads/ channel, fall back to base64 if S3 unavailable
+        let photoKeys = [];
+        if (validPhotos.length > 0 && s3Client) {
+            const ts = Date.now();
+            const uploads = await Promise.all(validPhotos.map(async (dataUrl, i) => {
+                const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
+                if (!match) return null;
+                const [, contentType, rawExt] = match;
+                const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+                const key = `leads/${ts}-${i}.${ext}`;
+                const buffer = Buffer.from(match[3], 'base64');
+                const command = new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType });
+                await s3Client.send(command);
+                return key;
+            }));
+            photoKeys = uploads.filter(Boolean);
+        }
+
         const lead = {
             firstName, lastName,
             name: `${firstName} ${lastName}`,
@@ -1186,7 +1204,7 @@ app.post('/api/public/quote-request', async (req, res) => {
             service, description: description || '',
             city: city || '',
             contactPref: contactPref || 'phone',
-            photos: validPhotos,
+            photos: photoKeys.length ? photoKeys : validPhotos,
             source: 'website',
             status: 'new',
             createdAt: new Date()
@@ -1196,8 +1214,12 @@ app.post('/api/public/quote-request', async (req, res) => {
 
         // Email notification to Franz
         if (emailService.initialized) {
-            const photoHtml = validPhotos.length > 0
-                ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${validPhotos.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>`
+            // Generate 24h signed URLs for email so images render
+            const emailPhotoUrls = photoKeys.length
+                ? await Promise.all(photoKeys.map(k => getS3SignedUrl(k, 86400)))
+                : validPhotos;
+            const photoHtml = emailPhotoUrls.length > 0
+                ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${emailPhotoUrls.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>`
                 : '';
             await emailService.sendEmail({
                 to: 'franzthehandyman@gmail.com',
@@ -1230,7 +1252,14 @@ app.post('/api/public/quote-request', async (req, res) => {
 // Leads API
 app.get('/api/leads', isAuthenticated, async (req, res) => {
     const leads = await db.collection('leads').find().sort({ createdAt: -1 }).toArray();
-    res.json(leads.map(l => ({ ...l, id: l._id.toString() })));
+    const result = await Promise.all(leads.map(async l => {
+        let photos = l.photos || [];
+        if (s3Client && photos.length && photos[0].startsWith('leads/')) {
+            photos = await Promise.all(photos.map(k => getS3SignedUrl(k, 3600)));
+        }
+        return { ...l, id: l._id.toString(), photos };
+    }));
+    res.json(result);
 });
 
 app.patch('/api/leads/:id', isAuthenticated, async (req, res) => {
