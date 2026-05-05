@@ -5124,7 +5124,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td><strong>\${q.title}</strong></td>
                         <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
                         <td><span class="status-badge \${statusClass}">\${q.status.replace('_', ' ')}</span></td>
-                        <td>$\${parseFloat(q.total || 0).toFixed(2)}</td>
+                        <td>\${formatMoney(parseFloat(q.total || 0))}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
@@ -5238,9 +5238,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const taxAmount = taxWaived ? 0 : subtotal * taxRate;
             const total = subtotal + taxAmount;
 
-            document.getElementById('quoteSubtotal').textContent = subtotal.toFixed(2);
-            document.getElementById('quoteTax').textContent = taxAmount.toFixed(2);
-            document.getElementById('quoteTotal').textContent = total.toFixed(2);
+            document.getElementById('quoteSubtotal').textContent = subtotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('quoteTax').textContent = taxAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('quoteTotal').textContent = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         async function saveQuote() {
