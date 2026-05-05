@@ -1656,6 +1656,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
         </div>
 
+    <!-- Lead Detail Modal -->
+    <div id="leadModal" class="modal">
+        <div class="modal-content" style="max-width:640px;">
+            <div class="modal-header">
+                <h2 id="leadModalName">Lead</h2>
+                <button class="close-btn" onclick="closeLeadModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="leadModalBody"></div>
+        </div>
+    </div>
+
         <!-- Expenses View -->
         <div id="expenses" class="view">
             <div class="card">
@@ -7643,10 +7654,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     \${photoStrip(l.photos)}
                     \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">📝 \${l.note}</div>\` : ''}
                     <div style="display:flex;gap:0.5rem;margin-top:0.75rem;align-items:center;">
+                        <button onclick="openLead('\${l.id}')" style="padding:0.4rem 0.8rem;background:#667eea;color:white;border:none;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Open</button>
                         <select onchange="updateLeadStatus('\${l.id}', this.value)" style="flex:1;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;background:white;">
                             \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                         </select>
-                        <button onclick="deleteLead('\${l.id}')" style="padding:0.4rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.85rem;cursor:pointer;white-space:nowrap;">🗑 Delete</button>
+                        <button onclick="deleteLead('\${l.id}')" style="padding:0.4rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.85rem;cursor:pointer;white-space:nowrap;">🗑</button>
                     </div>
                 </div>\`;
             }).join('');
@@ -7664,16 +7676,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>
                         <td>\${l.service}</td>
                         <td>\${l.city || '-'}</td>
-                        <td style="max-width:220px;">
-                            \${l.description ? \`<div style="font-size:0.85rem;color:#4a5568;margin-bottom:0.3rem;">\${l.description.substring(0,80)}\${l.description.length > 80 ? '...' : ''}</div>\` : ''}
-                            \${photoStrip(l.photos)}
+                        <td style="max-width:200px;">
+                            \${l.description ? \`<div style="font-size:0.85rem;color:#4a5568;margin-bottom:0.3rem;">\${l.description.substring(0,60)}\${l.description.length > 60 ? '...' : ''}</div>\` : ''}
+                            \${l.photos && l.photos.length ? \`<span style="font-size:0.78rem;color:#667eea;">📷 \${l.photos.length} photo\${l.photos.length>1?'s':''}</span>\` : ''}
                         </td>
                         <td>
                             <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.35rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;background:\${color};color:white;">
                                 \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" style="background:white;color:#1f2937;" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                             </select>
                         </td>
-                        <td><button onclick="deleteLead('\${l.id}')" style="padding:0.3rem 0.6rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.8rem;cursor:pointer;">🗑</button></td>
+                        <td style="white-space:nowrap;">
+                            <button onclick="openLead('\${l.id}')" style="padding:0.3rem 0.6rem;background:#667eea;color:white;border:none;border-radius:6px;font-size:0.8rem;cursor:pointer;margin-right:4px;">Open</button>
+                            <button onclick="deleteLead('\${l.id}')" style="padding:0.3rem 0.6rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.8rem;cursor:pointer;">🗑</button>
+                        </td>
                     </tr>\`;
                 }).join('') + \`</tbody></table>\`;
 
@@ -7697,6 +7712,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             container.innerHTML = html;
+        }
+
+        function openLead(id) {
+            const l = allLeads.find(l => l.id === id);
+            if (!l) return;
+            const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
+            const color = statusColors[l.status] || '#6b7280';
+            const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            document.getElementById('leadModalName').textContent = l.name;
+            document.getElementById('leadModalBody').innerHTML = \`
+                <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
+                    <span style="background:\${color};color:white;padding:4px 14px;border-radius:100px;font-size:0.8rem;font-weight:700;text-transform:uppercase;">\${l.status}</span>
+                    <span style="color:#718096;font-size:0.9rem;">📅 \${date}</span>
+                    \${l.city ? \`<span style="color:#718096;font-size:0.9rem;">📍 \${l.city}</span>\` : ''}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+                    <div><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Service</div><div style="font-weight:600;">\${l.service}</div></div>
+                    \${l.phone ? \`<div><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Phone</div><div><a href="tel:\${l.phone}" style="color:#1d6fa4;font-weight:600;">\${l.phone}</a></div></div>\` : ''}
+                    \${l.email ? \`<div><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Email</div><div><a href="mailto:\${l.email}" style="color:#1d6fa4;">\${l.email}</a></div></div>\` : ''}
+                    <div><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Contact Via</div><div>\${l.contactPref || 'phone'}</div></div>
+                </div>
+                \${l.description ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Description</div><div style="background:#f8f9fa;padding:0.75rem;border-radius:8px;color:#374151;line-height:1.6;white-space:pre-wrap;">\${l.description}</div></div>\` : ''}
+                \${l.photos && l.photos.length ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Photos (\${l.photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px;">\${l.photos.map(p => \`<img src="\${p}" style="width:140px;height:105px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`).join('')}</div></div>\` : ''}
+                \${l.note ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Note</div><div style="color:#4a5568;font-style:italic;">\${l.note}</div></div>\` : ''}
+                <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;">
+                    <label style="font-size:0.8rem;color:#4a5568;font-weight:600;">Update Status</label>
+                    <select onchange="updateLeadStatus('\${l.id}', this.value)" style="width:100%;margin-top:0.4rem;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;background:white;">
+                        \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                    </select>
+                </div>
+            \`;
+            document.getElementById('leadModal').classList.add('active');
+        }
+
+        function closeLeadModal() {
+            document.getElementById('leadModal').classList.remove('active');
         }
 
         async function updateLeadStatus(id, status) {
