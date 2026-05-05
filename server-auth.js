@@ -1271,6 +1271,24 @@ app.patch('/api/leads/:id', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+app.delete('/api/leads/:id', isAuthenticated, async (req, res) => {
+    try {
+        const lead = await db.collection('leads').findOne({ _id: new ObjectId(req.params.id) });
+        if (!lead) return res.status(404).json({ error: 'Not found' });
+        if (s3Client && lead.photos && lead.photos.length) {
+            const s3Keys = lead.photos.filter(p => typeof p === 'string' && p.startsWith('leads/'));
+            await Promise.all(s3Keys.map(key =>
+                s3Client.send(new DeleteObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key })).catch(e => console.error('S3 delete error:', key, e))
+            ));
+        }
+        await db.collection('leads').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete lead error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Privacy Policy page (public)
 app.get('/privacy', async (req, res) => {
     const settings = await db.collection('settings').findOne() || {};

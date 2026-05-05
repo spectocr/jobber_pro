@@ -1640,7 +1640,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="card">
                 <div class="card-header">
                     <h2>🎯 Website Leads</h2>
-                    <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+                    <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="lead-search" placeholder="🔍 Name or phone..." oninput="filterLeads()" style="padding:0.6rem 0.875rem;border:2px solid #e2e8f0;border-radius:8px;min-width:180px;">
                         <select id="lead-status-filter" onchange="filterLeads()" style="padding:0.6rem 0.875rem;border:2px solid #e2e8f0;border-radius:8px;">
                             <option value="">All Statuses</option>
                             <option value="new">New</option>
@@ -7573,12 +7574,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function renderLeads() {
             const container = document.getElementById('leads-list');
             const statusFilter = document.getElementById('lead-status-filter').value;
-            const filtered = statusFilter ? allLeads.filter(l => l.status === statusFilter) : allLeads;
+            const searchFilter = document.getElementById('lead-search').value.toLowerCase();
+
+            let filtered = allLeads;
+            if (statusFilter) filtered = filtered.filter(l => l.status === statusFilter);
+            if (searchFilter) filtered = filtered.filter(l =>
+                (l.name || '').toLowerCase().includes(searchFilter) ||
+                (l.phone || '').includes(searchFilter)
+            );
 
             if (filtered.length === 0) {
                 renderEmptyState(container, 'No leads yet', 'Quote requests from your website will appear here');
                 return;
             }
+
+            const activeLeads = filtered.filter(l => l.status === 'new');
+            const archiveLeads = filtered.filter(l => l.status !== 'new');
 
             const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
 
@@ -7590,36 +7601,37 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             };
 
             const isMobile = window.innerWidth < 768;
-            if (isMobile) {
-                container.innerHTML = filtered.map(l => {
-                    const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    const color = statusColors[l.status] || '#6b7280';
-                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
-                            <div>
-                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${l.name}</div>
-                                <div style="font-weight:600;color:#4a5568;margin-top:0.1rem;">\${l.service}</div>
-                            </div>
-                            <span style="background:\${color};color:white;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;white-space:nowrap;margin-left:0.5rem;text-transform:uppercase;letter-spacing:0.03em;">\${l.status}</span>
+
+            const renderCards = (leads) => leads.map(l => {
+                const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const color = statusColors[l.status] || '#6b7280';
+                return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                        <div>
+                            <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${l.name}</div>
+                            <div style="font-weight:600;color:#4a5568;margin-top:0.1rem;">\${l.service}</div>
                         </div>
-                        <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
-                            \${l.phone ? \`📞 <a href="tel:\${l.phone}" style="color:#1d6fa4;font-weight:600;">\${l.phone}</a>\` : ''}
-                            \${l.city ? \` · 📍 \${l.city}\` : ''}
-                        </div>
-                        <div style="color:#718096;font-size:0.8rem;margin-bottom:0.5rem;">📅 \${date} · via \${l.contactPref || 'phone'}</div>
-                        \${l.description ? \`<div style="color:#4a5568;font-size:0.85rem;padding:0.5rem 0.6rem;background:#f8f9fa;border-radius:6px;margin-bottom:0.5rem;">\${l.description}</div>\` : ''}
-                        \${photoStrip(l.photos)}
-                        \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">📝 \${l.note}</div>\` : ''}
-                        <div style="margin-top:0.75rem;">
-                            <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;width:100%;background:white;">
-                                \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
-                            </select>
-                        </div>
-                    </div>\`;
-                }).join('');
-            } else {
-                container.innerHTML = \`<table><thead><tr><th>Date</th><th>Name</th><th>Contact</th><th>Service</th><th>Location</th><th>Description & Photos</th><th>Status</th></tr></thead><tbody>\` +
-                filtered.map(l => {
+                        <span style="background:\${color};color:white;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;white-space:nowrap;margin-left:0.5rem;text-transform:uppercase;letter-spacing:0.03em;">\${l.status}</span>
+                    </div>
+                    <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
+                        \${l.phone ? \`📞 <a href="tel:\${l.phone}" style="color:#1d6fa4;font-weight:600;">\${l.phone}</a>\` : ''}
+                        \${l.city ? \` · 📍 \${l.city}\` : ''}
+                    </div>
+                    <div style="color:#718096;font-size:0.8rem;margin-bottom:0.5rem;">📅 \${date} · via \${l.contactPref || 'phone'}</div>
+                    \${l.description ? \`<div style="color:#4a5568;font-size:0.85rem;padding:0.5rem 0.6rem;background:#f8f9fa;border-radius:6px;margin-bottom:0.5rem;">\${l.description}</div>\` : ''}
+                    \${photoStrip(l.photos)}
+                    \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">📝 \${l.note}</div>\` : ''}
+                    <div style="display:flex;gap:0.5rem;margin-top:0.75rem;align-items:center;">
+                        <select onchange="updateLeadStatus('\${l.id}', this.value)" style="flex:1;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;background:white;">
+                            \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                        </select>
+                        <button onclick="deleteLead('\${l.id}')" style="padding:0.4rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.85rem;cursor:pointer;white-space:nowrap;">🗑 Delete</button>
+                    </div>
+                </div>\`;
+            }).join('');
+
+            const renderTable = (leads) => \`<table><thead><tr><th>Date</th><th>Name</th><th>Contact</th><th>Service</th><th>Location</th><th>Description & Photos</th><th>Status</th><th></th></tr></thead><tbody>\` +
+                leads.map(l => {
                     const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     const color = statusColors[l.status] || '#6b7280';
                     return \`<tr>
@@ -7640,9 +7652,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" style="background:white;color:#1f2937;" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                             </select>
                         </td>
+                        <td><button onclick="deleteLead('\${l.id}')" style="padding:0.3rem 0.6rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.8rem;cursor:pointer;">🗑</button></td>
                     </tr>\`;
                 }).join('') + \`</tbody></table>\`;
+
+            let html = '';
+
+            if (activeLeads.length > 0) {
+                html += isMobile ? renderCards(activeLeads) : renderTable(activeLeads);
+            } else if (!statusFilter && !searchFilter) {
+                html += \`<p style="color:#718096;padding:0.75rem 0;">No new leads.</p>\`;
             }
+
+            if (archiveLeads.length > 0) {
+                html += \`<details style="margin-top:1.5rem;">
+                    <summary style="cursor:pointer;font-weight:700;color:#4a5568;font-size:0.95rem;padding:0.6rem 0.75rem;background:#f1f5f9;border-radius:8px;list-style:none;display:flex;align-items:center;gap:0.5rem;">
+                        <span style="font-size:0.8rem;">▶</span> Archive (${archiveLeads.length})
+                    </summary>
+                    <div style="margin-top:1rem;">
+                        \${isMobile ? renderCards(archiveLeads) : renderTable(archiveLeads)}
+                    </div>
+                </details>\`;
+            }
+
+            container.innerHTML = html;
         }
 
         async function updateLeadStatus(id, status) {
@@ -7654,6 +7687,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const lead = allLeads.find(l => l.id === id);
             if (lead) lead.status = status;
             updateLeadsBadge();
+            renderLeads();
+        }
+
+        async function deleteLead(id) {
+            if (!confirm('Delete this lead? Photos will also be removed. This cannot be undone.')) return;
+            const r = await fetch(\`/api/leads/\${id}\`, { method: 'DELETE' });
+            if (r.ok) {
+                allLeads = allLeads.filter(l => l.id !== id);
+                updateLeadsBadge();
+                renderLeads();
+            } else {
+                alert('Failed to delete lead.');
+            }
         }
 
         async function loadExpenses() {
