@@ -2553,6 +2553,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
 
+                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                        <h3 style="margin-bottom: 1rem;">Touch Points</h3>
+                        <div id="quoteTouchPointsList" style="margin-bottom: 1rem;"></div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="newQuoteTouchPoint" placeholder="Add a note..." style="flex: 1; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px;">
+                            <button type="button" class="btn btn-primary" onclick="addQuoteTouchPoint()">Add Note</button>
+                        </div>
+                    </div>
+
                     <!-- Audit Log -->
                     <div id="quoteAuditLogSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                         <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
@@ -5045,6 +5054,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         let quoteLaborItems = [];
         let quoteMaterialItems = [];
+        let quoteTouchPoints = [];
         let currentEditingQuoteId = null;
 
         async function loadQuotes() {
@@ -5186,6 +5196,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Clear client typeahead
             document.getElementById('quoteClientInput').value = '';
             document.getElementById('quoteClientSelect').value = '';
+            quoteTouchPoints = [];
+            renderQuoteTouchPoints();
 
             // Set default valid until date (30 days from now)
             const defaultValidUntil = new Date();
@@ -5213,6 +5225,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 serviceLocationGroup.style.display = 'none';
             }
+        }
+
+        function addQuoteTouchPoint() {
+            const input = document.getElementById('newQuoteTouchPoint');
+            const noteText = input.value.trim();
+            if (!noteText) return;
+            quoteTouchPoints.push({ id: Date.now(), note: noteText, timestamp: new Date().toISOString(), user: document.getElementById('currentUserName').textContent });
+            input.value = '';
+            renderQuoteTouchPoints();
+            markFormDirty();
+        }
+
+        function removeQuoteTouchPoint(id) {
+            if (confirm('Remove this touch point?')) {
+                quoteTouchPoints = quoteTouchPoints.filter(tp => tp.id !== id);
+                renderQuoteTouchPoints();
+                markFormDirty();
+            }
+        }
+
+        function renderQuoteTouchPoints() {
+            const container = document.getElementById('quoteTouchPointsList');
+            if (!container) return;
+            if (quoteTouchPoints.length === 0) {
+                container.innerHTML = '<p style="color:#718096;font-style:italic;">No touch points yet. Add notes to track communications and updates.</p>';
+                return;
+            }
+            container.innerHTML = quoteTouchPoints.slice().reverse().map(tp =>
+                \`<div style="background:#f7fafc;border-left:3px solid #667eea;padding:0.75rem;margin-bottom:0.5rem;border-radius:4px;">
+                    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem;">
+                        <div style="font-size:0.85rem;color:#4a5568;"><strong>\${tp.user}</strong> · \${new Date(tp.timestamp).toLocaleString()}</div>
+                        <button type="button" onclick="removeQuoteTouchPoint(\${tp.id})" style="background:transparent;border:none;color:#e53e3e;cursor:pointer;padding:0;font-size:1.2rem;line-height:1;">&times;</button>
+                    </div>
+                    <div style="color:#1a202c;">\${tp.note}</div>
+                </div>\`
+            ).join('');
         }
 
         function filterQuoteClientTypeahead() {
@@ -5322,6 +5370,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             quote.subtotal = subtotal;
             quote.taxAmount = taxAmount;
             quote.total = subtotal + taxAmount;
+            quote.touchPoints = quoteTouchPoints;
 
             try {
                 await postData('/api/quotes', quote, {
@@ -5375,6 +5424,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             updateQuoteTotal();
+
+            quoteTouchPoints = quote.touchPoints ? [...quote.touchPoints] : [];
+            renderQuoteTouchPoints();
 
             // Show and populate audit log if exists
             if (quote.auditLog && quote.auditLog.length > 0) {
@@ -7736,7 +7788,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 \${l.description ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Description</div><div style="background:#f8f9fa;padding:0.75rem;border-radius:8px;color:#374151;line-height:1.6;white-space:pre-wrap;">\${l.description}</div></div>\` : ''}
                 \${l.photos && l.photos.length ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Photos (\${l.photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px;">\${l.photos.map(p => \`<img src="\${p}" style="width:140px;height:105px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`).join('')}</div></div>\` : ''}
                 \${l.note ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Note</div><div style="color:#4a5568;font-style:italic;">\${l.note}</div></div>\` : ''}
-                <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+                <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;">
+                    <h4 style="font-size:0.85rem;color:#4a5568;font-weight:700;margin-bottom:0.6rem;">Touch Points</h4>
+                    <div id="leadTouchPointsList" style="margin-bottom:0.75rem;">\${
+                        (l.touchPoints && l.touchPoints.length)
+                        ? l.touchPoints.slice().reverse().map(tp =>
+                            \`<div style="background:#f7fafc;border-left:3px solid #667eea;padding:0.6rem 0.75rem;margin-bottom:0.4rem;border-radius:4px;">
+                                <div style="display:flex;justify-content:space-between;align-items:start;">
+                                    <div style="font-size:0.8rem;color:#4a5568;"><strong>\${tp.user}</strong> · \${new Date(tp.timestamp).toLocaleString()}</div>
+                                    <button onclick="removeLeadTouchPoint('\${l.id}',\${tp.id})" style="background:transparent;border:none;color:#e53e3e;cursor:pointer;padding:0;font-size:1.1rem;line-height:1;">&times;</button>
+                                </div>
+                                <div style="color:#1a202c;font-size:0.9rem;margin-top:0.2rem;">\${tp.note}</div>
+                            </div>\`
+                        ).join('')
+                        : '<p style="color:#718096;font-style:italic;font-size:0.85rem;">No touch points yet.</p>'
+                    }</div>
+                    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+                        <input type="text" id="newLeadTouchPoint" placeholder="Add a note..." style="flex:1;padding:0.45rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.9rem;">
+                        <button onclick="addLeadTouchPoint('\${l.id}')" style="padding:0.45rem 0.9rem;background:#667eea;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Add</button>
+                    </div>
+                </div>
+                <div style="padding-top:1rem;border-top:1px solid #e2e8f0;display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
                     <div style="flex:1;min-width:160px;">
                         <label style="font-size:0.8rem;color:#4a5568;font-weight:600;">Update Status</label>
                         <select onchange="updateLeadStatus('\${l.id}', this.value)" style="width:100%;margin-top:0.4rem;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;background:white;">
@@ -7751,6 +7823,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function closeLeadModal() {
             document.getElementById('leadModal').classList.remove('active');
+        }
+
+        async function addLeadTouchPoint(leadId) {
+            const input = document.getElementById('newLeadTouchPoint');
+            const noteText = input.value.trim();
+            if (!noteText) return;
+            const lead = allLeads.find(l => l.id === leadId);
+            if (!lead) return;
+            const tp = { id: Date.now(), note: noteText, timestamp: new Date().toISOString(), user: document.getElementById('currentUserName').textContent };
+            lead.touchPoints = [...(lead.touchPoints || []), tp];
+            await fetch(\`/api/leads/\${leadId}\`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touchPoints: lead.touchPoints }) });
+            input.value = '';
+            openLead(leadId);
+        }
+
+        async function removeLeadTouchPoint(leadId, tpId) {
+            if (!confirm('Remove this touch point?')) return;
+            const lead = allLeads.find(l => l.id === leadId);
+            if (!lead) return;
+            lead.touchPoints = (lead.touchPoints || []).filter(tp => tp.id !== tpId);
+            await fetch(\`/api/leads/\${leadId}\`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touchPoints: lead.touchPoints }) });
+            openLead(leadId);
         }
 
         async function convertLeadToQuote(leadId) {

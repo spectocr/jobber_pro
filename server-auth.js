@@ -1263,10 +1263,14 @@ app.get('/api/leads', isAuthenticated, async (req, res) => {
 });
 
 app.patch('/api/leads/:id', isAuthenticated, async (req, res) => {
-    const { status, note } = req.body;
+    const { status, note, touchPoints } = req.body;
+    const update = { updatedAt: new Date() };
+    if (status !== undefined) update.status = status;
+    if (note !== undefined) update.note = note;
+    if (touchPoints !== undefined) update.touchPoints = touchPoints;
     await db.collection('leads').updateOne(
         { _id: new ObjectId(req.params.id) },
-        { $set: { status, note, updatedAt: new Date() } }
+        { $set: update }
     );
     res.json({ success: true });
 });
