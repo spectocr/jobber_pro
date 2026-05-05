@@ -1371,9 +1371,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="rejected">Rejected</option>
                             <option value="expired">Expired</option>
                         </select>
-                        <select id="filter-quote-client" onchange="filterQuotes()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
-                            <option value="">All Clients</option>
-                        </select>
+                        <input type="text" id="filter-quote-client" placeholder="🔍 Search client..." oninput="filterQuotes()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                         <button class="btn btn-secondary" onclick="clearQuoteFilters()">Clear Filters</button>
                         <button class="btn btn-primary" onclick="showAddQuoteModal()">+ New Quote</button>
                     </div>
@@ -5042,12 +5040,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const response = await fetch('/api/quotes');
                 quotes = await response.json();
 
-                // Populate filter dropdown
-                const clientFilter = document.getElementById('filter-quote-client');
-                const currentClient = clientFilter.value;
-                populateDropdown(clientFilter, clients, 'id', 'name', 'All Clients');
-                clientFilter.value = currentClient;
-
                 renderQuotesTable();
             } catch (error) {
                 console.error('Failed to load quotes:', error);
@@ -5067,7 +5059,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const filteredQuotes = quotes.filter(q => {
                 if (statusFilter && q.status !== statusFilter) return false;
-                if (clientFilter && q.clientId !== clientFilter) return false;
+                if (clientFilter) {
+                    const qClient = findClient(q.clientId);
+                    if (!qClient || !qClient.name.toLowerCase().includes(clientFilter.toLowerCase())) return false;
+                }
                 return true;
             });
 
