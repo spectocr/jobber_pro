@@ -885,6 +885,7 @@ app.delete('/api/users/:id', isAuthenticated, async (req, res) => {
 app.get('/request-quote', (req, res) => {
     res.removeHeader('X-Frame-Options');
     res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    const { utm_source='', utm_medium='', utm_campaign='', ref='', entry='' } = req.query;
     res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1041,6 +1042,25 @@ app.get('/request-quote', (req, res) => {
         <option value="email">Email</option>
       </select>
     </div>
+    <div class="form-group">
+      <label>How did you find us? <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+      <select name="foundUs">
+        <option value="">Select...</option>
+        <option value="google_search">Google Search</option>
+        <option value="google_maps">Google Maps</option>
+        <option value="facebook">Facebook</option>
+        <option value="nextdoor">Nextdoor</option>
+        <option value="referral">Friend or Neighbor</option>
+        <option value="flyer_sign">Flyer / Yard Sign</option>
+        <option value="returning">Returning Customer</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <input type="hidden" name="utmSource" value="${utm_source}">
+    <input type="hidden" name="utmMedium" value="${utm_medium}">
+    <input type="hidden" name="utmCampaign" value="${utm_campaign}">
+    <input type="hidden" name="referer" value="${ref}">
+    <input type="hidden" name="entryPage" value="${entry}">
     <p class="error-msg" id="errorMsg">Something went wrong. Please try again or call 856-872-4636.</p>
     <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
   </form>
@@ -1172,7 +1192,7 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
 // Public quote request API
 app.post('/api/public/quote-request', async (req, res) => {
     try {
-        const { firstName, lastName, phone, email, service, description, city, contactPref, photos } = req.body;
+        const { firstName, lastName, phone, email, service, description, city, contactPref, photos, foundUs, utmSource, utmMedium, utmCampaign, referer, entryPage } = req.body;
         if (!firstName || !lastName || !phone || !service) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -1206,6 +1226,14 @@ app.post('/api/public/quote-request', async (req, res) => {
             contactPref: contactPref || 'phone',
             photos: photoKeys.length ? photoKeys : validPhotos,
             source: 'website',
+            foundUs: foundUs || '',
+            tracking: {
+                utmSource: utmSource || '',
+                utmMedium: utmMedium || '',
+                utmCampaign: utmCampaign || '',
+                referer: referer || '',
+                entryPage: entryPage || ''
+            },
             status: 'new',
             createdAt: new Date()
         };
