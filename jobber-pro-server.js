@@ -7514,10 +7514,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
 
+            if (!document.getElementById('gsd-lightbox')) {
+                const lb = document.createElement('div');
+                lb.id = 'gsd-lightbox';
+                lb.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;';
+                lb.innerHTML = '<img id="gsd-lightbox-img" style="max-width:92vw;max-height:88vh;border-radius:8px;box-shadow:0 4px 32px rgba(0,0,0,0.6)"><button onclick="document.getElementById(\'gsd-lightbox\').style.display=\'none\'" style="position:absolute;top:1rem;right:1.25rem;background:none;border:none;color:white;font-size:2rem;cursor:pointer;line-height:1;">✕</button>';
+                lb.addEventListener('click', e => { if (e.target === lb) lb.style.display = 'none'; });
+                document.body.appendChild(lb);
+            }
+
+            const openLightbox = (src) => {
+                const lb = document.getElementById('gsd-lightbox');
+                document.getElementById('gsd-lightbox-img').src = src;
+                lb.style.display = 'flex';
+            };
+
             const photoStrip = (photos) => {
                 if (!photos || !photos.length) return '';
                 return \`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">\${
-                    photos.map(p => \`<img src="\${p}" style="width:72px;height:54px;object-fit:cover;border-radius:5px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="window.open(this.src)" title="Click to expand">\`).join('')
+                    photos.map(p => \`<img src="\${p}" style="width:72px;height:54px;object-fit:cover;border-radius:5px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)" title="Click to expand">\`).join('')
                 }</div>\`;
             };
 
