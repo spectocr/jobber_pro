@@ -5096,7 +5096,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
                             #\${q.quoteNumber} · Valid: \${q.validUntil}\${isExpired ? ' <span style="color:#e53e3e;">(Expired)</span>' : ''}
                         </div>
-                        <div style="font-size:1rem;font-weight:700;color:#2d3748;margin-bottom:0.75rem;">\${formatMoney(parseFloat(q.total || 0))}</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <div style="font-size:1rem;font-weight:700;color:#2d3748;">\${formatMoney(parseFloat(q.total || 0))}</div>
+                            <div style="font-size:0.78rem;text-align:right;">
+                                \${q.sentAt ? \`<div style="color:#4a5568;">📧 \${new Date(q.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
+                                \${q.viewCount > 0 ? \`<div style="color:#667eea;">👁 \${q.viewCount} view\${q.viewCount>1?'s':''}</div>\` : (q.sentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
+                            </div>
+                        </div>
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
@@ -5108,7 +5114,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
                 }).join('');
             } else {
-                container.innerHTML = '<table><thead><tr><th>Quote #</th><th>Client</th><th>Title</th><th>Valid Until</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
+                container.innerHTML = '<table><thead><tr><th>Quote #</th><th>Client</th><th>Title</th><th>Valid Until</th><th>Status</th><th>Total</th><th>Activity</th><th>Actions</th></tr></thead><tbody>' +
                 filteredQuotes.map(q => {
                     const client = findClient(q.clientId);
                     const statusClass = q.status === 'approved' ? 'status-completed' :
@@ -5127,6 +5133,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
                         <td><span class="status-badge \${statusClass}">\${q.status.replace('_', ' ')}</span></td>
                         <td>\${formatMoney(parseFloat(q.total || 0))}</td>
+                        <td style="font-size:0.8rem;white-space:nowrap;">
+                            \${q.sentAt ? \`<div style="color:#4a5568;">📧 \${new Date(q.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
+                            \${q.viewCount > 0 ? \`<div style="color:#667eea;">👁 \${q.viewCount} view\${q.viewCount>1?'s':''} · \${new Date(q.firstViewedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : (q.sentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
+                        </td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
@@ -5521,10 +5531,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${assignedNames !== 'Unassigned' ? \` · 👷 \${assignedNames}\` : ''}
                         </div>
                         \${earningsHtml}
-                        \${isAdmin && total > 0 ? \`<div style="font-size:0.85rem;margin-bottom:0.75rem;">
+                        \${isAdmin && total > 0 ? \`<div style="font-size:0.85rem;margin-bottom:0.5rem;">
                             <span style="color:#4a5568;">Billed: \${formatMoney(total)}</span> ·
                             <span style="color:#48bb78;">Paid: \${formatMoney(paid)}</span> ·
                             <span style="color:\${isPaidInFull ? '#48bb78' : '#e53e3e'};">Owed: \${formatMoney(Math.max(0, owed))}</span>
+                        </div>\` : ''}
+                        \${isAdmin && j.invoiceSentAt ? \`<div style="font-size:0.78rem;color:#718096;margin-bottom:0.5rem;">
+                            📧 Sent \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+                            \${j.invoiceViewCount > 0 ? \` · <span style="color:#667eea;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</span>\` : ' · <span style="color:#9ca3af;">Not opened</span>'}
                         </div>\` : ''}
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
@@ -5549,9 +5563,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         const isPaidInFull = Math.abs(owed) < 0.01;
                         const owedDisplay = isPaidInFull ? 0 : owed;
                         const paymentStatus = isPaidInFull ? '✓' : owed < total ? '◐' : '';
+                        const invoiceActivity = j.invoiceSentAt
+                            ? \`<div style="font-size:0.75rem;color:#718096;margin-top:0.3rem;">
+                                📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+                                \${j.invoiceViewCount > 0 ? \` · <span style="color:#667eea;">👁 \${j.invoiceViewCount}×</span>\` : ' · <span style="color:#9ca3af;">Not opened</span>'}
+                               </div>\`
+                            : '';
                         moneyCell = \`<td>
                             <div style="font-size: 0.9rem;">
                                 <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${isPaidInFull ? '#48bb78' : '#e53e3e'};">$\${owedDisplay.toFixed(2)}</span> \${paymentStatus}</div>
+                                \${invoiceActivity}
                             </div>
                         </td>\`;
                     }

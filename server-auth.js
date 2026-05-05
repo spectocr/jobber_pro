@@ -2721,6 +2721,11 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             status: 'sent'
         });
 
+        await db.collection('jobs').updateOne(
+            { _id: new ObjectId(jobId) },
+            { $set: { invoiceSentAt: new Date() } }
+        );
+
         res.json({ success: true, message: 'Invoice email sent to ' + client.email });
     } catch (error) {
         console.error('Send invoice error:', error);
@@ -3255,6 +3260,15 @@ app.get('/invoice/:jobId', async (req, res) => {
     const materialSubtotal = (job.materialItems || []).reduce((sum, item) => sum + (item.quantity * item.price), 0);
     const subtotal = laborSubtotal + materialSubtotal;
 
+    // Track invoice view
+    await db.collection('jobs').updateOne(
+        { _id: job._id },
+        {
+            $inc: { invoiceViewCount: 1 },
+            $set: { invoiceLastViewedAt: new Date(), ...(!job.invoiceFirstViewedAt ? { invoiceFirstViewedAt: new Date() } : {}) }
+        }
+    );
+
     // Calculate tax (0 if waived)
     const taxWaived = job.taxWaived || false;
     const tax = taxWaived ? 0 : subtotal * (settings.taxRate || 0.06625);
@@ -3508,6 +3522,15 @@ app.get('/quote-view/:token', async (req, res) => {
         if (!quote) {
             return res.status(404).send('<h1>Quote not found</h1><p>This quote may have been deleted or the link is invalid.</p>');
         }
+
+        // Track view
+        await db.collection('quotes').updateOne(
+            { _id: quote._id },
+            {
+                $inc: { viewCount: 1 },
+                $set: { lastViewedAt: new Date(), ...(!quote.firstViewedAt ? { firstViewedAt: new Date() } : {}) }
+            }
+        );
 
         const client = await db.collection('clients').findOne({ _id: quote.clientId });
         const settings = await db.collection('settings').findOne({});
