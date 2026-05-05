@@ -5433,8 +5433,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             // Apply filters
-            const statusFilter = document.getElementById('filter-status').value;
-            const clientFilter = document.getElementById('filter-client').value;
+            const statusFilter = !isAdmin ? 'ACTIVE_WORK' : document.getElementById('filter-status').value;
+            const clientFilter = !isAdmin ? '' : document.getElementById('filter-client').value;
             const assignedFilter = document.getElementById('filter-assigned').value;
 
             const filteredJobs = getFilteredJobs(statusFilter, clientFilter, assignedFilter);
@@ -8858,6 +8858,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Hide user management section
                 const userMgmt = document.getElementById('userManagementSection');
                 if (userMgmt) userMgmt.style.display = 'none';
+
+                // Lock job filters for non-admins: active work only, no client search
+                const statusFilter = document.getElementById('filter-status');
+                if (statusFilter) {
+                    statusFilter.value = 'ACTIVE_WORK';
+                    statusFilter.disabled = true;
+                    statusFilter.style.opacity = '0.6';
+                    statusFilter.style.pointerEvents = 'none';
+                }
+                const clientFilter = document.getElementById('filter-client');
+                if (clientFilter) clientFilter.style.display = 'none';
             } else {
                 // Hide user-only tabs for admins
                 document.querySelectorAll('[data-user-only]').forEach(btn => {
