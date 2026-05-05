@@ -3525,7 +3525,8 @@ app.get('/quote-view/:token', async (req, res) => {
 <body>
     <div class="container">
         <div class="header">
-            ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" class="logo">` : `<h1>${companyName}</h1>`}
+            ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" class="logo">` : ''}
+            <h1>${companyName}</h1>
             <h2>Quote #${quote.quoteNumber}</h2>
         </div>
 
