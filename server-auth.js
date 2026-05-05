@@ -2438,15 +2438,6 @@ app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
-app.get('/api/public/branding', async (req, res) => {
-    const settings = await db.collection('settings').findOne();
-    res.json({
-        appName: settings?.appName || 'GSD Handyman Service',
-        companyLogo: settings?.companyLogo || 'https://gsdhandymanservice.com/images/logo.png',
-        favicon: settings?.favicon || ''
-    });
-});
-
 app.get('/api/settings', isAuthenticated, async (req, res) => {
     const settings = await db.collection('settings').findOne();
     res.json(settings || {});

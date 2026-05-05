@@ -158,7 +158,7 @@
         // Load branding
         (async function() {
             try {
-                const response = await fetch('/api/public/branding');
+                const response = await fetch('/api/settings');
                 const settings = await response.json();
 
                 if (settings.appName) {
