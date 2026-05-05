@@ -3260,14 +3260,16 @@ app.get('/invoice/:jobId', async (req, res) => {
     const materialSubtotal = (job.materialItems || []).reduce((sum, item) => sum + (item.quantity * item.price), 0);
     const subtotal = laborSubtotal + materialSubtotal;
 
-    // Track invoice view
-    await db.collection('jobs').updateOne(
-        { _id: job._id },
-        {
-            $inc: { invoiceViewCount: 1 },
-            $set: { invoiceLastViewedAt: new Date(), ...(!job.invoiceFirstViewedAt ? { invoiceFirstViewedAt: new Date() } : {}) }
-        }
-    );
+    // Track invoice view — skip if admin is viewing, but count client portal views
+    if (!req.session.userId || req.session.isClientPortal) {
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            {
+                $inc: { invoiceViewCount: 1 },
+                $set: { invoiceLastViewedAt: new Date(), ...(!job.invoiceFirstViewedAt ? { invoiceFirstViewedAt: new Date() } : {}) }
+            }
+        );
+    }
 
     // Calculate tax (0 if waived)
     const taxWaived = job.taxWaived || false;
@@ -3523,14 +3525,16 @@ app.get('/quote-view/:token', async (req, res) => {
             return res.status(404).send('<h1>Quote not found</h1><p>This quote may have been deleted or the link is invalid.</p>');
         }
 
-        // Track view
-        await db.collection('quotes').updateOne(
-            { _id: quote._id },
-            {
-                $inc: { viewCount: 1 },
-                $set: { lastViewedAt: new Date(), ...(!quote.firstViewedAt ? { firstViewedAt: new Date() } : {}) }
-            }
-        );
+        // Track view — skip if admin is viewing, but count client portal views
+        if (!req.session.userId || req.session.isClientPortal) {
+            await db.collection('quotes').updateOne(
+                { _id: quote._id },
+                {
+                    $inc: { viewCount: 1 },
+                    $set: { lastViewedAt: new Date(), ...(!quote.firstViewedAt ? { firstViewedAt: new Date() } : {}) }
+                }
+            );
+        }
 
         const client = await db.collection('clients').findOne({ _id: quote.clientId });
         const settings = await db.collection('settings').findOne({});
