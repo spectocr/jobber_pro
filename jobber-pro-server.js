@@ -5461,9 +5461,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         const laborHours = (j.laborItems || []).reduce((sum, item) => sum + (parseFloat(item.hours) || 0), 0);
                         if (laborHours > 0) {
                             const earnings = laborHours * parseFloat(currentTeamMember.hourlyRate);
-                            earningsHtml = \`<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:7px;padding:0.45rem 0.65rem;margin-bottom:0.5rem;font-size:0.85rem;">
-                                💰 <strong style="color:#15803d;">\${formatMoney(earnings)}</strong>
-                                <span style="color:#4b5563;"> · \${laborHours}hr @ \$\${parseFloat(currentTeamMember.hourlyRate).toFixed(2)}/hr</span>
+                            earningsHtml = \`<div style="margin-bottom:0.5rem;">
+                                <div style="font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">Potential Earnings</div>
+                                <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:7px;padding:0.45rem 0.65rem;font-size:0.85rem;">
+                                    💰 <strong style="color:#15803d;">\${formatMoney(earnings)}</strong>
+                                    <span style="color:#4b5563;"> · \${laborHours}hr @ \$\${parseFloat(currentTeamMember.hourlyRate).toFixed(2)}/hr</span>
+                                </div>
                             </div>\`;
                         }
                     }
