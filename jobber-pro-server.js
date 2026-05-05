@@ -5536,9 +5536,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <span style="color:#48bb78;">Paid: \${formatMoney(paid)}</span> ·
                             <span style="color:\${isPaidInFull ? '#48bb78' : '#e53e3e'};">Owed: \${formatMoney(Math.max(0, owed))}</span>
                         </div>\` : ''}
-                        \${isAdmin && j.invoiceSentAt ? \`<div style="font-size:0.78rem;color:#718096;margin-bottom:0.5rem;">
-                            📧 Sent \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
-                            \${j.invoiceViewCount > 0 ? \` · <span style="color:#667eea;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</span>\` : ' · <span style="color:#9ca3af;">Not opened</span>'}
+                        \${isAdmin ? \`<div style="font-size:0.78rem;margin-bottom:0.5rem;">
+                            \${j.invoiceSentAt ? \`<span style="color:#4a5568;">📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>\` : ''}
+                            \${j.invoiceViewCount > 0 ? \` · <span style="color:#667eea;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</span>\` : (j.invoiceSentAt ? \` · <span style="color:#9ca3af;">Not opened</span>\` : '')}
                         </div>\` : ''}
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
@@ -5550,12 +5550,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }).join('');
             } else {
             const moneyColumn = isAdmin ? '<th>Billed / Paid / Owed</th>' : '';
-            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + '<th>Actions</th></tr></thead><tbody>' +
+            const activityColumn = isAdmin ? '<th>Activity</th>' : '';
+            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + activityColumn + '<th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
                     const client = findClient(j.clientId);
                     const assignedNames = getAssignedNames(j.assignedTo);
 
                     let moneyCell = '';
+                    let activityCell = '';
                     if (isAdmin) {
                         const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
                         const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
@@ -5563,17 +5565,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         const isPaidInFull = Math.abs(owed) < 0.01;
                         const owedDisplay = isPaidInFull ? 0 : owed;
                         const paymentStatus = isPaidInFull ? '✓' : owed < total ? '◐' : '';
-                        const invoiceActivity = j.invoiceSentAt
-                            ? \`<div style="font-size:0.75rem;color:#718096;margin-top:0.3rem;">
-                                📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
-                                \${j.invoiceViewCount > 0 ? \` · <span style="color:#667eea;">👁 \${j.invoiceViewCount}×</span>\` : ' · <span style="color:#9ca3af;">Not opened</span>'}
-                               </div>\`
-                            : '';
                         moneyCell = \`<td>
                             <div style="font-size: 0.9rem;">
                                 <div>$\${total.toFixed(2)} / <span style="color: #48bb78;">$\${paid.toFixed(2)}</span> / <span style="color: \${isPaidInFull ? '#48bb78' : '#e53e3e'};">$\${owedDisplay.toFixed(2)}</span> \${paymentStatus}</div>
-                                \${invoiceActivity}
                             </div>
+                        </td>\`;
+                        activityCell = \`<td style="font-size:0.8rem;white-space:nowrap;">
+                            \${j.invoiceSentAt ? \`<div style="color:#4a5568;">📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
+                            \${j.invoiceViewCount > 0 ? \`<div style="color:#667eea;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''} · \${new Date(j.invoiceFirstViewedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : (j.invoiceSentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
                         </td>\`;
                     }
 
@@ -5584,6 +5583,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>\${assignedNames}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         \${moneyCell}
+                        \${activityCell}
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
