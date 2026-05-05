@@ -7736,11 +7736,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 \${l.description ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Description</div><div style="background:#f8f9fa;padding:0.75rem;border-radius:8px;color:#374151;line-height:1.6;white-space:pre-wrap;">\${l.description}</div></div>\` : ''}
                 \${l.photos && l.photos.length ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Photos (\${l.photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px;">\${l.photos.map(p => \`<img src="\${p}" style="width:140px;height:105px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`).join('')}</div></div>\` : ''}
                 \${l.note ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Note</div><div style="color:#4a5568;font-style:italic;">\${l.note}</div></div>\` : ''}
-                <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;">
-                    <label style="font-size:0.8rem;color:#4a5568;font-weight:600;">Update Status</label>
-                    <select onchange="updateLeadStatus('\${l.id}', this.value)" style="width:100%;margin-top:0.4rem;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;background:white;">
-                        \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
-                    </select>
+                <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:160px;">
+                        <label style="font-size:0.8rem;color:#4a5568;font-weight:600;">Update Status</label>
+                        <select onchange="updateLeadStatus('\${l.id}', this.value)" style="width:100%;margin-top:0.4rem;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;background:white;">
+                            \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                        </select>
+                    </div>
+                    <button onclick="convertLeadToQuote('\${l.id}')" style="padding:0.55rem 1.1rem;background:#48bb78;color:white;border:none;border-radius:8px;font-weight:700;font-size:0.9rem;cursor:pointer;white-space:nowrap;">➡️ Convert to Quote</button>
                 </div>
             \`;
             document.getElementById('leadModal').classList.add('active');
@@ -7748,6 +7751,38 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function closeLeadModal() {
             document.getElementById('leadModal').classList.remove('active');
+        }
+
+        async function convertLeadToQuote(leadId) {
+            const l = allLeads.find(l => l.id === leadId);
+            if (!l) return;
+
+            // Find existing client by phone match
+            let client = l.phone
+                ? clients.find(c => c.phone && c.phone.replace(/\D/g,'') === l.phone.replace(/\D/g,''))
+                : null;
+
+            if (!client) {
+                // Auto-create client from lead data
+                const r = await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: l.name, phone: l.phone || '', email: l.email || '', address: l.city || '' })
+                });
+                const data = await r.json();
+                if (!data.id) { alert('Failed to create client.'); return; }
+                client = { id: data.id, _id: data.id, name: l.name, phone: l.phone || '', email: l.email || '' };
+                clients.push(client);
+            }
+
+            closeLeadModal();
+            showAddQuoteModal();
+            setQuoteClientById(client.id || client._id);
+            document.querySelector('#quoteForm [name="title"]').value = l.service || '';
+            document.querySelector('#quoteForm [name="description"]').value = l.description || '';
+
+            // Mark lead as quoted
+            updateLeadStatus(leadId, 'quoted');
         }
 
         async function updateLeadStatus(id, status) {
