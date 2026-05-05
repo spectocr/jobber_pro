@@ -7541,21 +7541,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     const color = statusColors[l.status] || '#6b7280';
                     return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
                             <div>
                                 <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${l.name}</div>
-                                <div style="color:#4a5568;font-size:0.9rem;">\${l.service}</div>
+                                <div style="font-weight:600;color:#4a5568;margin-top:0.1rem;">\${l.service}</div>
                             </div>
-                            <span style="background:\${color};color:white;padding:2px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;white-space:nowrap;margin-left:0.5rem;">\${l.status}</span>
+                            <span style="background:\${color};color:white;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;white-space:nowrap;margin-left:0.5rem;text-transform:uppercase;letter-spacing:0.03em;">\${l.status}</span>
                         </div>
-                        \${l.phone ? \`<div style="color:#4a5568;font-size:0.85rem;">📞 <a href="tel:\${l.phone}" style="color:inherit;">\${l.phone}</a></div>\` : ''}
-                        \${l.city ? \`<div style="color:#718096;font-size:0.85rem;">📍 \${l.city}</div>\` : ''}
-                        <div style="color:#718096;font-size:0.8rem;margin-top:0.25rem;">📅 \${date} · via \${l.contactPref || 'phone'}</div>
-                        \${l.description ? \`<div style="color:#4a5568;font-size:0.85rem;margin-top:0.5rem;padding:0.5rem;background:#f8f9fa;border-radius:6px;">\${l.description}</div>\` : ''}
+                        <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
+                            \${l.phone ? \`📞 <a href="tel:\${l.phone}" style="color:#1d6fa4;font-weight:600;">\${l.phone}</a>\` : ''}
+                            \${l.city ? \` · 📍 \${l.city}\` : ''}
+                        </div>
+                        <div style="color:#718096;font-size:0.8rem;margin-bottom:0.5rem;">📅 \${date} · via \${l.contactPref || 'phone'}</div>
+                        \${l.description ? \`<div style="color:#4a5568;font-size:0.85rem;padding:0.5rem 0.6rem;background:#f8f9fa;border-radius:6px;margin-bottom:0.5rem;">\${l.description}</div>\` : ''}
                         \${photoStrip(l.photos)}
-                        \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">Note: \${l.note}</div>\` : ''}
+                        \${l.note ? \`<div style="color:#6b7280;font-size:0.8rem;margin-top:0.4rem;font-style:italic;">📝 \${l.note}</div>\` : ''}
                         <div style="margin-top:0.75rem;">
-                            <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;width:100%;">
+                            <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;width:100%;background:white;">
                                 \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                             </select>
                         </div>
