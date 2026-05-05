@@ -109,7 +109,7 @@ async function connectDB() {
                 companyEmail: 'info@yourcompany.com',
                 hourlyRate: 75,
                 taxRate: 0.06625,
-                companyLogo: '',
+                companyLogo: 'https://gsdhandymanservice.com/images/logo-white.png',
                 createdAt: new Date()
             });
         }
@@ -3466,7 +3466,7 @@ app.get('/quote-view/:token', async (req, res) => {
         const settings = await db.collection('settings').findOne({});
 
         const companyName = settings?.companyName || 'Your Company';
-        const companyLogo = settings?.companyLogo || '';
+        const companyLogo = settings?.companyLogo || 'https://gsdhandymanservice.com/images/logo-white.png';
 
         const subtotal = quote.subtotal || 0;
         const taxAmount = quote.taxAmount || 0;
