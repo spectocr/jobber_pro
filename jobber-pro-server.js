@@ -2454,10 +2454,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Client *</label>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <select name="clientId" required id="quoteClientSelect" onchange="handleQuoteClientChange()" style="flex: 1;">
-                                <option value="">Select a client...</option>
-                            </select>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
+                            <div style="position: relative; flex: 1; min-width: 200px;">
+                                <input type="text" id="quoteClientInput" placeholder="Type to search clients..." autocomplete="off" oninput="filterQuoteClientTypeahead()" onfocus="filterQuoteClientTypeahead()" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
+                                <input type="hidden" name="clientId" id="quoteClientSelect">
+                                <div id="quoteClientTypeaheadDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:2px solid #667eea; border-top:none; border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
+                            </div>
                             <button type="button" class="btn btn-secondary" onclick="openClientModalFromQuote()" style="white-space: nowrap;">+ Add Client</button>
                         </div>
                     </div>
@@ -3360,6 +3362,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (dropdown && !dropdown.contains(e.target) && e.target !== wrapper) {
                 dropdown.style.display = 'none';
             }
+            const qWrapper = document.getElementById('quoteClientInput');
+            const qDropdown = document.getElementById('quoteClientTypeaheadDropdown');
+            if (qDropdown && !qDropdown.contains(e.target) && e.target !== qWrapper) {
+                qDropdown.style.display = 'none';
+            }
         });
 
         function togglePortalFields() {
@@ -3499,8 +3506,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         }
 
                         // Set the new client
-                        document.getElementById('quoteClientSelect').value = savedClient.id || savedClient._id;
-                        handleQuoteClientChange();
+                        setQuoteClientById(savedClient.id || savedClient._id);
 
                         savedQuoteFormData = null;
                     }, 100);
@@ -5160,9 +5166,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             renderQuoteLaborItems();
             renderQuoteMaterialItems();
 
-            // Populate client dropdown
-            const clientSelect = document.getElementById('quoteClientSelect');
-            populateDropdown(clientSelect, clients, 'id', 'name', 'Select a client...');
+            // Clear client typeahead
+            document.getElementById('quoteClientInput').value = '';
+            document.getElementById('quoteClientSelect').value = '';
 
             // Set default valid until date (30 days from now)
             const defaultValidUntil = new Date();
@@ -5190,6 +5196,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 serviceLocationGroup.style.display = 'none';
             }
+        }
+
+        function filterQuoteClientTypeahead() {
+            const q = document.getElementById('quoteClientInput').value.toLowerCase();
+            const dropdown = document.getElementById('quoteClientTypeaheadDropdown');
+            const matches = q
+                ? clients.filter(c => c.name.toLowerCase().includes(q) || (c.phone || '').includes(q))
+                : clients;
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = '<div style="padding:0.75rem 1rem;color:#718096;">No clients found</div>';
+            } else {
+                dropdown.innerHTML = matches.slice(0, 20).map(c => {
+                    const phone = c.phone ? ' — ' + c.phone : '';
+                    return '<div onmousedown="selectQuoteClient(\'' + c.id + '\')" style="padding:0.75rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'\'"><span style="font-weight:500;">' + c.name + '</span><span style="color:#a0aec0;font-size:0.85rem;">' + phone + '</span></div>';
+                }).join('');
+            }
+            dropdown.style.display = 'block';
+        }
+
+        function selectQuoteClient(clientId) {
+            const client = clients.find(c => c.id == clientId);
+            document.getElementById('quoteClientSelect').value = clientId;
+            document.getElementById('quoteClientInput').value = client ? client.name : '';
+            document.getElementById('quoteClientTypeaheadDropdown').style.display = 'none';
+            handleQuoteClientChange();
+        }
+
+        function setQuoteClientById(clientId) {
+            const client = clients.find(c => c.id == clientId || c._id == clientId);
+            document.getElementById('quoteClientSelect').value = clientId;
+            document.getElementById('quoteClientInput').value = client ? client.name : '';
+            document.getElementById('quoteClientTypeaheadDropdown').style.display = 'none';
+            handleQuoteClientChange();
         }
 
         function addQuoteLaborItem() {
@@ -5287,15 +5327,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             currentEditingQuoteId = quote.id || quote._id;
             document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
 
-            // Populate client dropdown first
-            const clientSelect = document.getElementById('quoteClientSelect');
-            populateDropdown(clientSelect, clients, 'id', 'name', 'Select a client...');
-
             // Populate form
             const form = document.getElementById('quoteForm');
             form.elements.quoteNumber.value = quote.quoteNumber || '';
-            // Set client after dropdown is populated
-            form.elements.clientId.value = quote.clientId || '';
+            // Set client typeahead
+            if (quote.clientId) {
+                setQuoteClientById(quote.clientId);
+            } else {
+                document.getElementById('quoteClientInput').value = '';
+                document.getElementById('quoteClientSelect').value = '';
+            }
             form.elements.title.value = quote.title;
             form.elements.description.value = quote.description || '';
             form.elements.validUntil.value = quote.validUntil;

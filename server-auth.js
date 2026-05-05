@@ -3570,8 +3570,8 @@ app.get('/quote-view/:token', async (req, res) => {
                 <tr>
                     <td>${item.description}</td>
                     <td style="text-align: center;">${item.hours}</td>
-                    <td style="text-align: right;">$${parseFloat(item.rate).toFixed(2)}</td>
-                    <td style="text-align: right;">$${(item.hours * item.rate).toFixed(2)}</td>
+                    <td style="text-align: right;">$${parseFloat(item.rate).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="text-align: right;">$${(item.hours * item.rate).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
                 `).join('')}
             </tbody>
@@ -3594,8 +3594,8 @@ app.get('/quote-view/:token', async (req, res) => {
                 <tr>
                     <td>${item.description}</td>
                     <td style="text-align: center;">${item.quantity}</td>
-                    <td style="text-align: right;">$${parseFloat(item.price).toFixed(2)}</td>
-                    <td style="text-align: right;">$${(item.quantity * item.price).toFixed(2)}</td>
+                    <td style="text-align: right;">$${parseFloat(item.price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="text-align: right;">$${(item.quantity * item.price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
                 `).join('')}
             </tbody>
@@ -3605,15 +3605,15 @@ app.get('/quote-view/:token', async (req, res) => {
         <div class="totals">
             <div class="totals-row">
                 <span>Subtotal:</span>
-                <span>$${subtotal.toFixed(2)}</span>
+                <span>$${subtotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
             <div class="totals-row">
                 <span>Tax ${quote.taxWaived ? '(EXEMPT)' : `(${((settings?.taxRate || 0.06625) * 100).toFixed(3)}%)`}:</span>
-                <span>$${taxAmount.toFixed(2)}</span>
+                <span>$${taxAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
             <div class="totals-row total">
                 <span>Total:</span>
-                <span>$${total.toFixed(2)}</span>
+                <span>$${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
         </div>
 
