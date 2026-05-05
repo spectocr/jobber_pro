@@ -2855,6 +2855,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let currentUserRole = 'user'; // Default to user, updated on load
         let isAdmin = false;
         let currentUserId = null;
+        let currentTeamMember = null;
 
         // Helper function to calculate total with tax
         function calculateTotalWithTax(total) {
@@ -5454,6 +5455,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const owed = total - paid;
                     const isPaidInFull = Math.abs(owed) < 0.01;
 
+                    // Non-admin: calculate potential earnings from labor hours × their pay rate
+                    let earningsHtml = '';
+                    if (!isAdmin && currentTeamMember && currentTeamMember.hourlyRate) {
+                        const laborHours = (j.laborItems || []).reduce((sum, item) => sum + (parseFloat(item.hours) || 0), 0);
+                        if (laborHours > 0) {
+                            const earnings = laborHours * parseFloat(currentTeamMember.hourlyRate);
+                            earningsHtml = \`<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:7px;padding:0.45rem 0.65rem;margin-bottom:0.5rem;font-size:0.85rem;">
+                                💰 <strong style="color:#15803d;">\${formatMoney(earnings)}</strong>
+                                <span style="color:#4b5563;"> · \${laborHours}hr @ \$\${parseFloat(currentTeamMember.hourlyRate).toFixed(2)}/hr</span>
+                            </div>\`;
+                        }
+                    }
+
                     return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
                             <div>
@@ -5466,6 +5480,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${j.scheduledDate ? \`📅 \${j.scheduledDate}\${j.scheduledTime ? ' · ' + j.scheduledTime : ''}\` : 'No date set'}
                             \${assignedNames !== 'Unassigned' ? \` · 👷 \${assignedNames}\` : ''}
                         </div>
+                        \${earningsHtml}
                         \${isAdmin && total > 0 ? \`<div style="font-size:0.85rem;margin-bottom:0.75rem;">
                             <span style="color:#4a5568;">Billed: \${formatMoney(total)}</span> ·
                             <span style="color:#48bb78;">Paid: \${formatMoney(paid)}</span> ·
@@ -8791,6 +8806,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     document.getElementById('lastLoginTime').textContent = lastLogin.toLocaleString();
                 } else {
                     document.getElementById('lastLoginTime').textContent = 'First login';
+                }
+
+                // Match to team member for pay rate lookups
+                if (!isAdmin) {
+                    currentTeamMember = team.find(t => t.name && t.name.toLowerCase().trim() === user.name.toLowerCase().trim()) || null;
                 }
 
                 // Apply permissions after loading user
