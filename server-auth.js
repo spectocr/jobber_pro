@@ -4823,6 +4823,24 @@ app.get('/api/compliance-docs/:id/file', isAuthenticated, async (req, res) => {
     }
 });
 
+// Update metadata (type, expiry, notes) — file stays in S3 unchanged
+app.patch('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
+    try {
+        const { type, expiresAt, notes } = req.body;
+        const update = {};
+        if (type !== undefined) update.type = type;
+        if (expiresAt !== undefined) update.expiresAt = expiresAt ? new Date(expiresAt) : null;
+        if (notes !== undefined) update.notes = notes;
+        await db.collection('compliance_docs').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: update }
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Delete from S3 and MongoDB
 app.delete('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
     try {

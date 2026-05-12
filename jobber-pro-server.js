@@ -2452,6 +2452,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Edit Compliance Doc Modal -->
+    <div id="editComplianceModal" class="modal">
+        <div class="modal-content" style="max-width: 460px;">
+            <div class="modal-header">
+                <h2>✏️ Edit Document</h2>
+                <button class="close-btn" onclick="closeModal('editComplianceModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editCompDocId">
+                <div class="form-group">
+                    <label>Document Type</label>
+                    <select id="editCompDocType" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                        <option value="license">License</option>
+                        <option value="gl_insurance">Insurance — General Liability</option>
+                        <option value="umbrella_insurance">Insurance — Umbrella</option>
+                        <option value="workers_comp">Workers Compensation</option>
+                        <option value="surety_bond">Surety Bond</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Expiration Date</label>
+                    <input type="date" id="editCompDocExpiry" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <input type="text" id="editCompDocNotes" placeholder="Policy number, issuer, etc." style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('editComplianceModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveComplianceDocEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Clock-Out Survey Modal -->
     <div id="clockOutSurveyModal" class="modal">
         <div class="modal-content" style="max-width:420px;">
@@ -9649,6 +9685,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td style="padding:0.75rem 1rem;">
                         <div style="display:flex;gap:0.5rem;">
                             <button class="btn btn-secondary btn-small" onclick="downloadComplianceDoc('\${doc._id}')">⬇ Download</button>
+                            <button class="btn btn-secondary btn-small" onclick="openEditComplianceDoc('\${doc._id}')">Edit</button>
                             <button class="btn btn-secondary btn-small" style="color:#dc2626;border-color:#fecaca;" onclick="deleteComplianceDoc('\${doc._id}')">Delete</button>
                         </div>
                     </td>
@@ -9710,6 +9747,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadComplianceDocs();
             } catch (e) {
                 alert('Delete failed: ' + e.message);
+            }
+        }
+
+        function openEditComplianceDoc(docId) {
+            const doc = _complianceDocs.find(d => d._id === docId);
+            if (!doc) return;
+            document.getElementById('editCompDocId').value = docId;
+            document.getElementById('editCompDocType').value = doc.type;
+            document.getElementById('editCompDocExpiry').value = doc.expiresAt
+                ? new Date(doc.expiresAt).toISOString().split('T')[0] : '';
+            document.getElementById('editCompDocNotes').value = doc.notes || '';
+            openModal('editComplianceModal');
+        }
+
+        async function saveComplianceDocEdit() {
+            const docId = document.getElementById('editCompDocId').value;
+            const type = document.getElementById('editCompDocType').value;
+            const expiresAt = document.getElementById('editCompDocExpiry').value || null;
+            const notes = document.getElementById('editCompDocNotes').value.trim();
+            const btn = document.querySelector('#editComplianceModal .btn-primary');
+            btn.textContent = 'Saving...'; btn.disabled = true;
+            try {
+                const res = await fetch('/api/compliance-docs/' + docId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, expiresAt, notes })
+                });
+                if (!res.ok) throw new Error((await res.json()).error || 'Save failed');
+                closeModal('editComplianceModal');
+                loadComplianceDocs();
+            } catch (e) {
+                alert('Save failed: ' + e.message);
+            } finally {
+                btn.textContent = 'Save Changes'; btn.disabled = false;
             }
         }
 
