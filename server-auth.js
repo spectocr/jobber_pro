@@ -4643,9 +4643,24 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
     try {
         const { email, password } = req.body;
-
         const emailNorm = email.trim().toLowerCase();
-        const client = await db.collection('clients').findOne({ email: { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+
+        // First try primary email match
+        let client = await db.collection('clients').findOne({
+            email: { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+        });
+        let matchedLocationId = null;
+
+        // If not found by primary email, check service location contact emails
+        if (!client) {
+            client = await db.collection('clients').findOne({
+                'serviceLocations.contactEmail': { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+            });
+            if (client) {
+                const loc = client.serviceLocations.find(l => l.contactEmail?.toLowerCase() === emailNorm);
+                if (loc) matchedLocationId = String(loc.id);
+            }
+        }
 
         if (!client) {
             await db.collection('login_logs').insertOne({ type: 'client', email: emailNorm, at: new Date(), ip, success: false, reason: 'Email not found' });
@@ -4658,7 +4673,6 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
         }
 
         const passwordMatch = await bcrypt.compare(password, client.portalPassword);
-
         if (!passwordMatch) {
             await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: false, reason: 'Wrong access code' });
             return res.status(401).json({ error: 'Invalid email or access code' });
@@ -4666,15 +4680,12 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
 
         await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: true, reason: null });
 
-        // Set session
         req.session.clientId = client._id.toString();
         req.session.clientName = client.name;
         req.session.isClientPortal = true;
+        req.session.portalLocationId = matchedLocationId; // null = full access, string = location-scoped
 
-        await db.collection('clients').updateOne(
-            { _id: client._id },
-            { $set: { lastPortalLogin: new Date() } }
-        );
+        await db.collection('clients').updateOne({ _id: client._id }, { $set: { lastPortalLogin: new Date() } });
 
         res.json({ success: true });
     } catch (error) {
@@ -4691,6 +4702,7 @@ app.get('/api/client-portal/me', async (req, res) => {
         }
 
         const clientId = new ObjectId(req.session.clientId);
+        const locationId = req.session.portalLocationId || null; // null = full access
 
         // Get client
         const client = await db.collection('clients').findOne({ _id: clientId });
@@ -4698,15 +4710,28 @@ app.get('/api/client-portal/me', async (req, res) => {
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        // Get client's quotes
+        // Build location-scoped filters if logged in as a property contact
+        const jobFilter = locationId
+            ? { clientId, serviceLocationId: { $in: [locationId, parseInt(locationId)] } }
+            : { clientId };
+        const quoteFilter = locationId
+            ? { clientId, serviceLocationId: { $in: [locationId, parseInt(locationId)] } }
+            : { clientId };
+
+        // Resolve the matched location for display name
+        const matchedLocation = locationId
+            ? (client.serviceLocations || []).find(l => String(l.id) === locationId)
+            : null;
+
+        // Get client's quotes (scoped or full)
         const quotes = await db.collection('quotes')
-            .find({ clientId: clientId })
+            .find(quoteFilter)
             .sort({ createdAt: -1 })
             .toArray();
 
-        // Get client's jobs
+        // Get client's jobs (scoped or full)
         const jobs = await db.collection('jobs')
-            .find({ clientId: clientId })
+            .find(jobFilter)
             .sort({ scheduledDate: -1 })
             .toArray();
 
@@ -4749,14 +4774,19 @@ app.get('/api/client-portal/me', async (req, res) => {
 
         res.json({
             client: {
-                name: client.name,
+                name: matchedLocation ? `${matchedLocation.name || matchedLocation.address}` : client.name,
+                displayName: client.name,
                 email: client.email,
-                phone: client.phone
+                phone: client.phone,
+                isLocationScoped: !!locationId,
+                locationAddress: matchedLocation?.address || ''
             },
             quotes: quotesWithId,
             jobs: jobsWithId,
             invoices,
-            addresses,
+            addresses: locationId && matchedLocation
+                ? [{ id: String(matchedLocation.id), label: matchedLocation.name || matchedLocation.address, address: matchedLocation.address }]
+                : addresses,
             settings: {
                 appName: settings.appName || 'Jobber Pro',
                 favicon: settings.favicon || '',
@@ -4816,13 +4846,16 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
         const { service, description, addressId, photos } = req.body;
         if (!service) return res.status(400).json({ error: 'Service is required' });
 
-        // Resolve the chosen address
+        // Resolve the chosen address — if session is location-scoped, force that location
+        const sessionLocationId = req.session.portalLocationId || null;
         let serviceAddress = '';
         let serviceLocationId = null;
-        if (addressId === 'primary' || !addressId) {
+        const resolvedAddressId = sessionLocationId || addressId;
+
+        if (!resolvedAddressId || resolvedAddressId === 'primary') {
             serviceAddress = [client.addressLine1, client.addressLine2, client.city, client.state, client.zipCode].filter(Boolean).join(', ') || client.address || '';
         } else {
-            const loc = (client.serviceLocations || []).find(l => String(l.id) === String(addressId));
+            const loc = (client.serviceLocations || []).find(l => String(l.id) === String(resolvedAddressId));
             if (loc) { serviceAddress = loc.address; serviceLocationId = loc.id; }
         }
 

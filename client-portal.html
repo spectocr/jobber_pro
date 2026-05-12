@@ -422,7 +422,10 @@
                 }
 
                 clientData = await response.json();
-                document.getElementById('clientName').textContent = `Welcome, ${clientData.client.name}`;
+                const welcomeName = clientData.client.isLocationScoped
+                    ? `${clientData.client.name}${clientData.client.locationAddress ? ' — ' + clientData.client.locationAddress : ''}`
+                    : clientData.client.name;
+                document.getElementById('clientName').textContent = `Welcome, ${welcomeName}`;
 
                 // Update branding
                 if (clientData.settings.appName) {
