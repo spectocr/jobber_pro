@@ -388,6 +388,10 @@
                         <div style="font-weight:700;color:#c53030;margin-bottom:0.25rem;">⚠️ Urgent Request</div>
                         <div style="font-size:0.875rem;color:#742a2a;">This is an ASAP request and may incur additional charges for expedited scheduling. We'll contact you to confirm availability and any applicable rush fees before proceeding.</div>
                     </div>
+                    <div id="shortNoticeWarning" style="display:none;margin-top:0.6rem;background:#fffbeb;border:2px solid #f6ad55;border-radius:8px;padding:0.75rem 1rem;">
+                        <div style="font-weight:700;color:#c05621;margin-bottom:0.25rem;">📅 Short Notice Request</div>
+                        <div style="font-size:0.875rem;color:#7b341e;">We'll contact you to confirm availability before proceeding.</div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Describe the work *</label>
@@ -695,6 +699,7 @@
 
         function handlePriorityChange(val) {
             document.getElementById('urgentWarning').style.display = val === 'urgent' ? 'block' : 'none';
+            document.getElementById('shortNoticeWarning').style.display = (val === '1_day' || val === '3_days') ? 'block' : 'none';
         }
 
         function renderQrPhotos() {
