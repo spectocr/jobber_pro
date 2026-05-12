@@ -573,7 +573,7 @@ const publicApiLimiter = rateLimit({
 });
 
 // Body parsing — 50mb for upload routes, 10kb everywhere else
-const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/expenses', '/api/settings', '/api/portfolio'];
+const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs'];
 app.use((req, res, next) => {
     const limit = LARGE_BODY_PATHS.some(p => req.path.startsWith(p)) ? '50mb' : '10kb';
     express.json({ limit })(req, res, next);
