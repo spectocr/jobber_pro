@@ -4995,6 +4995,10 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
         const quoteNumber = `Q-${year}-${String(count).padStart(3, '0')}`;
         const secureToken = crypto.randomUUID();
 
+        const validUntilDate = new Date();
+        validUntilDate.setDate(validUntilDate.getDate() + 30);
+        const validUntil = validUntilDate.toISOString().split('T')[0];
+
         const quote = {
             clientId: new ObjectId(req.session.clientId),
             clientName: client.name,
@@ -5010,6 +5014,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             source: 'portal',
             total: 0,
             lineItems: [],
+            validUntil,
             createdAt: new Date(),
             updatedAt: new Date()
         };
