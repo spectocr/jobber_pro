@@ -457,6 +457,7 @@
                     ticketSuffix:  isPM ? '. We\'ll schedule a time to review the work.' : '. We\'ll be in touch soon with pricing.',
                     pendingBadge:  isPM ? 'SUBMITTED'             : 'PENDING REVIEW',
                     viewBtn:       isPM ? 'View Work Order'       : 'View Quote',
+                    viewSubmitBtn: isPM ? 'View Work Order'       : 'View Submission',
                 };
                 window._portalT = T;
 
@@ -519,6 +520,7 @@
                         ${!isDraft ? `<p><strong>Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>` : ''}
                         ${validUntil && !isDraft ? `<p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>` : ''}
                         <p><span class="status-badge ${statusClass}" style="${statusStyle}">${statusLabel}</span></p>
+                        ${isDraft ? `<button class="btn btn-primary" onclick="viewSubmission('${quote.id}')" style="margin-top:0.5rem;">${T.viewSubmitBtn || 'View Submission'}</button>` : ''}
                         ${!isDraft && !isExpired ? `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">${T.viewBtn || 'View Quote'}</a>` : ''}
                         ${isExpired ? '<p style="color:#e53e3e;">Expired</p>' : ''}
                     </div>
@@ -775,8 +777,63 @@
 
         // ── End Quote Request ─────────────────────────────────────────────────
 
+        // ── Work Order Detail Modal ───────────────────────────────────────────
+
+        async function viewSubmission(quoteId) {
+            const modal = document.getElementById('submissionModal');
+            const body  = document.getElementById('submissionModalBody');
+            body.innerHTML = '<p style="color:#718096;padding:1rem 0;">Loading...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/client-portal/quote/${quoteId}`);
+                const q   = await res.json();
+                if (!res.ok) throw new Error(q.error || 'Failed to load');
+
+                const T = window._portalT || {};
+                const statusLabel = q.status === 'draft' ? (T.pendingBadge || 'PENDING REVIEW') : q.status.toUpperCase();
+                const statusStyle = q.status === 'draft' ? 'background:#e9d8fd;color:#553c9a;' : '';
+                const photoHtml   = q.photos.length
+                    ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:0.5rem;">${q.photos.map(p => `<img src="${p}" style="width:100px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open(this.src,'_blank')">`).join('')}</div>`
+                    : '';
+
+                body.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
+                        <div>
+                            <div style="font-size:1.15rem;font-weight:700;color:#2d3748;">${q.title}</div>
+                            <div style="font-size:0.85rem;color:#718096;margin-top:0.2rem;">${T.quoteNum || 'Quote #:'} ${q.quoteNumber}</div>
+                        </div>
+                        <span class="status-badge" style="${statusStyle}white-space:nowrap;">${statusLabel}</span>
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                        ${q.priorityLabel ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;width:110px;">Priority</td><td>${q.priorityLabel}</td></tr>` : ''}
+                        ${q.serviceAddress ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Address</td><td>${q.serviceAddress}</td></tr>` : ''}
+                        ${q.description ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;vertical-align:top;">Details</td><td style="white-space:pre-wrap;">${q.description}</td></tr>` : ''}
+                        <tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Submitted</td><td>${new Date(q.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</td></tr>
+                    </table>
+                    ${photoHtml ? `<div style="margin-top:0.75rem;"><div style="font-weight:600;color:#4a5568;font-size:0.9rem;margin-bottom:0.25rem;">Photos</div>${photoHtml}</div>` : ''}
+                    ${q.status === 'draft' ? `<p style="margin-top:1rem;font-size:0.85rem;color:#718096;">Your submission is under review. We'll be in touch shortly.</p>` : ''}
+                `;
+            } catch (e) {
+                body.innerHTML = `<p style="color:#e53e3e;">Failed to load: ${e.message}</p>`;
+            }
+        }
+
+        function closeSubmissionModal() {
+            document.getElementById('submissionModal').style.display = 'none';
+        }
+
         // Load data on page load
         loadClientData();
     </script>
+
+    <!-- Work Order / Quote Detail Modal -->
+    <div id="submissionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeSubmissionModal()">
+        <div style="background:white;border-radius:12px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:1.5rem;position:relative;">
+            <button onclick="closeSubmissionModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#718096;">✕</button>
+            <h3 style="margin:0 0 1rem;color:#2d3748;" id="submissionModalTitle">Submission Details</h3>
+            <div id="submissionModalBody"></div>
+        </div>
+    </div>
 </body>
 </html>

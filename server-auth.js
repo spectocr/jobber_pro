@@ -4800,6 +4800,44 @@ app.get('/api/client-portal/me', async (req, res) => {
     }
 });
 
+// Client Portal API - Get single quote detail (with signed photo URLs)
+app.get('/api/client-portal/quote/:id', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+        const clientId = new ObjectId(req.session.clientId);
+        const quote = await db.collection('quotes').findOne({ _id: new ObjectId(req.params.id), clientId });
+        if (!quote) return res.status(404).json({ error: 'Not found' });
+
+        const priorityLabels = { urgent: '🔴 Urgent', '1_day': '🟠 Within 1 Day', '3_days': '🟡 Within 3 Days', '1_week': '🟢 Within 1 Week', '2_weeks': '🔵 Within 2 Weeks', flexible: '⚪ Flexible / No Rush' };
+
+        let photoUrls = [];
+        if (Array.isArray(quote.photos) && quote.photos.length > 0 && s3Client) {
+            photoUrls = await Promise.all(quote.photos.map(p =>
+                typeof p === 'string' && !p.startsWith('data:') ? getS3SignedUrl(p, 3600) : Promise.resolve(p)
+            ));
+        }
+
+        res.json({
+            id: quote._id.toString(),
+            quoteNumber: quote.quoteNumber,
+            title: quote.title,
+            description: quote.description || '',
+            serviceAddress: quote.serviceAddress || '',
+            priority: quote.priority || 'flexible',
+            priorityLabel: priorityLabels[quote.priority] || '⚪ Flexible / No Rush',
+            status: quote.status,
+            source: quote.source,
+            createdAt: quote.createdAt,
+            photos: photoUrls
+        });
+    } catch (error) {
+        console.error('Get portal quote error:', error);
+        res.status(500).json({ error: 'Failed to load' });
+    }
+});
+
 // Client Portal API - Send message
 app.post('/api/client-portal/message', async (req, res) => {
     try {
