@@ -2865,6 +2865,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Send Portal Login Modal -->
+    <div id="sendPortalModal" class="modal">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>📧 Send Portal Login</h2>
+                <button class="close-btn" onclick="closeModal('sendPortalModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:#4a5568;margin-bottom:1.25rem;">Choose which address/contact to send the portal login email to.</p>
+                <div class="form-group">
+                    <label>Send To</label>
+                    <select id="portalSendToSelect" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('sendPortalModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmSendPortalInfo()">📧 Send</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Job Modal -->
     <div id="jobModal" class="modal">
         <div class="modal-content">
@@ -4144,42 +4165,55 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             sendBtn.style.display = (enabled && isEditing) ? 'block' : 'none';
         }
 
-        async function sendPortalInfo() {
+        function sendPortalInfo() {
             if (!currentEditingClientId) {
                 alert('Please save the client first before sending portal info');
                 return;
             }
-
             const client = clients.find(c => (c.id || c._id) == currentEditingClientId);
-            if (!client) {
-                alert('Client not found');
+            if (!client) { alert('Client not found'); return; }
+            if (!client.portalPassword) { alert('Client does not have portal access enabled'); return; }
+
+            // Build list of available email addresses
+            const options = [];
+            if (client.email) options.push({ label: \`Primary — \${client.email}\`, value: client.email });
+            (client.serviceLocations || []).forEach(loc => {
+                if (loc.contactEmail) {
+                    const name = loc.name || loc.address || 'Property';
+                    options.push({ label: \`\${name} — \${loc.contactEmail}\`, value: loc.contactEmail });
+                }
+            });
+
+            if (options.length === 0) { alert('No email address on file for this client or any of their properties.'); return; }
+
+            // If only one option, skip the modal and send directly
+            if (options.length === 1) {
+                if (!confirm(\`Send portal login to \${options[0].value}?\`)) return;
+                doSendPortalInfo(options[0].value);
                 return;
             }
 
-            if (!client.email) {
-                alert('Client does not have an email address');
-                return;
-            }
+            // Multiple options — show picker modal
+            const select = document.getElementById('portalSendToSelect');
+            select.innerHTML = options.map(o => \`<option value="\${o.value}">\${o.label}</option>\`).join('');
+            openModal('sendPortalModal');
+        }
 
-            if (!client.portalPassword) {
-                alert('Client does not have portal access enabled');
-                return;
-            }
+        async function confirmSendPortalInfo() {
+            const toEmail = document.getElementById('portalSendToSelect').value;
+            closeModal('sendPortalModal');
+            await doSendPortalInfo(toEmail);
+        }
 
-            if (!confirm(\`Send portal login information to \${client.email}?\`)) {
-                return;
-            }
-
+        async function doSendPortalInfo(toEmail) {
             try {
                 const response = await fetch('/api/clients/send-portal-info', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ clientId: currentEditingClientId })
+                    body: JSON.stringify({ clientId: currentEditingClientId, toEmail })
                 });
-
                 if (!response.ok) throw new Error('Failed to send email');
-
-                alert(\`✅ Portal login info sent to \${client.email}!\`);
+                alert(\`✅ Portal login info sent to \${toEmail}!\`);
             } catch (error) {
                 alert('Failed to send portal info: ' + error.message);
             }

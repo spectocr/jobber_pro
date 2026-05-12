@@ -2055,15 +2055,16 @@ app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
 
 app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
     try {
-        const { clientId } = req.body;
+        const { clientId, toEmail } = req.body;
 
         const client = await db.collection('clients').findOne({ _id: new ObjectId(clientId) });
         if (!client) {
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        if (!client.email) {
-            return res.status(400).json({ error: 'Client does not have an email address' });
+        const sendTo = toEmail || client.email;
+        if (!sendTo) {
+            return res.status(400).json({ error: 'No email address available' });
         }
 
         if (!client.portalPassword) {
@@ -2131,7 +2132,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
         `;
 
         await emailService.sendEmail({
-            to: client.email,
+            to: sendTo,
             subject: subject,
             html: html,
             text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: The last 4 digits of your phone number on file`
@@ -2139,7 +2140,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
 
         await db.collection('email_logs').insertOne({
             type: 'portal_access',
-            to: client.email,
+            to: sendTo,
             toName: client.name,
             subject: subject,
             trigger: 'Portal access email sent manually',
