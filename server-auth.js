@@ -2630,6 +2630,24 @@ app.get('/api/jobs/:id/invoice-view-log', isAdmin, async (req, res) => {
     }
 });
 
+app.get('/api/quotes/:id/photos', isAuthenticated, async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne(
+            { _id: new ObjectId(req.params.id) },
+            { projection: { photos: 1 } }
+        );
+        if (!quote) return res.status(404).json({ error: 'Not found' });
+        const photos = Array.isArray(quote.photos) ? quote.photos : [];
+        if (!photos.length || !s3Client) return res.json({ photos: [] });
+        const urls = await Promise.all(photos.map(p =>
+            typeof p === 'string' && !p.startsWith('data:') ? getS3SignedUrl(p, 3600) : Promise.resolve(p)
+        ));
+        res.json({ photos: urls.filter(Boolean) });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.get('/api/quotes/:id/view-log', isAdmin, async (req, res) => {
     try {
         const quote = await db.collection('quotes').findOne(

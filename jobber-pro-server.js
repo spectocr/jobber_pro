@@ -3161,6 +3161,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
 
+                    <!-- Portal Submission Photos -->
+                    <div id="quotePhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                        <h3 style="margin-bottom: 0.75rem;">📷 Client Photos</h3>
+                        <div id="quotePhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                    </div>
+
                     <!-- Audit Log -->
                     <div id="quoteAuditLogSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                         <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
@@ -6557,6 +6563,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('quoteAuditLog').innerHTML = auditLogHtml;
             } else {
                 document.getElementById('quoteAuditLogSection').style.display = 'none';
+            }
+
+            // Portal submission photos
+            const photosSection = document.getElementById('quotePhotosSection');
+            const photoGrid     = document.getElementById('quotePhotoGrid');
+            photoGrid.innerHTML = '';
+            if (quote.photos && quote.photos.length > 0) {
+                photosSection.style.display = 'block';
+                photoGrid.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Loading photos...</div>';
+                fetch(\`/api/quotes/\${quote.id}/photos\`)
+                    .then(r => r.json())
+                    .then(data => {
+                        photoGrid.innerHTML = (data.photos || []).map(url =>
+                            \`<a href="\${url}" target="_blank"><img src="\${url}" style="width:110px;height:85px;object-fit:cover;border-radius:6px;border:2px solid #e2e8f0;cursor:pointer;" title="Click to open full size"></a>\`
+                        ).join('');
+                    })
+                    .catch(() => { photoGrid.innerHTML = '<div style="color:#e53e3e;">Failed to load photos</div>'; });
+            } else {
+                photosSection.style.display = 'none';
             }
 
             document.getElementById('quoteModal').classList.add('active');
