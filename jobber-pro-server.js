@@ -9796,13 +9796,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             URL.revokeObjectURL(url);
         }
 
-        function openSendComplianceModal(clientId) {
+        async function openSendComplianceModal(clientId) {
             if (!clientId) { alert('Open a client first.'); return; }
             _sendCompClientId = clientId;
             const clientName = document.getElementById('client-detail-name')?.textContent || 'Client';
             document.getElementById('sendCompClientName').textContent = clientName;
             document.getElementById('sendCompMessage').value = '';
             const checkboxes = document.getElementById('sendCompDocCheckboxes');
+            checkboxes.innerHTML = '<p style="color:#718096;">Loading...</p>';
+            openModal('sendComplianceModal');
+
+            // Always fetch fresh so modal works even if Settings tab was never opened
+            try {
+                const res = await fetch('/api/compliance-docs');
+                if (!res.ok) throw new Error('Failed to load');
+                _complianceDocs = await res.json();
+            } catch (e) {
+                checkboxes.innerHTML = '<p style="color:#e53e3e;">Failed to load documents.</p>';
+                return;
+            }
+
             if (_complianceDocs.length === 0) {
                 checkboxes.innerHTML = '<p style="color:#718096;">No documents on file. Upload documents in Settings → 🛡️ License & Insurance first.</p>';
             } else {
@@ -9814,7 +9827,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </label>
                 \`).join('');
             }
-            openModal('sendComplianceModal');
         }
 
         async function sendComplianceDocs() {
