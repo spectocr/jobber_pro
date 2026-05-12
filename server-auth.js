@@ -4779,7 +4779,8 @@ app.get('/api/client-portal/me', async (req, res) => {
                 email: client.email,
                 phone: client.phone,
                 isLocationScoped: !!locationId,
-                locationAddress: matchedLocation?.address || ''
+                locationAddress: matchedLocation?.address || '',
+                isPropertyManagement: !!client.isPropertyManagement
             },
             quotes: quotesWithId,
             jobs: jobsWithId,

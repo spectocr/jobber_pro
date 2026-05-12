@@ -322,7 +322,7 @@
 
         <div class="grid">
             <!-- Quotes Section -->
-            <div class="card">
+            <div class="card" id="quotesCard">
                 <h2>📋 My Quotes</h2>
                 <div id="quotesList"></div>
             </div>
@@ -341,13 +341,13 @@
         </div>
 
         <!-- Request a Quote Section -->
-        <div class="card" style="margin-bottom: 2rem;">
+        <div class="card" style="margin-bottom: 2rem;" id="quoteRequestSection">
             <h2>📝 Request a Quote</h2>
-            <p style="color:#718096;margin-bottom:1.25rem;font-size:0.9rem;">Tell us what you need done. We'll follow up with a quote. Your ticket number will appear after submission.</p>
+            <p class="portal-request-desc" style="color:#718096;margin-bottom:1.25rem;font-size:0.9rem;">Tell us what you need done. We'll follow up with a quote. Your ticket number will appear after submission.</p>
 
             <div id="quoteRequestSuccess" style="display:none;" class="success-banner">
-                <div style="font-size:1.1rem;font-weight:700;margin-bottom:0.25rem;">✅ Request submitted!</div>
-                <div>Your quote number is <span id="newTicketNumber" class="ticket-badge" style="font-size:0.9rem;"></span>. We'll be in touch soon with pricing.</div>
+                <div id="qrSuccessMsg" style="font-size:1.1rem;font-weight:700;margin-bottom:0.25rem;">✅ Request submitted!</div>
+                <div><span id="qrTicketLabel">Your quote number is</span> <span id="newTicketNumber" class="ticket-badge" style="font-size:0.9rem;"></span><span id="qrTicketSuffix">. We'll be in touch soon with pricing.</span></div>
             </div>
 
             <form id="quoteRequestForm" onsubmit="submitPortalQuoteRequest(event)">
@@ -422,6 +422,30 @@
                 }
 
                 clientData = await response.json();
+                const isPM = clientData.client.isPropertyManagement;
+
+                // PM-aware terminology
+                const T = {
+                    quotes:        isPM ? '🎫 Work Orders'       : '📋 My Quotes',
+                    quoteLabel:    isPM ? 'Work Order'            : 'Quote',
+                    quoteNum:      isPM ? 'Ticket #'              : 'Quote #:',
+                    requestTitle:  isPM ? '📝 Submit a Work Order' : '📝 Request a Quote',
+                    requestDesc:   isPM ? 'Submit a work order request. We\'ll review and follow up.' : 'Tell us what you need done. We\'ll follow up with a quote.',
+                    requestBtn:    isPM ? 'Submit Work Order'     : 'Submit Request',
+                    successMsg:    isPM ? 'Work order submitted!' : 'Request submitted!',
+                    ticketLabel:   isPM ? 'Work Order #'          : 'Your quote number is',
+                    ticketSuffix:  isPM ? '. We\'ll schedule a time to review the work.' : '. We\'ll be in touch soon with pricing.',
+                    pendingBadge:  isPM ? 'SUBMITTED'             : 'PENDING REVIEW',
+                    viewBtn:       isPM ? 'View Work Order'       : 'View Quote',
+                };
+                window._portalT = T;
+
+                // Apply static text labels
+                document.querySelector('#quotesCard h2').textContent = T.quotes;
+                document.querySelector('#quoteRequestSection h2').textContent = T.requestTitle;
+                document.querySelector('#quoteRequestSection .portal-request-desc').textContent = T.requestDesc;
+                document.getElementById('qrSubmitBtn').textContent = T.requestBtn;
+
                 const welcomeName = clientData.client.isLocationScoped
                     ? `${clientData.client.name}${clientData.client.locationAddress ? ' — ' + clientData.client.locationAddress : ''}`
                     : clientData.client.name;
@@ -460,7 +484,9 @@
                 const statusClass = quote.status === 'approved' ? 'status-approved' :
                                     quote.status === 'sent' ? 'status-sent' :
                                     isDraft ? '' : 'status-scheduled';
-                const statusLabel = isDraft ? 'PENDING REVIEW' : quote.status.toUpperCase();
+                const T = window._portalT || {};
+                const pendingLabel = T.pendingBadge || 'PENDING REVIEW';
+                const statusLabel = isDraft ? pendingLabel : quote.status.toUpperCase();
                 const statusStyle = isDraft ? 'background:#e9d8fd;color:#553c9a;' : '';
 
                 const validUntil = quote.validUntil ? new Date(quote.validUntil) : null;
@@ -469,11 +495,11 @@
                 return `
                     <div class="quote-card">
                         <h3>${quote.title}</h3>
-                        <p><strong>Quote #:</strong> ${quote.quoteNumber}</p>
+                        <p><strong>${T.quoteNum || 'Quote #:'}</strong> ${quote.quoteNumber}</p>
                         ${!isDraft ? `<p><strong>Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>` : ''}
                         ${validUntil && !isDraft ? `<p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>` : ''}
                         <p><span class="status-badge ${statusClass}" style="${statusStyle}">${statusLabel}</span></p>
-                        ${!isDraft && !isExpired ? `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">View Quote</a>` : ''}
+                        ${!isDraft && !isExpired ? `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">${T.viewBtn || 'View Quote'}</a>` : ''}
                         ${isExpired ? '<p style="color:#e53e3e;">Expired</p>' : ''}
                     </div>
                 `;
@@ -698,7 +724,11 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Submission failed');
 
+                const T = window._portalT || {};
+                document.getElementById('qrSuccessMsg').textContent = '✅ ' + (T.successMsg || 'Request submitted!');
+                document.getElementById('qrTicketLabel').textContent = (T.ticketLabel || 'Your quote number is') + ' ';
                 document.getElementById('newTicketNumber').textContent = data.quoteNumber;
+                document.getElementById('qrTicketSuffix').textContent = T.ticketSuffix || '. We\'ll be in touch soon with pricing.';
                 document.getElementById('quoteRequestSuccess').style.display = 'block';
                 document.getElementById('quoteRequestForm').reset();
                 qrPhotos = [];
@@ -713,7 +743,7 @@
             } catch (e) {
                 alert('Failed to submit: ' + e.message);
             } finally {
-                btn.textContent = 'Submit Request'; btn.disabled = false;
+                btn.textContent = (window._portalT && window._portalT.requestBtn) || 'Submit Request'; btn.disabled = false;
             }
         }
 
