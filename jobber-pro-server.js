@@ -9648,7 +9648,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td style="padding:0.75rem 1rem;">\${statusBadge}</td>
                     <td style="padding:0.75rem 1rem;">
                         <div style="display:flex;gap:0.5rem;">
-                            <button class="btn btn-secondary btn-small" onclick="downloadComplianceDoc('\${doc._id}','\${doc.filename.replace(/'/g,\\"\\\\\\\\'\\")}')">⬇ Download</button>
+                            <button class="btn btn-secondary btn-small" onclick="downloadComplianceDoc('\${doc._id}')">⬇ Download</button>
                             <button class="btn btn-secondary btn-small" style="color:#dc2626;border-color:#fecaca;" onclick="deleteComplianceDoc('\${doc._id}')">Delete</button>
                         </div>
                     </td>
@@ -9713,7 +9713,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        async function downloadComplianceDoc(docId, filename) {
+        async function downloadComplianceDoc(docId) {
+            const doc = _complianceDocs.find(d => d._id === docId);
+            const filename = doc ? doc.filename : 'document';
             const res = await fetch('/api/compliance-docs/' + docId + '/file');
             if (!res.ok) { alert('Download failed'); return; }
             const blob = await res.blob();
