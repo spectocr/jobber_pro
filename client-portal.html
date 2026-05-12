@@ -375,7 +375,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Priority *</label>
-                    <select id="qrPriority" class="form-select" required>
+                    <select id="qrPriority" class="form-select" required onchange="handlePriorityChange(this.value)">
                         <option value="">Select priority...</option>
                         <option value="urgent">🔴 Urgent — needs attention ASAP</option>
                         <option value="1_day">🟠 Within 1 Day</option>
@@ -384,6 +384,10 @@
                         <option value="2_weeks">🔵 Within 2 Weeks</option>
                         <option value="flexible">⚪ Flexible / No Rush</option>
                     </select>
+                    <div id="urgentWarning" style="display:none;margin-top:0.6rem;background:#fff5f5;border:2px solid #fc8181;border-radius:8px;padding:0.75rem 1rem;">
+                        <div style="font-weight:700;color:#c53030;margin-bottom:0.25rem;">⚠️ Urgent Request</div>
+                        <div style="font-size:0.875rem;color:#742a2a;">This is an ASAP request and may incur additional charges for expedited scheduling. We'll contact you to confirm availability and any applicable rush fees before proceeding.</div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Describe the work *</label>
@@ -687,6 +691,10 @@
                 };
                 reader.readAsDataURL(file);
             });
+        }
+
+        function handlePriorityChange(val) {
+            document.getElementById('urgentWarning').style.display = val === 'urgent' ? 'block' : 'none';
         }
 
         function renderQrPhotos() {
