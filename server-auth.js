@@ -4772,7 +4772,7 @@ app.post('/api/client-portal/message', async (req, res) => {
 
 // ── Compliance / License & Insurance ─────────────────────────────────────────
 
-// List all compliance docs (no file data — metadata only)
+// List all compliance docs (metadata only — no file data)
 app.get('/api/compliance-docs', isAuthenticated, async (req, res) => {
     try {
         const docs = await db.collection('compliance_docs')
@@ -4785,16 +4785,21 @@ app.get('/api/compliance-docs', isAuthenticated, async (req, res) => {
     }
 });
 
-// Upload a compliance doc (base64 data in body)
+// Upload a compliance doc — store file in S3, metadata in MongoDB
 app.post('/api/compliance-docs', isAuthenticated, async (req, res) => {
     try {
         const { type, expiresAt, notes, filename, mimeType, data } = req.body;
         if (!type || !filename || !data) return res.status(400).json({ error: 'type, filename, and data are required' });
+        if (!s3Client) return res.status(503).json({ error: 'S3 not configured' });
+
+        const fileBuffer = Buffer.from(data, 'base64');
+        const s3Key = await uploadToS3(fileBuffer, filename, mimeType || 'application/octet-stream');
+
         const doc = {
             type,
             filename,
             mimeType: mimeType || 'application/octet-stream',
-            data,
+            s3Key,
             expiresAt: expiresAt ? new Date(expiresAt) : null,
             notes: notes || '',
             uploadedAt: new Date()
@@ -4806,23 +4811,23 @@ app.post('/api/compliance-docs', isAuthenticated, async (req, res) => {
     }
 });
 
-// Download a compliance doc file
+// Download — redirect to a short-lived S3 signed URL
 app.get('/api/compliance-docs/:id/file', isAuthenticated, async (req, res) => {
     try {
         const doc = await db.collection('compliance_docs').findOne({ _id: new ObjectId(req.params.id) });
         if (!doc) return res.status(404).json({ error: 'Not found' });
-        const buf = Buffer.from(doc.data, 'base64');
-        res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
-        res.send(buf);
+        const url = await getS3SignedUrl(doc.s3Key, 300);
+        res.redirect(url);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-// Delete a compliance doc
+// Delete from S3 and MongoDB
 app.delete('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
     try {
+        const doc = await db.collection('compliance_docs').findOne({ _id: new ObjectId(req.params.id) });
+        if (doc?.s3Key) await deleteFromS3(doc.s3Key).catch(() => {});
         await db.collection('compliance_docs').deleteOne({ _id: new ObjectId(req.params.id) });
         res.json({ success: true });
     } catch (e) {
@@ -4830,7 +4835,7 @@ app.delete('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
     }
 });
 
-// Send compliance docs to a client via email
+// Send compliance docs to a client — stream from S3 and attach to email
 app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) => {
     try {
         const { clientId, docIds, message } = req.body;
@@ -4839,20 +4844,27 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
         const client = await db.collection('clients').findOne({ _id: new ObjectId(clientId) });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         if (!client.email) return res.status(400).json({ error: 'Client has no email address on file' });
-
         if (!emailService.transporter) return res.status(503).json({ error: 'Email service not configured' });
+        if (!s3Client) return res.status(503).json({ error: 'S3 not configured' });
 
         const oids = docIds.map(id => new ObjectId(id));
         const docs = await db.collection('compliance_docs').find({ _id: { $in: oids } }).toArray();
 
+        // Stream each file from S3 into a buffer for the email attachment
+        const attachments = await Promise.all(docs.map(async doc => {
+            const cmd = new GetObjectCommand({ Bucket: S3_BUCKET_NAME, Key: doc.s3Key });
+            const s3Res = await s3Client.send(cmd);
+            const chunks = [];
+            for await (const chunk of s3Res.Body) chunks.push(chunk);
+            return {
+                filename: doc.filename,
+                content: Buffer.concat(chunks),
+                contentType: doc.mimeType || 'application/octet-stream'
+            };
+        }));
+
         const settings = await db.collection('settings').findOne({});
         const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
-
-        const attachments = docs.map(doc => ({
-            filename: doc.filename,
-            content: Buffer.from(doc.data, 'base64'),
-            contentType: doc.mimeType || 'application/octet-stream'
-        }));
 
         const typeLabels = {
             license: 'License', gl_insurance: 'Insurance — General Liability',
