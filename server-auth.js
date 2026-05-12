@@ -19,6 +19,9 @@ const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = re
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const emailService = require('./email-service');
 const calendarService = require('./calendar-service');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const fetch = require('node-fetch');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -547,9 +550,38 @@ const app = express();
 // Trust proxy (Heroku uses load balancer)
 app.set('trust proxy', 1);
 
-// Middleware - increase limit for base64 file uploads (50MB max)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Security headers
+app.use(helmet({
+    contentSecurityPolicy: false // disabled — inline scripts/styles in the app HTML
+}));
+
+// Rate limiters
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts. Try again in 15 minutes.' }
+});
+
+const publicApiLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Try again later.' }
+});
+
+// Body parsing — 50mb for upload routes, 10kb everywhere else
+const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/expenses', '/api/settings', '/api/portfolio'];
+app.use((req, res, next) => {
+    const limit = LARGE_BODY_PATHS.some(p => req.path.startsWith(p)) ? '50mb' : '10kb';
+    express.json({ limit })(req, res, next);
+});
+app.use((req, res, next) => {
+    const limit = LARGE_BODY_PATHS.some(p => req.path.startsWith(p)) ? '50mb' : '10kb';
+    express.urlencoded({ extended: true, limit })(req, res, next);
+});
 
 // Function to setup routes (called after session middleware is ready)
 function setupRoutes() {
@@ -557,10 +589,10 @@ function setupRoutes() {
 async function buildAuthHtml(html) {
     try {
         const settings = await db.collection('settings').findOne({});
-        const appName = settings?.appName || 'GSD Handyman Service';
+        const appName = settings?.appName || 'GSD Home Improvement & Property Services';
         return html.replace(/\{\{APP_NAME\}\}/g, appName);
     } catch {
-        return html.replace(/\{\{APP_NAME\}\}/g, 'GSD Handyman Service');
+        return html.replace(/\{\{APP_NAME\}\}/g, 'GSD Home Improvement & Property Services');
     }
 }
 
@@ -594,7 +626,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         );
 
         const settings = await db.collection('settings').findOne({});
-        const appName = settings?.appName || 'GSD Handyman Service';
+        const appName = settings?.appName || 'GSD Home Improvement & Property Services';
         const resetUrl = `${process.env.APP_URL}/reset-password?token=${token}`;
 
         await emailService.sendEmail({
@@ -648,7 +680,8 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.post('/api/auth/register', (req, res) => res.status(403).json({ error: 'Registration is not available' }));
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
     try {
         const { email, password } = req.body;
 
@@ -658,13 +691,17 @@ app.post('/api/auth/login', async (req, res) => {
 
         const user = await db.collection('users').findOne({ email: email.toLowerCase() });
         if (!user) {
+            await db.collection('login_logs').insertOne({ type: 'business', email: email.toLowerCase(), at: new Date(), ip, success: false, reason: 'User not found' });
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
+            await db.collection('login_logs').insertOne({ type: 'business', targetId: user._id, email: user.email, at: new Date(), ip, success: false, reason: 'Wrong password' });
             return res.status(401).json({ error: 'Invalid email or password' });
         }
+
+        await db.collection('login_logs').insertOne({ type: 'business', targetId: user._id, email: user.email, at: new Date(), ip, success: true, reason: null });
 
         // Update last login time
         await db.collection('users').updateOne(
@@ -697,6 +734,14 @@ app.post('/api/auth/logout', (req, res) => {
             return res.status(500).json({ error: 'Logout failed' });
         }
         res.json({ success: true });
+    });
+});
+
+// Clover public config — safe to expose, these are client-side keys
+app.get('/api/clover-config', isAuthenticated, (req, res) => {
+    res.json({
+        publicKey: process.env.CLOVER_PUBLIC_KEY || '',
+        merchantId: process.env.CLOVER_MERCHANT_ID || ''
     });
 });
 
@@ -742,6 +787,31 @@ app.post('/api/auth/change-password', isAuthenticated, async (req, res) => {
 });
 
 // Get all users (admin only)
+app.get('/api/users/:id/login-log', isAdmin, async (req, res) => {
+    const logs = await db.collection('login_logs')
+        .find({ type: 'business', targetId: new ObjectId(req.params.id) })
+        .sort({ at: -1 }).limit(50).toArray();
+    res.json(logs);
+});
+
+app.get('/api/clients/:id/login-log', isAdmin, async (req, res) => {
+    const logs = await db.collection('login_logs')
+        .find({ type: 'client', targetId: new ObjectId(req.params.id) })
+        .sort({ at: -1 }).limit(50).toArray();
+    res.json(logs);
+});
+
+app.post('/api/clients/:id/set-portal-password', isAdmin, async (req, res) => {
+    const { password } = req.body;
+    if (!password || password.length < 1) return res.status(400).json({ error: 'Password required' });
+    const hashed = await bcrypt.hash(password, 10);
+    await db.collection('clients').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { portalPassword: hashed, updatedAt: new Date() } }
+    );
+    res.json({ success: true });
+});
+
 app.get('/api/users', isAuthenticated, async (req, res) => {
     try {
         const currentUser = await db.collection('users').findOne({ _id: new ObjectId(req.session.userId) });
@@ -1190,7 +1260,7 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
 });
 
 // Public quote request API
-app.post('/api/public/quote-request', async (req, res) => {
+app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
     try {
         const { firstName, lastName, phone, email, service, description, city, contactPref, photos, foundUs, utmSource, utmMedium, utmCampaign, referer, entryPage } = req.body;
         if (!firstName || !lastName || !phone || !service) {
@@ -1277,7 +1347,96 @@ app.post('/api/public/quote-request', async (req, res) => {
     }
 });
 
+// Google Reviews proxy — keeps API key server-side, caches 1hr
+let reviewsCache = null;
+let reviewsCachedAt = 0;
+
+app.get('/api/public/reviews', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', 'https://gsdhandymanservice.com');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+    const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+    if (reviewsCache && Date.now() - reviewsCachedAt < CACHE_TTL) {
+        return res.json(reviewsCache);
+    }
+
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const placeId = process.env.GOOGLE_PLACE_ID;
+
+    if (!apiKey || !placeId) {
+        return res.status(503).json({ error: 'Reviews not configured' });
+    }
+
+    try {
+        const https = require('https');
+        const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,reviews&key=${apiKey}&languageCode=en`;
+
+        const data = await new Promise((resolve, reject) => {
+            https.get(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } }, (r) => {
+                let body = '';
+                r.on('data', chunk => body += chunk);
+                r.on('end', () => {
+                    try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+                });
+            }).on('error', reject);
+        });
+
+        if (data.error) {
+            console.error('Google Places error:', data.error.message);
+            return res.status(502).json({ error: 'Could not fetch reviews' });
+        }
+
+        const reviews = (data.reviews || [])
+            .filter(r => r.rating >= 4)
+            .map(r => ({
+                author: r.authorAttribution?.displayName || 'Anonymous',
+                rating: r.rating,
+                text: r.text?.text || '',
+                time: r.relativePublishTimeDescription || '',
+                photoUrl: r.authorAttribution?.photoUri || null
+            }));
+
+        reviewsCache = { rating: data.rating, total: data.userRatingCount, reviews };
+        reviewsCachedAt = Date.now();
+        res.json(reviewsCache);
+    } catch (err) {
+        console.error('Reviews fetch error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Leads API
+// ── Vendors ──────────────────────────────────────────────────────────────────
+app.get('/api/vendors', isAuthenticated, async (req, res) => {
+    const vendors = await db.collection('vendors').find().sort({ name: 1 }).toArray();
+    res.json(vendors.map(v => ({ ...v, id: v._id.toString() })));
+});
+
+app.post('/api/vendors', isAuthenticated, async (req, res) => {
+    const { id, name, category, accountNumber, phone, email, website, contact, address, notes } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+
+    const doc = { name, category: category || '', accountNumber: accountNumber || '', phone: phone || '', email: email || '', website: website || '', contact: contact || '', address: address || '', notes: notes || '', updatedAt: new Date() };
+
+    if (id) {
+        await db.collection('vendors').updateOne({ _id: new ObjectId(id) }, { $set: doc });
+        res.json({ success: true });
+    } else {
+        doc.createdAt = new Date();
+        const result = await db.collection('vendors').insertOne(doc);
+        res.json({ success: true, id: result.insertedId.toString() });
+    }
+});
+
+app.delete('/api/vendors/:id', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('vendors').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).json({ error: 'Invalid ID' });
+    }
+});
+
 app.get('/api/leads', isAuthenticated, async (req, res) => {
     const leads = await db.collection('leads').find().sort({ createdAt: -1 }).toArray();
     const result = await Promise.all(leads.map(async l => {
@@ -1449,8 +1608,8 @@ app.get('/privacy', async (req, res) => {
     `);
 });
 
-// Terms and Conditions page (public)
-app.get('/terms', async (req, res) => {
+// Conditions page (public)
+app.get('/conditions', async (req, res) => {
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.companyName || 'Jobber Pro';
     const companyEmail = settings.companyEmail || 'contact@jobber-pro.com';
@@ -1461,7 +1620,7 @@ app.get('/terms', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms and Conditions - ${companyName}</title>
+    <title>Conditions - ${companyName}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
@@ -1478,7 +1637,7 @@ app.get('/terms', async (req, res) => {
 </head>
 <body>
     <div class="container">
-        <h1>Terms and Conditions</h1>
+        <h1>Conditions</h1>
         <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
 
         <p>Welcome to ${companyName}. By accessing or using our services, you agree to be bound by these Terms and Conditions. Please read them carefully.</p>
@@ -1629,11 +1788,112 @@ app.get('/', (req, res) => {
     res.send(HTML_TEMPLATE);
 });
 
+// ============================================================
+// GOOGLE ANALYTICS OAUTH + DATA ROUTES
+// ============================================================
+
+app.get('/analytics/auth', isAuthenticated, (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const redirectUri = 'https://app.gsdhandymanservice.com/analytics/callback';
+    const scope = 'https://www.googleapis.com/auth/analytics.readonly';
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
+    res.redirect(url);
+});
+
+app.get('/analytics/callback', async (req, res) => {
+    try {
+        const { code } = req.query;
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+        const redirectUri = 'https://app.gsdhandymanservice.com/analytics/callback';
+
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ code, client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri, grant_type: 'authorization_code' })
+        });
+        const tokens = await tokenRes.json();
+
+        const update = { gaAccessToken: tokens.access_token, gaTokenExpiry: Date.now() + (tokens.expires_in * 1000) };
+        if (tokens.refresh_token) update.gaRefreshToken = tokens.refresh_token;
+        await db.collection('settings').updateOne({}, { $set: update }, { upsert: true });
+
+        res.redirect('/?analytics=connected');
+    } catch (e) {
+        res.redirect('/?analytics=error');
+    }
+});
+
+async function getGAAccessToken() {
+    const settings = await db.collection('settings').findOne() || {};
+    if (!settings.gaRefreshToken && !settings.gaAccessToken) return null;
+    if (settings.gaAccessToken && settings.gaTokenExpiry > Date.now() + 60000) return settings.gaAccessToken;
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ refresh_token: settings.gaRefreshToken, client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, grant_type: 'refresh_token' })
+    });
+    const tokens = await tokenRes.json();
+    if (!tokens.access_token) return null;
+    await db.collection('settings').updateOne({}, { $set: { gaAccessToken: tokens.access_token, gaTokenExpiry: Date.now() + (tokens.expires_in * 1000) } });
+    return tokens.access_token;
+}
+
+app.get('/api/analytics/properties', isAuthenticated, async (req, res) => {
+    try {
+        const accessToken = await getGAAccessToken();
+        if (!accessToken) return res.json({ connected: false });
+        const r = await fetch('https://analyticsadmin.googleapis.com/v1beta/accountSummaries', { headers: { Authorization: `Bearer ${accessToken}` } });
+        const data = await r.json();
+        res.json({ connected: true, accounts: data.accountSummaries || [] });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/analytics/property', isAuthenticated, async (req, res) => {
+    const { propertyId } = req.body;
+    await db.collection('settings').updateOne({}, { $set: { gaPropertyId: propertyId } }, { upsert: true });
+    res.json({ success: true });
+});
+
+app.get('/api/analytics/summary', isAuthenticated, async (req, res) => {
+    try {
+        const settings = await db.collection('settings').findOne() || {};
+        const accessToken = await getGAAccessToken();
+        if (!accessToken) return res.json({ connected: false });
+        const propertyId = settings.gaPropertyId;
+        if (!propertyId) return res.json({ connected: true, needsProperty: true });
+
+        const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+        const base = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}`;
+
+        const [realtimeRes, reportRes, sourceRes, pagesRes] = await Promise.all([
+            fetch(`${base}:runRealtimeReport`, { method: 'POST', headers, body: JSON.stringify({ metrics: [{ name: 'activeUsers' }] }) }),
+            fetch(`${base}:runReport`, { method: 'POST', headers, body: JSON.stringify({ dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }], metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'averageSessionDuration' }], dimensions: [{ name: 'date' }], orderBys: [{ dimension: { dimensionName: 'date' } }] }) }),
+            fetch(`${base}:runReport`, { method: 'POST', headers, body: JSON.stringify({ dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }], metrics: [{ name: 'sessions' }], dimensions: [{ name: 'sessionDefaultChannelGroup' }], orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 6 }) }),
+            fetch(`${base}:runReport`, { method: 'POST', headers, body: JSON.stringify({ dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }], metrics: [{ name: 'screenPageViews' }], dimensions: [{ name: 'pagePath' }], orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }], limit: 6 }) })
+        ]);
+
+        const [realtime, report, sources, pages] = await Promise.all([realtimeRes.json(), reportRes.json(), sourceRes.json(), pagesRes.json()]);
+
+        res.json({
+            connected: true,
+            activeUsers: realtime.rows?.[0]?.metricValues?.[0]?.value || '0',
+            report, sources, pages
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Protected API routes
 app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     const jobs = await db.collection('jobs').find().toArray();
     const clients = await db.collection('clients').find().toArray();
     const settings = await db.collection('settings').findOne() || {};
+    const allExpenses = await db.collection('expenses').find().toArray();
 
     // Map _id to id for frontend compatibility
     const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
@@ -1657,7 +1917,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
 
     const totalRevenue = completedJobsThisMonth.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
 
-    // Calculate profit (revenue - material costs)
+    // Material costs embedded on jobs
     const totalMaterialCosts = completedJobsThisMonth.reduce((sum, j) => {
         if (j.materialItems && Array.isArray(j.materialItems)) {
             return sum + j.materialItems.reduce((mSum, item) => mSum + ((item.quantity || 0) * (item.price || 0)), 0);
@@ -1665,7 +1925,16 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         return sum;
     }, 0);
 
-    const totalProfit = totalRevenue - totalMaterialCosts;
+    // All expenses this month (labor payments, fuel, tools, etc.)
+    const totalExpensesThisMonth = allExpenses
+        .filter(e => {
+            if (!e.date) return false;
+            const d = typeof e.date === 'string' ? e.date : (e.date instanceof Date ? e.date.toISOString() : String(e.date));
+            return d.startsWith(thisMonth);
+        })
+        .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
+    const totalProfit = totalRevenue - totalMaterialCosts - totalExpensesThisMonth;
 
     // Accounts Receivable calculation
     const totalAccountsReceivable = jobsMapped
@@ -1734,6 +2003,9 @@ app.get('/api/clients', isAuthenticated, async (req, res) => {
 
 app.post('/api/clients', isAuthenticated, async (req, res) => {
     const client = req.body;
+
+    // Normalize email so login lookup always matches
+    if (client.email) client.email = client.email.toLowerCase().trim();
 
     // Hash portal password if provided
     if (client.portalPassword) {
@@ -1888,6 +2160,124 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
     res.json(jobsWithId);
 });
 
+// ─── Portfolio ───────────────────────────────────────────────────────────────
+
+const CLOUDFRONT_URL = process.env.CLOUDFRONT_URL || 'https://d2ludoxusetr9v.cloudfront.net';
+const PUBLIC_S3_BUCKET = process.env.PUBLIC_S3_BUCKET;
+
+let publicS3Client = null;
+if (process.env.PUBLIC_S3_KEY && process.env.PUBLIC_S3_SECRET && PUBLIC_S3_BUCKET) {
+    publicS3Client = new S3Client({
+        region: 'us-east-1',
+        credentials: {
+            accessKeyId: process.env.PUBLIC_S3_KEY,
+            secretAccessKey: process.env.PUBLIC_S3_SECRET
+        }
+    });
+    console.log('✅ Public S3 client enabled - Bucket:', PUBLIC_S3_BUCKET);
+}
+
+function portfolioPhotoUrl(s3Key) {
+    if (!s3Key) return '';
+    if (s3Key.startsWith('http')) return s3Key;
+    return `${CLOUDFRONT_URL}/${s3Key}`;
+}
+
+// Public — no auth required
+app.get('/api/portfolio', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    try {
+        const items = await db.collection('portfolio')
+            .find({})
+            .sort({ createdAt: -1 })
+            .toArray();
+        res.json(items.map(item => ({
+            id: item._id.toString(),
+            title: item.title || '',
+            caption: item.caption || '',
+            category: item.category || '',
+            photoUrl: portfolioPhotoUrl(item.s3Key),
+            s3Key: item.s3Key || '',
+            createdAt: item.createdAt
+        })));
+    } catch (err) {
+        console.error('Portfolio GET error:', err);
+        res.status(500).json({ error: 'Failed to load portfolio' });
+    }
+});
+
+app.post('/api/portfolio', isAuthenticated, async (req, res) => {
+    try {
+        const { title, caption, category, fileData, fileName, fileType } = req.body;
+        if (!fileData || !fileName || !fileType) {
+            return res.status(400).json({ error: 'Photo is required' });
+        }
+
+        let s3Key = '';
+        const uploadClient = publicS3Client || s3Client;
+        const uploadBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+        if (uploadClient) {
+            const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+            const fileBuffer = Buffer.from(base64Data, 'base64');
+            const ext = fileType.split('/')[1] || 'jpg';
+            const key = `portfolio/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+            await uploadClient.send(new PutObjectCommand({
+                Bucket: uploadBucket,
+                Key: key,
+                Body: fileBuffer,
+                ContentType: fileType
+            }));
+            s3Key = key;
+        } else {
+            return res.status(500).json({ error: 'S3 not configured' });
+        }
+
+        const doc = {
+            title: title || '',
+            caption: caption || '',
+            category: category || '',
+            s3Key,
+            createdAt: new Date()
+        };
+        const result = await db.collection('portfolio').insertOne(doc);
+        res.json({ success: true, id: result.insertedId.toString(), photoUrl: portfolioPhotoUrl(s3Key) });
+    } catch (err) {
+        console.error('Portfolio POST error:', err);
+        res.status(500).json({ error: 'Failed to save portfolio item' });
+    }
+});
+
+app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
+    try {
+        const { title, caption, category } = req.body;
+        await db.collection('portfolio').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { title: title || '', caption: caption || '', category: category || '' } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Portfolio PUT error:', err);
+        res.status(500).json({ error: 'Failed to update portfolio item' });
+    }
+});
+
+app.delete('/api/portfolio/:id', isAuthenticated, async (req, res) => {
+    try {
+        const item = await db.collection('portfolio').findOne({ _id: new ObjectId(req.params.id) });
+        if (item?.s3Key) {
+            const delClient = publicS3Client || s3Client;
+            const delBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+            if (delClient) await delClient.send(new DeleteObjectCommand({ Bucket: delBucket, Key: item.s3Key })).catch(() => {});
+        }
+        await db.collection('portfolio').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Portfolio DELETE error:', err);
+        res.status(500).json({ error: 'Failed to delete portfolio item' });
+    }
+});
+
 // File upload endpoint - receives base64 data, uploads to S3, returns S3 key
 app.post('/api/upload', isAuthenticated, async (req, res) => {
     try {
@@ -2009,6 +2399,13 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 updateData.auditLog = oldJob.auditLog || [];
             }
             updateData.auditLog.push(auditEntry);
+        }
+
+        // Auto-complete when paid in full
+        const jobTotal = parseFloat(updateData.totalWithTax || updateData.total) || 0;
+        const jobPaid = parseFloat(updateData.totalPaid) || 0;
+        if (jobTotal > 0 && jobPaid >= jobTotal && updateData.status !== 'completed') {
+            updateData.status = 'completed';
         }
 
         await db.collection('jobs').updateOne(
@@ -2173,6 +2570,57 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
 app.delete('/api/quotes/:id', isAuthenticated, async (req, res) => {
     await db.collection('quotes').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
+});
+
+app.patch('/api/quotes/:id/archive', isAdmin, async (req, res) => {
+    try {
+        const { archived } = req.body;
+        await db.collection('quotes').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { archived: !!archived } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/jobs/:id/payment-attempts', isAdmin, async (req, res) => {
+    try {
+        const attempts = await db.collection('payment_attempts')
+            .find({ jobId: new ObjectId(req.params.id) })
+            .sort({ at: -1 })
+            .toArray();
+        res.json(attempts.map(a => ({ ...a, id: a._id.toString(), _id: undefined })));
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/jobs/:id/invoice-view-log', isAdmin, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne(
+            { _id: new ObjectId(req.params.id) },
+            { projection: { invoiceViewLog: 1, invoiceViewCount: 1 } }
+        );
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        res.json(job.invoiceViewLog || []);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/quotes/:id/view-log', isAdmin, async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne(
+            { _id: new ObjectId(req.params.id) },
+            { projection: { viewLog: 1, viewCount: 1 } }
+        );
+        if (!quote) return res.status(404).json({ error: 'Not found' });
+        res.json(quote.viewLog || []);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
@@ -2517,6 +2965,12 @@ app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+// Public branding-only endpoint for client-facing pages (login, portal)
+app.get('/api/public/branding', async (req, res) => {
+    const s = await db.collection('settings').findOne({}, { projection: { appName: 1, companyName: 1, companyLogo: 1, favicon: 1 } });
+    res.json(s || {});
+});
+
 app.get('/api/settings', isAuthenticated, async (req, res) => {
     const settings = await db.collection('settings').findOne();
     res.json(settings || {});
@@ -2545,7 +2999,7 @@ app.get('/api/email/config', isAuthenticated, async (req, res) => {
         res.json({
             configured: !!(process.env.SES_ACCESS_KEY_ID && process.env.SES_SECRET_ACCESS_KEY && process.env.SES_FROM_EMAIL),
             fromEmail: process.env.SES_FROM_EMAIL || '',
-            fromName: process.env.SES_FROM_NAME || '',
+            fromName: process.env.SES_FROM_NAME || 'GSD Home Improvement & Property Services',
             provider: 'AWS SES',
             templates: settings?.emailTemplates || {},
             calendar: settings?.calendarSettings || {}
@@ -2612,7 +3066,7 @@ app.post('/api/email/test', isAuthenticated, async (req, res) => {
             type: 'test',
             to: to,
             toName: to,
-            subject: 'GSD Handyman Service — Email Test',
+            subject: 'GSD Home Improvement & Property Services — Email Test',
             trigger: 'Manual test email sent from settings',
             relatedId: null,
             relatedTitle: null,
@@ -2706,8 +3160,21 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
 
         // Get client
         const client = await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) });
-        if (!client || !client.email) {
-            return res.status(400).json({ error: 'Client email not found' });
+        if (!client) {
+            return res.status(400).json({ error: 'Client not found' });
+        }
+
+        // For PM clients, route invoice to the location's contact email if set
+        let invoiceEmail = client.email;
+        if (job.serviceLocationId && client.serviceLocations) {
+            const location = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId));
+            if (location && location.contactEmail) {
+                invoiceEmail = location.contactEmail;
+            }
+        }
+
+        if (!invoiceEmail) {
+            return res.status(400).json({ error: 'No email address found for this client or location' });
         }
 
         // Get settings
@@ -2728,7 +3195,7 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
         const customBody = settings?.emailTemplates?.invoiceBody;
 
         await emailService.sendInvoice({
-            to: client.email,
+            to: invoiceEmail,
             clientName: client.name,
             invoiceNumber: invoiceNumber,
             jobTitle: job.title,
@@ -2742,7 +3209,7 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
 
         await db.collection('email_logs').insertOne({
             type: 'invoice',
-            to: client.email,
+            to: invoiceEmail,
             toName: client.name,
             subject: `Your job summary from ${companyName} — ${job.title}`,
             trigger: `Invoice #${invoiceNumber} for job "${job.title}" — $${parseFloat(total).toFixed(2)}`,
@@ -2929,7 +3396,17 @@ app.post('/api/calendar/settings', isAuthenticated, async (req, res) => {
 // Time Entries API
 app.get('/api/timeentries', isAuthenticated, async (req, res) => {
     const entries = await db.collection('timeentries').find().sort({ clockIn: -1 }).toArray();
-    const entriesWithId = entries.map(e => ({ ...e, id: e._id.toString() }));
+    const team = await db.collection('team').find({}, { projection: { userId: 1, name: 1, hourlyRate: 1 } }).toArray();
+    const rateByUserId = {}, rateByName = {};
+    team.forEach(m => {
+        if (m.userId) rateByUserId[String(m.userId)] = m.hourlyRate;
+        if (m.name) rateByName[m.name] = m.hourlyRate;
+    });
+    const entriesWithId = entries.map(e => ({
+        ...e,
+        id: e._id.toString(),
+        hourlyRate: e.hourlyRate ?? rateByUserId[String(e.userId)] ?? rateByName[e.userName] ?? null
+    }));
     res.json(entriesWithId);
 });
 
@@ -2951,7 +3428,7 @@ app.post('/api/timeentries/clockin', isAuthenticated, async (req, res) => {
 });
 
 app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
-    const { entryId } = req.body;
+    const { entryId, survey } = req.body;
     const entry = await db.collection('timeentries').findOne({
         _id: new ObjectId(entryId),
         status: 'active'
@@ -2961,17 +3438,18 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
         const clockOut = new Date();
         const duration = Math.round((clockOut - entry.clockIn) / 1000); // seconds
 
+        const updates = {
+            clockOut,
+            status: 'pending',
+            approvalStatus: 'pending',
+            duration,
+            updatedAt: new Date()
+        };
+        if (survey?.rating) updates.survey = { rating: parseInt(survey.rating), comment: (survey.comment || '').trim(), submittedAt: new Date() };
+
         await db.collection('timeentries').updateOne(
             { _id: new ObjectId(entryId) },
-            {
-                $set: {
-                    clockOut: clockOut,
-                    status: 'pending',
-                    approvalStatus: 'pending',
-                    duration: duration,
-                    updatedAt: new Date()
-                }
-            }
+            { $set: updates }
         );
 
         const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(entryId) });
@@ -3023,7 +3501,7 @@ app.put('/api/timeentries/:id', isAdmin, async (req, res) => {
     // Create expense if approving and this wasn't already approved
     if (status === 'approved' && timeEntry.status !== 'approved' && paymentAmount > 0) {
         const expense = {
-            date: new Date(),
+            date: new Date(timeEntry.clockIn).toISOString().split('T')[0],
             category: 'Labor',
             description: `Labor payment for ${timeEntry.jobName} - ${timeEntry.userName}`,
             amount: parseFloat(paymentAmount),
@@ -3079,7 +3557,7 @@ app.post('/api/timeentries/:id/approve', isAdmin, async (req, res) => {
 
     // Create expense entry
     const expense = {
-        date: new Date(),
+        date: new Date(timeEntry.clockIn).toISOString().split('T')[0],
         category: 'Labor',
         description: `Labor payment for ${timeEntry.jobName} - ${timeEntry.userName}`,
         amount: amount,
@@ -3161,7 +3639,99 @@ app.post('/api/expenses', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 app.delete('/api/expenses/:id', isAuthenticated, isAdmin, async (req, res) => {
+    // Delete S3 attachments first
+    try {
+        const expense = await db.collection('expenses').findOne({ _id: new ObjectId(req.params.id) });
+        if (expense && expense.attachments && s3Client) {
+            for (const att of expense.attachments) {
+                if (att.s3Key) await deleteFromS3(att.s3Key).catch(() => {});
+            }
+        }
+    } catch (_) {}
     await db.collection('expenses').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+});
+
+// Expense attachments
+app.post('/api/expenses/:id/attachments', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const { fileName, fileType, fileData, comment } = req.body;
+        if (!fileName || !fileType || !fileData) return res.status(400).json({ error: 'Missing fields' });
+
+        const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+        const fileBuffer = Buffer.from(base64Data, 'base64');
+
+        let s3Key = null;
+        if (s3Client) {
+            const key = `expense-receipts/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+            const cmd = new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: fileBuffer, ContentType: fileType });
+            await s3Client.send(cmd);
+            s3Key = key;
+        }
+
+        const attachment = {
+            id: new ObjectId().toString(),
+            name: fileName,
+            type: fileType,
+            size: fileBuffer.length,
+            s3Key,
+            comment: (comment || '').trim(),
+            uploadedAt: new Date(),
+            uploadedBy: req.session.userName || 'Admin'
+        };
+
+        await db.collection('expenses').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $push: { attachments: attachment }, $set: { updatedAt: new Date() } }
+        );
+        res.json({ success: true, attachment });
+    } catch (e) {
+        console.error('Expense attachment upload error:', e);
+        res.status(500).json({ error: 'Upload failed' });
+    }
+});
+
+app.delete('/api/expenses/:id/attachments/:attachmentId', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const expense = await db.collection('expenses').findOne({ _id: new ObjectId(req.params.id) });
+        const att = (expense?.attachments || []).find(a => a.id === req.params.attachmentId);
+        if (att?.s3Key && s3Client) await deleteFromS3(att.s3Key).catch(() => {});
+        await db.collection('expenses').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $pull: { attachments: { id: req.params.attachmentId } } }
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Delete failed' });
+    }
+});
+
+// Expense comments
+app.post('/api/expenses/:id/comments', isAuthenticated, async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text?.trim()) return res.status(400).json({ error: 'Comment text required' });
+        const comment = {
+            id: new ObjectId().toString(),
+            text: text.trim(),
+            author: req.session.userName || 'Admin',
+            at: new Date()
+        };
+        await db.collection('expenses').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $push: { comments: comment }, $set: { updatedAt: new Date() } }
+        );
+        res.json({ success: true, comment });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+
+app.delete('/api/expenses/:id/comments/:commentId', isAuthenticated, isAdmin, async (req, res) => {
+    await db.collection('expenses').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $pull: { comments: { id: req.params.commentId } } }
+    );
     res.json({ success: true });
 });
 
@@ -3287,6 +3857,12 @@ app.get('/invoice/:jobId', async (req, res) => {
 
     const settings = await db.collection('settings').findOne() || {};
 
+    // Resolve service location for PM clients
+    let serviceLocation = null;
+    if (job.serviceLocationId && client && client.serviceLocations) {
+        serviceLocation = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId)) || null;
+    }
+
     // Calculate subtotal from line items
     const laborSubtotal = (job.laborItems || []).reduce((sum, item) => sum + (item.hours * item.rate), 0);
     const materialSubtotal = (job.materialItems || []).reduce((sum, item) => sum + (item.quantity * item.price), 0);
@@ -3294,11 +3870,14 @@ app.get('/invoice/:jobId', async (req, res) => {
 
     // Track invoice view — skip if admin is viewing, but count client portal views
     if (!req.session.userId || req.session.isClientPortal) {
+        const now = new Date();
+        const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
         await db.collection('jobs').updateOne(
             { _id: job._id },
             {
                 $inc: { invoiceViewCount: 1 },
-                $set: { invoiceLastViewedAt: new Date(), ...(!job.invoiceFirstViewedAt ? { invoiceFirstViewedAt: new Date() } : {}) }
+                $set: { invoiceLastViewedAt: now, ...(!job.invoiceFirstViewedAt ? { invoiceFirstViewedAt: now } : {}) },
+                $push: { invoiceViewLog: { at: now, ip } }
             }
         );
     }
@@ -3414,7 +3993,10 @@ app.get('/invoice/:jobId', async (req, res) => {
     <div class="bill-to">
         <h3>Bill To:</h3>
         <p><strong>${client ? client.name : 'Unknown Client'}</strong></p>
-        ${client && client.address ? `<p>${client.address.replace(/\n/g, '<br>')}</p>` : ''}
+        ${serviceLocation ? `
+        <p style="margin-top:4px; color:#667eea; font-weight:600;">${serviceLocation.name || ''}</p>
+        ${serviceLocation.address ? `<p style="white-space:pre-line;">${serviceLocation.address.trim()}</p>` : ''}
+        ` : (client && client.address ? `<p>${client.address.replace(/\n/g, '<br>')}</p>` : '')}
         ${client && client.phone ? `<p>Phone: ${formatPhone(client.phone)}</p>` : ''}
         ${client && client.email ? `<p>Email: ${client.email}</p>` : ''}
     </div>
@@ -3483,7 +4065,7 @@ app.get('/invoice/:jobId', async (req, res) => {
             ${job.payments.map(payment => `
             <tr>
                 <td>${payment.date || 'N/A'}</td>
-                <td>${payment.method ? payment.method.charAt(0).toUpperCase() + payment.method.slice(1) : 'N/A'}</td>
+                <td>${payment.method ? payment.method.charAt(0).toUpperCase() + payment.method.slice(1) : 'N/A'}${payment.last4 ? ` ••••${payment.last4}` : ''}</td>
                 <td style="text-align: right;">$${formatMoney(payment.amount || 0)}</td>
             </tr>
             `).join('')}
@@ -3515,6 +4097,169 @@ app.get('/invoice/:jobId', async (req, res) => {
         </div>
         ` : ''}
     </div>
+
+    ${!isPaidInFull ? `
+    <style>
+        .pay-btn { display:inline-flex;align-items:center;gap:0.5rem;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;padding:0.875rem 2.5rem;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 15px rgba(102,126,234,0.45);transition:opacity 0.15s,transform 0.1s;letter-spacing:0.01em; }
+        .pay-btn:hover { opacity:0.92;transform:translateY(-1px); }
+        #payOverlay { display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:2000;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(3px); }
+        #payCard { background:#fff;border-radius:16px;width:100%;max-width:420px;box-shadow:0 25px 60px rgba(0,0,0,0.25);overflow:hidden; }
+        .pay-header { background:linear-gradient(135deg,#667eea,#764ba2);padding:1.5rem 1.75rem;color:white; }
+        .pay-header h2 { font-size:1.25rem;font-weight:700;margin:0 0 0.2rem; }
+        .pay-header p { font-size:0.9rem;opacity:0.85;margin:0; }
+        .pay-body { padding:1.5rem 1.75rem; }
+        .pay-field { margin-bottom:1.1rem; }
+        .pay-field label { display:block;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin-bottom:0.35rem; }
+        .pay-input { width:100%;height:44px;padding:0 0.875rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;color:#1e293b;background:#f8fafc;transition:border-color 0.15s;box-sizing:border-box; }
+        .pay-input:focus { outline:none;border-color:#667eea;background:#fff; }
+        .clover-field { height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color 0.15s;display:flex;align-items:center; }
+        .clover-field iframe { width:100% !important;height:46px !important;border:none !important;display:block; }
+        .pay-row { display:grid;grid-template-columns:1fr 1fr;gap:0.875rem; }
+        .pay-divider { height:1px;background:#f1f5f9;margin:0.25rem 0 1.1rem; }
+        #payError { display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin-bottom:1rem; }
+        .pay-actions { display:flex;gap:0.75rem;margin-top:0.25rem; }
+        .pay-submit { flex:1;height:46px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:0.95rem;cursor:pointer;transition:opacity 0.15s; }
+        .pay-submit:disabled { opacity:0.6;cursor:not-allowed; }
+        .pay-cancel { height:46px;padding:0 1.25rem;background:#f1f5f9;color:#64748b;border:none;border-radius:8px;font-weight:600;font-size:0.95rem;cursor:pointer;transition:background 0.15s; }
+        .pay-cancel:hover { background:#e2e8f0; }
+        .pay-secure { text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem; }
+    </style>
+
+    <div class="no-print" style="margin-top:2.5rem;text-align:center;">
+        <button class="pay-btn" onclick="openPayModal()">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            Pay Online
+        </button>
+        <p style="color:#94a3b8;font-size:0.8rem;margin-top:0.6rem;">Secure payment via Clover</p>
+    </div>
+
+    <div id="payOverlay" onclick="if(event.target===this)closePayModal()">
+        <div id="payCard">
+            <div class="pay-header">
+                <h2>Pay Invoice #${job._id.toString().slice(-6)}</h2>
+                <p>Balance due: $${formatMoney(balance)}</p>
+            </div>
+            <div class="pay-body">
+                <div class="pay-field">
+                    <label>Amount to Pay</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:0.875rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-weight:600;">$</span>
+                        <input type="number" id="payAmount" class="pay-input" value="${balance.toFixed(2)}" min="0.50" step="0.01" style="padding-left:1.75rem;">
+                    </div>
+                    <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.3rem;">Enter less than the balance to make a partial payment.</p>
+                </div>
+
+                <div class="pay-divider"></div>
+
+                <div class="pay-field">
+                    <label>Card Number</label>
+                    <div id="card-number" class="clover-field"></div>
+                </div>
+                <div class="pay-row">
+                    <div class="pay-field">
+                        <label>Expiry</label>
+                        <div id="card-date" class="clover-field"></div>
+                    </div>
+                    <div class="pay-field">
+                        <label>CVV</label>
+                        <div id="card-cvv" class="clover-field"></div>
+                    </div>
+                </div>
+                <div class="pay-field">
+                    <label>Postal Code</label>
+                    <div id="card-postal-code" class="clover-field"></div>
+                </div>
+
+                <div id="payError"></div>
+
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;color:#4a5568;margin-bottom:1rem;">
+                    <input type="checkbox" id="saveCardCheckbox" checked style="width:15px;height:15px;accent-color:#667eea;cursor:pointer;flex-shrink:0;">
+                    Save card for future payments
+                </label>
+
+                <div class="pay-actions">
+                    <button class="pay-submit" id="payBtn" onclick="submitPayment()">Pay Now</button>
+                    <button class="pay-cancel" onclick="closePayModal()">Cancel</button>
+                </div>
+                <p class="pay-secure">🔒 256-bit encrypted · PCI compliant</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://checkout.clover.com/sdk.js"></script>
+    <script>
+        var cloverInst = null;
+        var cloverCardEl = null;
+        var cloverMounted = false;
+
+        function openPayModal() {
+            var overlay = document.getElementById('payOverlay');
+            overlay.style.display = 'flex';
+            if (!cloverMounted) {
+                cloverInst = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
+                var elems = cloverInst.elements();
+                cloverCardEl = elems.create('CARD_NUMBER');
+                cloverCardEl.mount('#card-number');
+                elems.create('CARD_DATE').mount('#card-date');
+                elems.create('CARD_CVV').mount('#card-cvv');
+                elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
+                cloverMounted = true;
+            }
+        }
+
+        function closePayModal() {
+            document.getElementById('payOverlay').style.display = 'none';
+        }
+
+        async function submitPayment() {
+            var btn = document.getElementById('payBtn');
+            var errDiv = document.getElementById('payError');
+            var amount = document.getElementById('payAmount').value;
+            errDiv.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            try {
+                var result = await cloverInst.createToken(cloverCardEl);
+                console.log('Clover createToken result:', JSON.stringify(result));
+                if (!result || (!result.token && !result.errors)) {
+                    var raw = result ? JSON.stringify(result) : 'null';
+                    errDiv.innerHTML = 'Card tokenization failed. Clover response: <code style="font-size:0.8rem;word-break:break-all;">' + raw + '</code>';
+                    errDiv.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Pay Now';
+                    return;
+                }
+                if (result.errors && Object.keys(result.errors).length) {
+                    errDiv.textContent = Object.values(result.errors).join(' ');
+                    errDiv.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Pay Now';
+                    return;
+                }
+                var saveCard = document.getElementById('saveCardCheckbox')?.checked !== false;
+                var resp = await fetch('/api/client-portal/pay', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: '${job._id.toString()}', amount: amount, token: result.token, saveCard: saveCard })
+                });
+                var data = await resp.json();
+                if (data.success) {
+                    document.getElementById('payCard').innerHTML = '<div style="padding:2.5rem 2rem;text-align:center;"><svg width="56" height="56" viewBox="0 0 56 56" style="margin-bottom:1rem;"><circle cx="28" cy="28" r="28" fill="#dcfce7"/><path d="M18 28l7 7 13-13" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><h2 style="color:#15803d;font-size:1.3rem;margin-bottom:0.5rem;">Payment Successful</h2><p style="color:#64748b;font-size:0.9rem;">Thank you — your payment has been received.</p><button onclick="location.reload()" style="margin-top:1.5rem;background:#667eea;color:white;border:none;padding:0.75rem 2rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.9rem;">View Updated Invoice</button></div>';
+                } else {
+                    errDiv.textContent = data.error || 'Payment failed.';
+                    errDiv.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Pay Now';
+                }
+            } catch (e) {
+                errDiv.textContent = 'Connection error. Please try again.';
+                errDiv.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Pay Now';
+            }
+        }
+    </script>
+    ` : ''}
 
     ${settings.contractTerms ? `
     <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
@@ -3559,11 +4304,14 @@ app.get('/quote-view/:token', async (req, res) => {
 
         // Track view — skip if admin is viewing, but count client portal views
         if (!req.session.userId || req.session.isClientPortal) {
+            const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+            const now = new Date();
             await db.collection('quotes').updateOne(
                 { _id: quote._id },
                 {
                     $inc: { viewCount: 1 },
-                    $set: { lastViewedAt: new Date(), ...(!quote.firstViewedAt ? { firstViewedAt: new Date() } : {}) }
+                    $set: { lastViewedAt: now, ...(!quote.firstViewedAt ? { firstViewedAt: now } : {}) },
+                    $push: { viewLog: { at: now, ip } }
                 }
             );
         }
@@ -3871,28 +4619,32 @@ app.get('/client-portal', (req, res) => {
 });
 
 // Client Portal API - Login
-app.post('/api/client-portal/login', async (req, res) => {
+app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
     try {
         const { email, password } = req.body;
 
-        // Find client by email
-        const client = await db.collection('clients').findOne({ email: email.toLowerCase() });
+        const emailNorm = email.trim().toLowerCase();
+        const client = await db.collection('clients').findOne({ email: { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
 
         if (!client) {
+            await db.collection('login_logs').insertOne({ type: 'client', email: emailNorm, at: new Date(), ip, success: false, reason: 'Email not found' });
             return res.status(401).json({ error: 'Invalid email or access code' });
         }
 
-        // Check if client has portal access set up
         if (!client.portalPassword) {
+            await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: false, reason: 'Portal access not set up' });
             return res.status(401).json({ error: 'Portal access not set up. Contact us to enable portal access.' });
         }
 
-        // Verify password
         const passwordMatch = await bcrypt.compare(password, client.portalPassword);
 
         if (!passwordMatch) {
+            await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: false, reason: 'Wrong access code' });
             return res.status(401).json({ error: 'Invalid email or access code' });
         }
+
+        await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: true, reason: null });
 
         // Set session
         req.session.clientId = client._id.toString();
@@ -3999,6 +4751,139 @@ app.post('/api/client-portal/message', async (req, res) => {
     }
 });
 
+// ── Compliance / License & Insurance ─────────────────────────────────────────
+
+// List all compliance docs (no file data — metadata only)
+app.get('/api/compliance-docs', isAuthenticated, async (req, res) => {
+    try {
+        const docs = await db.collection('compliance_docs')
+            .find({}, { projection: { data: 0 } })
+            .sort({ uploadedAt: -1 })
+            .toArray();
+        res.json(docs.map(d => ({ ...d, _id: d._id.toString() })));
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Upload a compliance doc (base64 data in body)
+app.post('/api/compliance-docs', isAuthenticated, async (req, res) => {
+    try {
+        const { type, expiresAt, notes, filename, mimeType, data } = req.body;
+        if (!type || !filename || !data) return res.status(400).json({ error: 'type, filename, and data are required' });
+        const doc = {
+            type,
+            filename,
+            mimeType: mimeType || 'application/octet-stream',
+            data,
+            expiresAt: expiresAt ? new Date(expiresAt) : null,
+            notes: notes || '',
+            uploadedAt: new Date()
+        };
+        const result = await db.collection('compliance_docs').insertOne(doc);
+        res.json({ id: result.insertedId.toString() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Download a compliance doc file
+app.get('/api/compliance-docs/:id/file', isAuthenticated, async (req, res) => {
+    try {
+        const doc = await db.collection('compliance_docs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!doc) return res.status(404).json({ error: 'Not found' });
+        const buf = Buffer.from(doc.data, 'base64');
+        res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
+        res.send(buf);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Delete a compliance doc
+app.delete('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('compliance_docs').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Send compliance docs to a client via email
+app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) => {
+    try {
+        const { clientId, docIds, message } = req.body;
+        if (!clientId || !docIds || docIds.length === 0) return res.status(400).json({ error: 'clientId and docIds required' });
+
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(clientId) });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        if (!client.email) return res.status(400).json({ error: 'Client has no email address on file' });
+
+        if (!emailService.transporter) return res.status(503).json({ error: 'Email service not configured' });
+
+        const oids = docIds.map(id => new ObjectId(id));
+        const docs = await db.collection('compliance_docs').find({ _id: { $in: oids } }).toArray();
+
+        const settings = await db.collection('settings').findOne({});
+        const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
+
+        const attachments = docs.map(doc => ({
+            filename: doc.filename,
+            content: Buffer.from(doc.data, 'base64'),
+            contentType: doc.mimeType || 'application/octet-stream'
+        }));
+
+        const typeLabels = {
+            license: 'License', gl_insurance: 'Insurance — General Liability',
+            umbrella_insurance: 'Insurance — Umbrella', workers_comp: 'Workers Compensation',
+            surety_bond: 'Surety Bond', other: 'Other'
+        };
+        const docList = docs.map(d => `<li>${typeLabels[d.type] || d.type}: ${d.filename}</li>`).join('');
+        const customMsg = message ? `<p style="color:#4a5568;">${message}</p>` : '';
+
+        await emailService.transporter.sendMail({
+            from: `"${businessName}" <${emailService.fromEmail}>`,
+            to: client.email,
+            subject: `${businessName} — License & Insurance Documents`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:2rem;">
+                <h2 style="color:#667eea;">License & Insurance Documents</h2>
+                <p>Hi ${client.name},</p>
+                ${customMsg}
+                <p>Please find the following documents attached:</p>
+                <ul style="color:#4a5568;line-height:1.8;">${docList}</ul>
+                <p style="color:#718096;font-size:0.85rem;margin-top:2rem;">— ${businessName}</p>
+            </div>`,
+            text: `License & Insurance Documents\n\nHi ${client.name},\n\n${message || ''}${message ? '\n\n' : ''}Documents attached:\n${docs.map(d => `- ${typeLabels[d.type] || d.type}: ${d.filename}`).join('\n')}\n\n— ${businessName}`,
+            attachments
+        });
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Compliance send-email error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ── End Compliance ────────────────────────────────────────────────────────────
+
+// Lightweight notification counts (messages + leads + expiring compliance docs)
+app.get('/api/notifications/counts', isAuthenticated, async (req, res) => {
+    try {
+        const now = new Date();
+        const warn30 = new Date(); warn30.setDate(warn30.getDate() + 30);
+        const [messages, leads, expiringDocs] = await Promise.all([
+            db.collection('client_messages').countDocuments({ read: false }),
+            db.collection('leads').countDocuments({ status: 'new' }),
+            db.collection('compliance_docs').countDocuments({ expiresAt: { $ne: null, $lte: warn30 } })
+        ]);
+        res.json({ messages, leads, expiringDocs });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Admin Messages API - Get all client messages
 app.get('/api/client-messages', isAuthenticated, async (req, res) => {
     try {
@@ -4016,7 +4901,8 @@ app.get('/api/client-messages', isAuthenticated, async (req, res) => {
             subject: msg.subject || '',
             reference: msg.reference || '',
             createdAt: msg.createdAt,
-            read: msg.read || false
+            read: msg.read || false,
+            archived: msg.archived || false
         })));
     } catch (error) {
         console.error('Get messages error:', error);
@@ -4041,6 +4927,22 @@ app.post('/api/client-messages/:id/read', isAuthenticated, async (req, res) => {
     }
 });
 
+// Admin Messages API - Archive message
+app.post('/api/client-messages/:id/archive', isAuthenticated, async (req, res) => {
+    try {
+        const messageId = new ObjectId(req.params.id);
+        const { archived } = req.body;
+        await db.collection('client_messages').updateOne(
+            { _id: messageId },
+            { $set: { archived: archived !== false, read: true } }
+        );
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Archive message error:', error);
+        res.status(500).json({ error: 'Failed to archive message' });
+    }
+});
+
 // Admin Messages API - Delete message
 app.delete('/api/client-messages/:id', isAuthenticated, async (req, res) => {
     try {
@@ -4059,6 +4961,637 @@ app.delete('/api/client-messages/:id', isAuthenticated, async (req, res) => {
 app.post('/api/client-portal/logout', (req, res) => {
     req.session.destroy();
     res.json({ success: true });
+});
+
+// Pay invoice via Clover — no auth required, anyone with the invoice link can pay
+app.post('/api/client-portal/pay', async (req, res) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+    const logFail = async (jobObjId, errCode, errMsg) => {
+        try {
+            await db.collection('payment_attempts').insertOne({
+                jobId: jobObjId || null,
+                at: new Date(), ip,
+                amount: parseFloat(req.body.amount) || 0,
+                success: false,
+                errorCode: errCode,
+                error: errMsg
+            });
+        } catch (_) {}
+    };
+
+    try {
+        const { jobId, amount, token, saveCard } = req.body;
+        const amountCents = Math.round(parseFloat(amount) * 100);
+
+        if (!token) {
+            await logFail(null, 'no_token', 'Clover did not return a card token — API key may be invalid');
+            return res.status(400).json({ error: 'Card tokenization failed. Please check card details and try again.' });
+        }
+        if (!jobId || isNaN(amountCents) || amountCents < 50) {
+            return res.status(400).json({ error: 'Invalid payment details.' });
+        }
+
+        let job;
+        try { job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) }); }
+        catch (e) { return res.status(400).json({ error: 'Invalid job ID.' }); }
+        if (!job) return res.status(404).json({ error: 'Invoice not found.' });
+
+        const attemptBase = { jobId: job._id, at: new Date(), amount: parseFloat(amount), ip };
+
+        // If saveCard: create Clover customer first (consumes token), then charge by customer ID
+        let cloverCustomerId = null;
+        let savedClientId = null;
+        if (saveCard && job.clientId) {
+            try {
+                const client = await db.collection('clients').findOne({ _id: job.clientId });
+                const custRes = await fetch('https://scl.clover.com/v1/customers', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+                    },
+                    body: JSON.stringify({ source: token, name: client?.name || 'Customer', email: client?.email || '' })
+                });
+                const custData = await custRes.json();
+                if (custData.id) {
+                    cloverCustomerId = custData.id;
+                    savedClientId = job.clientId;
+                } else {
+                    console.error('Clover customer creation failed:', JSON.stringify(custData));
+                }
+            } catch (e) {
+                console.error('Clover customer creation error:', e);
+                // Fall through — charge with token below
+            }
+        }
+
+        const chargeSource = cloverCustomerId
+            ? { source: cloverCustomerId }
+            : { source: token };
+
+        const chargeRes = await fetch(`https://scl.clover.com/v1/charges`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+            },
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', ...chargeSource })
+        });
+
+        const rawText = await chargeRes.text();
+        console.error('Clover HTTP', chargeRes.status, rawText);
+        let charge = {};
+        try { charge = JSON.parse(rawText); } catch (_) {}
+        if (!chargeRes.ok) {
+            const errDetail = rawText || String(chargeRes.status);
+            await db.collection('payment_attempts').insertOne({
+                ...attemptBase,
+                success: false,
+                errorCode: charge.error?.code || charge.code || String(chargeRes.status),
+                error: errDetail
+            });
+            return res.status(400).json({ error: errDetail });
+        }
+
+        const last4 = charge.source?.last4 || charge.paymentToken?.last4 || null;
+        const cardBrand = charge.source?.brand || charge.paymentToken?.brand || null;
+
+        await db.collection('payment_attempts').insertOne({
+            ...attemptBase,
+            success: true,
+            chargeId: charge.id,
+            last4,
+            cardBrand
+        });
+
+        const newPayment = {
+            id: Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            amount: parseFloat(amount),
+            method: 'credit_card',
+            last4,
+            cardBrand,
+            notes: `Online payment — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
+        };
+
+        // Recalculate denormalized totals so dashboard/reports/AR stay current
+        const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const newTotalPaid = existingPaid + parseFloat(amount);
+        const jobTotal = job.totalWithTax || parseFloat(job.total) || 0;
+        const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
+
+        const invoiceSetFields = {
+            totalPaid: newTotalPaid,
+            balanceOwed: newBalanceOwed,
+            updatedAt: new Date()
+        };
+        if (newBalanceOwed <= 0 && job.status !== 'completed') {
+            invoiceSetFields.status = 'completed';
+        }
+
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $push: { payments: newPayment }, $set: invoiceSetFields }
+        );
+
+        // Persist saved card info to client record
+        if (cloverCustomerId && savedClientId) {
+            try {
+                await db.collection('clients').updateOne(
+                    { _id: savedClientId },
+                    { $set: { cloverCustomerId, cloverCardLast4: last4, cloverCardBrand: cardBrand, cloverCardSavedAt: new Date() } }
+                );
+            } catch (e) { console.error('Failed to save cloverCustomerId to client:', e); }
+        }
+
+        res.json({ success: true, chargeId: charge.id, cardSaved: !!cloverCustomerId });
+    } catch (e) {
+        console.error('Clover payment error:', e);
+        try {
+            const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+            await db.collection('payment_attempts').insertOne({
+                jobId: req.body.jobId || null,
+                at: new Date(), ip,
+                amount: parseFloat(req.body.amount) || 0,
+                success: false,
+                errorCode: 'server_error',
+                error: e.message
+            });
+        } catch (_) {}
+        res.status(500).json({ error: 'Payment processing failed.' });
+    }
+});
+
+// ── Deposit Requests ────────────────────────────────────────────────────────
+
+app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
+    try {
+        const { amount } = req.body;
+        if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Invalid deposit amount' });
+
+        let job;
+        try { job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }); }
+        catch (e) { return res.status(400).json({ error: 'Invalid job ID' }); }
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) }) : null;
+        const settings = await db.collection('settings').findOne() || {};
+        const companyName = settings.appName || 'GSD Home Improvement & Property Services';
+
+        // Resolve email same way as invoice
+        let toEmail = client?.email;
+        if (job.serviceLocationId && client?.serviceLocations) {
+            const loc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId));
+            if (loc?.contactEmail) toEmail = loc.contactEmail;
+        }
+        if (!toEmail) return res.status(400).json({ error: 'No email address for this client' });
+
+        const depositToken = crypto.randomUUID();
+        const depositAmount = parseFloat(amount);
+        const depositUrl = `${process.env.APP_URL}/deposit/${depositToken}`;
+
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $set: { deposit: { token: depositToken, amount: depositAmount, status: 'pending', sentAt: new Date() }, updatedAt: new Date() } }
+        );
+
+        await emailService.sendEmail({
+            to: toEmail,
+            subject: `Deposit Request — ${job.title} — ${companyName}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:2rem;">
+                <h2 style="color:#667eea;">${companyName}</h2>
+                <p>Hi ${client?.name || 'there'},</p>
+                <p>To secure your upcoming job, a deposit is required:</p>
+                <table style="border-collapse:collapse;margin:1rem 0;width:100%;">
+                    <tr><td style="padding:0.5rem;font-weight:600;">Job:</td><td style="padding:0.5rem;">${job.title}</td></tr>
+                    <tr><td style="padding:0.5rem;font-weight:600;">Deposit Amount:</td><td style="padding:0.5rem;font-size:1.2rem;font-weight:700;color:#667eea;">$${depositAmount.toFixed(2)}</td></tr>
+                </table>
+                <div style="text-align:center;margin:2rem 0;">
+                    <a href="${depositUrl}" style="display:inline-block;background:#667eea;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem;">Pay Deposit Now</a>
+                </div>
+                <p style="color:#718096;font-size:0.85rem;">This secures your spot on our schedule. Thank you!</p>
+                <p style="color:#718096;font-size:0.85rem;">${companyName}</p>
+            </div>`,
+            text: `Deposit request for "${job.title}"\nAmount: $${depositAmount.toFixed(2)}\nPay here: ${depositUrl}`
+        });
+
+        res.json({ success: true, depositUrl });
+    } catch (e) {
+        console.error('Send deposit error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/deposit/:token', async (req, res) => {
+    const job = await db.collection('jobs').findOne({ 'deposit.token': req.params.token });
+    if (!job) return res.status(404).send('<h2>Deposit link not found or expired.</h2>');
+
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.appName || 'GSD Home Improvement & Property Services';
+    const deposit = job.deposit;
+    const isPaid = deposit.status === 'paid';
+
+    res.send(`<!DOCTYPE html><html lang="en"><head>
+        <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Deposit — ${companyName}</title>
+        <style>
+            *{margin:0;padding:0;box-sizing:border-box;}
+            body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}
+            .card{background:white;border-radius:16px;max-width:460px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.2);overflow:hidden;}
+            .header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.5rem 2rem;color:white;}
+            .header h1{font-size:1.3rem;margin-bottom:0.25rem;}
+            .header p{opacity:0.85;font-size:0.9rem;}
+            .body{padding:1.75rem 2rem;}
+            .amount{font-size:2.5rem;font-weight:700;color:#667eea;margin:1rem 0;}
+            .job-name{color:#4a5568;margin-bottom:1.5rem;}
+            .paid-box{background:#c6f6d5;border:2px solid #48bb78;border-radius:12px;padding:1.5rem;text-align:center;}
+            .paid-box h2{color:#22543d;font-size:1.4rem;}
+            .clover-field{height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;margin-bottom:1rem;}
+            .clover-field iframe{width:100%!important;height:46px!important;border:none!important;display:block;}
+            .pay-row{display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;}
+            #payError{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin-bottom:1rem;}
+            .btn{width:100%;height:48px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:0.5rem;}
+            .btn:disabled{opacity:0.6;cursor:not-allowed;}
+            .secure{text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem;}
+        </style>
+    </head><body>
+    <div class="card">
+        <div class="header">
+            <h1>${companyName}</h1>
+            <p>Deposit Payment</p>
+        </div>
+        <div class="body">
+            <div class="job-name"><strong>${job.title}</strong></div>
+            <div class="amount">$${deposit.amount.toFixed(2)}</div>
+            ${isPaid ? `
+            <div class="paid-box">
+                <div style="font-size:2rem;margin-bottom:0.5rem;">✅</div>
+                <h2>Deposit Paid!</h2>
+                <p style="color:#276749;margin-top:0.5rem;">Thank you — you're all set.</p>
+            </div>` : `
+            <div id="payError"></div>
+            <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;display:block;margin-bottom:0.35rem;">Card Number</label>
+            <div id="card-number" class="clover-field"></div>
+            <div class="pay-row">
+                <div>
+                    <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;display:block;margin-bottom:0.35rem;">Expiry</label>
+                    <div id="card-date" class="clover-field"></div>
+                </div>
+                <div>
+                    <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;display:block;margin-bottom:0.35rem;">CVV</label>
+                    <div id="card-cvv" class="clover-field"></div>
+                </div>
+            </div>
+            <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;display:block;margin-bottom:0.35rem;">ZIP Code</label>
+            <div id="card-postal-code" class="clover-field"></div>
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;color:#4a5568;margin:0.75rem 0;">
+                <input type="checkbox" id="saveCardCheckbox" checked style="width:15px;height:15px;accent-color:#667eea;cursor:pointer;flex-shrink:0;">
+                Save card for future payments
+            </label>
+            <button class="btn" id="payBtn" onclick="submitDeposit()">Pay $${deposit.amount.toFixed(2)} Deposit</button>
+            <div class="secure">🔒 Secure payment via Clover</div>
+            <script src="https://checkout.clover.com/sdk.js"></script>
+            <script>
+                var clover = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
+                var elems = clover.elements();
+                elems.create('CARD_NUMBER').mount('#card-number');
+                elems.create('CARD_DATE').mount('#card-date');
+                elems.create('CARD_CVV').mount('#card-cvv');
+                elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
+
+                async function submitDeposit() {
+                    var btn = document.getElementById('payBtn');
+                    var errDiv = document.getElementById('payError');
+                    errDiv.style.display = 'none';
+                    btn.disabled = true;
+                    btn.textContent = 'Processing...';
+                    try {
+                        var result = await clover.createToken();
+                        if (!result.token) { errDiv.textContent = 'Card error: ' + (result.errors ? Object.values(result.errors).join(', ') : 'Please check your card details'); errDiv.style.display='block'; btn.disabled=false; btn.textContent='Pay $${deposit.amount.toFixed(2)} Deposit'; return; }
+                        var saveCard = document.getElementById('saveCardCheckbox')?.checked !== false;
+                        var resp = await fetch('/api/deposit/pay', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: result.token, depositToken: '${deposit.token}', saveCard: saveCard }) });
+                        var data = await resp.json();
+                        if (!resp.ok) { errDiv.textContent = data.error || 'Payment failed'; errDiv.style.display='block'; btn.disabled=false; btn.textContent='Pay $${deposit.amount.toFixed(2)} Deposit'; return; }
+                        document.querySelector('.body').innerHTML = '<div class="paid-box"><div style="font-size:2.5rem;margin-bottom:0.5rem;">✅</div><h2>Deposit Paid!</h2><p style="color:#276749;margin-top:0.5rem;">Thank you — you\\'re all set.</p></div>';
+                    } catch(e) { errDiv.textContent = 'An error occurred. Please try again.'; errDiv.style.display='block'; btn.disabled=false; btn.textContent='Pay $${deposit.amount.toFixed(2)} Deposit'; }
+                }
+            </script>`}
+        </div>
+    </div>
+    </body></html>`);
+});
+
+app.post('/api/deposit/pay', async (req, res) => {
+    try {
+        const { token, depositToken, saveCard } = req.body;
+        if (!token || !depositToken) return res.status(400).json({ error: 'Missing payment details' });
+
+        const job = await db.collection('jobs').findOne({ 'deposit.token': depositToken });
+        if (!job) return res.status(404).json({ error: 'Deposit request not found' });
+        if (job.deposit.status === 'paid') return res.status(400).json({ error: 'Deposit already paid' });
+
+        const amount = job.deposit.amount;
+        const amountCents = Math.round(amount * 100);
+
+        // If saveCard: create Clover customer first (consumes token), then charge by customer ID
+        let cloverCustomerId = null;
+        let savedClientId = null;
+        if (saveCard && job.clientId) {
+            try {
+                const client = await db.collection('clients').findOne({ _id: job.clientId });
+                const custRes = await fetch('https://scl.clover.com/v1/customers', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+                    },
+                    body: JSON.stringify({ source: token, name: client?.name || 'Customer', email: client?.email || '' })
+                });
+                const custData = await custRes.json();
+                if (custData.id) {
+                    cloverCustomerId = custData.id;
+                    savedClientId = job.clientId;
+                } else {
+                    console.error('Clover customer creation (deposit) failed:', JSON.stringify(custData));
+                }
+            } catch (e) {
+                console.error('Clover customer creation (deposit) error:', e);
+            }
+        }
+
+        const chargeSource = cloverCustomerId
+            ? { source: cloverCustomerId }
+            : { source: token };
+
+        const chargeRes = await fetch('https://scl.clover.com/v1/charges', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+            },
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', ...chargeSource })
+        });
+
+        const rawText = await chargeRes.text();
+        let charge = {};
+        try { charge = JSON.parse(rawText); } catch (_) {}
+        if (!chargeRes.ok) return res.status(400).json({ error: charge.error?.message || rawText });
+
+        const last4 = charge.source?.last4 || charge.paymentToken?.last4 || null;
+        const cardBrand = charge.source?.brand || charge.paymentToken?.brand || null;
+
+        const newPayment = {
+            id: Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            amount,
+            method: 'credit_card',
+            last4,
+            cardBrand,
+            notes: `Deposit payment — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
+        };
+
+        const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const newTotalPaid = existingPaid + amount;
+        const jobTotal = parseFloat(job.total) || 0;
+        const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
+
+        const depositSetFields = {
+            'deposit.status': 'paid',
+            'deposit.paidAt': new Date(),
+            'deposit.chargeId': charge.id,
+            totalPaid: newTotalPaid,
+            balanceOwed: newBalanceOwed,
+            updatedAt: new Date()
+        };
+        if (newBalanceOwed <= 0 && job.status !== 'completed') {
+            depositSetFields.status = 'completed';
+        }
+
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $push: { payments: newPayment }, $set: depositSetFields }
+        );
+
+        // Persist saved card info to client record
+        if (cloverCustomerId && savedClientId) {
+            try {
+                await db.collection('clients').updateOne(
+                    { _id: savedClientId },
+                    { $set: { cloverCustomerId, cloverCardLast4: last4, cloverCardBrand: cardBrand, cloverCardSavedAt: new Date() } }
+                );
+            } catch (e) { console.error('Failed to save cloverCustomerId to client (deposit):', e); }
+        }
+
+        res.json({ success: true, cardSaved: !!cloverCustomerId });
+    } catch (e) {
+        console.error('Deposit pay error:', e);
+        res.status(500).json({ error: 'Payment processing failed' });
+    }
+});
+
+// Admin manually enters a card for a client (keys it in on their behalf)
+app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
+    try {
+        const { token, amount, saveCard } = req.body;
+        const amountCents = Math.round(parseFloat(amount) * 100);
+        if (!token) return res.status(400).json({ error: 'Missing card token' });
+        if (!amount || isNaN(amountCents) || amountCents < 50) return res.status(400).json({ error: 'Invalid amount' });
+
+        let job;
+        try { job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }); }
+        catch (e) { return res.status(400).json({ error: 'Invalid job ID' }); }
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+
+        const jobTotal = parseFloat(job.totalWithTax || job.total) || 0;
+        const alreadyPaid = parseFloat(job.totalPaid) || 0;
+        const balanceOwed = Math.max(0, jobTotal - alreadyPaid);
+        if (jobTotal > 0 && balanceOwed < 0.01) {
+            return res.status(400).json({ error: 'This job is already paid in full' });
+        }
+
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+
+        // If saveCard: create Clover customer first (consumes the token), then charge by customer ID
+        let cloverCustomerId = null;
+        if (saveCard && client) {
+            try {
+                const custRes = await fetch('https://scl.clover.com/v1/customers', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+                    },
+                    body: JSON.stringify({ source: token, name: client.name || 'Customer', email: client.email || '' })
+                });
+                const custData = await custRes.json();
+                if (custData.id) cloverCustomerId = custData.id;
+                else console.error('Clover customer creation (manual) failed:', JSON.stringify(custData));
+            } catch (e) {
+                console.error('Clover customer creation (manual) error:', e);
+            }
+        }
+
+        const chargeSource = cloverCustomerId ? { source: cloverCustomerId } : { source: token };
+
+        const chargeRes = await fetch('https://scl.clover.com/v1/charges', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+            },
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', ...chargeSource })
+        });
+
+        const rawText = await chargeRes.text();
+        let charge = {};
+        try { charge = JSON.parse(rawText); } catch (_) {}
+
+        const attemptBase = { jobId: job._id, at: new Date(), ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip, amount: parseFloat(amount), source: 'admin_manual' };
+        if (!chargeRes.ok) {
+            console.error('Manual charge failed:', chargeRes.status, rawText);
+            await db.collection('payment_attempts').insertOne({ ...attemptBase, success: false, errorCode: charge.error?.code || String(chargeRes.status), error: charge.error?.message || rawText }).catch(() => {});
+            return res.status(400).json({ error: charge.error?.message || rawText });
+        }
+
+        const last4 = charge.source?.last4 || null;
+        const cardBrand = charge.source?.brand || null;
+
+        await db.collection('payment_attempts').insertOne({ ...attemptBase, success: true, chargeId: charge.id, last4, cardBrand }).catch(() => {});
+
+        const newPayment = {
+            id: Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            amount: parseFloat(amount),
+            method: 'credit_card',
+            last4,
+            cardBrand,
+            notes: `Manual card entry — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
+        };
+
+        const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const newTotalPaid = existingPaid + parseFloat(amount);
+        const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
+
+        const setFields = { totalPaid: newTotalPaid, balanceOwed: newBalanceOwed, updatedAt: new Date() };
+        if (newBalanceOwed <= 0 && job.status !== 'completed') setFields.status = 'completed';
+
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $push: { payments: newPayment }, $set: setFields }
+        );
+
+        if (cloverCustomerId && client) {
+            try {
+                await db.collection('clients').updateOne(
+                    { _id: client._id },
+                    { $set: { cloverCustomerId, cloverCardLast4: last4, cloverCardBrand: cardBrand, cloverCardSavedAt: new Date() } }
+                );
+            } catch (e) { console.error('Failed to save card to client (manual):', e); }
+        }
+
+        res.json({ success: true, chargeId: charge.id, last4, cardBrand, cardSaved: !!cloverCustomerId });
+    } catch (e) {
+        console.error('Manual charge error:', e);
+        res.status(500).json({ error: 'Payment processing failed' });
+    }
+});
+
+// Charge a client's saved Clover card on file (admin only)
+app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
+    try {
+        const { amount } = req.body;
+        const amountCents = Math.round(parseFloat(amount) * 100);
+        if (!amount || isNaN(amountCents) || amountCents < 50) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+
+        let job;
+        try { job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }); }
+        catch (e) { return res.status(400).json({ error: 'Invalid job ID' }); }
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+
+        const jobTotal = parseFloat(job.totalWithTax || job.total) || 0;
+        const alreadyPaid = parseFloat(job.totalPaid) || 0;
+        const balanceOwed = Math.max(0, jobTotal - alreadyPaid);
+        if (balanceOwed < 0.01) {
+            return res.status(400).json({ error: 'This job is already paid in full' });
+        }
+        if (parseFloat(amount) > balanceOwed + 0.01) {
+            return res.status(400).json({ error: `Amount exceeds balance owed ($${balanceOwed.toFixed(2)})` });
+        }
+
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        if (!client?.cloverCustomerId) {
+            return res.status(400).json({ error: 'No saved card on file for this client' });
+        }
+
+        const chargeRes = await fetch('https://scl.clover.com/v1/charges', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+            },
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', source: client.cloverCustomerId })
+        });
+
+        const rawText = await chargeRes.text();
+        let charge = {};
+        try { charge = JSON.parse(rawText); } catch (_) {}
+
+        const attemptBase = { jobId: job._id, at: new Date(), ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip, amount: parseFloat(amount), source: 'admin_saved_card' };
+        if (!chargeRes.ok) {
+            const errMsg = charge.error?.message || rawText;
+            console.error('Charge saved card failed:', chargeRes.status, rawText);
+            await db.collection('payment_attempts').insertOne({ ...attemptBase, success: false, errorCode: charge.error?.code || String(chargeRes.status), error: errMsg }).catch(() => {});
+            return res.status(400).json({ error: errMsg });
+        }
+
+        const last4 = charge.source?.last4 || client.cloverCardLast4 || null;
+        const cardBrand = charge.source?.brand || client.cloverCardBrand || null;
+
+        await db.collection('payment_attempts').insertOne({ ...attemptBase, success: true, chargeId: charge.id, last4, cardBrand }).catch(() => {});
+
+        const newPayment = {
+            id: Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            amount: parseFloat(amount),
+            method: 'credit_card',
+            last4,
+            cardBrand,
+            notes: `Charged saved card — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
+        };
+
+        const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const newTotalPaid = existingPaid + parseFloat(amount);
+        const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
+
+        const setFields = { totalPaid: newTotalPaid, balanceOwed: newBalanceOwed, updatedAt: new Date() };
+        if (newBalanceOwed <= 0 && job.status !== 'completed') setFields.status = 'completed';
+
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $push: { payments: newPayment }, $set: setFields }
+        );
+
+        res.json({ success: true, chargeId: charge.id, last4, cardBrand });
+    } catch (e) {
+        console.error('Charge saved card error:', e);
+        res.status(500).json({ error: 'Payment processing failed' });
+    }
 });
 
 } // End setupRoutes

@@ -231,8 +231,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             border-bottom: 2px solid #e2e8f0;
             padding: 0 2rem;
             display: flex;
+            align-items: stretch;
+            overflow: visible;
+        }
+
+        .nav-scroll {
+            display: flex;
             gap: 0.5rem;
             overflow-x: auto;
+            flex: 1;
         }
 
         .nav-btn {
@@ -254,6 +261,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         .nav-btn.active {
             color: #667eea;
             border-bottom-color: #667eea;
+        }
+
+        .admin-menu-wrapper {
+            position: relative;
+            margin-left: auto;
+        }
+
+        .admin-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            min-width: 180px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .admin-dropdown .admin-item {
+            border-bottom: none;
+            border-radius: 0;
+            text-align: left;
+            padding: 0.75rem 1.25rem;
+            width: 100%;
+        }
+
+        .admin-dropdown .admin-item:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+
+        .admin-dropdown .admin-item:hover {
+            background: #f7f8fc;
         }
 
         .container {
@@ -376,6 +418,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             font-size: 0.75rem;
         }
 
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 2px solid #e2e8f0;
+            background: white;
+            color: #4a5568;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .status-pill:hover { border-color: #a0aec0; }
+        .status-pill.active { background: #1a365d; color: white; border-color: #1a365d; }
+        .status-pill .pill-count {
+            background: rgba(0,0,0,0.12);
+            border-radius: 999px;
+            padding: 0 0.4rem;
+            font-size: 0.7rem;
+            min-width: 1.3em;
+            text-align: center;
+        }
+        .status-pill.active .pill-count { background: rgba(255,255,255,0.25); }
+
         .btn-icon {
             background: none;
             border: none;
@@ -409,6 +478,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        th.sortable:hover { color: #2d3748; }
+        th.sortable .sort-arrow { margin-left: 4px; opacity: 0.4; font-size: 0.75em; }
+        th.sortable.sort-asc .sort-arrow,
+        th.sortable.sort-desc .sort-arrow { opacity: 1; color: #667eea; }
 
         td {
             padding: 1rem;
@@ -757,11 +836,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             /* Navigation */
             .nav {
                 padding: 0 0.5rem;
+            }
+            .nav-scroll {
                 gap: 0.25rem;
             }
             .nav-btn {
                 padding: 0.75rem 1rem;
                 font-size: 0.75rem;
+            }
+            .admin-dropdown {
+                right: 0;
+                min-width: 160px;
             }
 
             /* Container */
@@ -1140,25 +1225,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
 
     <div class="nav">
-        <button class="nav-btn active" onclick="showView('dashboard')" data-admin-only>📊 Dashboard</button>
-        <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
-        <button class="nav-btn" onclick="showView('quotes')" data-admin-only>💰 Quotes</button>
-        <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
-        <button class="nav-btn" onclick="showView('timeclock')">⏱️ Time Clock</button>
-        <button class="nav-btn" onclick="showView('mypay')" data-user-only>💵 My Pay</button>
-        <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
-        <button class="nav-btn" onclick="showView('team')" data-admin-only>👷 Team</button>
-        <button class="nav-btn" onclick="showView('expenses')" data-admin-only>💰 Expenses</button>
-        <button class="nav-btn" onclick="showView('messages')" data-admin-only style="position: relative;">
-            💬 Messages
-            <span id="messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #e53e3e; color: white; border-radius: 10px; padding: 2px 6px; font-size: 0.7rem; font-weight: bold;"></span>
-        </button>
-        <button class="nav-btn" onclick="showView('leads')" data-admin-only style="position:relative;">
-            🎯 Leads
-            <span id="leads-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
-        </button>
-        <button class="nav-btn" onclick="showView('reports')" data-admin-only>📈 Reports</button>
-        <button class="nav-btn" onclick="showView('settings')" data-admin-only>⚙️ Settings</button>
+        <div class="nav-scroll">
+            <button class="nav-btn active" onclick="showView('dashboard')" data-admin-only>📊 Dashboard</button>
+            <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
+            <button class="nav-btn" onclick="showView('quotes')" data-admin-only>💰 Quotes</button>
+            <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
+            <button class="nav-btn" onclick="showView('leads')" data-admin-only style="position:relative;">
+                🎯 Leads
+                <span id="leads-badge" style="display:none;position:absolute;top:6px;right:4px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
+            </button>
+            <button class="nav-btn" onclick="showView('calendar')">📅 Calendar</button>
+            <button class="nav-btn" onclick="showView('messages')" data-admin-only style="position:relative;">
+                💬 Messages
+                <span id="messages-badge" style="display:none;position:absolute;top:6px;right:4px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
+            </button>
+            <button class="nav-btn" onclick="showView('timeclock')" data-user-only>⏱️ Time Clock</button>
+            <button class="nav-btn" onclick="showView('mypay')" data-user-only>💵 My Pay</button>
+        </div>
+        <div class="admin-menu-wrapper" data-admin-only>
+            <button class="nav-btn" id="admin-menu-btn" onclick="toggleAdminMenu(event)">⚙️ Admin ▾</button>
+            <div id="admin-dropdown" class="admin-dropdown" style="display:none;">
+                <button class="nav-btn admin-item" onclick="showView('team')">👷 Team</button>
+                <button class="nav-btn admin-item" onclick="showView('timeclock')">⏱️ Time Clock</button>
+                <button class="nav-btn admin-item" onclick="showView('expenses')">💰 Expenses</button>
+                <button class="nav-btn admin-item" onclick="showView('vendors')">🏪 Vendors</button>
+                <button class="nav-btn admin-item" onclick="showView('portfolio')">🖼️ Portfolio</button>
+                <button class="nav-btn admin-item" onclick="showView('reports')">📈 Reports</button>
+                <button class="nav-btn admin-item" onclick="showView('analytics')">📊 Analytics</button>
+                <button class="nav-btn admin-item" onclick="showView('settings')">⚙️ Settings</button>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -1307,6 +1403,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="card-header">
                     <button class="btn btn-secondary" onclick="showView('clients')">← Back to Clients</button>
                     <h2 id="client-detail-name"></h2>
+                    <button class="btn btn-secondary" onclick="openSendComplianceModal(_currentClientId)" style="font-size: 0.85rem; margin-left: auto;">📎 Send Compliance Docs</button>
                 </div>
                 <!-- Client Relationship Stats -->
                 <div id="client-stats-section" style="margin-bottom: 2rem;">
@@ -1386,17 +1483,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="card-header">
                     <h2>Jobs</h2>
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <select id="filter-status" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
-                            <option value="">All Statuses</option>
-                            <option value="ACTIVE_WORK" selected>🔥 Active Work (excludes completed)</option>
-                            <option value="prospecting">Prospecting</option>
-                            <option value="to_be_scheduled">To Be Scheduled</option>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="invoiced">Invoiced</option>
-                            <option value="bid_lost">Bid Lost</option>
-                        </select>
+                        <input type="hidden" id="filter-status" value="ACTIVE_WORK">
+                        <div id="job-status-pills" style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;"></div>
                         <input type="text" id="filter-client" placeholder="🔍 Search client..." oninput="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                         <select id="filter-assigned" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                             <option value="">All Team Members</option>
@@ -1434,7 +1522,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <h2 style="color: #1a202c; margin-bottom: 1rem;" id="currentJobTitle">Job Name</h2>
                             <div style="font-size: 3rem; font-weight: 700; color: #667eea; margin: 1.5rem 0;" id="timerDisplay">0:00:00</div>
                             <p style="color: #718096; margin-bottom: 1.5rem;">Started at <span id="clockInTime">--:--</span></p>
-                            <button class="btn btn-danger" onclick="clockOut()" style="font-size: 1.25rem; padding: 1rem 2rem;">🕐 Clock Out</button>
+                            <button class="btn btn-danger" onclick="openClockOutSurvey()" style="font-size: 1.25rem; padding: 1rem 2rem;">🕐 Clock Out</button>
                         </div>
                     </div>
                 </div>
@@ -1649,6 +1737,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="quoted">Quoted</option>
                             <option value="won">Won</option>
                             <option value="lost">Lost</option>
+                            <option value="rejected">Rejected</option>
                         </select>
                     </div>
                 </div>
@@ -1668,6 +1757,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
 
         <!-- Expenses View -->
+        <!-- Vendors View -->
+        <div id="vendors" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🏪 Vendors & Suppliers</h2>
+                    <button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button>
+                </div>
+                <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+                    <input type="text" id="vendor-search" placeholder="🔍 Search vendors..." style="flex:1;min-width:200px;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;" oninput="filterVendors()">
+                    <select id="vendor-category-filter" onchange="filterVendors()" style="padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
+                        <option value="">All Categories</option>
+                        <option value="lumber">Lumber & Building Materials</option>
+                        <option value="electrical">Electrical</option>
+                        <option value="plumbing">Plumbing</option>
+                        <option value="hvac">HVAC</option>
+                        <option value="hardware">Hardware & Fasteners</option>
+                        <option value="paint">Paint & Finishes</option>
+                        <option value="flooring">Flooring</option>
+                        <option value="roofing">Roofing</option>
+                        <option value="tools">Tools & Equipment</option>
+                        <option value="landscaping">Landscaping & Outdoor</option>
+                        <option value="subcontractor">Subcontractor</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div id="vendors-list"></div>
+            </div>
+        </div>
+
         <div id="expenses" class="view">
             <div class="card">
                 <div class="card-header">
@@ -1693,6 +1811,86 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="btn btn-secondary" onclick="exportExpensesToExcel()">📊 Export</button>
                 </div>
                 <div id="expenses-list"></div>
+            </div>
+        </div>
+
+        <!-- Portfolio View -->
+        <div id="portfolio" class="view">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🖼️ Portfolio</h2>
+                    <button class="btn btn-primary" onclick="openPortfolioModal()">+ Add Work</button>
+                </div>
+                <div style="margin-bottom:1rem;display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
+                    <input type="text" id="portfolio-search" placeholder="🔍 Search..." oninput="filterPortfolio()" style="padding:0.5rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;min-width:180px;">
+                    <select id="portfolio-category-filter" onchange="filterPortfolio()" style="padding:0.5rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
+                        <option value="">All Categories</option>
+                        <option value="bathroom">Bathroom</option>
+                        <option value="kitchen">Kitchen</option>
+                        <option value="deck">Deck / Patio</option>
+                        <option value="flooring">Flooring</option>
+                        <option value="painting">Painting</option>
+                        <option value="carpentry">Carpentry</option>
+                        <option value="electrical">Electrical</option>
+                        <option value="plumbing">Plumbing</option>
+                        <option value="exterior">Exterior</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                <div id="portfolio-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.25rem;"></div>
+            </div>
+        </div>
+
+        <!-- Portfolio Modal -->
+        <div id="portfolioModal" class="modal">
+            <div class="modal-content" style="max-width:540px;">
+                <div class="modal-header">
+                    <h2 id="portfolioModalTitle">Add Work</h2>
+                    <button onclick="closePortfolioModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#718096;">×</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="portfolioEditId">
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Photo *</label>
+                        <div id="portfolio-upload-zone" style="border:2px dashed #cbd5e0;border-radius:8px;padding:2rem;text-align:center;cursor:pointer;position:relative;background:#f8fafc;" onclick="document.getElementById('portfolioFileInput').click()">
+                            <div id="portfolio-upload-preview" style="display:none;"><img id="portfolio-preview-img" style="max-height:200px;max-width:100%;border-radius:6px;"></div>
+                            <div id="portfolio-upload-prompt">
+                                <div style="font-size:2rem;">📷</div>
+                                <div style="color:#4a5568;font-weight:600;">Click to upload photo</div>
+                                <div style="color:#9ca3af;font-size:0.8rem;margin-top:0.25rem;">Any size — auto compressed</div>
+                            </div>
+                            <input type="file" id="portfolioFileInput" accept="image/*" style="display:none;" onchange="handlePortfolioPhoto(this)">
+                        </div>
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Title</label>
+                        <input type="text" id="portfolioTitle" placeholder="e.g. Master Bath Remodel" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;">
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Category</label>
+                        <select id="portfolioCategory" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <option value="">Select category...</option>
+                            <option value="bathroom">Bathroom</option>
+                            <option value="kitchen">Kitchen</option>
+                            <option value="deck">Deck / Patio</option>
+                            <option value="flooring">Flooring</option>
+                            <option value="painting">Painting</option>
+                            <option value="carpentry">Carpentry</option>
+                            <option value="electrical">Electrical</option>
+                            <option value="plumbing">Plumbing</option>
+                            <option value="exterior">Exterior</option>
+                            <option value="general">General</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:1.5rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Caption</label>
+                        <textarea id="portfolioCaption" rows="3" placeholder="Brief description of the work done..." style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="closePortfolioModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="savePortfolioItem()">Save</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1812,6 +2010,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
 
         <!-- Settings View -->
+        <!-- Analytics View -->
+        <div id="analytics" class="view">
+            <div class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>Website Analytics</h2>
+                    <div style="display:flex;gap:0.75rem;align-items:center;">
+                        <span id="analyticsActiveUsers" style="background:#c6f6d5;color:#22543d;padding:0.4rem 1rem;border-radius:20px;font-weight:700;font-size:0.95rem;display:none;">● <span id="analyticsActiveCount">0</span> active now</span>
+                        <a href="https://clarity.microsoft.com" target="_blank" class="btn btn-secondary" style="font-size:0.85rem;">Open Clarity ↗</a>
+                    </div>
+                </div>
+                <div id="analyticsBody">
+                    <div style="text-align:center;padding:3rem;color:#718096;">Loading analytics...</div>
+                </div>
+            </div>
+        </div>
+
         <div id="settings" class="view">
             <div class="card">
                 <div class="card-header">
@@ -1826,6 +2040,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="settings-tab" onclick="switchSettingsTab('email')" data-tab="email">📧 Email</button>
                         <button class="settings-tab" onclick="switchSettingsTab('account')" data-tab="account">🔒 Account</button>
                         <button class="settings-tab" id="usersTab" onclick="switchSettingsTab('users')" data-tab="users" style="display: none;">👥 Users</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('compliance')" data-tab="compliance" id="complianceTabBtn">🛡️ License & Insurance</button>
                     </div>
                 </div>
 
@@ -2161,11 +2376,337 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="portalUsersList"></div>
                     </div>
                 </div>
+
+                <!-- License & Insurance Tab -->
+                <div id="complianceTab" class="settings-tab-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <div>
+                            <h3 style="margin: 0 0 0.25rem 0; color: #667eea;">🛡️ License & Insurance Documents</h3>
+                            <p style="margin: 0; color: #718096; font-size: 0.9rem;">Store your business credentials. Send them to clients on request.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="document.getElementById('compDocUploadForm').style.display = document.getElementById('compDocUploadForm').style.display === 'none' ? 'block' : 'none'">+ Add Document</button>
+                    </div>
+
+                    <div id="compDocExpiryWarning" style="display: none; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; color: #92400e;">
+                        ⚠️ <span id="compDocExpiryText"></span>
+                    </div>
+
+                    <div id="compDocUploadForm" style="display: none; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: #4a5568;">Upload New Document</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label>Document Type</label>
+                                <select id="compDocType" style="width: 100%; padding: 0.6rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                                    <option value="license">License</option>
+                                    <option value="gl_insurance">Insurance — General Liability</option>
+                                    <option value="umbrella_insurance">Insurance — Umbrella</option>
+                                    <option value="workers_comp">Workers Compensation</option>
+                                    <option value="surety_bond">Surety Bond</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label>Expiration Date</label>
+                                <input type="date" id="compDocExpiry" style="width: 100%; padding: 0.6rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label>Notes (optional)</label>
+                            <input type="text" id="compDocNotes" placeholder="Policy number, issuer, etc." style="width: 100%; padding: 0.6rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <label style="background: #667eea; color: white; padding: 0.6rem 1.25rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; white-space: nowrap;">
+                                📎 Choose File
+                                <input type="file" id="compDocFile" accept=".pdf,.jpg,.jpeg,.png" style="display: none;" onchange="handleCompDocFileSelect(event)">
+                            </label>
+                            <span id="compDocFileName" style="color: #718096; font-size: 0.9rem;">No file chosen</span>
+                            <button class="btn btn-primary" onclick="uploadComplianceDoc()" style="margin-left: auto;">Upload</button>
+                        </div>
+                    </div>
+
+                    <div id="compDocsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Send Compliance Docs Modal -->
+    <div id="sendComplianceModal" class="modal">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h2>📎 Send Compliance Documents</h2>
+                <button class="close-btn" onclick="closeModal('sendComplianceModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: #4a5568; margin-bottom: 1rem;">Select which documents to send to <strong id="sendCompClientName"></strong>.</p>
+                <div id="sendCompDocCheckboxes" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem;"></div>
+                <div class="form-group">
+                    <label>Additional Message (optional)</label>
+                    <textarea id="sendCompMessage" rows="3" placeholder="Please find our license and insurance documents attached..." style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; resize: vertical; box-sizing: border-box;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('sendComplianceModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="sendComplianceDocs()">📧 Send Email</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clock-Out Survey Modal -->
+    <div id="clockOutSurveyModal" class="modal">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:12px 12px 0 0;">
+                <div>
+                    <h2 style="color:white;margin-bottom:0.2rem;">Before You Go 👋</h2>
+                    <p id="surveyJobLabel" style="color:rgba(255,255,255,0.8);font-size:0.9rem;margin:0;"></p>
+                </div>
+            </div>
+            <div class="modal-body" style="padding:1.5rem;">
+                <p style="color:#4a5568;font-weight:600;margin-bottom:0.75rem;">How did the job go?</p>
+                <div id="starRating" style="display:flex;gap:0.5rem;font-size:2.5rem;margin-bottom:1.25rem;cursor:pointer;">
+                    <span data-val="1" onclick="setSurveyRating(1)">☆</span>
+                    <span data-val="2" onclick="setSurveyRating(2)">☆</span>
+                    <span data-val="3" onclick="setSurveyRating(3)">☆</span>
+                    <span data-val="4" onclick="setSurveyRating(4)">☆</span>
+                    <span data-val="5" onclick="setSurveyRating(5)">☆</span>
+                </div>
+                <label style="font-weight:600;color:#4a5568;display:block;margin-bottom:0.4rem;">Notes / Lessons Learned</label>
+                <textarea id="surveyComment" rows="3" placeholder="Anything worth noting for next time?" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.95rem;resize:vertical;box-sizing:border-box;"></textarea>
+                <p id="surveyRatingError" style="color:#e53e3e;font-size:0.85rem;display:none;margin-top:0.4rem;">Please select a star rating.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="clockOutSkipSurvey()">Skip & Clock Out</button>
+                <button class="btn btn-danger" onclick="submitClockOutSurvey()">✅ Confirm Clock Out</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Modal -->
+    <div id="vendorModal" class="modal">
+        <div class="modal-content" style="max-width:560px;">
+            <div class="modal-header">
+                <h2 id="vendorModalTitle">Add Vendor</h2>
+                <button class="close-btn" onclick="closeModal('vendorModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="vendorForm">
+                    <input type="hidden" id="vendorId">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>Vendor Name *</label>
+                            <input type="text" id="vendorName" required placeholder="e.g. Home Depot, Ferguson Plumbing">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="vendorCategory">
+                                <option value="">Select category...</option>
+                                <option value="lumber">Lumber & Building Materials</option>
+                                <option value="electrical">Electrical</option>
+                                <option value="plumbing">Plumbing</option>
+                                <option value="hvac">HVAC</option>
+                                <option value="hardware">Hardware & Fasteners</option>
+                                <option value="paint">Paint & Finishes</option>
+                                <option value="flooring">Flooring</option>
+                                <option value="roofing">Roofing</option>
+                                <option value="tools">Tools & Equipment</option>
+                                <option value="landscaping">Landscaping & Outdoor</option>
+                                <option value="subcontractor">Subcontractor</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Account #</label>
+                            <input type="text" id="vendorAccountNumber" placeholder="Trade account number">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" id="vendorPhone" placeholder="(555) 555-5555">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="vendorEmail" placeholder="contact@vendor.com">
+                        </div>
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>Website</label>
+                            <input type="text" id="vendorWebsite" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Person</label>
+                            <input type="text" id="vendorContact" placeholder="Rep or account manager">
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <input type="text" id="vendorAddress" placeholder="Store / office address">
+                        </div>
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>Notes</label>
+                            <textarea id="vendorNotes" rows="3" placeholder="Payment terms, discount codes, hours, etc." style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;resize:vertical;"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('vendorModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveVendor()">Save Vendor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deposit Request Modal -->
+    <div id="depositModal" class="modal">
+        <div class="modal-content" style="max-width:380px;">
+            <div class="modal-header">
+                <h2>💳 Request Deposit</h2>
+                <button class="close-btn" onclick="closeModal('depositModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:#718096;margin-bottom:1rem;">Client will receive an email with a secure payment link.</p>
+                <div class="form-group">
+                    <label>Deposit Amount ($)</label>
+                    <input type="number" id="depositAmount" step="0.01" min="1" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:1.1rem;font-weight:700;color:#667eea;">
+                    <small id="depositPctLabel" style="color:#718096;display:block;margin-top:0.4rem;"></small>
+                </div>
+                <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                    <button class="btn btn-secondary btn-small" onclick="setDepositPct(25)">25%</button>
+                    <button class="btn btn-secondary btn-small" onclick="setDepositPct(50)">50%</button>
+                    <button class="btn btn-secondary btn-small" onclick="setDepositPct(75)">75%</button>
+                    <button class="btn btn-secondary btn-small" onclick="setDepositPct(100)">100%</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('depositModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="sendDepositRequest()">Send Request</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enter Card Modal (admin manual card entry) -->
+    <div id="enterCardModal" class="modal">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>💳 Enter Card</h2>
+                <button class="close-btn" onclick="closeModal('enterCardModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="enterCardJobLabel" style="font-weight:600;color:#4a5568;margin-bottom:1rem;"></p>
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;display:block;margin-bottom:0.35rem;">Amount ($)</label>
+                    <input type="number" id="enterCardAmount" step="0.01" min="0.50" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:1.1rem;font-weight:700;color:#667eea;">
+                </div>
+                <div style="height:1px;background:#f1f5f9;margin:0.25rem 0 1rem;"></div>
+                <div style="margin-bottom:0.9rem;">
+                    <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;display:block;margin-bottom:0.35rem;">Card Number</label>
+                    <div id="admin-card-number" style="height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.9rem;">
+                    <div>
+                        <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;display:block;margin-bottom:0.35rem;">Expiry</label>
+                        <div id="admin-card-date" style="height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;"></div>
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;display:block;margin-bottom:0.35rem;">CVV</label>
+                        <div id="admin-card-cvv" style="height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;"></div>
+                    </div>
+                </div>
+                <div style="margin-bottom:0.9rem;">
+                    <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;display:block;margin-bottom:0.35rem;">ZIP Code</label>
+                    <div id="admin-card-zip" style="height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;"></div>
+                </div>
+                <div id="enterCardError" style="display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin-bottom:0.75rem;"></div>
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;color:#4a5568;margin-bottom:0.5rem;">
+                    <input type="checkbox" id="enterCardSave" checked style="width:15px;height:15px;accent-color:#667eea;cursor:pointer;flex-shrink:0;">
+                    Save card for future payments
+                </label>
+                <p style="font-size:0.75rem;color:#94a3b8;text-align:center;margin-top:0.5rem;">🔒 Tokenized via Clover · PCI compliant</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('enterCardModal')">Cancel</button>
+                <button class="btn btn-primary" id="enterCardSubmitBtn" onclick="submitEnterCard()">Charge Card</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charge Saved Card Modal -->
+    <div id="chargeCardModal" class="modal">
+        <div class="modal-content" style="max-width:380px;">
+            <div class="modal-header">
+                <h2>💳 Charge Saved Card</h2>
+                <button class="close-btn" onclick="closeModal('chargeCardModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="chargeCardInfo" style="color:#4a5568;margin-bottom:1rem;font-weight:600;"></p>
+                <p style="color:#718096;font-size:0.875rem;margin-bottom:1rem;">The card on file will be charged immediately.</p>
+                <div class="form-group">
+                    <label>Amount ($)</label>
+                    <input type="number" id="chargeCardAmount" step="0.01" min="0.50" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:1.1rem;font-weight:700;color:#667eea;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('chargeCardModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChargeCard()">Charge Card</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Log Modal -->
+    <div id="loginLogModal" class="modal">
+        <div class="modal-content" style="max-width:580px;">
+            <div class="modal-header">
+                <h2 id="loginLogTitle">Sign-In History</h2>
+                <button class="close-btn" onclick="closeModal('loginLogModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="loginLogContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portal Password Modal -->
+    <div id="portalPwModal" class="modal">
+        <div class="modal-content" style="max-width:380px;">
+            <div class="modal-header">
+                <h2>Change Access Code</h2>
+                <button class="close-btn" onclick="closeModal('portalPwModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="portalPwClientName" style="color:#718096;margin-bottom:1rem;"></p>
+                <label style="font-weight:600;display:block;margin-bottom:0.4rem;">New Access Code</label>
+                <input type="text" id="portalPwInput" placeholder="e.g. 1234 or a word" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;margin-bottom:1rem;">
+                <p id="portalPwError" style="color:#e53e3e;display:none;margin-bottom:0.5rem;"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('portalPwModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="savePortalPassword()">Save</button>
             </div>
         </div>
     </div>
 
     <!-- Client Modal -->
+    <!-- Quote View Log Modal -->
+    <div id="viewLogModal" class="modal">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <h2>Quote View History</h2>
+                <button class="close-btn" onclick="closeModal('viewLogModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="viewLogContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="payDiagModal" class="modal">
+        <div class="modal-content" style="max-width:640px;">
+            <div class="modal-header">
+                <h2>💳 Payment Diagnostics</h2>
+                <button class="close-btn" onclick="closeModal('payDiagModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="payDiagContent"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="clientModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -2311,9 +2852,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div class="form-group" id="serviceLocationGroup" style="display: none;">
                         <label>Service Location</label>
-                        <select name="serviceLocationId" id="jobServiceLocationSelect">
+                        <select name="serviceLocationId" id="jobServiceLocationSelect" onchange="updateLocationDisplay()">
                             <option value="">Select a location...</option>
                         </select>
+                        <div id="locationInfoDisplay" style="display:none; margin-top:0.5rem; padding:0.6rem 0.85rem; background:#f0f4ff; border-left:3px solid #667eea; border-radius:0 6px 6px 0; font-size:0.875rem; color:#4a5568; line-height:1.5;"></div>
                     </div>
                     <div class="form-group">
                         <label>Job Title *</label>
@@ -2679,6 +3221,39 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Expense Receipts & Comments Modal -->
+    <div id="expenseDetailModal" class="modal">
+        <div class="modal-content" style="max-width:640px;">
+            <div class="modal-header">
+                <h2 id="expenseDetailTitle">Expense Receipts</h2>
+                <button class="close-btn" onclick="closeModal('expenseDetailModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Attachments -->
+                <div style="margin-bottom:1.5rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                        <h3 style="color:#2d3748;font-size:1rem;">📎 Receipts & Attachments</h3>
+                        <label style="cursor:pointer;">
+                            <input type="file" id="expenseFileInput" accept="image/*,.pdf,.doc,.docx" multiple style="display:none;" onchange="handleExpenseFileSelect(event)">
+                            <span class="btn btn-primary btn-small">+ Upload</span>
+                        </label>
+                    </div>
+                    <div id="expenseAttachmentsList" style="min-height:60px;"></div>
+                </div>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0;">
+                <!-- Comments -->
+                <div>
+                    <h3 style="color:#2d3748;font-size:1rem;margin-bottom:0.75rem;">💬 Comments</h3>
+                    <div id="expenseCommentsList" style="margin-bottom:1rem;"></div>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input type="text" id="expenseCommentInput" placeholder="Add a comment…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key==='Enter')addExpenseComment()">
+                        <button class="btn btn-primary" onclick="addExpenseComment()">Post</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Expense Modal -->
     <div id="expenseModal" class="modal">
         <div class="modal-content">
@@ -2735,6 +3310,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div class="form-group">
                         <label>Receipt/Notes</label>
                         <textarea name="notes" rows="2" placeholder="Receipt number, additional details..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>📎 Attachments</label>
+                        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;background:#f7fafc;border:2px dashed #cbd5e0;border-radius:8px;padding:0.65rem 1rem;font-size:0.9rem;color:#4a5568;">
+                            <input type="file" id="expenseModalFileInput" accept="image/*,.pdf,.doc,.docx" multiple style="display:none;" onchange="stageExpenseFiles(event)">
+                            ＋ Add receipts / files
+                        </label>
+                        <div id="expenseModalAttachmentsList" style="margin-top:0.5rem;"></div>
                     </div>
                 </form>
             </div>
@@ -2866,15 +3449,103 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
 
     <script>
+        // Global session expiry interceptor
+        (function() {
+            const _fetch = window.fetch;
+            window.fetch = async function(...args) {
+                const response = await _fetch(...args);
+                if (response.status === 401) {
+                    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+                    const isAuthRoute = url.includes('/api/auth/login') || url.includes('/api/client-portal');
+                    if (!isAuthRoute) {
+                        document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;top:0;left:0;right:0;background:#e53e3e;color:white;text-align:center;padding:1rem;z-index:99999;font-weight:600;">Your session has expired. Redirecting to login...</div>');
+                        setTimeout(() => { window.location.href = '/login'; }, 1500);
+                    }
+                }
+                return response;
+            };
+        })();
+
         let clients = [];
         let jobs = [];
         let quotes = [];
+        let clientJobCounts = {};
         let settings = {};
         let team = [];
         let expenses = [];
         let hasUnsavedChanges = false;
+        let _complianceDocs = [];
+        let _sendCompClientId = null;
+        let _compDocFileData = null;
+        let _currentClientId = null;
         let currentUserRole = 'user'; // Default to user, updated on load
         let isAdmin = false;
+
+        const sortState = {
+            clients:  { field: 'name',          dir: 'asc' },
+            jobs:     { field: 'scheduledDate',  dir: 'desc' },
+            quotes:   { field: 'validUntil',     dir: 'desc' },
+            expenses: { field: 'date',           dir: 'desc' },
+            vendors:  { field: 'name',           dir: 'asc' },
+            team:     { field: 'name',           dir: 'asc' },
+            leads:    { field: 'createdAt',      dir: 'desc' },
+        };
+
+        function sortTable(tableKey, field) {
+            const s = sortState[tableKey];
+            if (s.field === field) {
+                s.dir = s.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                s.field = field;
+                s.dir = (field === 'name' || field === 'title' || field === 'category') ? 'asc' : 'desc';
+            }
+            const renders = {
+                clients: () => filterClients(),
+                jobs:    renderJobsTable,
+                quotes:  renderQuotesTable,
+                expenses: () => filterExpenses(),
+                vendors: renderVendors,
+                team:    renderTeam,
+                leads:   renderLeads,
+            };
+            if (renders[tableKey]) renders[tableKey]();
+        }
+
+        function sortArrow(tableKey, field) {
+            const s = sortState[tableKey];
+            const arrow = s.dir === 'asc' ? '▲' : '▼';
+            const cls = s.field === field ? ('sort-' + s.dir) : '';
+            return \`<th class="sortable \${cls}" onclick="sortTable('\${tableKey}','\${field}')">\`;
+        }
+
+        function applySortState(array, tableKey, fieldMap) {
+            const s = sortState[tableKey];
+            const key = fieldMap[s.field] || s.field;
+            return [...array].sort((a, b) => {
+                let av = a[key] ?? '';
+                let bv = b[key] ?? '';
+                if (typeof av === 'string') av = av.toLowerCase();
+                if (typeof bv === 'string') bv = bv.toLowerCase();
+                if (av < bv) return s.dir === 'asc' ? -1 : 1;
+                if (av > bv) return s.dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function sth(tableKey, field, label) {
+            const s = sortState[tableKey];
+            const isActive = s.field === field;
+            const arrow = s.dir === 'asc' ? '▲' : '▼';
+            const cls = isActive ? 'sort-' + s.dir : '';
+            return \`<th class="sortable \${cls}" onclick="sortTable('\${tableKey}','\${field}')">\${label} <span class="sort-arrow">\${isActive ? arrow : '▼'}</span></th>\`;
+        }
+
+        function maskName(fullName) {
+            if (isAdmin || !fullName) return fullName || 'Unknown';
+            const parts = fullName.trim().split(/\s+/);
+            if (parts.length === 1) return parts[0];
+            return parts[0] + ' ' + parts[parts.length - 1].charAt(0) + '.';
+        }
         let currentUserId = null;
         let currentTeamMember = null;
 
@@ -2919,7 +3590,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Navigation
         function showView(viewName) {
             // Check permissions - users can only access jobs and calendar
-            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'messages', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'vendors', 'portfolio', 'messages', 'reports', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewName)) {
                 alert('You do not have permission to access this section.');
                 return;
@@ -2936,8 +3607,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
+            // Close admin dropdown
+            const adminDropdown = document.getElementById('admin-dropdown');
+            if (adminDropdown) adminDropdown.style.display = 'none';
+
             document.getElementById(viewName).classList.add('active');
-            if (event && event.target) {
+
+            const adminViews = ['team', 'timeclock', 'expenses', 'vendors', 'portfolio', 'reports', 'analytics', 'settings'];
+            if (adminViews.includes(viewName)) {
+                const adminBtn = document.getElementById('admin-menu-btn');
+                if (adminBtn) adminBtn.classList.add('active');
+            } else if (event && event.target) {
                 event.target.classList.add('active');
             }
 
@@ -2953,8 +3633,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
             if (viewName === 'expenses') loadExpenses();
+            if (viewName === 'vendors') loadVendors();
+            if (viewName === 'portfolio') loadPortfolio();
             if (viewName === 'messages') loadMessages();
             if (viewName === 'reports') loadReports();
+            if (viewName === 'analytics') loadAnalytics();
             if (viewName === 'leads') loadLeads();
             if (viewName === 'settings') {
                 loadSettings();
@@ -2962,8 +3645,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function toggleAdminMenu(e) {
+            e.stopPropagation();
+            const dropdown = document.getElementById('admin-dropdown');
+            if (!dropdown) return;
+            dropdown.style.display = dropdown.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.querySelector('.admin-menu-wrapper');
+            const dropdown = document.getElementById('admin-dropdown');
+            if (dropdown && wrapper && !wrapper.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
         // Add change listeners to all forms
         window.addEventListener('DOMContentLoaded', () => {
+            // Handle post-OAuth redirect
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('analytics') === 'connected') {
+                history.replaceState({}, '', '/');
+                showView('analytics');
+            }
+
             // Settings form
             const settingsForm = document.getElementById('settingsForm');
             if (settingsForm) {
@@ -3154,6 +3859,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (job.serviceLocationId) {
                     const locationSelect = document.getElementById('jobServiceLocationSelect');
                     locationSelect.value = job.serviceLocationId;
+                    updateLocationDisplay();
                 }
 
                 // Check assigned team members
@@ -3325,6 +4031,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 hasUnsavedChanges = false;
             }
             document.getElementById(modalId).classList.remove('active');
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
         }
 
         function populateJobSelects() {
@@ -3633,12 +4343,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!files.length) return;
 
             for (let file of files) {
-                // Check file size (max 10MB for S3)
-                if (file.size > 10 * 1024 * 1024) {
-                    alert(\`File "\${file.name}" is too large. Maximum size is 10MB.\`);
-                    continue;
-                }
-
                 // Prompt for comment
                 const comment = prompt(\`Add a description for "\${file.name}":\`, '');
                 if (comment === null) {
@@ -3829,12 +4533,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function addLaborItem() {
             const id = Date.now();
-            const selectElement = document.getElementById('jobTeamSelect');
-            const selectedTeamId = selectElement.value;
+            const checkedBoxes = document.querySelectorAll('.job-team-cb:checked');
+            const selectedTeamId = checkedBoxes.length === 1 ? checkedBoxes[0].value : null;
 
             let defaultRate = settings.hourlyRate || 75;
 
-            // If a team member is assigned, use their rate
             if (selectedTeamId) {
                 const teamMember = team.find(t => t.id == selectedTeamId);
                 if (teamMember && teamMember.hourlyRate) {
@@ -3889,6 +4592,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function updateLocationDisplay() {
+            const select = document.getElementById('jobServiceLocationSelect');
+            const display = document.getElementById('locationInfoDisplay');
+            const selectedClientId = document.getElementById('jobClientSelect').value;
+            const client = clients.find(c => c.id == selectedClientId);
+            if (!display) return;
+
+            const locId = select && select.value;
+            if (!locId || !client || !client.serviceLocations) {
+                display.style.display = 'none';
+                return;
+            }
+
+            const loc = client.serviceLocations.find(l => String(l.id) === String(locId));
+            if (!loc) { display.style.display = 'none'; return; }
+
+            const parts = [];
+            if (loc.name) parts.push(\`<strong>\${loc.name}</strong>\`);
+            if (loc.address) parts.push(loc.address.replace(/\n/g, ', ').replace(/,\s*,/g, ',').trim());
+            if (loc.contact) parts.push(\`Contact: \${loc.contact}\`);
+            if (loc.contactEmail) parts.push(\`📧 \${loc.contactEmail}\`);
+
+            if (parts.length) {
+                display.innerHTML = parts.join('<br>');
+                display.style.display = 'block';
+            } else {
+                display.style.display = 'none';
+            }
+        }
+
         function handleTeamMemberChange() {
             const checked = Array.from(document.querySelectorAll('.job-team-cb:checked'));
             if (checked.length !== 1) return;
@@ -3927,7 +4660,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const paymentContainer = document.getElementById('paymentItems');
 
             laborContainer.innerHTML = laborItems.map(item => \`
-                <div class="line-item" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                <div class="line-item" draggable="true" data-id="\${item.id}" style="display: grid; grid-template-columns: 20px 2fr 1fr 1fr 1fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end; cursor: default;">
+                    <div class="drag-handle" style="display:flex;align-items:center;justify-content:center;height:38px;color:#cbd5e0;cursor:grab;font-size:1.1rem;user-select:none;">⠿</div>
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.85rem;">Description</label>
                         <input type="text" value="\${item.description}" onchange="updateLaborItem(\${item.id}, 'description', this.value)" placeholder="Labor description">
@@ -3949,7 +4683,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             \`).join('');
 
             materialContainer.innerHTML = materialItems.map(item => \`
-                <div class="line-item" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+                <div class="line-item" draggable="true" data-id="\${item.id}" style="display: grid; grid-template-columns: 20px 2fr 1fr 1fr 1fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end; cursor: default;">
+                    <div class="drag-handle" style="display:flex;align-items:center;justify-content:center;height:38px;color:#cbd5e0;cursor:grab;font-size:1.1rem;user-select:none;">⠿</div>
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.85rem;">Description</label>
                         <input type="text" value="\${item.description}" onchange="updateMaterialItem(\${item.id}, 'description', this.value)" placeholder="Material description">
@@ -3969,6 +4704,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button type="button" onclick="removeMaterialItem(\${item.id})" style="background: #dc3545; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; height: 38px;">×</button>
                 </div>
             \`).join('');
+
+            initLineItemDrag(laborContainer, laborItems);
+            initLineItemDrag(materialContainer, materialItems);
 
             paymentContainer.innerHTML = paymentItems.map(item => \`
                 <div class="line-item" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr 2fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
@@ -3999,6 +4737,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             \`).join('');
 
             updateJobTotal();
+        }
+
+        function initLineItemDrag(container, itemsArray) {
+            let dragSrc = null;
+
+            container.querySelectorAll('.line-item').forEach(row => {
+                row.addEventListener('dragstart', function(e) {
+                    // Only start drag from the handle
+                    if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+                    dragSrc = this;
+                    e.dataTransfer.effectAllowed = 'move';
+                    setTimeout(() => this.style.opacity = '0.4', 0);
+                });
+
+                row.addEventListener('dragend', function() {
+                    this.style.opacity = '';
+                    container.querySelectorAll('.line-item').forEach(r => r.classList.remove('drag-over'));
+                });
+
+                row.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    container.querySelectorAll('.line-item').forEach(r => r.classList.remove('drag-over'));
+                    if (this !== dragSrc) this.style.borderTop = '2px solid #667eea';
+                });
+
+                row.addEventListener('dragleave', function() {
+                    this.style.borderTop = '';
+                });
+
+                row.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.style.borderTop = '';
+                    if (!dragSrc || dragSrc === this) return;
+
+                    const srcId = parseInt(dragSrc.dataset.id);
+                    const tgtId = parseInt(this.dataset.id);
+                    const srcIdx = itemsArray.findIndex(i => i.id === srcId);
+                    const tgtIdx = itemsArray.findIndex(i => i.id === tgtId);
+                    if (srcIdx === -1 || tgtIdx === -1) return;
+
+                    const [moved] = itemsArray.splice(srcIdx, 1);
+                    itemsArray.splice(tgtIdx, 0, moved);
+                    renderLineItems();
+                });
+            });
         }
 
         function updateLaborItem(id, field, value) {
@@ -4461,10 +5245,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Get filtered jobs
         function getFilteredJobs(statusFilter, clientFilter, assignedFilter) {
+            const today = new Date();
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 7);
+            const weekStartStr = weekStart.toISOString().slice(0, 10);
+            const weekEndStr = weekEnd.toISOString().slice(0, 10);
+
             return jobs.filter(j => {
-                // Special filter: Active Work excludes completed and invoiced jobs
                 if (statusFilter === 'ACTIVE_WORK') {
-                    if (j.status === 'completed' || j.status === 'invoiced') return false;
+                    if (j.status === 'completed' || j.status === 'invoiced' || j.status === 'bid_lost') return false;
+                } else if (statusFilter === 'COMPLETED_WEEK') {
+                    if (j.status !== 'completed' && j.status !== 'invoiced') return false;
+                    if (!j.scheduledDate || j.scheduledDate < weekStartStr || j.scheduledDate >= weekEndStr) return false;
                 } else if (statusFilter && j.status !== statusFilter) {
                     return false;
                 }
@@ -4521,7 +5316,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <td style="padding: 0.75rem;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">\${j.title}</div>
                                 <div style="font-size: 0.75rem; color: #718096;">
-                                    \${client ? client.name : 'Unknown'} • \${j.scheduledDate || 'No date'}
+                                    \${maskName(client ? client.name : 'Unknown')} • \${j.scheduledDate || 'No date'}
                                     \${assignedNames !== 'Unassigned' ? ' • ' + assignedNames : ''}
                                 </div>
                             </td>
@@ -4564,7 +5359,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <td style="padding: 0.75rem;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">${j.title}</div>
                                 <div style="font-size: 0.75rem; color: #718096;">
-                                    ${client ? client.name : 'Unknown'} • ${j.scheduledDate || 'No date'}
+                                    ${maskName(client ? client.name : 'Unknown')} • ${j.scheduledDate || 'No date'}
                                 </div>
                             </td>
                             <td style="padding: 0.75rem; text-align: right;">
@@ -4591,7 +5386,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Calculate stats
             const totalClients = clients.length;
-            const clientJobCounts = {};
+            clientJobCounts = {};
 
             jobs.forEach(j => {
                 if (j.clientId) {
@@ -4609,16 +5404,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Render ZIP distribution
             renderZipDistribution();
 
+            renderClientsList(clients);
+            } catch (error) {
+                console.error('Failed to load clients:', error);
+            }
+        }
+
+        function renderClientsList(list) {
             const container = document.getElementById('clients-list');
-            if (clients.length === 0) {
-                renderEmptyState(container, 'No clients yet', 'Add your first client to get started');
+            if (!container) return;
+            if (list.length === 0) {
+                container.innerHTML = \`<div style="text-align:center;padding:3rem;color:#718096;">No clients match your search.</div>\`;
                 return;
             }
+
+            list = applySortState(list, 'clients', { name: 'name', email: 'email', phone: 'phone', city: 'city', marketingChannel: 'marketingChannel' });
 
             const isMobile = window.innerWidth < 768;
 
             if (isMobile) {
-                container.innerHTML = clients.map(c => {
+                container.innerHTML = list.map(c => {
                     const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '');
                     const jobCount = clientJobCounts[String(c.id)] || 0;
                     let starHtml = '';
@@ -4640,8 +5445,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
                 }).join('');
             } else {
-                container.innerHTML = '<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City, State</th><th>Marketing Channel</th><th>Actions</th></tr></thead><tbody>' +
-                clients.map(c => {
+                container.innerHTML = '<table><thead><tr>' + sth('clients','name','Name') + sth('clients','email','Email') + sth('clients','phone','Phone') + sth('clients','city','City, State') + sth('clients','marketingChannel','Marketing Channel') + '<th>Actions</th></tr></thead><tbody>' +
+                list.map(c => {
                     const cityState = [c.city, c.state].filter(x => x).join(', ') || (c.address ? c.address.substring(0, 30) : '-');
                     const jobCount = clientJobCounts[String(c.id)] || 0;
 
@@ -4668,9 +5473,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
-            }
-            } catch (error) {
-                console.error('Failed to load clients:', error);
             }
         }
 
@@ -4774,6 +5576,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <input type="text" onchange="updateServiceLocation(\${loc.id}, 'contact', this.value)" value="\${loc.contact || ''}">
                         </div>
                         <div class="form-group">
+                            <label>Invoice / Contact Email</label>
+                            <input type="email" placeholder="Invoices for this location go here" onchange="updateServiceLocation(\${loc.id}, 'contactEmail', this.value)" value="\${loc.contactEmail || ''}">
+                        </div>
+                        <div class="form-group">
                             <label>Notes</label>
                             <textarea onchange="updateServiceLocation(\${loc.id}, 'notes', this.value)" rows="2">\${loc.notes || ''}</textarea>
                         </div>
@@ -4865,14 +5671,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function filterClients() {
             const searchTerm = document.getElementById('client-search').value.toLowerCase();
-            const table = document.querySelector('#clients-list table');
-            if (!table) return;
-
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
+            const filtered = searchTerm
+                ? clients.filter(c => (c.name + ' ' + (c.phone || '') + ' ' + (c.email || '') + ' ' + (c.city || '')).toLowerCase().includes(searchTerm))
+                : clients;
+            renderClientsList(filtered);
         }
 
         function exportClientsToExcel() {
@@ -4914,6 +5716,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         async function viewClientDetail(clientId) {
             const client = clients.find(c => c.id == clientId);
             if (!client) return;
+            _currentClientId = clientId;
 
             // Show client detail view
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -5044,6 +5847,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             populateDropdown(assignedFilter, team, 'id', 'name', 'All Team Members');
             assignedFilter.value = currentAssigned;
 
+            renderStatusPills();
             renderJobsTable();
             } catch (error) {
                 console.error('Failed to load jobs:', error);
@@ -5068,6 +5872,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        async function archiveQuote(id, archive) {
+            await fetch(\`/api/quotes/\${id}/archive\`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ archived: archive })
+            });
+            await loadQuotes();
+        }
+
         function renderQuotesTable() {
             const container = document.getElementById('quotes-list');
 
@@ -5079,7 +5892,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const statusFilter = document.getElementById('filter-quote-status').value;
             const clientFilter = document.getElementById('filter-quote-client').value;
 
-            const filteredQuotes = quotes.filter(q => {
+            const allFiltered = quotes.filter(q => {
                 if (statusFilter && q.status !== statusFilter) return false;
                 if (clientFilter) {
                     const qClient = findClient(q.clientId);
@@ -5088,7 +5901,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return true;
             });
 
-            if (filteredQuotes.length === 0) {
+            let filteredQuotes = allFiltered.filter(q => !q.archived);
+            const archivedQuotes = allFiltered.filter(q => q.archived);
+            filteredQuotes = applySortState(filteredQuotes, 'quotes', { quoteNumber: 'quoteNumber', client: 'clientId', title: 'title', validUntil: 'validUntil', status: 'status', total: 'total' });
+
+            if (filteredQuotes.length === 0 && archivedQuotes.length === 0) {
                 renderEmptyState(container, 'No quotes match filters', 'Try adjusting your filters');
                 return;
             }
@@ -5109,7 +5926,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
                             <div>
-                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
                                 <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${q.title}</div>
                             </div>
                             <span class="status-badge \${statusClass}" style="white-space:nowrap;margin-left:0.5rem;">\${q.status.replace('_', ' ')}</span>
@@ -5121,7 +5938,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <div style="font-size:1rem;font-weight:700;color:#2d3748;">\${formatMoney(parseFloat(q.total || 0))}</div>
                             <div style="font-size:0.78rem;text-align:right;">
                                 \${q.sentAt ? \`<div style="color:#4a5568;">📧 \${new Date(q.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
-                                \${q.viewCount > 0 ? \`<div style="color:#667eea;">👁 \${q.viewCount} view\${q.viewCount>1?'s':''}</div>\` : (q.sentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
+                                \${q.viewCount > 0 ? \`<button onclick="showQuoteViewLog('\${q.id}')" style="background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-size:0.78rem;">👁 \${q.viewCount} view\${q.viewCount>1?'s':''}</button>\` : (q.sentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
                             </div>
                         </div>
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
@@ -5130,12 +5947,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')">📧 Email</button>\` : ''}
                             \${(q.status === 'approved' || q.status === 'in_review') && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Job</button>\` : ''}
                             \${q.convertedToJobId ? \`<span style="color:#48bb78;font-size:0.85rem;">✓ Converted</span>\` : ''}
+                            <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)">📦</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </div>
                     </div>\`;
                 }).join('');
             } else {
-                container.innerHTML = '<table><thead><tr><th>Quote #</th><th>Client</th><th>Title</th><th>Valid Until</th><th>Status</th><th>Total</th><th>Activity</th><th>Actions</th></tr></thead><tbody>' +
+                container.innerHTML = '<table><thead><tr>' + sth('quotes','quoteNumber','Quote #') + sth('quotes','clientId','Client') + sth('quotes','title','Title') + sth('quotes','validUntil','Valid Until') + sth('quotes','status','Status') + sth('quotes','total','Total') + '<th>Activity</th><th>Actions</th></tr></thead><tbody>' +
                 filteredQuotes.map(q => {
                     const client = findClient(q.clientId);
                     const statusClass = q.status === 'approved' ? 'status-completed' :
@@ -5149,14 +5967,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                     return \`<tr>
                         <td>\${q.quoteNumber}</td>
-                        <td>\${client ? client.name : 'Unknown'}</td>
+                        <td>\${maskName(client ? client.name : 'Unknown')}</td>
                         <td><strong>\${q.title}</strong></td>
                         <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
                         <td><span class="status-badge \${statusClass}">\${q.status.replace('_', ' ')}</span></td>
                         <td>\${formatMoney(parseFloat(q.total || 0))}</td>
                         <td style="font-size:0.8rem;white-space:nowrap;">
                             \${q.sentAt ? \`<div style="color:#4a5568;">📧 \${new Date(q.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
-                            \${q.viewCount > 0 ? \`<div style="color:#667eea;">👁 \${q.viewCount} view\${q.viewCount>1?'s':''} · \${new Date(q.firstViewedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : (q.sentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
+                            \${q.viewCount > 0 ? \`<div><button onclick="showQuoteViewLog('\${q.id}')" style="background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-size:0.8rem;">👁 \${q.viewCount} view\${q.viewCount>1?'s':''} · \${new Date(q.firstViewedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</button></div>\` : (q.sentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
                         </td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
@@ -5164,12 +5982,227 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')" title="Email quote to client">📧 Email</button>\` : ''}
                             \${(q.status === 'approved' || q.status === 'in_review') && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Convert to Job</button>\` : ''}
                             \${q.convertedToJobId ? \`<span style="color: #48bb78;">✓ Converted</span>\` : ''}
+                            <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)" title="Archive">📦 Archive</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </td>
                     </tr>\`;
                 }).join('') +
                 '</tbody></table>';
             }
+
+            // Archive section
+            if (archivedQuotes.length > 0) {
+                const archiveHtml = isMobile
+                    ? archivedQuotes.map(q => {
+                        const client = findClient(q.clientId);
+                        const statusClass = q.status === 'approved' ? 'status-completed' : q.status === 'rejected' ? 'status-bid_lost' : 'status-prospecting';
+                        return \`<div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem;margin-bottom:0.5rem;opacity:0.8;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <div style="font-weight:700;color:#4a5568;">\${maskName(client ? client.name : 'Unknown')} — \${q.title}</div>
+                                    <div style="font-size:0.8rem;color:#9ca3af;">#\${q.quoteNumber} · \${formatMoney(parseFloat(q.total||0))}</div>
+                                </div>
+                                <span class="status-badge \${statusClass}">\${q.status.replace('_',' ')}</span>
+                            </div>
+                            <div style="margin-top:0.5rem;display:flex;gap:0.5rem;">
+                                <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', false)">Unarchive</button>
+                                <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
+                            </div>
+                        </div>\`;
+                    }).join('')
+                    : '<table><thead><tr>' + sth('quotes','quoteNumber','Quote #') + sth('quotes','clientId','Client') + sth('quotes','title','Title') + sth('quotes','status','Status') + sth('quotes','total','Total') + '<th>Actions</th></tr></thead><tbody>' +
+                      archivedQuotes.map(q => {
+                          const client = findClient(q.clientId);
+                          const statusClass = q.status === 'approved' ? 'status-completed' : q.status === 'rejected' ? 'status-bid_lost' : 'status-prospecting';
+                          return \`<tr style="opacity:0.7;">
+                              <td>\${q.quoteNumber}</td>
+                              <td>\${maskName(client ? client.name : 'Unknown')}</td>
+                              <td>\${q.title}</td>
+                              <td><span class="status-badge \${statusClass}">\${q.status.replace('_',' ')}</span></td>
+                              <td>\${formatMoney(parseFloat(q.total||0))}</td>
+                              <td>
+                                  <button class="btn btn-secondary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
+                                  <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', false)">Unarchive</button>
+                                  <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
+                              </td>
+                          </tr>\`;
+                      }).join('') + '</tbody></table>';
+
+                container.innerHTML += \`
+                    <details style="margin-top:1.5rem;" open>
+                        <summary style="cursor:pointer;font-weight:700;color:#4a5568;padding:0.75rem;background:#f1f5f9;border-radius:8px;list-style:none;display:flex;align-items:center;gap:0.5rem;">
+                            <span>▶</span> Archive <span style="background:#9ca3af;color:white;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;">\${archivedQuotes.length}</span>
+                        </summary>
+                        <div style="margin-top:0.75rem;">\${archiveHtml}</div>
+                    </details>\`;
+
+                // Rotate arrow on open
+                container.querySelector('details').addEventListener('toggle', function() {
+                    this.querySelector('span').textContent = this.open ? '▼' : '▶';
+                });
+            }
+        }
+
+        async function showQuoteViewLog(quoteId) {
+            const content = document.getElementById('viewLogContent');
+            content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">Loading…</p>';
+            openModal('viewLogModal');
+            try {
+                const res = await fetch(\`/api/quotes/\${quoteId}/view-log\`);
+                const log = await res.json();
+                if (!Array.isArray(log) || log.length === 0) {
+                    content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">No detailed view history available.<br><small>Views recorded before this feature was added only show a count.</small></p>';
+                    return;
+                }
+                content.innerHTML = \`
+                    <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #e2e8f0;">
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">#</th>
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Date & Time</th>
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            \${log.map((v, i) => \`
+                                <tr style="border-bottom:1px solid #f0f0f0;">
+                                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${i + 1}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}</td>
+                                </tr>\`).join('')}
+                        </tbody>
+                    </table>\`;
+            } catch (e) {
+                content.innerHTML = '<p style="color:#e53e3e;text-align:center;padding:1rem;">Failed to load view history.</p>';
+            }
+        }
+
+        async function showInvoiceViewLog(jobId) {
+            const content = document.getElementById('viewLogContent');
+            content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">Loading…</p>';
+            openModal('viewLogModal');
+            try {
+                const res = await fetch(\`/api/jobs/\${jobId}/invoice-view-log\`);
+                const log = await res.json();
+                if (!Array.isArray(log) || log.length === 0) {
+                    content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">No detailed view history available.<br><small>Views recorded before this feature was added only show a count.</small></p>';
+                    return;
+                }
+                content.innerHTML = \`
+                    <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #e2e8f0;">
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">#</th>
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Date & Time</th>
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            \${log.map((v, i) => \`
+                                <tr style="border-bottom:1px solid #f0f0f0;">
+                                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${i + 1}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}</td>
+                                </tr>\`).join('')}
+                        </tbody>
+                    </table>\`;
+            } catch (e) {
+                content.innerHTML = '<p style="color:#e53e3e;text-align:center;padding:1rem;">Failed to load view history.</p>';
+            }
+        }
+
+        const PAY_ERROR_GUIDE = {
+            card_declined:            { label: 'Card Declined',          fix: 'Ask client to contact their bank or try a different card.' },
+            insufficient_funds:       { label: 'Insufficient Funds',     fix: 'Balance too low. Have them try a smaller deposit or a different card.' },
+            incorrect_number:         { label: 'Wrong Card Number',      fix: 'Card number was mistyped. Have client re-enter carefully.' },
+            invalid_number:           { label: 'Invalid Card Number',    fix: 'Card number failed the checksum. Client should double-check the number.' },
+            expired_card:             { label: 'Expired Card',           fix: 'Card is expired. Client needs to use a current card.' },
+            invalid_expiry_month:     { label: 'Bad Expiry Month',       fix: 'Expiry month entered incorrectly (use MM format, e.g. 03).' },
+            invalid_expiry_year:      { label: 'Bad Expiry Year',        fix: 'Expiry year entered incorrectly. Check the date on the front of the card.' },
+            incorrect_cvc:            { label: 'Wrong CVV',              fix: '3-digit code on the back (or 4-digit on front for Amex) was wrong.' },
+            do_not_honor:             { label: 'Do Not Honor',           fix: 'Bank declined with no specific reason. Client should call the number on the back of their card.' },
+            processing_error:         { label: 'Processing Error',       fix: 'Temporary issue with Clover. Have the client wait a minute and try again.' },
+            authentication_required:  { label: 'Auth Required',          fix: 'Bank requires additional verification. Client should try again or use a different card.' },
+            server_error:             { label: 'Server Error',           fix: 'Something went wrong on our end. Check Heroku logs or try again.' },
+            unknown:                  { label: 'Unknown Error',          fix: 'Review the full error message below. If recurring, check Clover dashboard.' }
+        };
+
+        async function showPayDiag(jobId) {
+            const content = document.getElementById('payDiagContent');
+            content.innerHTML = '<p style="color:#718096;text-align:center;padding:1.5rem;">Loading…</p>';
+            openModal('payDiagModal');
+            try {
+                const res = await fetch(\`/api/jobs/\${jobId}/payment-attempts\`);
+                const attempts = await res.json();
+
+                if (!attempts.length) {
+                    content.innerHTML = \`
+                        <p style="color:#718096;text-align:center;padding:1rem;margin-bottom:1.5rem;">No payment attempts recorded yet for this invoice.</p>
+                        \${troubleshootingGuide(null)}\`;
+                    return;
+                }
+
+                const lastFail = attempts.find(a => !a.success);
+                const rows = attempts.map((a, i) => {
+                    const icon = a.success ? '✅' : '❌';
+                    const guide = !a.success ? PAY_ERROR_GUIDE[a.errorCode] || PAY_ERROR_GUIDE.unknown : null;
+                    return \`<tr style="border-bottom:1px solid #f1f5f9;vertical-align:top;">
+                        <td style="padding:0.65rem 0.75rem;color:#94a3b8;font-size:0.8rem;">\${icon}</td>
+                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:#1e293b;">
+                            \${new Date(a.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}
+                        </td>
+                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:#1e293b;">$\${(a.amount||0).toFixed(2)}</td>
+                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;">
+                            \${a.success
+                                ? \`<span style="color:#16a34a;font-weight:600;">Approved</span>\${a.last4 ? \`<span style="color:#64748b;font-size:0.78rem;margin-left:0.4rem;">••••\${a.last4}</span>\` : ''}<br><span style="color:#94a3b8;font-family:monospace;font-size:0.75rem;">\${a.chargeId||''}</span>\`
+                                : \`<span style="color:#dc2626;font-weight:600;">\${guide ? guide.label : 'Failed'}</span><br><span style="color:#64748b;font-size:0.78rem;">\${a.error||''}</span>\`}
+                        </td>
+                        <td style="padding:0.65rem 0.75rem;font-family:monospace;font-size:0.75rem;color:#64748b;">\${a.ip||'—'}</td>
+                    </tr>\`;
+                }).join('');
+
+                content.innerHTML = \`
+                    <div style="overflow-x:auto;margin-bottom:1.5rem;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+                            <thead>
+                                <tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;">
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;width:2rem;"></th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;">Time</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;">Amount</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;">Result / Charge ID</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;">IP</th>
+                                </tr>
+                            </thead>
+                            <tbody>\${rows}</tbody>
+                        </table>
+                    </div>
+                    \${troubleshootingGuide(lastFail)}\`;
+            } catch (e) {
+                content.innerHTML = '<p style="color:#dc2626;text-align:center;padding:1rem;">Failed to load payment diagnostics.</p>';
+            }
+        }
+
+        function troubleshootingGuide(lastFail) {
+            const guide = lastFail ? (PAY_ERROR_GUIDE[lastFail.errorCode] || PAY_ERROR_GUIDE.unknown) : null;
+            const specific = guide ? \`
+                <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1rem;">
+                    <p style="font-weight:700;color:#854d0e;margin-bottom:0.25rem;">⚠️ Most recent failure: \${guide.label}</p>
+                    <p style="color:#92400e;font-size:0.875rem;">\${guide.fix}</p>
+                </div>\` : '';
+            return \`
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.1rem 1.25rem;">
+                    <p style="font-weight:700;color:#1e293b;margin-bottom:0.75rem;">🔧 Troubleshooting Checklist</p>
+                    \${specific}
+                    <ol style="margin:0 0 0 1.25rem;color:#475569;font-size:0.875rem;line-height:1.8;">
+                        <li>Have the client <strong>refresh the invoice page</strong> and try again.</li>
+                        <li>Confirm the card number, expiry, CVV, and ZIP are all correct.</li>
+                        <li>Ask if their bank has <strong>online or card-not-present purchases enabled</strong>.</li>
+                        <li>Try a <strong>different card</strong> (debit vs credit, different issuer).</li>
+                        <li>Check that the <strong>payment amount isn't over the balance</strong> owed.</li>
+                        <li>If repeated failures, have them <strong>call the number on the back of their card</strong>.</li>
+                        <li>As a last resort, collect payment <strong>in person or by phone</strong> using your Clover device.</li>
+                    </ol>
+                </div>\`;
         }
 
         function filterQuotes() {
@@ -5547,12 +6580,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const clientFilter = !isAdmin ? '' : document.getElementById('filter-client').value;
             const assignedFilter = document.getElementById('filter-assigned').value;
 
-            const filteredJobs = getFilteredJobs(statusFilter, clientFilter, assignedFilter);
+            let filteredJobs = getFilteredJobs(statusFilter, clientFilter, assignedFilter);
 
             if (filteredJobs.length === 0) {
                 renderEmptyState(container, 'No jobs match filters', 'Try adjusting your filters');
                 return;
             }
+
+            filteredJobs = applySortState(filteredJobs, 'jobs', { date: 'scheduledDate', client: 'clientId', title: 'title', status: 'status' });
 
             const isMobile = window.innerWidth < 768;
 
@@ -5584,7 +6619,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
                             <div>
-                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
                                 <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${j.title}</div>
                             </div>
                             <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace(/_/g, ' ')}</span>
@@ -5601,12 +6636,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>\` : ''}
                         \${isAdmin ? \`<div style="font-size:0.78rem;margin-bottom:0.5rem;">
                             \${j.invoiceSentAt ? \`<span style="color:#4a5568;">📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>\` : ''}
-                            \${j.invoiceViewCount > 0 ? \` · <span style="color:#667eea;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</span>\` : (j.invoiceSentAt ? \` · <span style="color:#9ca3af;">Not opened</span>\` : '')}
+                            \${j.invoiceViewCount > 0 ? \` · <button onclick="showInvoiceViewLog('\${j.id}')" style="background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-size:0.78rem;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</button>\` : (j.invoiceSentAt ? \` · <span style="color:#9ca3af;">Not opened</span>\` : '')}
                         </div>\` : ''}
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
                             \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')">📧 Email</button>\` : ''}
+                            \${isAdmin && !isPaidInFull && client?.cloverCustomerId ? \`<button class="btn btn-success btn-small" onclick="openChargeCardModal('\${j.id}', '\${client.cloverCardLast4 || ''}', '\${client.cloverCardBrand || ''}', \${j.totalWithTax || j.total || 0})" title="Charge saved card">💳 ••••\${client.cloverCardLast4 || '?'}</button>\` : ''}
+                            \${isAdmin && !isPaidInFull ? \`<button class="btn btn-secondary btn-small" onclick="openEnterCardModal('\${j.id}')" title="Enter new card">💳 Enter Card</button>\` : ''}
+                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="showPayDiag('\${j.id}')" title="Payment diagnostics">⚡ Pay Log</button>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
                         </div>
                     </div>\`;
@@ -5614,18 +6652,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
             const moneyColumn = isAdmin ? '<th>Billed / Paid / Owed</th>' : '';
             const activityColumn = isAdmin ? '<th>Activity</th>' : '';
-            container.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Assigned To</th><th>Status</th>' + moneyColumn + activityColumn + '<th>Actions</th></tr></thead><tbody>' +
+            container.innerHTML = '<table><thead><tr>' + sth('jobs','scheduledDate','Date') + sth('jobs','clientId','Client') + sth('jobs','title','Job') + '<th>Assigned To</th>' + sth('jobs','status','Status') + moneyColumn + activityColumn + '<th>Actions</th></tr></thead><tbody>' +
                 filteredJobs.map(j => {
                     const client = findClient(j.clientId);
                     const assignedNames = getAssignedNames(j.assignedTo);
 
+                    const _total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
+                    const _paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
+                    const isPaidInFull = Math.abs(_total - _paid) < 0.01;
                     let moneyCell = '';
                     let activityCell = '';
                     if (isAdmin) {
-                        const total = j.totalWithTax ? j.totalWithTax : (j.total ? calculateTotalWithTax(parseFloat(j.total)) : 0);
-                        const paid = j.totalPaid ? parseFloat(j.totalPaid) : 0;
+                        const total = _total;
+                        const paid = _paid;
                         const owed = total - paid;
-                        const isPaidInFull = Math.abs(owed) < 0.01;
                         const owedDisplay = isPaidInFull ? 0 : owed;
                         const paymentStatus = isPaidInFull ? '✓' : owed < total ? '◐' : '';
                         moneyCell = \`<td>
@@ -5635,13 +6675,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>\`;
                         activityCell = \`<td style="font-size:0.8rem;white-space:nowrap;">
                             \${j.invoiceSentAt ? \`<div style="color:#4a5568;">📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
-                            \${j.invoiceViewCount > 0 ? \`<div style="color:#667eea;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''} · \${new Date(j.invoiceFirstViewedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : (j.invoiceSentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
+                            \${j.invoiceViewCount > 0 ? \`<div><button onclick="showInvoiceViewLog('\${j.id}')" style="background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-size:0.8rem;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''} · \${new Date(j.invoiceFirstViewedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</button></div>\` : (j.invoiceSentAt ? \`<div style="color:#9ca3af;">Not opened</div>\` : '')}
                         </td>\`;
                     }
 
                     return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
-                        <td>\${client ? client.name : 'Unknown'}</td>
+                        <td>\${maskName(client ? client.name : 'Unknown')}</td>
                         <td><strong>\${j.title}</strong><br><small>\${j.description || ''}</small></td>
                         <td>\${assignedNames}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
@@ -5651,6 +6691,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
                             \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')" title="Email invoice to client">📧 Email</button>\` : ''}
+                            \${isAdmin && !isPaidInFull ? \`<button class="btn btn-secondary btn-small" onclick="openDepositModal('\${j.id}', \${parseFloat(j.total)||0})" title="Request deposit">💳 Deposit\${j.deposit ? (j.deposit.status==='paid' ? ' ✅' : ' ⏳') : ''}</button>\` : ''}
+                            \${isAdmin && !isPaidInFull && client?.cloverCustomerId ? \`<button class="btn btn-success btn-small" onclick="openChargeCardModal('\${j.id}', '\${client.cloverCardLast4 || ''}', '\${client.cloverCardBrand || ''}', \${j.totalWithTax || j.total || 0})" title="Charge saved card ••••\${client.cloverCardLast4 || ''}">💳 ••••\${client.cloverCardLast4 || '?'}</button>\` : ''}
+                            \${isAdmin && !isPaidInFull ? \`<button class="btn btn-secondary btn-small" onclick="openEnterCardModal('\${j.id}')" title="Enter new card">💳 Enter Card</button>\` : ''}
+                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="showPayDiag('\${j.id}')" title="Payment diagnostics">⚡ Pay Log</button>\` : ''}
                             \${isAdmin && j.calendarEventId ? \`<button class="btn btn-secondary btn-small" onclick="window.open('\${j.calendarEventLink}', '_blank')" title="View calendar event">📅 View</button>\` : ''}
                             \${isAdmin && !j.calendarEventId && j.scheduledDate && j.status === 'scheduled' ? \`<button class="btn btn-secondary btn-small" onclick="createCalendarEvent('\${j.id}')" title="Add to Google Calendar">📅 Add</button>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
@@ -5662,14 +6706,64 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function filterJobs() {
+            renderStatusPills();
             renderJobsTable();
         }
 
+        function setStatusPill(value) {
+            document.getElementById('filter-status').value = value;
+            filterJobs();
+        }
+
+        function renderStatusPills() {
+            const container = document.getElementById('job-status-pills');
+            if (!container) return;
+            const current = document.getElementById('filter-status').value;
+
+            const today = new Date();
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay()); // Sunday
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 7);
+            const weekStartStr = weekStart.toISOString().slice(0, 10);
+            const weekEndStr = weekEnd.toISOString().slice(0, 10);
+
+            const counts = {
+                ACTIVE_WORK: jobs.filter(j => j.status !== 'completed' && j.status !== 'invoiced' && j.status !== 'bid_lost').length,
+                prospecting: jobs.filter(j => j.status === 'prospecting').length,
+                to_be_scheduled: jobs.filter(j => j.status === 'to_be_scheduled').length,
+                scheduled: jobs.filter(j => j.status === 'scheduled').length,
+                in_progress: jobs.filter(j => j.status === 'in_progress').length,
+                completed: jobs.filter(j => j.status === 'completed').length,
+                invoiced: jobs.filter(j => j.status === 'invoiced').length,
+                bid_lost: jobs.filter(j => j.status === 'bid_lost').length,
+                COMPLETED_WEEK: jobs.filter(j => (j.status === 'completed' || j.status === 'invoiced') && j.scheduledDate >= weekStartStr && j.scheduledDate < weekEndStr).length
+            };
+
+            const pills = [
+                { value: 'ACTIVE_WORK', label: '🔥 Active Work' },
+                { value: 'prospecting', label: 'Prospecting' },
+                { value: 'to_be_scheduled', label: 'To Be Scheduled' },
+                { value: 'scheduled', label: 'Scheduled' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'invoiced', label: 'Invoiced' },
+                { value: 'bid_lost', label: 'Bid Lost' },
+                { value: 'COMPLETED_WEEK', label: '✅ Done This Week' }
+            ];
+
+            container.innerHTML = pills.map(p => \`
+                <button class="status-pill\${current === p.value ? ' active' : ''}" onclick="setStatusPill('\${p.value}')">
+                    \${p.label}<span class="pill-count">\${counts[p.value] ?? 0}</span>
+                </button>\`).join('');
+        }
+
         function clearJobFilters() {
-            document.getElementById('filter-status').value = '';
+            document.getElementById('filter-status').value = 'ACTIVE_WORK';
             document.getElementById('filter-client').value = '';
             document.getElementById('filter-assigned').value = '';
-            renderJobsTable();
+            filterJobs();
         }
 
         async function createCalendarEvent(jobId) {
@@ -5697,6 +6791,550 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        // ── Vendors ─────────────────────────────────────────────────────────────
+        let allVendors = [];
+
+        async function loadVendors() {
+            const resp = await fetch('/api/vendors');
+            allVendors = await resp.json();
+            renderVendors();
+        }
+
+        function renderVendors() {
+            const search = (document.getElementById('vendor-search')?.value || '').toLowerCase();
+            const cat = document.getElementById('vendor-category-filter')?.value || '';
+            let list = allVendors.filter(v => {
+                const matchesSearch = !search || [v.name, v.category, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(search);
+                const matchesCat = !cat || v.category === cat;
+                return matchesSearch && matchesCat;
+            });
+
+            const container = document.getElementById('vendors-list');
+            if (list.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No vendors yet. Add your first supplier.</p></div>';
+                return;
+            }
+
+            const categoryLabels = { lumber:'Lumber & Building Materials', electrical:'Electrical', plumbing:'Plumbing', hvac:'HVAC', hardware:'Hardware & Fasteners', paint:'Paint & Finishes', flooring:'Flooring', roofing:'Roofing', tools:'Tools & Equipment', landscaping:'Landscaping & Outdoor', subcontractor:'Subcontractor', other:'Other' };
+
+            list = applySortState(list, 'vendors', { name: 'name', category: 'category', phone: 'phone', email: 'email', contact: 'contact', accountNumber: 'accountNumber' });
+
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                container.innerHTML = list.map(v => '<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">' +
+                    '<div><div style="font-size:1.1rem;font-weight:700;color:#2d3748;">' + v.name + '</div>' +
+                    (v.category ? '<div style="color:#667eea;font-size:0.85rem;margin-top:0.1rem;">' + (categoryLabels[v.category] || v.category) + '</div>' : '') +
+                    '</div></div>' +
+                    (v.phone ? '<div style="color:#4a5568;font-size:0.9rem;">📞 ' + formatPhoneNumber(v.phone) + '</div>' : '') +
+                    (v.email ? '<div style="color:#4a5568;font-size:0.9rem;">✉️ ' + v.email + '</div>' : '') +
+                    (v.contact ? '<div style="color:#718096;font-size:0.85rem;">👤 ' + v.contact + '</div>' : '') +
+                    (v.accountNumber ? '<div style="color:#718096;font-size:0.85rem;">Account: ' + v.accountNumber + '</div>' : '') +
+                    (v.notes ? '<div style="color:#718096;font-size:0.85rem;margin-top:0.4rem;font-style:italic;">' + v.notes.substring(0, 80) + (v.notes.length > 80 ? '...' : '') + '</div>' : '') +
+                    '<div style="display:flex;gap:0.5rem;margin-top:0.75rem;">' +
+                    (v.website ? '<a href="' + (v.website.startsWith('http') ? v.website : 'https://' + v.website) + '" target="_blank" class="btn btn-secondary btn-small">🌐 Website</a>' : '') +
+                    '<button class="btn btn-secondary btn-small" onclick="openVendorModal(\'' + v.id + '\')">Edit</button>' +
+                    '<button class="btn btn-danger btn-small" onclick="deleteVendor(\'' + v.id + '\')">Delete</button>' +
+                    '</div></div>'
+                ).join('');
+            } else {
+                container.innerHTML = '<table><thead><tr>' + sth('vendors','name','Name') + sth('vendors','category','Category') + sth('vendors','phone','Phone') + sth('vendors','email','Email') + sth('vendors','contact','Contact') + sth('vendors','accountNumber','Account #') + '<th>Notes</th><th>Actions</th></tr></thead><tbody>' +
+                list.map(v => '<tr>' +
+                    '<td><strong>' + v.name + '</strong>' + (v.website ? ' <a href="' + (v.website.startsWith('http') ? v.website : 'https://' + v.website) + '" target="_blank" style="color:#667eea;font-size:0.8rem;">🌐</a>' : '') + '</td>' +
+                    '<td>' + (categoryLabels[v.category] || v.category || '-') + '</td>' +
+                    '<td>' + (formatPhoneNumber(v.phone) || '-') + '</td>' +
+                    '<td>' + (v.email ? '<a href="mailto:' + v.email + '" style="color:#667eea;">' + v.email + '</a>' : '-') + '</td>' +
+                    '<td>' + (v.contact || '-') + '</td>' +
+                    '<td>' + (v.accountNumber || '-') + '</td>' +
+                    '<td style="max-width:160px;color:#718096;font-size:0.85rem;">' + (v.notes ? v.notes.substring(0, 60) + (v.notes.length > 60 ? '...' : '') : '-') + '</td>' +
+                    '<td>' +
+                    '<button class="btn btn-secondary btn-small" onclick="openVendorModal(\'' + v.id + '\')">Edit</button> ' +
+                    '<button class="btn btn-danger btn-small" onclick="deleteVendor(\'' + v.id + '\')">Delete</button>' +
+                    '</td></tr>'
+                ).join('') + '</tbody></table>';
+            }
+        }
+
+        function filterVendors() { renderVendors(); }
+
+        function openVendorModal(vendorId) {
+            document.getElementById('vendorId').value = '';
+            document.getElementById('vendorName').value = '';
+            document.getElementById('vendorCategory').value = '';
+            document.getElementById('vendorAccountNumber').value = '';
+            document.getElementById('vendorPhone').value = '';
+            document.getElementById('vendorEmail').value = '';
+            document.getElementById('vendorWebsite').value = '';
+            document.getElementById('vendorContact').value = '';
+            document.getElementById('vendorAddress').value = '';
+            document.getElementById('vendorNotes').value = '';
+
+            if (vendorId) {
+                const v = allVendors.find(x => x.id === vendorId);
+                if (v) {
+                    document.getElementById('vendorModalTitle').textContent = 'Edit Vendor';
+                    document.getElementById('vendorId').value = v.id;
+                    document.getElementById('vendorName').value = v.name || '';
+                    document.getElementById('vendorCategory').value = v.category || '';
+                    document.getElementById('vendorAccountNumber').value = v.accountNumber || '';
+                    document.getElementById('vendorPhone').value = v.phone || '';
+                    document.getElementById('vendorEmail').value = v.email || '';
+                    document.getElementById('vendorWebsite').value = v.website || '';
+                    document.getElementById('vendorContact').value = v.contact || '';
+                    document.getElementById('vendorAddress').value = v.address || '';
+                    document.getElementById('vendorNotes').value = v.notes || '';
+                }
+            } else {
+                document.getElementById('vendorModalTitle').textContent = 'Add Vendor';
+            }
+            openModal('vendorModal');
+        }
+
+        async function saveVendor() {
+            const name = document.getElementById('vendorName').value.trim();
+            if (!name) { alert('Vendor name is required'); return; }
+
+            const vendor = {
+                id: document.getElementById('vendorId').value || undefined,
+                name,
+                category: document.getElementById('vendorCategory').value,
+                accountNumber: document.getElementById('vendorAccountNumber').value.trim(),
+                phone: document.getElementById('vendorPhone').value.trim(),
+                email: document.getElementById('vendorEmail').value.trim(),
+                website: document.getElementById('vendorWebsite').value.trim(),
+                contact: document.getElementById('vendorContact').value.trim(),
+                address: document.getElementById('vendorAddress').value.trim(),
+                notes: document.getElementById('vendorNotes').value.trim()
+            };
+
+            const resp = await fetch('/api/vendors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(vendor)
+            });
+
+            if (resp.ok) {
+                closeModal('vendorModal');
+                loadVendors();
+            } else {
+                const d = await resp.json();
+                alert('Failed to save: ' + (d.error || 'Unknown error'));
+            }
+        }
+
+        async function deleteVendor(vendorId) {
+            const v = allVendors.find(x => x.id === vendorId);
+            if (!confirm('Delete ' + (v?.name || 'this vendor') + '?')) return;
+            await fetch('/api/vendors/' + vendorId, { method: 'DELETE' });
+            loadVendors();
+        }
+
+        // ── Portfolio ─────────────────────────────────────────────────────────────
+
+        let allPortfolioItems = [];
+        let _portfolioPhotoData = null;
+
+        async function loadPortfolio() {
+            const res = await fetch('/api/portfolio');
+            allPortfolioItems = await res.json();
+            renderPortfolio();
+        }
+
+        function filterPortfolio() { renderPortfolio(); }
+
+        function renderPortfolio() {
+            const grid = document.getElementById('portfolio-grid');
+            const search = (document.getElementById('portfolio-search')?.value || '').toLowerCase();
+            const cat = document.getElementById('portfolio-category-filter')?.value || '';
+
+            let items = allPortfolioItems;
+            if (search) items = items.filter(i => (i.title + i.caption + i.category).toLowerCase().includes(search));
+            if (cat) items = items.filter(i => i.category === cat);
+
+            if (items.length === 0) {
+                grid.innerHTML = '<p style="color:#718096;grid-column:1/-1;padding:1rem 0;">No portfolio items yet. Click "+ Add Work" to add your first.</p>';
+                return;
+            }
+
+            const catLabel = { bathroom:'Bathroom', kitchen:'Kitchen', deck:'Deck / Patio', flooring:'Flooring',
+                painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
+                exterior:'Exterior', general:'General' };
+
+            grid.innerHTML = items.map(item => \`
+                <div style="background:white;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                    <div style="position:relative;padding-top:66%;background:#f1f5f9;overflow:hidden;">
+                        <img src="\${item.photoUrl}" alt="\${item.title}" loading="lazy"
+                            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;cursor:pointer;"
+                            onclick="openLightbox(this.src)">
+                    </div>
+                    <div style="padding:0.9rem 1rem;">
+                        \${item.category ? \`<span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">\${catLabel[item.category] || item.category}</span>\` : ''}
+                        \${item.title ? \`<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;font-size:1rem;">\${item.title}</div>\` : ''}
+                        \${item.caption ? \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.4;">\${item.caption}</div>\` : ''}
+                        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
+                            <button onclick="openPortfolioModal('\${item.id}')" style="padding:0.35rem 0.8rem;background:#ede9fe;color:#6d28d9;border:none;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Edit</button>
+                            <button onclick="deletePortfolioItem('\${item.id}')" style="padding:0.35rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.82rem;cursor:pointer;">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            \`).join('');
+        }
+
+        function openPortfolioModal(id) {
+            _portfolioPhotoData = null;
+            document.getElementById('portfolioEditId').value = id || '';
+            document.getElementById('portfolioModalTitle').textContent = id ? 'Edit Item' : 'Add Work';
+            document.getElementById('portfolio-upload-preview').style.display = 'none';
+            document.getElementById('portfolio-upload-prompt').style.display = '';
+
+            if (id) {
+                const item = allPortfolioItems.find(i => i.id === id);
+                if (item) {
+                    document.getElementById('portfolioTitle').value = item.title;
+                    document.getElementById('portfolioCategory').value = item.category;
+                    document.getElementById('portfolioCaption').value = item.caption;
+                    if (item.photoUrl) {
+                        document.getElementById('portfolio-preview-img').src = item.photoUrl;
+                        document.getElementById('portfolio-upload-preview').style.display = '';
+                        document.getElementById('portfolio-upload-prompt').style.display = 'none';
+                    }
+                }
+            } else {
+                document.getElementById('portfolioTitle').value = '';
+                document.getElementById('portfolioCategory').value = '';
+                document.getElementById('portfolioCaption').value = '';
+            }
+            openModal('portfolioModal');
+        }
+
+        function closePortfolioModal() { closeModal('portfolioModal'); }
+
+        async function compressPortfolioImage(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    // Scale down more aggressively for large files
+                    const MAX = file.size > 5 * 1024 * 1024 ? 900 : 1200;
+                    let w = img.width, h = img.height;
+                    if (w > MAX || h > MAX) {
+                        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                        else { w = Math.round(w * MAX / h); h = MAX; }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+                    // Step quality down until under 800KB
+                    const tryQuality = (q) => {
+                        canvas.toBlob((blob) => {
+                            if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
+                            if (blob.size > 800 * 1024 && q > 0.4) {
+                                tryQuality(Math.round((q - 0.1) * 10) / 10);
+                            } else {
+                                const name = file.name.replace(/\.[^.]+$/, '.jpg');
+                                resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+                            }
+                        }, 'image/jpeg', q);
+                    };
+                    tryQuality(0.82);
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+                img.src = url;
+            });
+        }
+
+        async function handlePortfolioPhoto(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const zone = document.getElementById('portfolio-upload-zone');
+            const prompt = document.getElementById('portfolio-upload-prompt');
+            zone.style.opacity = '0.6';
+            prompt.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;">⏳ Compressing...</div>';
+            try {
+                const compressed = await compressPortfolioImage(file);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    _portfolioPhotoData = { dataUrl: e.target.result, name: compressed.name, type: compressed.type };
+                    document.getElementById('portfolio-preview-img').src = e.target.result;
+                    document.getElementById('portfolio-upload-preview').style.display = '';
+                    prompt.style.display = 'none';
+                };
+                reader.readAsDataURL(compressed);
+            } catch (err) {
+                console.error('Compression failed:', err);
+                prompt.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;">⚠️ Could not process image. Try a different file.</div>';
+            } finally {
+                zone.style.opacity = '1';
+            }
+        }
+
+        async function savePortfolioItem() {
+            const id = document.getElementById('portfolioEditId').value;
+            const title = document.getElementById('portfolioTitle').value.trim();
+            const category = document.getElementById('portfolioCategory').value;
+            const caption = document.getElementById('portfolioCaption').value.trim();
+
+            if (!id && !_portfolioPhotoData) { alert('Please select a photo.'); return; }
+
+            const saveBtn = document.querySelector('#portfolioModal .btn-primary');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            try {
+                if (id) {
+                    const body = { title, category, caption };
+                    if (_portfolioPhotoData) {
+                        body.fileData = _portfolioPhotoData.dataUrl;
+                        body.fileName = _portfolioPhotoData.name;
+                        body.fileType = _portfolioPhotoData.type;
+                    }
+                    if (_portfolioPhotoData) {
+                        await fetch('/api/portfolio/' + id, { method: 'DELETE' });
+                        const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...body }) });
+                        if (!res.ok) throw new Error('Save failed');
+                    } else {
+                        const res = await fetch('/api/portfolio/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                        if (!res.ok) throw new Error('Save failed');
+                    }
+                } else {
+                    const body = { title, category, caption, fileData: _portfolioPhotoData.dataUrl, fileName: _portfolioPhotoData.name, fileType: _portfolioPhotoData.type };
+                    const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                    if (!res.ok) throw new Error('Save failed');
+                }
+                closePortfolioModal();
+                loadPortfolio();
+            } catch (err) {
+                alert('Failed to save: ' + err.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save';
+            }
+        }
+
+        async function deletePortfolioItem(id) {
+            if (!confirm('Remove this item from your portfolio?')) return;
+            await fetch('/api/portfolio/' + id, { method: 'DELETE' });
+            loadPortfolio();
+        }
+
+        // ── End Portfolio ─────────────────────────────────────────────────────────
+
+        let _depositJobId = null;
+        let _depositJobTotal = 0;
+
+        let _chargeCardJobId = null;
+
+        function openChargeCardModal(jobId, last4, brand, jobTotal) {
+            _chargeCardJobId = jobId;
+            const cardLabel = (brand ? brand + ' ' : '') + (last4 ? '••••' + last4 : 'saved card');
+            document.getElementById('chargeCardInfo').textContent = 'Card: ' + cardLabel;
+            const job = jobs.find(j => j.id === jobId);
+            const total = parseFloat(job?.totalWithTax || job?.total) || 0;
+            const paid = parseFloat(job?.totalPaid) || 0;
+            const balance = Math.max(0, total - paid);
+            document.getElementById('chargeCardAmount').value = balance > 0 ? balance.toFixed(2) : (jobTotal || '').toString();
+            openModal('chargeCardModal');
+        }
+
+        async function submitChargeCard() {
+            const amount = parseFloat(document.getElementById('chargeCardAmount').value);
+            if (!amount || amount < 0.50) { alert('Please enter a valid amount (minimum $0.50)'); return; }
+
+            const job = jobs.find(j => j.id === _chargeCardJobId);
+            const client = clients.find(c => String(c.id) === String(job?.clientId));
+            const cardLabel = (client?.cloverCardBrand ? client.cloverCardBrand + ' ' : '') + (client?.cloverCardLast4 ? '••••' + client.cloverCardLast4 : 'saved card');
+
+            if (!confirm('Charge ' + cardLabel + ' $' + amount.toFixed(2) + ' for "' + (job?.title || 'this job') + '"?')) return;
+
+            const btn = document.querySelector('#chargeCardModal .btn-primary');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const resp = await fetch('/api/jobs/' + _chargeCardJobId + '/charge-saved-card', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                    alert('Charge failed: ' + (data.error || 'Unknown error'));
+                    btn.disabled = false;
+                    btn.textContent = 'Charge Card';
+                    return;
+                }
+                closeModal('chargeCardModal');
+                alert('✅ $' + amount.toFixed(2) + ' charged successfully!');
+                loadJobs();
+            } catch (e) {
+                alert('Error: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = 'Charge Card';
+            }
+        }
+
+        let _enterCardJobId = null;
+        let _adminCloverInst = null;
+        let _adminCloverMounted = false;
+        let _cloverConfig = null;
+
+        async function openEnterCardModal(jobId) {
+            _enterCardJobId = jobId;
+            const job = jobs.find(j => j.id === jobId);
+            const client = clients.find(c => String(c.id) === String(job?.clientId));
+            document.getElementById('enterCardJobLabel').textContent = (client?.name || 'Client') + ' — ' + (job?.title || '');
+            const total = parseFloat(job?.totalWithTax || job?.total) || 0;
+            const paid = parseFloat(job?.totalPaid) || 0;
+            const balance = Math.max(0, total - paid);
+            document.getElementById('enterCardAmount').value = balance > 0 ? balance.toFixed(2) : '';
+            document.getElementById('enterCardError').style.display = 'none';
+            document.getElementById('enterCardSubmitBtn').disabled = false;
+            document.getElementById('enterCardSubmitBtn').textContent = 'Charge Card';
+
+            openModal('enterCardModal');
+
+            if (!_adminCloverMounted) {
+                try {
+                    if (!_cloverConfig) {
+                        const cfgResp = await fetch('/api/clover-config');
+                        _cloverConfig = await cfgResp.json();
+                    }
+                    if (!_cloverConfig.publicKey || !_cloverConfig.merchantId) {
+                        throw new Error('Clover keys not configured on server.');
+                    }
+                    if (typeof Clover === 'undefined') {
+                        await new Promise((resolve, reject) => {
+                            const s = document.createElement('script');
+                            s.src = 'https://checkout.clover.com/sdk.js';
+                            s.onload = resolve;
+                            s.onerror = () => reject(new Error('Failed to load Clover SDK'));
+                            document.head.appendChild(s);
+                        });
+                    }
+                    _adminCloverInst = new Clover(_cloverConfig.publicKey, { merchantId: _cloverConfig.merchantId });
+                    const elems = _adminCloverInst.elements();
+                    elems.create('CARD_NUMBER').mount('#admin-card-number');
+                    elems.create('CARD_DATE').mount('#admin-card-date');
+                    elems.create('CARD_CVV').mount('#admin-card-cvv');
+                    elems.create('CARD_POSTAL_CODE').mount('#admin-card-zip');
+                    _adminCloverMounted = true;
+                } catch(e) {
+                    console.error('Clover init error:', e);
+                    closeModal('enterCardModal');
+                    alert('Payment module failed to load: ' + e.message);
+                    return;
+                }
+            }
+        }
+
+        async function submitEnterCard() {
+            const btn = document.getElementById('enterCardSubmitBtn');
+            const errDiv = document.getElementById('enterCardError');
+            const amount = parseFloat(document.getElementById('enterCardAmount').value);
+            const saveCard = document.getElementById('enterCardSave').checked;
+
+            errDiv.style.display = 'none';
+            if (!amount || amount < 0.50) { errDiv.textContent = 'Please enter a valid amount (minimum $0.50)'; errDiv.style.display = 'block'; return; }
+            if (!_adminCloverInst) { errDiv.textContent = 'Payment module not loaded. Please refresh.'; errDiv.style.display = 'block'; return; }
+
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const result = await _adminCloverInst.createToken();
+                if (!result?.token) {
+                    const msg = result?.errors ? Object.values(result.errors).join(' ') : 'Card tokenization failed. Check card details.';
+                    errDiv.textContent = msg;
+                    errDiv.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Charge Card';
+                    return;
+                }
+
+                const resp = await fetch('/api/jobs/' + _enterCardJobId + '/manual-charge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: result.token, amount, saveCard })
+                });
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    errDiv.textContent = data.error || 'Charge failed.';
+                    errDiv.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Charge Card';
+                    return;
+                }
+
+                // Reset Clover fields for next use
+                _adminCloverMounted = false;
+                _adminCloverInst = null;
+                ['admin-card-number','admin-card-date','admin-card-cvv','admin-card-zip'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = '';
+                });
+
+                closeModal('enterCardModal');
+                const savedMsg = data.cardSaved ? ' Card saved for future use.' : '';
+                alert('✅ $' + amount.toFixed(2) + ' charged successfully!' + savedMsg);
+                loadJobs();
+                if (data.cardSaved) loadClients();
+            } catch(e) {
+                errDiv.textContent = 'Connection error. Please try again.';
+                errDiv.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Charge Card';
+            }
+        }
+
+        function openDepositModal(jobId, jobTotal) {
+            _depositJobId = jobId;
+            _depositJobTotal = jobTotal;
+            const defaultAmt = (jobTotal * 0.5).toFixed(2);
+            document.getElementById('depositAmount').value = defaultAmt;
+            updateDepositPctLabel();
+            openModal('depositModal');
+        }
+
+        function setDepositPct(pct) {
+            document.getElementById('depositAmount').value = (_depositJobTotal * pct / 100).toFixed(2);
+            updateDepositPctLabel();
+        }
+
+        function updateDepositPctLabel() {
+            const amt = parseFloat(document.getElementById('depositAmount').value) || 0;
+            const pct = _depositJobTotal > 0 ? ((amt / _depositJobTotal) * 100).toFixed(0) : 0;
+            document.getElementById('depositPctLabel').textContent = _depositJobTotal > 0 ? pct + '% of $' + _depositJobTotal.toFixed(2) + ' total' : '';
+        }
+
+        document.getElementById('depositAmount')?.addEventListener('input', updateDepositPctLabel);
+
+        async function sendDepositRequest() {
+            const amount = parseFloat(document.getElementById('depositAmount').value);
+            if (!amount || amount <= 0) { alert('Please enter a valid deposit amount'); return; }
+
+            const job = jobs.find(j => j.id === _depositJobId);
+            const client = clients.find(c => String(c.id) === String(job?.clientId));
+            if (!confirm('Send a $' + amount.toFixed(2) + ' deposit request to ' + (client?.name || 'client') + '?')) return;
+
+            try {
+                const resp = await fetch('/api/jobs/' + _depositJobId + '/send-deposit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await resp.json();
+                if (!resp.ok) { alert('Failed: ' + (data.error || 'Unknown error')); return; }
+                closeModal('depositModal');
+                alert('✅ Deposit request sent!');
+                loadJobs();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
         async function emailInvoice(jobId) {
             const job = jobs.find(j => j.id == jobId || j._id == jobId);
             if (!job) {
@@ -5705,12 +7343,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             const client = findClient(job.clientId);
-            if (!client || !client.email) {
-                alert('Cannot send invoice: Client has no email address.\n\nPlease add an email to the client profile first.');
+            if (!client) {
+                alert('Cannot send invoice: Client not found.');
                 return;
             }
 
-            if (!confirm(\`Send invoice to ${client.name} at ${client.email}?\`)) {
+            // Resolve invoice email — use location contactEmail if set, else client email
+            let invoiceEmail = client.email;
+            if (job.serviceLocationId && client.serviceLocations) {
+                const loc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId));
+                if (loc && loc.contactEmail) invoiceEmail = loc.contactEmail;
+            }
+
+            if (!invoiceEmail) {
+                alert('Cannot send invoice: No email address found for this client or location.\n\nAdd an email to the client or set a Contact Email on the service location.');
+                return;
+            }
+
+            if (!confirm(\`Send invoice to \${client.name} at \${invoiceEmail}?\`)) {
                 return;
             }
 
@@ -5724,12 +7374,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const data = await response.json();
 
                 if (response.ok) {
-                    alert(\`✅ Invoice emailed successfully to ${client.email}!\`);
+                    alert(\`✅ Invoice emailed successfully to \${invoiceEmail}!\`);
                 } else {
-                    alert(\`❌ Failed to send invoice email:\n${data.error || 'Unknown error'}\n\nMake sure email is configured in Settings > Email Settings.\`);
+                    alert(\`❌ Failed to send invoice email:\n\${data.error || 'Unknown error'}\n\nMake sure email is configured in Settings > Email Settings.\`);
                 }
             } catch (error) {
-                alert(\`❌ Error sending invoice email:\n${error.message}\`);
+                alert(\`❌ Error sending invoice email:\n\${error.message}\`);
             }
         }
 
@@ -5760,7 +7410,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return [
                     j.scheduledDate || '',
                     j.scheduledTime || '',
-                    client ? client.name : 'Unknown',
+                    maskName(client ? client.name : 'Unknown'),
                     j.title || '',
                     (j.description || '').replace(/"/g, '""'),
                     getAssignedNames(j.assignedTo),
@@ -5772,20 +7422,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
         }
 
-        async function loadTeam() {
-            const response = await fetch('/api/team');
-            team = await response.json();
-
+        function renderTeam() {
             const container = document.getElementById('team-list');
             if (team.length === 0) {
                 renderEmptyState(container, 'No team members yet', 'Add your first team member');
                 return;
             }
 
+            const sorted = applySortState(team, 'team', { name: 'name', role: 'role', phone: 'phone', email: 'email', city: 'city', status: 'active' });
+
             const isMobile = window.innerWidth < 768;
 
             if (isMobile) {
-                container.innerHTML = team.map(t => {
+                container.innerHTML = sorted.map(t => {
                     const cityState = [t.city, t.state].filter(x => x).join(', ');
                     return \`<div class="team-card" data-search="\${t.name.toLowerCase()} \${(t.role||'').toLowerCase()} \${(t.email||'').toLowerCase()}" style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;" onclick="viewTeamDetail('\${t.id}')">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
@@ -5805,8 +7454,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
                 }).join('');
             } else {
-                container.innerHTML = '<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>City, State</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
-                team.map(t => {
+                container.innerHTML = '<table><thead><tr>' + sth('team','name','Name') + sth('team','role','Role') + sth('team','phone','Phone') + sth('team','email','Email') + sth('team','city','City, State') + sth('team','status','Status') + '<th>Actions</th></tr></thead><tbody>' +
+                sorted.map(t => {
                     const cityState = [t.city, t.state].filter(x => x).join(', ') || '-';
                     return \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
                         <td><strong>\${t.name}</strong></td>
@@ -5823,6 +7472,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }).join('') +
                 '</tbody></table>';
             }
+        }
+
+        async function loadTeam() {
+            const response = await fetch('/api/team');
+            team = await response.json();
+            renderTeam();
         }
 
         function filterTeam() {
@@ -5884,8 +7539,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
             } else {
                 // Calculate total hours and revenue
-                const totalHours = memberJobs.reduce((sum, j) => sum + (parseFloat(j.hours) || 0), 0);
-                const totalRevenue = memberJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+                const totalHours = memberJobs.reduce((sum, j) => {
+                    const laborHrs = (j.laborItems || []).reduce((s, item) => s + (parseFloat(item.hours) || 0), 0);
+                    return sum + laborHrs;
+                }, 0);
+                const totalRevenue = memberJobs.reduce((sum, j) => sum + (j.totalWithTax || parseFloat(j.total) || 0), 0);
 
                 const isMobile = window.innerWidth < 768;
                 const statsGrid = \`
@@ -5915,7 +7573,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.35rem;">
                                 <div>
-                                    <div style="font-size:1rem;font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                                    <div style="font-size:1rem;font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
                                     <div style="font-weight:600;color:#4a5568;font-size:0.9rem;">\${j.title}</div>
                                 </div>
                                 <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace('_', ' ')}</span>
@@ -5933,14 +7591,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         const client = clients.find(c => c.id == j.clientId || String(c.id) === String(j.clientId));
                         return \`<tr>
                             <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
-                            <td>\${client ? client.name : 'Unknown'}</td>
+                            <td>\${maskName(client ? client.name : 'Unknown')}</td>
                             <td>
                                 <strong>\${j.title}</strong><br>
                                 <small>\${(j.description || '').substring(0, 50)}</small>
                             </td>
                             <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
-                            <td>\${j.hours || 0}</td>
-                            <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(calculateTotalWithTax(parseFloat(j.total))) : '-')}</td>
+                            <td>\${((j.laborItems || []).reduce((s, i) => s + (parseFloat(i.hours) || 0), 0)).toFixed(1)}</td>
+                            <td>\${j.totalWithTax ? formatMoney(j.totalWithTax) : (j.total ? formatMoney(parseFloat(j.total)) : '-')}</td>
                             <td>
                                 <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
                                 <button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄</button>
@@ -5984,8 +7642,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             // Calculate totals
-            const totalHours = approvedEntries.reduce((sum, e) => sum + parseFloat(e.hours), 0);
-            const totalPayouts = approvedEntries.reduce((sum, e) => sum + parseFloat(e.paymentAmount), 0);
+            const totalHours = approvedEntries.reduce((sum, e) => sum + (e.duration ? e.duration / 3600 : (parseFloat(e.hours) || 0)), 0);
+            const totalPayouts = approvedEntries.reduce((sum, e) => sum + (parseFloat(e.paymentAmount) || 0), 0);
             const avgHourlyRate = totalHours > 0 ? totalPayouts / totalHours : 0;
 
             // Get date range
@@ -6051,10 +7709,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <td>\${clockIn.toLocaleDateString()}</td>
                                 <td>\${clockIn.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</td>
                                 <td>\${clockOut.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</td>
-                                <td><strong>\${parseFloat(entry.hours).toFixed(2)}</strong></td>
-                                <td>$\${parseFloat(entry.hourlyRate).toFixed(2)}/hr</td>
+                                <td><strong>\${(entry.duration ? entry.duration / 3600 : parseFloat(entry.hours) || 0).toFixed(2)}</strong></td>
+                                <td>$\${parseFloat(entry.hourlyRate || 0).toFixed(2)}/hr</td>
                                 <td style="color: #10b981; font-weight: 700;">$\${formatMoney(entry.paymentAmount)}</td>
-                                <td>\${job ? \`<small>\${client ? client.name : 'Unknown'}<br><strong>\${job.title}</strong></small>\` : '<small>Job not found</small>'}</td>
+                                <td>\${job ? \`<small>\${maskName(client ? client.name : 'Unknown')}<br><strong>\${job.title}</strong></small>\` : '<small>Job not found</small>'}</td>
                             </tr>\`;
                         }).join('') +
                     \`</tbody>
@@ -6425,7 +8083,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             filteredJobs.forEach(j => {
                 const client = clients.find(c => c.id === j.clientId);
-                const clientName = client ? client.name : 'Unknown';
+                const clientName = maskName(client ? client.name : 'Unknown');
 
                 if (!clientStats[clientName]) {
                     clientStats[clientName] = { count: 0, revenue: 0 };
@@ -6563,7 +8221,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             return \`
                                 <tr>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.scheduledDate}</td>
-                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${client ? client.name : 'Unknown'}</td>
+                                    <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${maskName(client ? client.name : 'Unknown')}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.title}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${getAssignedNames(j.assignedTo)}</td>
                                     <td style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0;">\${j.status.replace('_', ' ')}</td>
@@ -6578,6 +8236,154 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function printReports() {
             window.print();
+        }
+
+        let analyticsRefreshTimer = null;
+
+        async function loadAnalytics() {
+            const body = document.getElementById('analyticsBody');
+            body.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;">Loading...</div>';
+            if (analyticsRefreshTimer) clearInterval(analyticsRefreshTimer);
+
+            try {
+                const res = await fetch('/api/analytics/summary');
+                const data = await res.json();
+
+                if (!data.connected) {
+                    body.innerHTML = \`
+                        <div style="text-align:center;padding:3rem;">
+                            <p style="color:#718096;margin-bottom:1.5rem;font-size:1.1rem;">Connect your Google Analytics account to see website traffic in here.</p>
+                            <a href="/analytics/auth" class="btn btn-primary" style="font-size:1rem;padding:0.85rem 2rem;">Connect Google Analytics</a>
+                        </div>\`;
+                    return;
+                }
+
+                if (data.needsProperty) {
+                    const propsRes = await fetch('/api/analytics/properties');
+                    const propsData = await propsRes.json();
+                    const properties = [];
+                    (propsData.accounts || []).forEach(acc => {
+                        (acc.propertySummaries || []).forEach(p => {
+                            properties.push({ id: p.property.replace('properties/', ''), name: p.displayName });
+                        });
+                    });
+                    body.innerHTML = \`
+                        <div style="text-align:center;padding:3rem;">
+                            <p style="color:#718096;margin-bottom:1.5rem;">Select your GA4 property:</p>
+                            <select id="propertyPicker" style="padding:0.75rem 1rem;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;margin-bottom:1rem;min-width:300px;">
+                                <option value="">Select property...</option>
+                                \${properties.map(p => \`<option value="\${p.id}">\${p.name} (\${p.id})</option>\`).join('')}
+                            </select><br>
+                            <button class="btn btn-primary" onclick="saveAnalyticsProperty()">Use This Property</button>
+                        </div>\`;
+                    return;
+                }
+
+                renderAnalytics(data);
+                analyticsRefreshTimer = setInterval(async () => {
+                    const r = await fetch('/api/analytics/summary');
+                    const d = await r.json();
+                    if (d.connected && !d.needsProperty) {
+                        const el = document.getElementById('analyticsActiveCount');
+                        if (el) el.textContent = d.activeUsers;
+                        document.getElementById('analyticsActiveUsers').style.display = 'inline-block';
+                    }
+                }, 30000);
+
+            } catch (e) {
+                body.innerHTML = \`<div style="color:#e53e3e;padding:2rem;">Error loading analytics: \${e.message}</div>\`;
+            }
+        }
+
+        async function saveAnalyticsProperty() {
+            const id = document.getElementById('propertyPicker').value;
+            if (!id) return alert('Select a property first');
+            await fetch('/api/analytics/property', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyId: id }) });
+            loadAnalytics();
+        }
+
+        function renderAnalytics(data) {
+            const body = document.getElementById('analyticsBody');
+
+            // Active users badge
+            document.getElementById('analyticsActiveCount').textContent = data.activeUsers;
+            document.getElementById('analyticsActiveUsers').style.display = 'inline-block';
+
+            // Aggregate 30-day totals
+            const rows = data.report?.rows || [];
+            const totalSessions = rows.reduce((s, r) => s + parseInt(r.metricValues[0].value), 0);
+            const totalUsers = rows.reduce((s, r) => s + parseInt(r.metricValues[1].value), 0);
+            const avgDur = rows.length ? rows.reduce((s, r) => s + parseFloat(r.metricValues[2].value), 0) / rows.length : 0;
+            const durMin = Math.floor(avgDur / 60);
+            const durSec = Math.round(avgDur % 60);
+
+            // Traffic sources
+            const sourceRows = data.sources?.rows || [];
+            const maxSourceSessions = Math.max(...sourceRows.map(r => parseInt(r.metricValues[0].value)), 1);
+            const sourceBars = sourceRows.map(r => {
+                const name = r.dimensionValues[0].value;
+                const count = parseInt(r.metricValues[0].value);
+                const pct = Math.round((count / maxSourceSessions) * 100);
+                return \`<div style="margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;font-size:0.9rem;">
+                        <span style="font-weight:600;">\${name}</span><span style="color:#718096;">\${count} sessions</span>
+                    </div>
+                    <div style="background:#e2e8f0;border-radius:4px;height:8px;"><div style="background:#667eea;width:\${pct}%;height:8px;border-radius:4px;"></div></div>
+                </div>\`;
+            }).join('');
+
+            // Top pages
+            const pageRows = data.pages?.rows || [];
+            const pagesHtml = pageRows.map(r => {
+                const path = r.dimensionValues[0].value;
+                const views = parseInt(r.metricValues[0].value);
+                return \`<div style="display:flex;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid #f0f0f0;font-size:0.9rem;">
+                    <span style="color:#2d3748;">\${path === '/' ? 'Home' : path}</span>
+                    <span style="font-weight:600;color:#667eea;">\${views.toLocaleString()} views</span>
+                </div>\`;
+            }).join('');
+
+            // Daily sessions sparkline (last 30 days)
+            const maxSessions = Math.max(...rows.map(r => parseInt(r.metricValues[0].value)), 1);
+            const bars = rows.slice(-30).map(r => {
+                const date = r.dimensionValues[0].value;
+                const s = parseInt(r.metricValues[0].value);
+                const h = Math.max(4, Math.round((s / maxSessions) * 80));
+                const label = date.slice(4, 6) + '/' + date.slice(6, 8);
+                return \`<div title="\${label}: \${s} sessions" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;cursor:default;">
+                    <div style="width:100%;background:#667eea;border-radius:2px 2px 0 0;height:\${h}px;min-height:4px;"></div>
+                </div>\`;
+            }).join('');
+
+            body.innerHTML = \`
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+                    <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;text-align:center;">
+                        <div style="font-size:2rem;font-weight:700;color:#667eea;">\${totalSessions.toLocaleString()}</div>
+                        <div style="color:#718096;font-size:0.85rem;margin-top:0.25rem;">Sessions (30d)</div>
+                    </div>
+                    <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;text-align:center;">
+                        <div style="font-size:2rem;font-weight:700;color:#667eea;">\${totalUsers.toLocaleString()}</div>
+                        <div style="color:#718096;font-size:0.85rem;margin-top:0.25rem;">Users (30d)</div>
+                    </div>
+                    <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;text-align:center;">
+                        <div style="font-size:2rem;font-weight:700;color:#667eea;">\${durMin}m \${durSec}s</div>
+                        <div style="color:#718096;font-size:0.85rem;margin-top:0.25rem;">Avg Session</div>
+                    </div>
+                </div>
+                <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;margin-bottom:1.5rem;">
+                    <div style="font-weight:600;color:#2d3748;margin-bottom:0.75rem;">Daily Sessions — Last 30 Days</div>
+                    <div style="display:flex;align-items:flex-end;gap:2px;height:90px;">\${bars}</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;">
+                        <div style="font-weight:600;color:#2d3748;margin-bottom:1rem;">Traffic Sources</div>
+                        \${sourceBars || '<p style="color:#718096;font-size:0.9rem;">No data yet</p>'}
+                    </div>
+                    <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;">
+                        <div style="font-weight:600;color:#2d3748;margin-bottom:0.5rem;">Top Pages</div>
+                        \${pagesHtml || '<p style="color:#718096;font-size:0.9rem;">No data yet</p>'}
+                    </div>
+                </div>\`;
         }
 
         async function loadReports() {
@@ -6643,6 +8449,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Load tab-specific data
             if (tabName === 'email') {
                 loadEmailSettings();
+            }
+            if (tabName === 'compliance') {
+                loadComplianceDocs();
             }
         }
 
@@ -7143,6 +8952,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </div>
                         </div>
                         <div>
+                            <button class="btn btn-secondary btn-small" onclick="showLoginLog('\${user._id || user.id}','business','\${user.name}')" style="margin-right:0.5rem;" title="Sign-in history">📋 Log</button>
                             <button class="btn btn-secondary btn-small" onclick="emailUserCredentials('\${user._id || user.id}')" style="margin-right: 0.5rem;" title="Email login credentials">📧 Email Login</button>
                             <button class="btn btn-primary btn-small" onclick="editUser('\${user._id || user.id}')" style="margin-right: 0.5rem;">Edit</button>
                             <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id || user.id}')">Delete</button>
@@ -7210,7 +9020,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <td style="padding:0.85rem 1rem;color:#718096;">\${c.phone || '—'}</td>
                                 <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${lastLogin}</td>
                                 <td style="padding:0.85rem 1rem;text-align:right;">
-                                    \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Resend Email</button>\` : ''}
+                                    <button class="btn btn-secondary btn-small" onclick="showLoginLog('\${c.id}','client','\${c.name}')" style="margin-right:0.5rem;" title="Sign-in history">📋 Log</button>
+                                    <button class="btn btn-primary btn-small" onclick="showPortalPwModal('\${c.id}','\${c.name.replace(/'/g,'\\\\\'')}')" style="margin-right:0.5rem;" title="Change access code">✏️ Password</button>
+                                    \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Email</button>\` : ''}
                                     <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name}')" title="Remove portal access">Revoke</button>
                                 </td>
                             </tr>\`;
@@ -7230,6 +9042,72 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 renderPortalUsers(allPortalClients);
             } catch (error) {
                 container.innerHTML = '<p style="color:#e53e3e;padding:1rem;">Failed to load portal users</p>';
+            }
+        }
+
+        let portalPwClientId = null;
+        function showPortalPwModal(clientId, clientName) {
+            portalPwClientId = clientId;
+            document.getElementById('portalPwClientName').textContent = clientName;
+            document.getElementById('portalPwInput').value = '';
+            document.getElementById('portalPwError').style.display = 'none';
+            openModal('portalPwModal');
+        }
+
+        async function savePortalPassword() {
+            const pw = document.getElementById('portalPwInput').value.trim();
+            const errEl = document.getElementById('portalPwError');
+            if (!pw) { errEl.textContent = 'Please enter an access code.'; errEl.style.display = 'block'; return; }
+            try {
+                const res = await fetch(\`/api/clients/\${portalPwClientId}/set-portal-password\`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pw })
+                });
+                if (!res.ok) throw new Error('Failed');
+                closeModal('portalPwModal');
+                alert('✅ Access code updated.');
+                loadPortalUsers();
+            } catch (e) {
+                errEl.textContent = 'Failed to update. Try again.';
+                errEl.style.display = 'block';
+            }
+        }
+
+        async function showLoginLog(id, type, name) {
+            document.getElementById('loginLogTitle').textContent = \`Sign-In History — \${name}\`;
+            document.getElementById('loginLogContent').innerHTML = '<p style="color:#718096;text-align:center;padding:1.5rem;">Loading…</p>';
+            openModal('loginLogModal');
+            try {
+                const url = type === 'business' ? \`/api/users/\${id}/login-log\` : \`/api/clients/\${id}/login-log\`;
+                const res = await fetch(url);
+                const logs = await res.json();
+                if (!logs.length) {
+                    document.getElementById('loginLogContent').innerHTML = '<p style="color:#718096;text-align:center;padding:2rem;">No sign-in attempts recorded yet.</p>';
+                    return;
+                }
+                const rows = logs.map(l => {
+                    const icon = l.success ? '✅' : '❌';
+                    const when = new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
+                    return \`<tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:0.6rem 0.75rem;font-size:0.85rem;">\${icon}</td>
+                        <td style="padding:0.6rem 0.75rem;font-size:0.82rem;color:#1e293b;">\${when}</td>
+                        <td style="padding:0.6rem 0.75rem;font-size:0.82rem;color:\${l.success ? '#16a34a' : '#dc2626'};font-weight:600;">\${l.success ? 'Success' : l.reason || 'Failed'}</td>
+                        <td style="padding:0.6rem 0.75rem;font-family:monospace;font-size:0.75rem;color:#94a3b8;">\${l.ip || '—'}</td>
+                    </tr>\`;
+                }).join('');
+                document.getElementById('loginLogContent').innerHTML = \`
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                            <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.75rem;text-transform:uppercase;width:2rem;"></th>
+                            <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Time</th>
+                            <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Result</th>
+                            <th style="padding:0.5rem 0.75rem;text-align:left;color:#64748b;font-size:0.75rem;text-transform:uppercase;">IP</th>
+                        </tr></thead>
+                        <tbody>\${rows}</tbody>
+                    </table>\`;
+            } catch (e) {
+                document.getElementById('loginLogContent').innerHTML = '<p style="color:#dc2626;text-align:center;padding:1rem;">Failed to load log.</p>';
             }
         }
 
@@ -7396,7 +9274,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
             const client = clients.find(c => c.id == id);
-            const clientName = client ? client.name : 'this client';
+            const clientName = maskName(client ? client.name : 'this client');
             if (!confirm(\`⚠️ Are you sure you want to delete \${clientName}?\n\nThis will also affect all jobs associated with this client.\`)) return;
             await fetch(\`/api/clients/\${id}\`, { method: 'DELETE' });
             loadClients();
@@ -7530,52 +9408,87 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const messages = await response.json();
 
                 const container = document.getElementById('messages-list');
-
-                // Update badge
                 updateMessagesBadge(messages);
 
                 if (messages.length === 0) {
-                    container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #718096;"><p>No messages yet</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">Client messages will appear here</p></div>';
+                    container.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;"><p>No messages yet</p><p style="font-size:0.9rem;margin-top:0.5rem;">Client messages will appear here</p></div>';
                     return;
                 }
 
-                container.innerHTML = messages.map(msg => {
+                const active = messages.filter(m => !m.archived);
+                const archived = messages.filter(m => m.archived);
+
+                const renderMsg = (msg) => {
                     const date = new Date(msg.createdAt).toLocaleString();
                     const isUnread = !msg.read;
-
-                    // Build subject badge
                     let subjectBadge = '';
                     if (msg.subject === 'quote' && msg.reference) {
-                        subjectBadge = `<span style="background: #667eea; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">📋 ${msg.reference}</span>`;
+                        subjectBadge = \`<span style="background:#667eea;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">📋 \${msg.reference}</span>\`;
                     } else if (msg.subject === 'job' && msg.reference) {
-                        subjectBadge = `<span style="background: #48bb78; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">🔨 Job</span>`;
+                        subjectBadge = \`<span style="background:#48bb78;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">🔨 Job</span>\`;
                     }
-
-                    return `
-                        <div style="background: ${isUnread ? '#fffacd' : 'white'}; border: 2px solid ${isUnread ? '#f59e0b' : '#e2e8f0'}; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                                <div>
-                                    <h3 style="margin: 0; color: #2d3748;">${msg.clientName}${subjectBadge}</h3>
-                                    <p style="margin: 0.25rem 0 0 0; color: #718096; font-size: 0.9rem;">${msg.clientEmail}</p>
-                                </div>
-                                <div style="text-align: right;">
-                                    <p style="margin: 0; color: #718096; font-size: 0.85rem;">${date}</p>
-                                    ${isUnread ? '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">NEW</span>' : ''}
-                                </div>
+                    const id = msg.id || msg._id;
+                    return \`<div style="background:\${isUnread ? '#fffacd' : 'white'};border:2px solid \${isUnread ? '#f59e0b' : '#e2e8f0'};border-radius:8px;padding:1.5rem;margin-bottom:1rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
+                            <div>
+                                <h3 style="margin:0;color:#2d3748;">\${msg.clientName}\${subjectBadge}</h3>
+                                <p style="margin:0.25rem 0 0 0;color:#718096;font-size:0.9rem;">\${msg.clientEmail}</p>
                             </div>
-                            <div style="background: white; padding: 1rem; border-radius: 4px; border-left: 3px solid #667eea; margin-bottom: 1rem;">
-                                <p style="margin: 0; white-space: pre-wrap; line-height: 1.6;">${msg.message}</p>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                ${isUnread ? `<button class="btn btn-primary btn-small" onclick="markMessageRead('${msg.id || msg._id}')">Mark as Read</button>` : ''}
-                                <a href="mailto:${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>
-                                <button class="btn btn-danger btn-small" onclick="deleteMessage('${msg.id || msg._id}')">Delete</button>
+                            <div style="text-align:right;">
+                                <p style="margin:0;color:#718096;font-size:0.85rem;">\${date}</p>
+                                \${isUnread ? '<span style="background:#f59e0b;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;font-weight:600;">NEW</span>' : ''}
                             </div>
                         </div>
-                    `;
-                }).join('');
+                        <div style="background:#f8fafc;padding:1rem;border-radius:4px;border-left:3px solid #667eea;margin-bottom:1rem;">
+                            <p style="margin:0;white-space:pre-wrap;line-height:1.6;">\${msg.message}</p>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            \${isUnread ? \`<button class="btn btn-primary btn-small" onclick="markMessageRead('\${id}')">Mark as Read</button>\` : ''}
+                            \${msg.archived
+                                ? \`<button class="btn btn-secondary btn-small" onclick="archiveMessage('\${id}', false)">↩ Unarchive</button>\`
+                                : \`<button class="btn btn-secondary btn-small" onclick="archiveMessage('\${id}', true)">📁 Archive</button>\`
+                            }
+                            <a href="mailto:\${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>
+                            <button class="btn btn-danger btn-small" onclick="deleteMessage('\${id}')">Delete</button>
+                        </div>
+                    </div>\`;
+                };
+
+                let html = '';
+
+                if (active.length > 0) {
+                    html += active.map(renderMsg).join('');
+                } else {
+                    html += '<p style="color:#718096;padding:0.75rem 0;">No active messages.</p>';
+                }
+
+                if (archived.length > 0) {
+                    html += \`<details style="margin-top:1.5rem;">
+                        <summary style="cursor:pointer;font-weight:700;color:#4a5568;font-size:0.95rem;padding:0.6rem 0.75rem;background:#f1f5f9;border-radius:8px;list-style:none;display:flex;align-items:center;gap:0.5rem;">
+                            <span style="font-size:0.8rem;">▶</span> Archive <span style="background:#9ca3af;color:white;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;">\${archived.length}</span>
+                        </summary>
+                        <div style="margin-top:1rem;">
+                            \${archived.map(renderMsg).join('')}
+                        </div>
+                    </details>\`;
+                }
+
+                container.innerHTML = html;
             } catch (error) {
                 console.error('Failed to load messages:', error);
+            }
+        }
+
+        async function archiveMessage(messageId, archive) {
+            try {
+                await fetch(\`/api/client-messages/\${messageId}/archive\`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ archived: archive })
+                });
+                loadMessages();
+            } catch (error) {
+                alert('Failed to archive message');
             }
         }
 
@@ -7599,6 +9512,272 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (error) {
                 console.error('Failed to check unread messages:', error);
             }
+        }
+
+        let _lastMessageCount = 0;
+        let _lastLeadCount = 0;
+        let _notifPermAsked = false;
+
+        function updatePageTitleBadge(total) {
+            const base = document.title.replace(/^\(\d+\)\s*/, '');
+            document.title = total > 0 ? \`(\${total}) \${base}\` : base;
+        }
+
+        function fireNotification(title, body) {
+            if (window.Notification && Notification.permission === 'granted') {
+                new Notification(title, { body, icon: '/favicon.ico' });
+            }
+        }
+
+        async function pollNotificationCounts() {
+            try {
+                const res = await fetch('/api/notifications/counts');
+                if (!res.ok) return;
+                const { messages, leads, expiringDocs } = await res.json();
+
+                // Compliance expiry badge on settings tab
+                const compTabBtn = document.getElementById('complianceTabBtn');
+                if (compTabBtn) {
+                    if (expiringDocs > 0) {
+                        compTabBtn.innerHTML = \`🛡️ License & Insurance <span style="background:#ef4444;color:white;border-radius:10px;padding:0.1rem 0.45rem;font-size:0.72rem;font-weight:700;margin-left:4px;">\${expiringDocs}</span>\`;
+                    } else {
+                        compTabBtn.textContent = '🛡️ License & Insurance';
+                    }
+                }
+
+                // Update badges
+                const msgBadge = document.getElementById('messages-badge');
+                if (msgBadge) {
+                    msgBadge.textContent = messages;
+                    msgBadge.style.display = messages > 0 ? 'block' : 'none';
+                }
+                const leadBadge = document.getElementById('leads-badge');
+                if (leadBadge) {
+                    leadBadge.textContent = leads;
+                    leadBadge.style.display = leads > 0 ? 'inline' : 'none';
+                }
+
+                // Page title
+                updatePageTitleBadge(messages + leads);
+
+                // Browser notifications on new arrivals
+                if (messages > _lastMessageCount) {
+                    const n = messages - _lastMessageCount;
+                    fireNotification('New Message', \`You have \${n} new client message\${n > 1 ? 's' : ''}.\`);
+                }
+                if (leads > _lastLeadCount) {
+                    const n = leads - _lastLeadCount;
+                    fireNotification('New Lead', \`You have \${n} new lead\${n > 1 ? 's' : ''} waiting.\`);
+                }
+
+                _lastMessageCount = messages;
+                _lastLeadCount = leads;
+
+                // If leads are in memory, keep in sync too
+                if (typeof allLeads !== 'undefined' && allLeads.length > 0) {
+                    updateLeadsBadge();
+                }
+            } catch (e) {
+                // silent — don't spam console on every poll failure
+            }
+        }
+
+        // ── Compliance / License & Insurance ─────────────────────────────────────
+
+        const _compTypeLabels = {
+            license: 'License',
+            gl_insurance: 'Insurance — General Liability',
+            umbrella_insurance: 'Insurance — Umbrella',
+            workers_comp: 'Workers Compensation',
+            surety_bond: 'Surety Bond',
+            other: 'Other'
+        };
+
+        async function loadComplianceDocs() {
+            try {
+                const res = await fetch('/api/compliance-docs');
+                if (!res.ok) throw new Error('Failed to load');
+                _complianceDocs = await res.json();
+                renderComplianceDocs();
+            } catch (e) {
+                const el = document.getElementById('compDocsList');
+                if (el) el.innerHTML = '<p style="color:#718096;">Failed to load documents.</p>';
+            }
+        }
+
+        function renderComplianceDocs() {
+            const container = document.getElementById('compDocsList');
+            if (!container) return;
+            const now = new Date();
+            const warn30 = new Date(); warn30.setDate(warn30.getDate() + 30);
+            const expiring = _complianceDocs.filter(d => d.expiresAt && new Date(d.expiresAt) <= warn30);
+            const banner = document.getElementById('compDocExpiryWarning');
+            if (expiring.length > 0) {
+                const expired = expiring.filter(d => new Date(d.expiresAt) < now);
+                const soon = expiring.filter(d => new Date(d.expiresAt) >= now);
+                let msg = '';
+                if (expired.length) msg += \`\${expired.length} document\${expired.length > 1 ? 's' : ''} expired. \`;
+                if (soon.length) msg += \`\${soon.length} document\${soon.length > 1 ? 's' : ''} expiring within 30 days.\`;
+                document.getElementById('compDocExpiryText').textContent = msg.trim();
+                if (banner) banner.style.display = 'block';
+            } else {
+                if (banner) banner.style.display = 'none';
+            }
+            if (_complianceDocs.length === 0) {
+                container.innerHTML = '<p style="color:#718096;text-align:center;padding:2rem 0;">No documents uploaded yet. Click "+ Add Document" to get started.</p>';
+                return;
+            }
+            const rows = _complianceDocs.map(doc => {
+                const expiry = doc.expiresAt ? new Date(doc.expiresAt) : null;
+                const expired = expiry && expiry < now;
+                const expiringSoon = expiry && expiry >= now && expiry <= warn30;
+                let statusBadge;
+                if (!expiry) statusBadge = '<span style="background:#e2e8f0;color:#718096;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.75rem;font-weight:600;">No Expiry</span>';
+                else if (expired) statusBadge = '<span style="background:#fee2e2;color:#dc2626;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.75rem;font-weight:600;">Expired</span>';
+                else if (expiringSoon) statusBadge = '<span style="background:#fef3c7;color:#92400e;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.75rem;font-weight:600;">Expires Soon</span>';
+                else statusBadge = '<span style="background:#d1fae5;color:#065f46;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.75rem;font-weight:600;">Active</span>';
+                const expiryStr = expiry ? expiry.toLocaleDateString() : '—';
+                const notesStr = doc.notes ? \`<span style="color:#718096;font-size:0.82rem;">\${doc.notes}</span>\` : '';
+                return \`<tr>
+                    <td style="padding:0.75rem 1rem;">\${_compTypeLabels[doc.type] || doc.type}</td>
+                    <td style="padding:0.75rem 1rem;">
+                        <div style="font-weight:600;color:#2d3748;">\${doc.filename}</div>
+                        \${notesStr}
+                    </td>
+                    <td style="padding:0.75rem 1rem;">\${expiryStr}</td>
+                    <td style="padding:0.75rem 1rem;">\${statusBadge}</td>
+                    <td style="padding:0.75rem 1rem;">
+                        <div style="display:flex;gap:0.5rem;">
+                            <button class="btn btn-secondary btn-small" onclick="downloadComplianceDoc('\${doc._id}','\${doc.filename.replace(/'/g,\\"\\\\\\\\'\\")}')">⬇ Download</button>
+                            <button class="btn btn-secondary btn-small" style="color:#dc2626;border-color:#fecaca;" onclick="deleteComplianceDoc('\${doc._id}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>\`;
+            }).join('');
+            container.innerHTML = \`<table style="width:100%;border-collapse:collapse;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <thead>
+                    <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                        <th style="padding:0.75rem 1rem;text-align:left;color:#4a5568;font-size:0.85rem;">Type</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;color:#4a5568;font-size:0.85rem;">Document</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;color:#4a5568;font-size:0.85rem;">Expires</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;color:#4a5568;font-size:0.85rem;">Status</th>
+                        <th style="padding:0.75rem 1rem;text-align:left;color:#4a5568;font-size:0.85rem;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>\${rows}</tbody>
+            </table>\`;
+        }
+
+        function handleCompDocFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            document.getElementById('compDocFileName').textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                _compDocFileData = { name: file.name, type: file.type, data: e.target.result.split(',')[1] };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadComplianceDoc() {
+            if (!_compDocFileData) { alert('Please choose a file first.'); return; }
+            const type = document.getElementById('compDocType').value;
+            const expiresAt = document.getElementById('compDocExpiry').value || null;
+            const notes = document.getElementById('compDocNotes').value.trim();
+            try {
+                const res = await fetch('/api/compliance-docs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, expiresAt, notes, filename: _compDocFileData.name, mimeType: _compDocFileData.type, data: _compDocFileData.data })
+                });
+                if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+                _compDocFileData = null;
+                document.getElementById('compDocFile').value = '';
+                document.getElementById('compDocFileName').textContent = 'No file chosen';
+                document.getElementById('compDocExpiry').value = '';
+                document.getElementById('compDocNotes').value = '';
+                document.getElementById('compDocUploadForm').style.display = 'none';
+                loadComplianceDocs();
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            }
+        }
+
+        async function deleteComplianceDoc(docId) {
+            if (!confirm('Delete this document?')) return;
+            try {
+                await fetch('/api/compliance-docs/' + docId, { method: 'DELETE' });
+                loadComplianceDocs();
+            } catch (e) {
+                alert('Delete failed: ' + e.message);
+            }
+        }
+
+        async function downloadComplianceDoc(docId, filename) {
+            const res = await fetch('/api/compliance-docs/' + docId + '/file');
+            if (!res.ok) { alert('Download failed'); return; }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function openSendComplianceModal(clientId) {
+            if (!clientId) { alert('Open a client first.'); return; }
+            _sendCompClientId = clientId;
+            const clientName = document.getElementById('client-detail-name')?.textContent || 'Client';
+            document.getElementById('sendCompClientName').textContent = clientName;
+            document.getElementById('sendCompMessage').value = '';
+            const checkboxes = document.getElementById('sendCompDocCheckboxes');
+            if (_complianceDocs.length === 0) {
+                checkboxes.innerHTML = '<p style="color:#718096;">No documents on file. Upload documents in Settings → 🛡️ License & Insurance first.</p>';
+            } else {
+                checkboxes.innerHTML = _complianceDocs.map(doc => \`
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.5rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;background:#f8fafc;">
+                        <input type="checkbox" value="\${doc._id}" style="width:16px;height:16px;accent-color:#667eea;" checked>
+                        <span style="font-weight:600;">\${_compTypeLabels[doc.type] || doc.type}</span>
+                        <span style="color:#718096;font-size:0.85rem;">\${doc.filename}</span>
+                    </label>
+                \`).join('');
+            }
+            openModal('sendComplianceModal');
+        }
+
+        async function sendComplianceDocs() {
+            const checked = [...document.querySelectorAll('#sendCompDocCheckboxes input[type=checkbox]:checked')].map(c => c.value);
+            if (checked.length === 0) { alert('Select at least one document.'); return; }
+            const message = document.getElementById('sendCompMessage').value.trim();
+            const btn = document.querySelector('#sendComplianceModal .btn-primary');
+            const origText = btn.textContent;
+            btn.textContent = 'Sending...'; btn.disabled = true;
+            try {
+                const res = await fetch('/api/compliance-docs/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId: _sendCompClientId, docIds: checked, message })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Send failed');
+                closeModal('sendComplianceModal');
+                alert('Documents sent successfully!');
+            } catch (e) {
+                alert('Failed to send: ' + e.message);
+            } finally {
+                btn.textContent = origText; btn.disabled = false;
+            }
+        }
+
+        // ── End Compliance ────────────────────────────────────────────────────────
+
+        function initNotificationPolling() {
+            // Ask for browser notification permission once
+            if (!_notifPermAsked && window.Notification && Notification.permission === 'default') {
+                _notifPermAsked = true;
+                Notification.requestPermission();
+            }
+            pollNotificationCounts();
+            setInterval(pollNotificationCounts, 30000);
         }
 
         async function markMessageRead(messageId) {
@@ -7672,10 +9851,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            const activeLeads = filtered.filter(l => l.status === 'new');
-            const archiveLeads = filtered.filter(l => l.status !== 'new');
+            const activeLeadsSorted = applySortState(filtered.filter(l => l.status === 'new'), 'leads', { date: 'createdAt', name: 'name', service: 'service', city: 'city', status: 'status' });
+            const archiveLeadsSorted = applySortState(filtered.filter(l => l.status !== 'new'), 'leads', { date: 'createdAt', name: 'name', service: 'service', city: 'city', status: 'status' });
+            const activeLeads = activeLeadsSorted;
+            const archiveLeads = archiveLeadsSorted;
 
-            const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
+            const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280', rejected: '#dc2626' };
 
             const photoStrip = (photos) => {
                 if (!photos || !photos.length) return '';
@@ -7708,14 +9889,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div style="display:flex;gap:0.5rem;margin-top:0.75rem;align-items:center;">
                         <button onclick="openLead('\${l.id}')" style="padding:0.4rem 0.8rem;background:#667eea;color:white;border:none;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Open</button>
                         <select onchange="updateLeadStatus('\${l.id}', this.value)" style="flex:1;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;background:white;">
-                            \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                            \${['new','contacted','quoted','won','lost','rejected'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                         </select>
                         <button onclick="deleteLead('\${l.id}')" style="padding:0.4rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.85rem;cursor:pointer;white-space:nowrap;">🗑</button>
                     </div>
                 </div>\`;
             }).join('');
 
-            const renderTable = (leads) => \`<table><thead><tr><th>Date</th><th>Name</th><th>Contact</th><th>Service</th><th>Location</th><th>Description & Photos</th><th>Status</th><th></th></tr></thead><tbody>\` +
+            const renderTable = (leads) => \`<table><thead><tr>\` + sth('leads','createdAt','Date') + sth('leads','name','Name') + \`<th>Contact</th>\` + sth('leads','service','Service') + sth('leads','city','Location') + \`<th>Description & Photos</th>\` + sth('leads','status','Status') + \`<th></th></tr></thead><tbody>\` +
                 leads.map(l => {
                     const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     const color = statusColors[l.status] || '#6b7280';
@@ -7734,7 +9915,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>
                         <td>
                             <select onchange="updateLeadStatus('\${l.id}', this.value)" style="padding:0.35rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.8rem;background:\${color};color:white;">
-                                \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" style="background:white;color:#1f2937;" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                                \${['new','contacted','quoted','won','lost','rejected'].map(s => \`<option value="\${s}" style="background:white;color:#1f2937;" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                             </select>
                         </td>
                         <td style="white-space:nowrap;">
@@ -7769,7 +9950,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function openLead(id) {
             const l = allLeads.find(l => l.id === id);
             if (!l) return;
-            const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280' };
+            const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280', rejected: '#dc2626' };
             const color = statusColors[l.status] || '#6b7280';
             const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
             document.getElementById('leadModalName').textContent = l.name;
@@ -7817,7 +9998,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div style="flex:1;min-width:160px;">
                         <label style="font-size:0.8rem;color:#4a5568;font-weight:600;">Update Status</label>
                         <select onchange="updateLeadStatus('\${l.id}', this.value)" style="width:100%;margin-top:0.4rem;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;background:white;">
-                            \${['new','contacted','quoted','won','lost'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
+                            \${['new','contacted','quoted','won','lost','rejected'].map(s => \`<option value="\${s}" \${l.status===s?'selected':''}>\${s.charAt(0).toUpperCase()+s.slice(1)}</option>\`).join('')}
                         </select>
                     </div>
                     <button onclick="convertLeadToQuote('\${l.id}')" style="padding:0.55rem 1.1rem;background:#48bb78;color:white;border:none;border-radius:8px;font-weight:700;font-size:0.9rem;cursor:pointer;white-space:nowrap;">➡️ Convert to Quote</button>
@@ -7952,9 +10133,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 other: 'Other'
             };
 
-            const sorted = [...expensesToRender].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            const sorted = applySortState(expensesToRender, 'expenses', { date: 'date', category: 'category', vendor: 'vendor', description: 'description', amount: 'amount', paymentMethod: 'paymentMethod' });
 
-            container.innerHTML = '<table><thead><tr><th>Date</th><th>Category</th><th>Vendor</th><th>Description</th><th>Amount</th><th>Payment Method</th><th>Actions</th></tr></thead><tbody>' +
+            container.innerHTML = '<table><thead><tr>' + sth('expenses','date','Date') + sth('expenses','category','Category') + sth('expenses','vendor','Vendor') + sth('expenses','description','Description') + sth('expenses','amount','Amount') + sth('expenses','paymentMethod','Payment Method') + '<th>Actions</th></tr></thead><tbody>' +
                 sorted.map(e => \`<tr>
                     <td>\${e.date || '-'}</td>
                     <td>\${categoryLabels[e.category] || e.category}</td>
@@ -7963,12 +10144,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td style="font-weight: 600;">\${formatMoney(parseFloat(e.amount) || 0)}</td>
                     <td>\${(e.paymentMethod || 'cash').replace('_', ' ')}</td>
                     <td>
-                        <button class="btn btn-secondary btn-small" onclick="editExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                        <button class="btn btn-secondary btn-small" onclick="showExpenseDetail('\${e.id}')" style="margin-right:0.25rem;" title="Receipts &amp; comments">📎 \${(e.attachments||[]).length > 0 ? e.attachments.length : ''}</button>
+                        <button class="btn btn-secondary btn-small" onclick="editExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="margin-right:0.25rem;">Edit</button>
                         <button class="btn btn-danger btn-small" onclick="deleteExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                     </td>
                 </tr>\`).join('') +
                 '</tbody></table>';
         }
+
+        let stagedExpenseFiles = []; // { file, dataUrl, comment }
 
         function openExpenseModal(expense = null) {
             if (!isAdmin) {
@@ -7978,6 +10162,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const form = document.getElementById('expenseForm');
             currentEditingExpenseId = null;
+            stagedExpenseFiles = [];
+            document.getElementById('expenseModalFileInput').value = '';
 
             if (expense) {
                 document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
@@ -7992,7 +10178,44 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 form.elements.date.value = new Date().toISOString().split('T')[0];
             }
 
+            renderExpenseModalAttachments(expense?.attachments || []);
             document.getElementById('expenseModal').classList.add('active');
+        }
+
+        function renderExpenseModalAttachments(existing) {
+            const c = document.getElementById('expenseModalAttachmentsList');
+            const existingHtml = existing.map(att => {
+                const icon = (att.type||'').startsWith('image/') ? '🖼️' : '📄';
+                return \`<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:#f0fff4;border-radius:6px;margin-bottom:0.3rem;font-size:0.85rem;">
+                    <span>\${icon}</span><span style="flex:1;color:#2d3748;">\${att.name}</span>
+                    <span style="color:#a0aec0;font-size:0.75rem;">saved</span>
+                </div>\`;
+            }).join('');
+            const stagedHtml = stagedExpenseFiles.map((f, i) => {
+                const icon = f.file.type.startsWith('image/') ? '🖼️' : '📄';
+                return \`<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:#ebf8ff;border-radius:6px;margin-bottom:0.3rem;font-size:0.85rem;">
+                    <span>\${icon}</span><span style="flex:1;color:#2d3748;">\${f.file.name}</span>
+                    <button type="button" onclick="removeStagedExpenseFile(\${i})" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:0.85rem;">✕</button>
+                </div>\`;
+            }).join('');
+            c.innerHTML = existingHtml + stagedHtml || '';
+        }
+
+        function removeStagedExpenseFile(index) {
+            stagedExpenseFiles.splice(index, 1);
+            const exp = currentEditingExpenseId ? expenses.find(e => e.id === currentEditingExpenseId) : null;
+            renderExpenseModalAttachments(exp?.attachments || []);
+        }
+
+        async function stageExpenseFiles(event) {
+            const existing = currentEditingExpenseId ? (expenses.find(e => e.id === currentEditingExpenseId)?.attachments || []) : [];
+            for (let file of event.target.files) {
+                if (file.type.startsWith('image/')) { try { file = await optimizeImage(file); } catch (_) {} }
+                const dataUrl = await new Promise(resolve => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.readAsDataURL(file); });
+                stagedExpenseFiles.push({ file, dataUrl });
+            }
+            event.target.value = '';
+            renderExpenseModalAttachments(existing);
         }
 
         function editExpense(id) {
@@ -8014,10 +10237,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             try {
-                await postData('/api/expenses', expense, {
-                    closeModal: 'expenseModal',
-                    reload: loadExpenses
+                const res = await fetch('/api/expenses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(expense)
                 });
+                if (!res.ok) throw new Error('Failed to save expense');
+                const saved = await res.json();
+                const expenseId = currentEditingExpenseId || (saved.id?.toString() || saved.id);
+
+                // Upload any staged files
+                for (const { file, dataUrl } of stagedExpenseFiles) {
+                    try {
+                        await fetch(\`/api/expenses/\${expenseId}/attachments\`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: dataUrl, comment: '' })
+                        });
+                    } catch (_) { alert(\`Failed to upload "\${file.name}"\`); }
+                }
+                stagedExpenseFiles = [];
+                closeModal('expenseModal');
+                loadExpenses();
             } catch (error) {
                 alert('Failed to save expense: ' + error.message);
             }
@@ -8032,6 +10273,137 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             await fetch(\`/api/expenses/\${id}\`, { method: 'DELETE' });
             loadExpenses();
         }
+
+        // ── Expense Receipts & Comments ──────────────────────────────
+        let currentExpenseId = null;
+
+        async function showExpenseDetail(id) {
+            currentExpenseId = id;
+            const expense = expenses.find(e => e.id === id || e._id === id);
+            const label = expense ? (expense.vendor || expense.description || 'Expense') : 'Expense';
+            document.getElementById('expenseDetailTitle').textContent = \`📎 \${label}\`;
+            document.getElementById('expenseCommentInput').value = '';
+            openModal('expenseDetailModal');
+            renderExpenseAttachments(expense?.attachments || []);
+            renderExpenseComments(expense?.comments || []);
+        }
+
+        function renderExpenseAttachments(attachments) {
+            const c = document.getElementById('expenseAttachmentsList');
+            if (!attachments.length) {
+                c.innerHTML = '<p style="color:#a0aec0;font-style:italic;font-size:0.9rem;">No receipts uploaded yet.</p>';
+                return;
+            }
+            c.innerHTML = attachments.map(att => {
+                const isImg = (att.type || '').startsWith('image/');
+                const kb = att.size ? (att.size / 1024).toFixed(1) + ' KB' : '';
+                const icon = isImg ? '🖼️' : '📄';
+                const date = att.uploadedAt ? new Date(att.uploadedAt).toLocaleDateString() : '';
+                return \`<div style="display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0.75rem;background:#f7fafc;border-radius:8px;margin-bottom:0.5rem;">
+                    <span style="font-size:1.4rem;">\${icon}</span>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:#2d3748;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">\${att.name}</div>
+                        <div style="font-size:0.78rem;color:#a0aec0;">\${kb}\${date ? ' · ' + date : ''}\${att.uploadedBy ? ' · ' + att.uploadedBy : ''}</div>
+                        \${att.comment ? \`<div style="font-size:0.85rem;color:#4a5568;font-style:italic;margin-top:0.1rem;">"\${att.comment}"</div>\` : ''}
+                    </div>
+                    \${isImg ? \`<button class="btn btn-secondary btn-small" onclick="viewExpenseAttachment('\${att.s3Key}')">View</button>\` : ''}
+                    <button class="btn btn-secondary btn-small" onclick="downloadExpenseAttachment('\${att.s3Key}','\${att.name}')">⬇</button>
+                    <button class="btn btn-danger btn-small" onclick="deleteExpenseAttachment('\${att.id}')">✕</button>
+                </div>\`;
+            }).join('');
+        }
+
+        function renderExpenseComments(comments) {
+            const c = document.getElementById('expenseCommentsList');
+            if (!comments.length) {
+                c.innerHTML = '<p style="color:#a0aec0;font-style:italic;font-size:0.9rem;">No comments yet.</p>';
+                return;
+            }
+            c.innerHTML = comments.map(cm => {
+                const when = new Date(cm.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
+                return \`<div style="padding:0.65rem 0.75rem;background:#f7fafc;border-radius:8px;margin-bottom:0.5rem;position:relative;">
+                    <div style="font-size:0.78rem;color:#a0aec0;margin-bottom:0.2rem;">\${cm.author} · \${when}</div>
+                    <div style="color:#2d3748;">\${cm.text}</div>
+                    \${isAdmin ? \`<button onclick="deleteExpenseComment('\${cm.id}')" style="position:absolute;top:0.4rem;right:0.5rem;background:none;border:none;color:#e53e3e;cursor:pointer;font-size:0.8rem;">✕</button>\` : ''}
+                </div>\`;
+            }).join('');
+        }
+
+        async function handleExpenseFileSelect(event) {
+            const files = event.target.files;
+            if (!files.length) return;
+            for (let file of files) {
+                const isImage = file.type.startsWith('image/');
+                if (isImage) { try { file = await optimizeImage(file); } catch (_) {} }
+                const comment = prompt(\`Description for "\${file.name}" (optional):\`, '') ?? '';
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const res = await fetch(\`/api/expenses/\${currentExpenseId}/attachments\`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: e.target.result, comment })
+                        });
+                        if (!res.ok) throw new Error();
+                        const { attachment } = await res.json();
+                        const exp = expenses.find(e => e.id === currentExpenseId);
+                        if (exp) { exp.attachments = [...(exp.attachments || []), attachment]; renderExpenseAttachments(exp.attachments); }
+                        loadExpenses();
+                    } catch (_) { alert(\`Failed to upload "\${file.name}"\`); }
+                };
+                reader.readAsDataURL(file);
+            }
+            event.target.value = '';
+        }
+
+        async function deleteExpenseAttachment(attachmentId) {
+            if (!confirm('Remove this attachment?')) return;
+            await fetch(\`/api/expenses/\${currentExpenseId}/attachments/\${attachmentId}\`, { method: 'DELETE' });
+            const exp = expenses.find(e => e.id === currentExpenseId);
+            if (exp) { exp.attachments = (exp.attachments || []).filter(a => a.id !== attachmentId); renderExpenseAttachments(exp.attachments); }
+            loadExpenses();
+        }
+
+        async function viewExpenseAttachment(s3Key) {
+            if (!s3Key) return;
+            const res = await fetch(\`/api/file/\${s3Key}\`);
+            if (!res.ok) { alert('Could not load file.'); return; }
+            const { url } = await res.json();
+            window.open(url, '_blank');
+        }
+
+        async function downloadExpenseAttachment(s3Key, name) {
+            if (!s3Key) return;
+            const res = await fetch(\`/api/file/\${s3Key}\`);
+            if (!res.ok) { alert('Could not download file.'); return; }
+            const { url } = await res.json();
+            const a = document.createElement('a'); a.href = url; a.download = name;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+
+        async function addExpenseComment() {
+            const input = document.getElementById('expenseCommentInput');
+            const text = input.value.trim();
+            if (!text) return;
+            const res = await fetch(\`/api/expenses/\${currentExpenseId}/comments\`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            if (!res.ok) { alert('Failed to post comment.'); return; }
+            const { comment } = await res.json();
+            input.value = '';
+            const exp = expenses.find(e => e.id === currentExpenseId);
+            if (exp) { exp.comments = [...(exp.comments || []), comment]; renderExpenseComments(exp.comments); }
+        }
+
+        async function deleteExpenseComment(commentId) {
+            if (!confirm('Delete this comment?')) return;
+            await fetch(\`/api/expenses/\${currentExpenseId}/comments/\${commentId}\`, { method: 'DELETE' });
+            const exp = expenses.find(e => e.id === currentExpenseId);
+            if (exp) { exp.comments = (exp.comments || []).filter(c => c.id !== commentId); renderExpenseComments(exp.comments); }
+        }
+        // ────────────────────────────────────────────────────────────
 
         function exportExpensesToExcel() {
             const searchTerm = document.getElementById('expense-search').value.toLowerCase();
@@ -8166,7 +10538,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const hasPhone = client && client.phone;
                     const status = hasPhone ? '<span style="color: #48bb78;">✓ Yes</span>' : '<span style="color: #e53e3e;">✗ No phone</span>';
 
-                    html += '<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 0.5rem;">' + (client ? client.name : 'Unknown') + '</td><td style="padding: 0.5rem;">' + (client?.phone || '-') + '</td><td style="padding: 0.5rem;">' + job.title + '</td><td style="padding: 0.5rem;">' + (job.scheduledTime || 'TBD') + '</td><td style="padding: 0.5rem;">' + status + '</td></tr>';
+                    html += '<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 0.5rem;">' + (maskName(client ? client.name : 'Unknown')) + '</td><td style="padding: 0.5rem;">' + (client?.phone || '-') + '</td><td style="padding: 0.5rem;">' + job.title + '</td><td style="padding: 0.5rem;">' + (job.scheduledTime || 'TBD') + '</td><td style="padding: 0.5rem;">' + status + '</td></tr>';
                 }
 
                 html += '</tbody></table>';
@@ -8305,21 +10677,59 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             loadTodayTimeEntries();
         }
 
-        async function clockOut() {
+        let surveyRating = 0;
+
+        function openClockOutSurvey() {
+            if (!currentClockEntry) return;
+            surveyRating = 0;
+            document.getElementById('surveyJobLabel').textContent = currentClockEntry.jobName || '';
+            document.getElementById('surveyComment').value = '';
+            document.getElementById('surveyRatingError').style.display = 'none';
+            renderStars(0);
+            openModal('clockOutSurveyModal');
+        }
+
+        function setSurveyRating(val) {
+            surveyRating = val;
+            renderStars(val);
+            document.getElementById('surveyRatingError').style.display = 'none';
+        }
+
+        function renderStars(val) {
+            document.querySelectorAll('#starRating span').forEach(s => {
+                s.textContent = parseInt(s.dataset.val) <= val ? '★' : '☆';
+                s.style.color = parseInt(s.dataset.val) <= val ? '#f59e0b' : '#cbd5e0';
+            });
+        }
+
+        async function submitClockOutSurvey() {
+            if (!surveyRating) {
+                document.getElementById('surveyRatingError').style.display = 'block';
+                return;
+            }
+            const comment = document.getElementById('surveyComment').value.trim();
+            closeModal('clockOutSurveyModal');
+            await clockOut({ rating: surveyRating, comment });
+        }
+
+        async function clockOutSkipSurvey() {
+            closeModal('clockOutSurveyModal');
+            await clockOut(null);
+        }
+
+        async function clockOut(survey = null) {
             if (!currentClockEntry) return;
 
             const response = await fetch('/api/timeentries/clockout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entryId: currentClockEntry.id
-                })
+                body: JSON.stringify({ entryId: currentClockEntry.id, survey })
             });
 
-            const completedEntry = await response.json();
+            await response.json();
             stopTimer();
             currentClockEntry = null;
-            showClockedOut();
+            showClockedOut(true);
             loadTodayTimeEntries();
 
             if (isAdmin) {
@@ -8337,9 +10747,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('clockInTime').textContent = clockInTime.toLocaleTimeString();
         }
 
-        function showClockedOut() {
+        function showClockedOut(showConfirmation) {
             document.getElementById('clockedOutView').style.display = 'block';
             document.getElementById('clockedInView').style.display = 'none';
+
+            if (showConfirmation) {
+                const banner = document.createElement('div');
+                banner.id = 'clockOutBanner';
+                banner.style.cssText = 'background:#c6f6d5;border:2px solid #48bb78;border-radius:12px;padding:1.25rem 2rem;text-align:center;margin-bottom:1rem;';
+                banner.innerHTML = '<strong style="color:#22543d;font-size:1.1rem;">✅ You\'re Clocked Out — time submitted for approval</strong>';
+                const statusDiv = document.getElementById('clockStatus');
+                const existing = document.getElementById('clockOutBanner');
+                if (existing) existing.remove();
+                statusDiv.insertBefore(banner, statusDiv.firstChild);
+                setTimeout(() => { const b = document.getElementById('clockOutBanner'); if (b) b.remove(); }, 4000);
+            }
         }
 
         function startTimer() {
@@ -8474,9 +10896,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const html = entries.slice(0, 100).map(entry => {
                 const clockIn = new Date(entry.clockIn);
                 const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
-                const duration = entry.duration ? formatDuration(entry.duration) : 'In Progress';
+                const isActive = entry.status === 'active' && !clockOut;
+                const rateAttr = (isActive && entry.hourlyRate) ? ' data-rate="' + entry.hourlyRate + '"' : '';
+                const duration = isActive
+                    ? '<span class="active-elapsed" data-ts="' + clockIn.getTime() + '"' + rateAttr + ' style="color:#48bb78;font-weight:600;">--:--:--</span>'
+                    : (entry.duration ? formatDuration(entry.duration) : '—');
                 const date = clockIn.toLocaleDateString();
-                const timeText = clockOut ? '- ' + clockOut.toLocaleTimeString() : '(Active)';
+                const timeText = clockOut ? '- ' + clockOut.toLocaleTimeString() : '🟢 Active';
 
                 // Status colors
                 let borderColor = '#667eea';
@@ -8504,7 +10930,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '</div>' +
                     '<div style="color: #718096; font-size: 0.9rem;">' +
                     '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' ' + timeText + '</div>' +
-                    '<div>⏱️ Duration: ' + duration + '</div>' +
+                    '<div>⏱️ Duration: ' + duration + (entry.survey ? ' | ' + '★'.repeat(entry.survey.rating) + '☆'.repeat(5 - entry.survey.rating) : '') + '</div>' +
+                    (entry.survey?.comment ? '<div style="color:#4a5568;font-style:italic;margin-top:0.2rem;">💬 ' + entry.survey.comment + '</div>' : '') +
                     '</div></div>' +
                     '<div style="display: flex; gap: 0.25rem;">' +
                     '<button class="btn-icon" onclick="editTimeEntryById(\'' + entry.id + '\')" title="Edit">✏️</button>' +
@@ -8514,6 +10941,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }).join('');
 
             container.innerHTML = html;
+            startActiveElapsedTicker();
+        }
+
+        let activeElapsedInterval = null;
+        function startActiveElapsedTicker() {
+            if (activeElapsedInterval) clearInterval(activeElapsedInterval);
+            function tick() {
+                document.querySelectorAll('.active-elapsed').forEach(el => {
+                    const start = parseInt(el.dataset.ts, 10);
+                    const elapsed = Math.floor((Date.now() - start) / 1000);
+                    const h = Math.floor(elapsed / 3600);
+                    const m = Math.floor((elapsed % 3600) / 60);
+                    const s = elapsed % 60;
+                    const timeStr = h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                    const rate = parseFloat(el.dataset.rate);
+                    const costStr = rate ? ' · <span style="color:#92400e;">~$' + (elapsed / 3600 * rate).toFixed(2) + '</span>' : '';
+                    el.innerHTML = timeStr + costStr;
+                });
+            }
+            tick();
+            activeElapsedInterval = setInterval(tick, 1000);
         }
 
         async function deleteTimeEntry(id) {
@@ -8753,6 +11201,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const duration = formatDuration(entry.duration);
                 const date = clockIn.toLocaleDateString();
 
+                const hours = entry.duration ? entry.duration / 3600 : 0;
+                const rate = parseFloat(entry.hourlyRate) || 0;
+                const plannedPayout = (hours * rate).toFixed(2);
+                const plannedLabel = rate > 0
+                    ? '<div style="color:#276749;font-size:0.85rem;margin-top:0.25rem;">💰 Planned: $' + plannedPayout + ' (' + hours.toFixed(2) + 'hr × $' + rate.toFixed(2) + '/hr)</div>'
+                    : '';
+
                 return '<div class="time-entry-card" style="background: #fffbea; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #ffc107;">' +
                     '<div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">' +
                     '<div style="flex: 1;">' +
@@ -8763,9 +11218,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div style="color: #718096; font-size: 0.9rem;">' +
                     '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' - ' + clockOut.toLocaleTimeString() + '</div>' +
                     '<div>⏱️ Duration: ' + duration + '</div>' +
-                    '</div></div>' +
+                    '</div>' +
+                    plannedLabel +
+                    '</div>' +
                     '<div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 200px;">' +
-                    '<input type="number" id="payment_' + entry.id + '" placeholder="Payment amount" step="0.01" min="0" style="padding: 0.5rem; border: 2px solid #cbd5e0; border-radius: 4px;">' +
+                    '<input type="number" id="payment_' + entry.id + '" placeholder="Payment amount" step="0.01" min="0" value="' + (rate > 0 ? plannedPayout : '') + '" style="padding: 0.5rem; border: 2px solid #cbd5e0; border-radius: 4px;">' +
                     '<div style="display: flex; gap: 0.5rem;">' +
                     '<button class="btn btn-primary btn-small" onclick="approveTimeEntry(\'' + entry.id + '\')" style="flex: 1;">✓ Approve</button>' +
                     '<button class="btn btn-danger btn-small" onclick="rejectTimeEntry(\'' + entry.id + '\')" style="flex: 1;">✗ Reject</button>' +
@@ -8984,7 +11441,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     let html = \`<div class="day-number">\${i}</div>\`;
                     dayJobs.forEach(j => {
                         const client = findClient(j.clientId);
-                        html += \`<div class="calendar-job \${j.status}" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})' title="\${j.title} - \${client ? client.name : 'Unknown'}">\${j.title}</div>\`;
+                        html += \`<div class="calendar-job \${j.status}" onclick='openJobModal(\${JSON.stringify(j).replace(/'/g, "&apos;")})' title="\${j.title} - \${maskName(client ? client.name : 'Unknown')}">\${j.title}</div>\`;
                     });
                     day.innerHTML = html;
                 }
@@ -9033,7 +11490,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.875rem;margin-bottom:0.75rem;" onclick='editJob("\${j.id}")'>
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div>
-                            <div style="font-weight:700;color:#2d3748;">\${client ? client.name : 'Unknown'}</div>
+                            <div style="font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
                             <div style="color:#4a5568;font-size:0.9rem;">\${j.title}</div>
                         </div>
                         <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace(/_/g,' ')}</span>
@@ -9157,6 +11614,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
                 const clientFilter = document.getElementById('filter-client');
                 if (clientFilter) clientFilter.style.display = 'none';
+                const pills = document.getElementById('job-status-pills');
+                if (pills) pills.style.display = 'none';
+                const assignedFilter = document.getElementById('filter-assigned');
+                if (assignedFilter) assignedFilter.style.display = 'none';
+                const clearBtn = document.querySelector('[onclick="clearJobFilters()"]');
+                if (clearBtn) clearBtn.style.display = 'none';
             } else {
                 // Hide user-only tabs for admins
                 document.querySelectorAll('[data-user-only]').forEach(btn => {
@@ -9202,7 +11665,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const viewToShow = savedView || defaultView;
 
             // Make sure the view exists and user has permission
-            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'messages', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'vendors', 'portfolio', 'messages', 'reports', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewToShow)) {
                 showView('jobs');
             } else {
@@ -9211,12 +11674,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Check for unread messages and leads (admins only)
             if (isAdmin) {
-                checkUnreadMessages();
-                updateLeadsBadge();
-                // Poll for new messages every 30 seconds
-                setInterval(checkUnreadMessages, 30000);
-                // Poll leads badge every 60 seconds
-                setInterval(updateLeadsBadge, 60000);
+                initNotificationPolling();
             }
         });
 
@@ -9491,7 +11949,7 @@ const handleRequest = async (req, res) => {
 
     <div class="bill-to">
         <h3>Bill To:</h3>
-        <p><strong>${client ? client.name : 'Unknown Client'}</strong></p>
+        <p><strong>${maskName(client ? client.name : 'Unknown Client')}</strong></p>
         ${client && client.address ? `<p>${client.address.replace(/\n/g, '<br>')}</p>` : ''}
         ${client && client.phone ? `<p>Phone: ${client.phone}</p>` : ''}
         ${client && client.email ? `<p>Email: ${client.email}</p>` : ''}
