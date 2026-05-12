@@ -1037,6 +1037,20 @@ app.get('/request-quote', (req, res) => {
     font-size: 0.6rem; color: #6b7280;
   }
   .photo-count { font-size: 0.72rem; color: #6b7280; margin-top: 0.3rem; }
+  .sms-consent {
+    display: flex; align-items: flex-start; gap: 0.55rem;
+    background: #f8fafc; border: 1.5px solid #e5e7eb; border-radius: 6px;
+    padding: 0.65rem 0.75rem; margin-bottom: 0.65rem;
+  }
+  .sms-consent input[type="checkbox"] {
+    width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px;
+    accent-color: #0f1c2e; cursor: pointer;
+  }
+  .sms-consent label {
+    font-size: 0.75rem; font-weight: 400; color: #4b5563;
+    line-height: 1.45; cursor: pointer; margin: 0;
+  }
+  .sms-consent label a { color: #1d6fa4; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -1131,6 +1145,10 @@ app.get('/request-quote', (req, res) => {
     <input type="hidden" name="utmCampaign" value="${utm_campaign}">
     <input type="hidden" name="referer" value="${ref}">
     <input type="hidden" name="entryPage" value="${entry}">
+    <div class="sms-consent">
+      <input type="checkbox" id="smsConsent" name="smsConsent">
+      <label for="smsConsent">I agree to receive text messages from GSD Handyman Service regarding my quote, appointment reminders, and job updates. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out or HELP for help. No mobile information will be shared with third parties. <a href="https://gsdhandymanservice.com/privacy" target="_blank">Privacy Policy</a></label>
+    </div>
     <p class="error-msg" id="errorMsg">Something went wrong. Please try again or call 856-872-4636.</p>
     <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
   </form>
@@ -1262,7 +1280,7 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
 // Public quote request API
 app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
     try {
-        const { firstName, lastName, phone, email, service, description, city, contactPref, photos, foundUs, utmSource, utmMedium, utmCampaign, referer, entryPage } = req.body;
+        const { firstName, lastName, phone, email, service, description, city, contactPref, photos, foundUs, utmSource, utmMedium, utmCampaign, referer, entryPage, smsConsent } = req.body;
         if (!firstName || !lastName || !phone || !service) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -1304,6 +1322,7 @@ app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
                 referer: referer || '',
                 entryPage: entryPage || ''
             },
+            smsConsent: smsConsent === 'on' || smsConsent === true,
             status: 'new',
             createdAt: new Date()
         };
