@@ -4716,6 +4716,28 @@ app.get('/api/client-portal/me', async (req, res) => {
         const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
         const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
 
+        // Invoices = jobs that have been invoiced or completed with a total
+        const invoices = jobs
+            .filter(j => j.invoiceSentAt || j.status === 'invoiced' || j.status === 'completed')
+            .map(j => {
+                const total = parseFloat(j.totalWithTax || j.total) || 0;
+                const paid = parseFloat(j.totalPaid) || 0;
+                const due = Math.max(0, total - paid);
+                const status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
+                const invoiceNumber = j.invoiceNumber || `INV-${j._id.toString().slice(-8).toUpperCase()}`;
+                return {
+                    id: j._id.toString(),
+                    invoiceNumber,
+                    jobTitle: j.title,
+                    total,
+                    paid,
+                    due,
+                    status,
+                    date: j.invoiceSentAt || j.updatedAt || j.createdAt
+                };
+            })
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+
         res.json({
             client: {
                 name: client.name,
@@ -4724,6 +4746,7 @@ app.get('/api/client-portal/me', async (req, res) => {
             },
             quotes: quotesWithId,
             jobs: jobsWithId,
+            invoices,
             settings: {
                 appName: settings.appName || 'Jobber Pro',
                 favicon: settings.favicon || '',

@@ -80,7 +80,7 @@
             padding: 2rem;
         }
 
-        .quote-card, .job-card {
+        .quote-card, .job-card, .invoice-card {
             background: #f7fafc;
             padding: 1rem;
             border-radius: 8px;
@@ -88,10 +88,29 @@
             border-left: 4px solid #667eea;
         }
 
-        .quote-card h3, .job-card h3 {
+        .invoice-card {
+            border-left-color: #48bb78;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .invoice-card .invoice-info { flex: 1; }
+
+        .invoice-card .invoice-amounts {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .quote-card h3, .job-card h3, .invoice-card h3 {
             color: #2d3748;
             margin-bottom: 0.5rem;
         }
+
+        .status-paid { background: #c6f6d5; color: #22543d; }
+        .status-outstanding { background: #fed7d7; color: #742a2a; }
+        .status-partial { background: #feebc8; color: #7b341e; }
 
         .status-badge {
             display: inline-block;
@@ -204,6 +223,12 @@
             </div>
         </div>
 
+        <!-- Invoices Section -->
+        <div class="card" style="margin-bottom: 2rem;">
+            <h2>🧾 My Invoices</h2>
+            <div id="invoicesList"></div>
+        </div>
+
         <!-- Message Section -->
         <div class="card">
             <h2>💬 Send Message</h2>
@@ -247,6 +272,7 @@
 
                 renderQuotes(clientData.quotes);
                 renderJobs(clientData.jobs);
+                renderInvoices(clientData.invoices);
                 setupMessageForm();
             } catch (error) {
                 console.error('Failed to load client data:', error);
@@ -303,6 +329,33 @@
                             <p><strong>Total:</strong> $${parseFloat(job.total || 0).toFixed(2)}</p>
                             <a href="/invoice/${job.id}" target="_blank" class="btn btn-primary">View Invoice</a>
                         ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInvoices(invoices) {
+            const container = document.getElementById('invoicesList');
+            if (!invoices || invoices.length === 0) {
+                container.innerHTML = '<div class="empty-state">No invoices yet</div>';
+                return;
+            }
+            container.innerHTML = invoices.map(inv => {
+                const date = inv.date ? new Date(inv.date).toLocaleDateString() : '';
+                const statusLabel = inv.status === 'paid' ? 'PAID' : inv.status === 'partial' ? 'PARTIAL' : 'OUTSTANDING';
+                const statusClass = `status-${inv.status}`;
+                return `
+                    <div class="invoice-card">
+                        <div class="invoice-info">
+                            <h3>${inv.jobTitle}</h3>
+                            <p style="color:#718096;font-size:0.85rem;">${inv.invoiceNumber}${date ? ' &nbsp;·&nbsp; ' + date : ''}</p>
+                            <span class="status-badge ${statusClass}">${statusLabel}</span>
+                        </div>
+                        <div class="invoice-amounts">
+                            <div style="font-size:1.25rem;font-weight:700;color:#2d3748;">$${inv.total.toFixed(2)}</div>
+                            ${inv.due > 0 ? `<div style="font-size:0.85rem;color:#e53e3e;font-weight:600;">$${inv.due.toFixed(2)} due</div>` : ''}
+                            <a href="/invoice/${inv.id}" target="_blank" class="btn btn-primary" style="margin-top:0.5rem;font-size:0.85rem;">View Invoice</a>
+                        </div>
                     </div>
                 `;
             }).join('');
