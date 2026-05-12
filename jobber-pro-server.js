@@ -3161,10 +3161,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
 
-                    <!-- Portal Submission Photos -->
-                    <div id="quotePhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
-                        <h3 style="margin-bottom: 0.75rem;">📷 Client Photos</h3>
+                    <!-- Photos -->
+                    <div id="quotePhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <h3 style="margin:0;">📷 Photos</h3>
+                            <label style="cursor:pointer;">
+                                <input type="file" id="quotePhotoUploadInput" accept="image/*" multiple style="display:none;" onchange="handleQuotePhotoUpload(event)">
+                                <span class="btn btn-secondary btn-small">+ Add Photos</span>
+                            </label>
+                        </div>
                         <div id="quotePhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                        <div id="quotePhotoUploadStatus" style="font-size:0.85rem;color:#718096;margin-top:0.5rem;display:none;"></div>
                     </div>
 
                     <!-- Audit Log -->
@@ -6565,27 +6572,88 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('quoteAuditLogSection').style.display = 'none';
             }
 
-            // Portal submission photos
-            const photosSection = document.getElementById('quotePhotosSection');
-            const photoGrid     = document.getElementById('quotePhotoGrid');
-            photoGrid.innerHTML = '';
-            if (quote.photos && quote.photos.length > 0) {
-                photosSection.style.display = 'block';
-                photoGrid.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Loading photos...</div>';
-                fetch(\`/api/quotes/\${quote.id}/photos\`)
-                    .then(r => r.json())
-                    .then(data => {
-                        photoGrid.innerHTML = (data.photos || []).map(url =>
-                            \`<a href="\${url}" target="_blank"><img src="\${url}" style="width:110px;height:85px;object-fit:cover;border-radius:6px;border:2px solid #e2e8f0;cursor:pointer;" title="Click to open full size"></a>\`
-                        ).join('');
-                    })
-                    .catch(() => { photoGrid.innerHTML = '<div style="color:#e53e3e;">Failed to load photos</div>'; });
-            } else {
-                photosSection.style.display = 'none';
-            }
+            // Photos section
+            document.getElementById('quotePhotoUploadStatus').style.display = 'none';
+            loadQuotePhotos(quote.id);
 
             document.getElementById('quoteModal').classList.add('active');
             markFormClean('quoteForm');
+        }
+
+        function loadQuotePhotos(quoteId) {
+            const grid = document.getElementById('quotePhotoGrid');
+            grid.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Loading...</div>';
+            fetch(\`/api/quotes/\${quoteId}/photos\`)
+                .then(r => r.json())
+                .then(data => {
+                    const photos = data.photos || [];
+                    grid.innerHTML = photos.length
+                        ? photos.map((url, i) => \`
+                            <div style="position:relative;display:inline-block;">
+                                <a href="\${url}" target="_blank"><img src="\${url}" style="width:110px;height:85px;object-fit:cover;border-radius:6px;border:2px solid #e2e8f0;display:block;" title="Click to open full size"></a>
+                                <button onclick="deleteQuotePhoto(\${i})" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:white;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:0.75rem;line-height:20px;padding:0;" title="Remove">✕</button>
+                            </div>\`).join('')
+                        : '<div style="color:#a0aec0;font-size:0.85rem;">No photos yet</div>';
+                })
+                .catch(() => { grid.innerHTML = '<div style="color:#e53e3e;">Failed to load</div>'; });
+        }
+
+        async function handleQuotePhotoUpload(event) {
+            const files = Array.from(event.target.files);
+            event.target.value = '';
+            if (!files.length) return;
+            const status = document.getElementById('quotePhotoUploadStatus');
+            status.style.display = 'block';
+            status.textContent = \`Uploading \${files.length} photo\${files.length > 1 ? 's' : ''}...\`;
+
+            const dataUrls = await Promise.all(files.map(f => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    // Compress via canvas
+                    const img = new Image();
+                    img.onload = () => {
+                        const MAX = 1200;
+                        let w = img.width, h = img.height;
+                        if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX; } else { w = Math.round(w * MAX / h); h = MAX; } }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', 0.82));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(f);
+            })));
+
+            try {
+                const res = await fetch(\`/api/quotes/\${currentEditingQuoteId}/photos\`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photos: dataUrls })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+                status.textContent = '✓ Uploaded';
+                setTimeout(() => { status.style.display = 'none'; }, 2000);
+                loadQuotePhotos(currentEditingQuoteId);
+                // Update local quote object so re-opening shows photos
+                const q = quotes.find(q => q.id == currentEditingQuoteId);
+                if (q) q.photos = (q.photos || []).concat(data.keys || []);
+            } catch (e) {
+                status.textContent = 'Upload failed: ' + e.message;
+                status.style.color = '#e53e3e';
+            }
+        }
+
+        async function deleteQuotePhoto(index) {
+            if (!confirm('Remove this photo?')) return;
+            try {
+                const res = await fetch(\`/api/quotes/\${currentEditingQuoteId}/photos/\${index}\`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Failed');
+                loadQuotePhotos(currentEditingQuoteId);
+            } catch (e) {
+                alert('Failed to remove photo: ' + e.message);
+            }
         }
 
         async function deleteQuote(quoteId) {

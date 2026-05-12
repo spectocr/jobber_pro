@@ -573,7 +573,7 @@ const publicApiLimiter = rateLimit({
 });
 
 // Body parsing — 50mb for upload routes, 10kb everywhere else
-const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/client-portal/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs'];
+const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/client-portal/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs', '/api/quotes'];
 app.use((req, res, next) => {
     const limit = LARGE_BODY_PATHS.some(p => req.path.startsWith(p)) ? '50mb' : '10kb';
     express.json({ limit })(req, res, next);
@@ -2643,6 +2643,60 @@ app.get('/api/quotes/:id/photos', isAuthenticated, async (req, res) => {
             typeof p === 'string' && !p.startsWith('data:') ? getS3SignedUrl(p, 3600) : Promise.resolve(p)
         ));
         res.json({ photos: urls.filter(Boolean) });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/quotes/:id/photos', isAuthenticated, async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne({ _id: new ObjectId(req.params.id) });
+        if (!quote) return res.status(404).json({ error: 'Not found' });
+
+        const { photos } = req.body;
+        const valid = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 10) : [];
+        if (!valid.length) return res.status(400).json({ error: 'No valid photos' });
+
+        let keys = [];
+        if (s3Client) {
+            const ts = Date.now();
+            const uploads = await Promise.all(valid.map(async (dataUrl, i) => {
+                const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
+                if (!match) return null;
+                const [, contentType, rawExt] = match;
+                const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+                const key = `quotes/admin/${req.params.id}/${ts}-${i}.${ext}`;
+                await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: Buffer.from(match[3], 'base64'), ContentType: contentType }));
+                return key;
+            }));
+            keys = uploads.filter(Boolean);
+        } else {
+            keys = valid;
+        }
+
+        await db.collection('quotes').updateOne({ _id: new ObjectId(req.params.id) }, { $push: { photos: { $each: keys } } });
+        res.json({ success: true, keys });
+    } catch (err) {
+        console.error('Add quote photos error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/quotes/:id/photos/:index', isAuthenticated, async (req, res) => {
+    try {
+        const quote = await db.collection('quotes').findOne({ _id: new ObjectId(req.params.id) });
+        if (!quote) return res.status(404).json({ error: 'Not found' });
+
+        const photos = Array.isArray(quote.photos) ? [...quote.photos] : [];
+        const idx = parseInt(req.params.index);
+        if (isNaN(idx) || idx < 0 || idx >= photos.length) return res.status(400).json({ error: 'Invalid index' });
+
+        const removed = photos.splice(idx, 1)[0];
+        if (s3Client && typeof removed === 'string' && !removed.startsWith('data:')) {
+            await deleteFromS3(removed).catch(() => {});
+        }
+        await db.collection('quotes').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { photos } });
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }
