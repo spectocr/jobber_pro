@@ -347,7 +347,7 @@
 
             <div id="quoteRequestSuccess" style="display:none;" class="success-banner">
                 <div style="font-size:1.1rem;font-weight:700;margin-bottom:0.25rem;">✅ Request submitted!</div>
-                <div>Your ticket number is <span id="newTicketNumber" class="ticket-badge" style="font-size:0.9rem;"></span>. We'll be in touch soon.</div>
+                <div>Your quote number is <span id="newTicketNumber" class="ticket-badge" style="font-size:0.9rem;"></span>. We'll be in touch soon with pricing.</div>
             </div>
 
             <form id="quoteRequestForm" onsubmit="submitPortalQuoteRequest(event)">
@@ -369,9 +369,9 @@
                         <option value="Other">Other</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Location / Address <span style="font-weight:400;color:#718096;">(if different from your address on file)</span></label>
-                    <input type="text" id="qrLocation" class="form-input" placeholder="123 Main St, Marlton NJ or leave blank">
+                <div class="form-group" id="qrAddressGroup" style="display:none;">
+                    <label class="form-label">Service Address</label>
+                    <select id="qrAddressId" class="form-select"></select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Describe the work *</label>
@@ -389,12 +389,6 @@
                 </div>
                 <button type="submit" class="btn btn-primary" id="qrSubmitBtn" style="width:100%;padding:0.875rem;font-size:1rem;">Submit Request</button>
             </form>
-        </div>
-
-        <!-- My Requests Section -->
-        <div class="card" style="margin-bottom: 2rem;">
-            <h2>🎫 My Requests</h2>
-            <div id="requestsList"></div>
         </div>
 
         <!-- Message Section -->
@@ -442,7 +436,7 @@
                 renderQuotes(clientData.quotes);
                 renderJobs(clientData.jobs);
                 renderInvoices(clientData.invoices);
-                renderRequests(clientData.requests);
+                setupAddressPicker(clientData.addresses);
                 setupMessageForm();
             } catch (error) {
                 console.error('Failed to load client data:', error);
@@ -459,20 +453,25 @@
             }
 
             container.innerHTML = quotes.map(quote => {
+                const isDraft = quote.status === 'draft';
                 const statusClass = quote.status === 'approved' ? 'status-approved' :
-                                   quote.status === 'sent' ? 'status-sent' : 'status-scheduled';
+                                    quote.status === 'sent' ? 'status-sent' :
+                                    isDraft ? '' : 'status-scheduled';
+                const statusLabel = isDraft ? 'PENDING REVIEW' : quote.status.toUpperCase();
+                const statusStyle = isDraft ? 'background:#e9d8fd;color:#553c9a;' : '';
 
-                const validUntil = new Date(quote.validUntil);
-                const isExpired = validUntil < new Date() && quote.status === 'sent';
+                const validUntil = quote.validUntil ? new Date(quote.validUntil) : null;
+                const isExpired = validUntil && validUntil < new Date() && quote.status === 'sent';
 
                 return `
                     <div class="quote-card">
                         <h3>${quote.title}</h3>
                         <p><strong>Quote #:</strong> ${quote.quoteNumber}</p>
-                        <p><strong>Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>
-                        <p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>
-                        <p><span class="status-badge ${statusClass}">${quote.status.toUpperCase()}</span></p>
-                        ${!isExpired ? `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">View Quote</a>` : '<p style="color: #e53e3e;">Expired</p>'}
+                        ${!isDraft ? `<p><strong>Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>` : ''}
+                        ${validUntil && !isDraft ? `<p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>` : ''}
+                        <p><span class="status-badge ${statusClass}" style="${statusStyle}">${statusLabel}</span></p>
+                        ${!isDraft && !isExpired ? `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">View Quote</a>` : ''}
+                        ${isExpired ? '<p style="color:#e53e3e;">Expired</p>' : ''}
                     </div>
                 `;
             }).join('');
@@ -609,28 +608,17 @@
 
         // ── Quote Request ─────────────────────────────────────────────────────
 
-        function renderRequests(requests) {
-            const container = document.getElementById('requestsList');
-            if (!requests || requests.length === 0) {
-                container.innerHTML = '<div class="empty-state">No requests submitted yet</div>';
+        function setupAddressPicker(addresses) {
+            const group = document.getElementById('qrAddressGroup');
+            const select = document.getElementById('qrAddressId');
+            if (!addresses || addresses.length <= 1) {
+                // Only one address — hide picker, value will be 'primary' by default
+                group.style.display = 'none';
+                select.innerHTML = '<option value="primary">Primary Address</option>';
                 return;
             }
-            const statusLabels = { new: 'Received', contacted: 'In Review', quoted: 'Quote Sent', won: 'Scheduled', lost: 'Closed' };
-            const statusColors = { new: '#bee3f8;color:#2c5282', contacted: '#feebc8;color:#7b341e', quoted: '#d6bcfa;color:#44337a', won: '#c6f6d5;color:#22543d', lost: '#e2e8f0;color:#4a5568' };
-            container.innerHTML = requests.map(r => {
-                const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '';
-                const label = statusLabels[r.status] || r.status;
-                const color = statusColors[r.status] || '#e2e8f0;color:#4a5568';
-                return `<div class="request-card">
-                    <div>
-                        <div class="ticket-badge">${r.ticketNumber}</div>
-                        <div style="font-weight:600;color:#2d3748;">${r.service}</div>
-                        ${r.description ? `<div style="color:#718096;font-size:0.85rem;margin-top:0.2rem;">${r.description.length > 100 ? r.description.slice(0,100) + '…' : r.description}</div>` : ''}
-                        ${date ? `<div style="color:#a0aec0;font-size:0.78rem;margin-top:0.3rem;">${date}</div>` : ''}
-                    </div>
-                    <span style="background:${color};padding:0.2rem 0.7rem;border-radius:12px;font-size:0.78rem;font-weight:700;white-space:nowrap;">${label}</span>
-                </div>`;
-            }).join('');
+            select.innerHTML = addresses.map(a => `<option value="${a.id}">${a.label}${a.address !== a.label ? ' — ' + a.address : ''}</option>`).join('');
+            group.style.display = 'block';
         }
 
         async function compressImage(file) {
@@ -693,7 +681,7 @@
         async function submitPortalQuoteRequest(event) {
             event.preventDefault();
             const service = document.getElementById('qrService').value;
-            const location = document.getElementById('qrLocation').value.trim();
+            const addressId = document.getElementById('qrAddressId').value || 'primary';
             const description = document.getElementById('qrDescription').value.trim();
             const btn = document.getElementById('qrSubmitBtn');
 
@@ -702,23 +690,22 @@
                 const res = await fetch('/api/client-portal/quote-request', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ service, location, description, photos: qrPhotos.map(p => p.dataUrl) })
+                    body: JSON.stringify({ service, addressId, description, photos: qrPhotos.map(p => p.dataUrl) })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Submission failed');
 
-                // Show success
-                document.getElementById('newTicketNumber').textContent = data.ticketNumber;
+                document.getElementById('newTicketNumber').textContent = data.quoteNumber;
                 document.getElementById('quoteRequestSuccess').style.display = 'block';
                 document.getElementById('quoteRequestForm').reset();
                 qrPhotos = [];
                 renderQrPhotos();
                 document.getElementById('quoteRequestSuccess').scrollIntoView({ behavior: 'smooth' });
 
-                // Prepend new request to list
+                // Add to My Quotes list immediately
                 if (clientData) {
-                    clientData.requests = [{ id: '', ticketNumber: data.ticketNumber, service, description, status: 'new', createdAt: new Date() }, ...(clientData.requests || [])];
-                    renderRequests(clientData.requests);
+                    clientData.quotes = [{ id: '', title: service, quoteNumber: data.quoteNumber, status: 'draft', total: 0 }, ...(clientData.quotes || [])];
+                    renderQuotes(clientData.quotes);
                 }
             } catch (e) {
                 alert('Failed to submit: ' + e.message);

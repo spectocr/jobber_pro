@@ -4716,11 +4716,13 @@ app.get('/api/client-portal/me', async (req, res) => {
         const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
         const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
 
-        // Past quote requests submitted via portal
-        const portalRequests = await db.collection('leads')
-            .find({ clientId: req.session.clientId, source: 'portal' })
-            .sort({ createdAt: -1 })
-            .toArray();
+        // Build address list for the portal address picker
+        const primaryAddress = [client.addressLine1, client.addressLine2, client.city, client.state, client.zipCode].filter(Boolean).join(', ') || client.address || '';
+        const addresses = [];
+        if (primaryAddress) addresses.push({ id: 'primary', label: 'Primary Address', address: primaryAddress });
+        (client.serviceLocations || []).forEach(loc => {
+            if (loc.address) addresses.push({ id: String(loc.id), label: loc.name || loc.address, address: loc.address });
+        });
 
         // Invoices = jobs that have been invoiced or completed with a total
         const invoices = jobs
@@ -4753,14 +4755,7 @@ app.get('/api/client-portal/me', async (req, res) => {
             quotes: quotesWithId,
             jobs: jobsWithId,
             invoices,
-            requests: portalRequests.map(r => ({
-                id: r._id.toString(),
-                ticketNumber: r.ticketNumber || `TKT-${r._id.toString().slice(-8).toUpperCase()}`,
-                service: r.service,
-                description: r.description || '',
-                status: r.status,
-                createdAt: r.createdAt
-            })),
+            addresses,
             settings: {
                 appName: settings.appName || 'Jobber Pro',
                 favicon: settings.favicon || '',
@@ -4807,7 +4802,7 @@ app.post('/api/client-portal/message', async (req, res) => {
     }
 });
 
-// Client Portal — Submit quote request
+// Client Portal — Submit quote request (creates a quote directly)
 app.post('/api/client-portal/quote-request', async (req, res) => {
     try {
         if (!req.session.clientId || !req.session.isClientPortal) {
@@ -4817,9 +4812,20 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
         const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const { service, description, location, photos } = req.body;
+        const { service, description, addressId, photos } = req.body;
         if (!service) return res.status(400).json({ error: 'Service is required' });
 
+        // Resolve the chosen address
+        let serviceAddress = '';
+        let serviceLocationId = null;
+        if (addressId === 'primary' || !addressId) {
+            serviceAddress = [client.addressLine1, client.addressLine2, client.city, client.state, client.zipCode].filter(Boolean).join(', ') || client.address || '';
+        } else {
+            const loc = (client.serviceLocations || []).find(l => String(l.id) === String(addressId));
+            if (loc) { serviceAddress = loc.address; serviceLocationId = loc.id; }
+        }
+
+        // Upload photos to S3
         const validPhotos = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 5) : [];
         let photoKeys = [];
         if (validPhotos.length > 0 && s3Client) {
@@ -4829,7 +4835,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
                 if (!match) return null;
                 const [, contentType, rawExt] = match;
                 const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-                const key = `leads/${ts}-portal-${i}.${ext}`;
+                const key = `quotes/portal/${ts}-${i}.${ext}`;
                 const buffer = Buffer.from(match[3], 'base64');
                 await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType }));
                 return key;
@@ -4837,25 +4843,32 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             photoKeys = uploads.filter(Boolean);
         }
 
-        const lead = {
-            clientId: req.session.clientId,
-            firstName: client.name.split(' ')[0],
-            lastName: client.name.split(' ').slice(1).join(' ') || '',
-            name: client.name,
-            phone: client.phone || '',
-            email: client.email || '',
-            service,
+        // Generate quote number and secure token
+        const crypto = require('crypto');
+        const year = new Date().getFullYear();
+        const count = await db.collection('quotes').countDocuments({}) + 1;
+        const quoteNumber = `Q-${year}-${String(count).padStart(3, '0')}`;
+        const secureToken = crypto.randomUUID();
+
+        const quote = {
+            clientId: new ObjectId(req.session.clientId),
+            clientName: client.name,
+            title: service,
             description: description || '',
-            city: location || '',
+            serviceAddress,
+            serviceLocationId,
             photos: photoKeys.length ? photoKeys : validPhotos,
+            quoteNumber,
+            secureToken,
+            status: 'draft',
             source: 'portal',
-            status: 'new',
-            createdAt: new Date()
+            total: 0,
+            lineItems: [],
+            createdAt: new Date(),
+            updatedAt: new Date()
         };
 
-        const result = await db.collection('leads').insertOne(lead);
-        const ticketNumber = `TKT-${result.insertedId.toString().slice(-8).toUpperCase()}`;
-        await db.collection('leads').updateOne({ _id: result.insertedId }, { $set: { ticketNumber } });
+        await db.collection('quotes').insertOne(quote);
 
         const settings = await db.collection('settings').findOne({});
         const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
@@ -4868,25 +4881,25 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
                 ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${emailPhotoUrls.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>` : '';
             await emailService.sendEmail({
                 to: 'franzthehandyman@gmail.com',
-                subject: `Portal Quote Request — ${service} — ${client.name} [${ticketNumber}]`,
+                subject: `Portal Quote Request — ${service} — ${client.name} [${quoteNumber}]`,
                 html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                     <h2 style="color:#667eea;">Client Portal Quote Request</h2>
-                    <p style="background:#f0f4ff;padding:10px 14px;border-radius:6px;font-weight:700;color:#667eea;">Ticket: ${ticketNumber}</p>
+                    <p style="background:#f0f4ff;padding:10px 14px;border-radius:6px;font-weight:700;color:#667eea;">Quote #: ${quoteNumber}</p>
                     <table style="width:100%;border-collapse:collapse;">
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;width:140px;">Client</td><td>${client.name}</td></tr>
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Phone</td><td><a href="tel:${client.phone}">${client.phone}</a></td></tr>
                         ${client.email ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Email</td><td>${client.email}</td></tr>` : ''}
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Service</td><td>${service}</td></tr>
-                        ${location ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Location</td><td>${location}</td></tr>` : ''}
+                        ${serviceAddress ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Address</td><td>${serviceAddress}</td></tr>` : ''}
                         ${description ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Details</td><td>${description}</td></tr>` : ''}
                         ${photoHtml}
                     </table>
                 </div>`,
-                text: `Portal Quote Request [${ticketNumber}]\n\nClient: ${client.name}\nPhone: ${client.phone}\nService: ${service}\n${location ? 'Location: ' + location + '\n' : ''}${description ? '\n' + description : ''}`
+                text: `Portal Quote Request [${quoteNumber}]\n\nClient: ${client.name}\nPhone: ${client.phone}\nService: ${service}\n${serviceAddress ? 'Address: ' + serviceAddress + '\n' : ''}${description ? '\n' + description : ''}`
             });
         }
 
-        res.json({ success: true, ticketNumber });
+        res.json({ success: true, quoteNumber });
     } catch (e) {
         console.error('Portal quote request error:', e);
         res.status(500).json({ error: e.message });
