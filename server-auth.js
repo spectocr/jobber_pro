@@ -573,7 +573,7 @@ const publicApiLimiter = rateLimit({
 });
 
 // Body parsing — 50mb for upload routes, 10kb everywhere else
-const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs'];
+const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/client-portal/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs'];
 app.use((req, res, next) => {
     const limit = LARGE_BODY_PATHS.some(p => req.path.startsWith(p)) ? '50mb' : '10kb';
     express.json({ limit })(req, res, next);
@@ -4716,6 +4716,12 @@ app.get('/api/client-portal/me', async (req, res) => {
         const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
         const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
 
+        // Past quote requests submitted via portal
+        const portalRequests = await db.collection('leads')
+            .find({ clientId: req.session.clientId, source: 'portal' })
+            .sort({ createdAt: -1 })
+            .toArray();
+
         // Invoices = jobs that have been invoiced or completed with a total
         const invoices = jobs
             .filter(j => j.invoiceSentAt || j.status === 'invoiced' || j.status === 'completed')
@@ -4747,6 +4753,14 @@ app.get('/api/client-portal/me', async (req, res) => {
             quotes: quotesWithId,
             jobs: jobsWithId,
             invoices,
+            requests: portalRequests.map(r => ({
+                id: r._id.toString(),
+                ticketNumber: r.ticketNumber || `TKT-${r._id.toString().slice(-8).toUpperCase()}`,
+                service: r.service,
+                description: r.description || '',
+                status: r.status,
+                createdAt: r.createdAt
+            })),
             settings: {
                 appName: settings.appName || 'Jobber Pro',
                 favicon: settings.favicon || '',
@@ -4790,6 +4804,92 @@ app.post('/api/client-portal/message', async (req, res) => {
     } catch (error) {
         console.error('Send message error:', error);
         res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
+// Client Portal — Submit quote request
+app.post('/api/client-portal/quote-request', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+
+        const { service, description, location, photos } = req.body;
+        if (!service) return res.status(400).json({ error: 'Service is required' });
+
+        const validPhotos = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 5) : [];
+        let photoKeys = [];
+        if (validPhotos.length > 0 && s3Client) {
+            const ts = Date.now();
+            const uploads = await Promise.all(validPhotos.map(async (dataUrl, i) => {
+                const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
+                if (!match) return null;
+                const [, contentType, rawExt] = match;
+                const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+                const key = `leads/${ts}-portal-${i}.${ext}`;
+                const buffer = Buffer.from(match[3], 'base64');
+                await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType }));
+                return key;
+            }));
+            photoKeys = uploads.filter(Boolean);
+        }
+
+        const lead = {
+            clientId: req.session.clientId,
+            firstName: client.name.split(' ')[0],
+            lastName: client.name.split(' ').slice(1).join(' ') || '',
+            name: client.name,
+            phone: client.phone || '',
+            email: client.email || '',
+            service,
+            description: description || '',
+            city: location || '',
+            photos: photoKeys.length ? photoKeys : validPhotos,
+            source: 'portal',
+            status: 'new',
+            createdAt: new Date()
+        };
+
+        const result = await db.collection('leads').insertOne(lead);
+        const ticketNumber = `TKT-${result.insertedId.toString().slice(-8).toUpperCase()}`;
+        await db.collection('leads').updateOne({ _id: result.insertedId }, { $set: { ticketNumber } });
+
+        const settings = await db.collection('settings').findOne({});
+        const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
+
+        if (emailService.initialized) {
+            const emailPhotoUrls = photoKeys.length
+                ? await Promise.all(photoKeys.map(k => getS3SignedUrl(k, 86400)))
+                : validPhotos;
+            const photoHtml = emailPhotoUrls.length
+                ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${emailPhotoUrls.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>` : '';
+            await emailService.sendEmail({
+                to: 'franzthehandyman@gmail.com',
+                subject: `Portal Quote Request — ${service} — ${client.name} [${ticketNumber}]`,
+                html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                    <h2 style="color:#667eea;">Client Portal Quote Request</h2>
+                    <p style="background:#f0f4ff;padding:10px 14px;border-radius:6px;font-weight:700;color:#667eea;">Ticket: ${ticketNumber}</p>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;width:140px;">Client</td><td>${client.name}</td></tr>
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Phone</td><td><a href="tel:${client.phone}">${client.phone}</a></td></tr>
+                        ${client.email ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Email</td><td>${client.email}</td></tr>` : ''}
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Service</td><td>${service}</td></tr>
+                        ${location ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Location</td><td>${location}</td></tr>` : ''}
+                        ${description ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Details</td><td>${description}</td></tr>` : ''}
+                        ${photoHtml}
+                    </table>
+                </div>`,
+                text: `Portal Quote Request [${ticketNumber}]\n\nClient: ${client.name}\nPhone: ${client.phone}\nService: ${service}\n${location ? 'Location: ' + location + '\n' : ''}${description ? '\n' + description : ''}`
+            });
+        }
+
+        res.json({ success: true, ticketNumber });
+    } catch (e) {
+        console.error('Portal quote request error:', e);
+        res.status(500).json({ error: e.message });
     }
 });
 
