@@ -6002,7 +6002,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <span class="status-badge \${statusClass}" style="white-space:nowrap;margin-left:0.5rem;">\${q.status.replace('_', ' ')}</span>
                         </div>
                         <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
-                            #\${q.quoteNumber} · Valid: \${q.validUntil}\${isExpired ? ' <span style="color:#e53e3e;">(Expired)</span>' : ''}
+                            #\${q.quoteNumber} · Valid: \${q.validUntil}\${isExpired ? ' <span style="color:#e53e3e;">(Expired)</span>' : ''}\${q.priority ? ' · ' + ({urgent:'🔴 Urgent','1_day':'🟠 1 Day','3_days':'🟡 3 Days','1_week':'🟢 1 Week','2_weeks':'🔵 2 Weeks',flexible:'⚪ Flexible'}[q.priority] || q.priority) : ''}
                         </div>
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                             <div style="font-size:1rem;font-weight:700;color:#2d3748;">\${formatMoney(parseFloat(q.total || 0))}</div>
@@ -6038,7 +6038,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return \`<tr>
                         <td>\${q.quoteNumber}</td>
                         <td>\${maskName(client ? client.name : 'Unknown')}</td>
-                        <td><strong>\${q.title}</strong></td>
+                        <td><strong>\${q.title}</strong>\${q.priority ? ' <span style="font-size:0.8rem;color:#718096;">' + ({urgent:'🔴 Urgent','1_day':'🟠 1 Day','3_days':'🟡 3 Days','1_week':'🟢 1 Week','2_weeks':'🔵 2 Weeks',flexible:'⚪ Flexible'}[q.priority] || q.priority) + '</span>' : ''}</td>
                         <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
                         <td><span class="status-badge \${statusClass}">\${q.status.replace('_', ' ')}</span></td>
                         <td>\${formatMoney(parseFloat(q.total || 0))}</td>

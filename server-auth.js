@@ -4844,7 +4844,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
         const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const { service, description, addressId, photos } = req.body;
+        const { service, description, addressId, priority, photos } = req.body;
         if (!service) return res.status(400).json({ error: 'Service is required' });
 
         // Resolve the chosen address — if session is location-scoped, force that location
@@ -4895,6 +4895,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             photos: photoKeys.length ? photoKeys : validPhotos,
             quoteNumber,
             secureToken,
+            priority: priority || 'flexible',
             status: 'draft',
             source: 'portal',
             total: 0,
@@ -4907,6 +4908,9 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
 
         const settings = await db.collection('settings').findOne({});
         const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
+
+        const priorityLabels = { urgent: '🔴 Urgent', '1_day': '🟠 Within 1 Day', '3_days': '🟡 Within 3 Days', '1_week': '🟢 Within 1 Week', '2_weeks': '🔵 Within 2 Weeks', flexible: '⚪ Flexible / No Rush' };
+        const priorityLabel = priorityLabels[priority] || priority || 'Flexible';
 
         if (emailService.initialized) {
             const emailPhotoUrls = photoKeys.length
@@ -4925,12 +4929,13 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Phone</td><td><a href="tel:${client.phone}">${client.phone}</a></td></tr>
                         ${client.email ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Email</td><td>${client.email}</td></tr>` : ''}
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Service</td><td>${service}</td></tr>
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Priority</td><td>${priorityLabel}</td></tr>
                         ${serviceAddress ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Address</td><td>${serviceAddress}</td></tr>` : ''}
                         ${description ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Details</td><td>${description}</td></tr>` : ''}
                         ${photoHtml}
                     </table>
                 </div>`,
-                text: `Portal Quote Request [${quoteNumber}]\n\nClient: ${client.name}\nPhone: ${client.phone}\nService: ${service}\n${serviceAddress ? 'Address: ' + serviceAddress + '\n' : ''}${description ? '\n' + description : ''}`
+                text: `Portal Quote Request [${quoteNumber}]\n\nClient: ${client.name}\nPhone: ${client.phone}\nService: ${service}\nPriority: ${priorityLabel}\n${serviceAddress ? 'Address: ' + serviceAddress + '\n' : ''}${description ? '\n' + description : ''}`
             });
         }
 
