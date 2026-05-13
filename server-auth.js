@@ -4583,8 +4583,8 @@ app.get('/quote-view/:token', async (req, res) => {
 
         ${showButtons ? `
         <div class="actions">
-            <button class="btn btn-approve" onclick="approveQuote()">✓ Approve Quote</button>
-            <button class="btn btn-reject" onclick="rejectQuote()">✗ Decline Quote</button>
+            <button class="btn btn-approve" onclick="document.getElementById('approveModal').style.display='flex'">✓ Approve</button>
+            <button class="btn btn-reject" onclick="document.getElementById('rejectModal').style.display='flex'">✗ Decline</button>
         </div>
         ` : ''}
 
@@ -4594,45 +4594,57 @@ app.get('/quote-view/:token', async (req, res) => {
         </div>
     </div>
 
+    <!-- Approve Modal -->
+    <div id="approveModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:12px;padding:1.5rem;max-width:420px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+            <h3 style="margin:0 0 0.75rem;color:#2d3748;">✓ Approve ${quote.source === 'portal' ? 'Work Order' : 'Quote'}</h3>
+            <p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Add a note for ${companyName} (optional):</p>
+            <textarea id="approveNote" rows="3" placeholder="e.g. Please schedule for mornings, gate code is 1234..." style="width:100%;padding:0.65rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;box-sizing:border-box;resize:vertical;"></textarea>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+                <button onclick="submitApprove()" style="flex:1;padding:0.75rem;background:#48bb78;color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;">Confirm Approval</button>
+                <button onclick="document.getElementById('approveModal').style.display='none'" style="padding:0.75rem 1rem;background:#e2e8f0;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Modal -->
+    <div id="rejectModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:12px;padding:1.5rem;max-width:420px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+            <h3 style="margin:0 0 0.75rem;color:#2d3748;">✗ Decline ${quote.source === 'portal' ? 'Work Order' : 'Quote'}</h3>
+            <p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Let us know why (optional — helps us improve):</p>
+            <textarea id="rejectNote" rows="3" placeholder="e.g. Price is too high, need to get other bids first..." style="width:100%;padding:0.65rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;box-sizing:border-box;resize:vertical;"></textarea>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+                <button onclick="submitReject()" style="flex:1;padding:0.75rem;background:#e53e3e;color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;">Confirm Decline</button>
+                <button onclick="document.getElementById('rejectModal').style.display='none'" style="padding:0.75rem 1rem;background:#e2e8f0;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        async function approveQuote() {
-            if (!confirm('Approve this quote?')) return;
-
+        async function submitApprove() {
+            const note = document.getElementById('approveNote').value.trim();
             try {
-                const response = await fetch('/quote-action/${quote.secureToken}/approve', {
-                    method: 'POST'
-                });
-
-                if (response.ok) {
-                    alert('✅ Quote approved! ${companyName} will be in touch shortly.');
-                    location.reload();
-                } else {
-                    alert('Failed to approve quote. Please try again or contact us directly.');
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
-        }
-
-        async function rejectQuote() {
-            const reason = prompt('Optional: Let us know why you declined (or leave blank):');
-
-            try {
-                const response = await fetch('/quote-action/${quote.secureToken}/reject', {
+                const res = await fetch('/quote-action/${quote.secureToken}/approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reason: reason || '' })
+                    body: JSON.stringify({ note })
                 });
+                if (res.ok) { document.getElementById('approveModal').style.display='none'; location.reload(); }
+                else alert('Failed to approve. Please try again or contact us directly.');
+            } catch (e) { alert('Error: ' + e.message); }
+        }
 
-                if (response.ok) {
-                    alert('Quote declined. Thank you for your time.');
-                    location.reload();
-                } else {
-                    alert('Failed to decline quote. Please try again or contact us directly.');
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
+        async function submitReject() {
+            const reason = document.getElementById('rejectNote').value.trim();
+            try {
+                const res = await fetch('/quote-action/${quote.secureToken}/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason })
+                });
+                if (res.ok) { document.getElementById('rejectModal').style.display='none'; location.reload(); }
+                else alert('Failed to decline. Please try again or contact us directly.');
+            } catch (e) { alert('Error: ' + e.message); }
         }
     </script>
 </body>
@@ -4649,25 +4661,29 @@ app.get('/quote-view/:token', async (req, res) => {
 app.post('/quote-action/:token/approve', async (req, res) => {
     try {
         const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
-        if (!quote) {
-            return res.status(404).json({ error: 'Quote not found' });
-        }
+        if (!quote) return res.status(404).json({ error: 'Quote not found' });
 
-        // Update quote to in_review status
+        const { note } = req.body || {};
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(quote.clientId) });
+        const auditEntry = {
+            timestamp: new Date(),
+            userName: client?.name || 'Client',
+            action: 'approved',
+            oldStatus: quote.status,
+            newStatus: 'in_review',
+            note: note ? `Approved with note: ${note}` : 'Approved by client'
+        };
+
         await db.collection('quotes').updateOne(
             { _id: quote._id },
-            { $set: { status: 'in_review', approvedAt: new Date() } }
+            { $set: { status: 'in_review', approvedAt: new Date(), clientNote: note || '' }, $push: { auditLog: auditEntry } }
         );
 
-        // Get client info
-        const client = await db.collection('clients').findOne({ _id: new ObjectId(quote.clientId) });
-
-        // Create admin message notification
         await db.collection('client_messages').insertOne({
             clientId: new ObjectId(quote.clientId),
             clientName: client?.name || 'Unknown Client',
             clientEmail: client?.email || '',
-            message: `Client approved quote ${quote.quoteNumber} - "${quote.title}"\n\nTotal: $${parseFloat(quote.total || 0).toFixed(2)}\n\nQuote is now in review status. Please review and schedule the work.`,
+            message: `Client approved ${quote.source === 'portal' ? 'work order' : 'quote'} ${quote.quoteNumber} — "${quote.title}"\n\nTotal: ${fmt$(parseFloat(quote.total || 0))}${note ? '\n\nClient note: ' + note : ''}\n\nNow in review — please schedule the work.`,
             subject: 'quote',
             reference: quote.quoteNumber,
             createdAt: new Date(),
@@ -4683,19 +4699,22 @@ app.post('/quote-action/:token/approve', async (req, res) => {
 app.post('/quote-action/:token/reject', async (req, res) => {
     try {
         const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
-        if (!quote) {
-            return res.status(404).json({ error: 'Quote not found' });
-        }
+        if (!quote) return res.status(404).json({ error: 'Quote not found' });
 
-        const { reason } = req.body;
+        const { reason } = req.body || {};
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(quote.clientId) });
+        const auditEntry = {
+            timestamp: new Date(),
+            userName: client?.name || 'Client',
+            action: 'rejected',
+            oldStatus: quote.status,
+            newStatus: 'rejected',
+            note: reason ? `Declined with reason: ${reason}` : 'Declined by client'
+        };
 
         await db.collection('quotes').updateOne(
             { _id: quote._id },
-            { $set: {
-                status: 'rejected',
-                rejectedAt: new Date(),
-                rejectionReason: reason || ''
-            }}
+            { $set: { status: 'rejected', rejectedAt: new Date(), rejectionReason: reason || '' }, $push: { auditLog: auditEntry } }
         );
 
         res.json({ success: true });
@@ -5219,6 +5238,128 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
 // ── End Compliance ────────────────────────────────────────────────────────────
 
 const fmt$ = n => '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+app.get('/api/activity-log', isAuthenticated, async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 100;
+        const events = [];
+
+        // Flatten quote auditLog entries
+        const quotes = await db.collection('quotes').find(
+            { auditLog: { $exists: true, $ne: [] } },
+            { projection: { quoteNumber: 1, title: 1, clientName: 1, clientId: 1, source: 1, total: 1, auditLog: 1 } }
+        ).toArray();
+        for (const q of quotes) {
+            for (const e of (q.auditLog || [])) {
+                events.push({
+                    ts: new Date(e.timestamp),
+                    type: 'quote',
+                    action: e.action,
+                    icon: e.action === 'approved' ? '✅' : e.action === 'rejected' ? '❌' : e.action === 'sent_email' ? '📧' : e.action === 'status_change' ? '🔄' : '📋',
+                    title: `${q.source === 'portal' ? 'Work Order' : 'Quote'} #${q.quoteNumber} — ${q.title}`,
+                    detail: e.note || e.action.replace(/_/g, ' '),
+                    by: e.userName || '',
+                    clientName: q.clientName || '',
+                    clientId: q.clientId
+                });
+            }
+        }
+
+        // Portal quote submissions (source:portal, no auditLog entry for creation)
+        const portalQuotes = await db.collection('quotes').find(
+            { source: 'portal' },
+            { projection: { quoteNumber: 1, title: 1, clientName: 1, clientId: 1, priority: 1, createdAt: 1 } }
+        ).toArray();
+        for (const q of portalQuotes) {
+            events.push({
+                ts: new Date(q.createdAt),
+                type: 'portal_submission',
+                action: 'submitted',
+                icon: '📥',
+                title: `Work Order #${q.quoteNumber} submitted — ${q.title}`,
+                detail: q.priority ? `Priority: ${({urgent:'🔴 Urgent','1_day':'🟠 1 Day','3_days':'🟡 3 Days','1_week':'🟢 1 Week','2_weeks':'🔵 2 Weeks',flexible:'⚪ Flexible'}[q.priority] || q.priority)}` : 'Via client portal',
+                by: q.clientName || '',
+                clientName: q.clientName || '',
+                clientId: q.clientId
+            });
+        }
+
+        // Flatten job auditLog entries
+        const jobs = await db.collection('jobs').find(
+            { auditLog: { $exists: true, $ne: [] } },
+            { projection: { title: 1, clientId: 1, totalWithTax: 1, total: 1, auditLog: 1 } }
+        ).toArray();
+        const clientCache = {};
+        const getClientName = async (clientId) => {
+            if (!clientId) return '';
+            const key = clientId.toString();
+            if (clientCache[key]) return clientCache[key];
+            try {
+                const c = await db.collection('clients').findOne({ _id: typeof clientId === 'string' ? new ObjectId(clientId) : clientId }, { projection: { name: 1 } });
+                clientCache[key] = c?.name || '';
+            } catch { clientCache[key] = ''; }
+            return clientCache[key];
+        };
+        for (const j of jobs) {
+            const cName = await getClientName(j.clientId);
+            for (const e of (j.auditLog || [])) {
+                events.push({
+                    ts: new Date(e.timestamp),
+                    type: 'job',
+                    action: e.action,
+                    icon: e.action === 'completed' ? '✅' : e.action === 'payment_recorded' ? '💰' : e.action === 'invoice_sent' ? '🧾' : '🔨',
+                    title: `Job — ${j.title}`,
+                    detail: e.note || e.action.replace(/_/g, ' '),
+                    by: e.userName || '',
+                    clientName: cName,
+                    clientId: j.clientId
+                });
+            }
+        }
+
+        // Email logs
+        const emails = await db.collection('email_logs').find({}).sort({ sentAt: -1 }).limit(50).toArray();
+        for (const e of emails) {
+            events.push({
+                ts: new Date(e.sentAt),
+                type: 'email',
+                action: 'email_sent',
+                icon: '📧',
+                title: e.subject || 'Email sent',
+                detail: `To: ${e.toName || e.to}`,
+                by: e.sentBy || '',
+                clientName: e.toName || '',
+                clientId: null
+            });
+        }
+
+        // Payments recorded (jobs with payments array)
+        const paidJobs = await db.collection('jobs').find({ payments: { $exists: true, $ne: [] } }, { projection: { title: 1, clientId: 1, payments: 1 } }).toArray();
+        for (const j of paidJobs) {
+            const cName = await getClientName(j.clientId);
+            for (const p of (j.payments || [])) {
+                if (!p.date) continue;
+                events.push({
+                    ts: new Date(p.date),
+                    type: 'payment',
+                    action: 'payment_recorded',
+                    icon: '💵',
+                    title: `Payment — ${j.title}`,
+                    detail: `${fmt$(p.amount)} via ${p.method || 'unknown'}${p.notes ? ' · ' + p.notes : ''}`,
+                    by: '',
+                    clientName: cName,
+                    clientId: j.clientId
+                });
+            }
+        }
+
+        events.sort((a, b) => b.ts - a.ts);
+        res.json(events.slice(0, limit).map(e => ({ ...e, ts: e.ts.toISOString(), clientId: e.clientId?.toString() || null })));
+    } catch (err) {
+        console.error('Activity log error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ── Activity Briefing ────────────────────────────────────────────────────────
 app.get('/api/activity-brief', isAuthenticated, async (req, res) => {

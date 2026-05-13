@@ -1253,6 +1253,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="nav-btn admin-item" onclick="showView('expenses')">💰 Expenses</button>
                 <button class="nav-btn admin-item" onclick="showView('vendors')">🏪 Vendors</button>
                 <button class="nav-btn admin-item" onclick="showView('portfolio')">🖼️ Portfolio</button>
+                <button class="nav-btn admin-item" onclick="showView('activity')">📜 Activity</button>
                 <button class="nav-btn admin-item" onclick="showView('reports')">📈 Reports</button>
                 <button class="nav-btn admin-item" onclick="showView('analytics')">📊 Analytics</button>
                 <button class="nav-btn admin-item" onclick="showView('settings')">⚙️ Settings</button>
@@ -1898,6 +1899,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
 
         <!-- Reports View -->
+        <div id="activity" class="view">
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>📜 Activity Log</h2>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <select id="activityFilterType" onchange="loadActivityLog()" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <option value="">All activity</option>
+                            <option value="portal_submission">Portal submissions</option>
+                            <option value="quote">Quotes</option>
+                            <option value="job">Jobs</option>
+                            <option value="payment">Payments</option>
+                            <option value="email">Emails sent</option>
+                        </select>
+                        <button class="btn btn-secondary btn-small" onclick="loadActivityLog()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div id="activityLogList" style="margin-top:1rem;"></div>
+            </div>
+        </div>
+
         <div id="reports" class="view">
             <div class="card">
                 <div class="card-header">
@@ -3663,7 +3684,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Navigation
         function showView(viewName) {
             // Check permissions - users can only access jobs and calendar
-            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'vendors', 'portfolio', 'messages', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'vendors', 'portfolio', 'messages', 'reports', 'activity', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewName)) {
                 alert('You do not have permission to access this section.');
                 return;
@@ -3709,6 +3730,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
             if (viewName === 'messages') loadMessages();
+            if (viewName === 'activity') loadActivityLog();
             if (viewName === 'reports') loadReports();
             if (viewName === 'analytics') loadAnalytics();
             if (viewName === 'leads') loadLeads();
@@ -8554,6 +8576,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>\`;
         }
 
+        async function loadActivityLog() {
+            const container = document.getElementById('activityLogList');
+            container.innerHTML = '<div style="color:#718096;padding:1rem;">Loading activity...</div>';
+            const filterType = document.getElementById('activityFilterType')?.value || '';
+            try {
+                const res  = await fetch('/api/activity-log?limit=150');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                const filtered = filterType ? data.filter(e => e.type === filterType) : data;
+                if (!filtered.length) { container.innerHTML = '<div style="color:#718096;padding:1rem;">No activity found.</div>'; return; }
+
+                const rows = filtered.map(e => {
+                    const ts = new Date(e.ts);
+                    const dateStr = ts.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+                    const timeStr = ts.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+                    const clientHtml = e.clientName ? \`<span style="color:#667eea;font-size:0.8rem;">\${e.clientName}</span>\` : '';
+                    const byHtml    = e.by ? \`<span style="color:#a0aec0;font-size:0.78rem;">by \${e.by}</span>\` : '';
+                    return \`
+                        <div style="display:grid;grid-template-columns:90px 28px 1fr auto;gap:0.5rem;align-items:start;padding:0.65rem 0;border-bottom:1px solid #f0f0f0;">
+                            <div style="font-size:0.78rem;color:#a0aec0;white-space:nowrap;">\${dateStr}<br>\${timeStr}</div>
+                            <div style="font-size:1.15rem;line-height:1.4;">\${e.icon}</div>
+                            <div>
+                                <div style="font-weight:600;font-size:0.875rem;color:#2d3748;">\${e.title}</div>
+                                <div style="font-size:0.82rem;color:#718096;margin-top:0.1rem;">\${e.detail}</div>
+                                <div style="display:flex;gap:0.5rem;margin-top:0.15rem;">\${clientHtml}\${byHtml}</div>
+                            </div>
+                        </div>\`;
+                }).join('');
+                container.innerHTML = \`<div style="font-size:0.8rem;color:#a0aec0;margin-bottom:0.5rem;">\${filtered.length} events</div>\` + rows;
+            } catch (e) {
+                container.innerHTML = \`<div style="color:#e53e3e;padding:1rem;">Failed to load: \${e.message}</div>\`;
+            }
+        }
+
         async function loadReports() {
             try {
                 // Load jobs if not already loaded
@@ -11897,7 +11953,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const viewToShow = savedView || defaultView;
 
             // Make sure the view exists and user has permission
-            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'vendors', 'portfolio', 'messages', 'reports', 'settings'];
+            const adminOnlyViews = ['dashboard', 'clients', 'quotes', 'team', 'expenses', 'vendors', 'portfolio', 'messages', 'reports', 'activity', 'settings'];
             if (!isAdmin && adminOnlyViews.includes(viewToShow)) {
                 showView('jobs');
             } else {
