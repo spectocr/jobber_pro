@@ -2768,10 +2768,10 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         <div class="content">
             <p>Dear ${toName},</p>
             <p>${isPortalQuote ? 'Your submission has been reviewed and priced.' : 'Thank you for your interest!'} Here is your ${quoteLabel.toLowerCase()} for: <strong>${quote.title}</strong></p>
-            <p><strong>Quote Total:</strong> ${fmt$(parseFloat(quote.total || 0))}</p>
+            <p><strong>${quoteLabel} Total:</strong> ${fmt$(parseFloat(quote.total || 0))}</p>
             <p><strong>Valid Until:</strong> ${quote.validUntil}</p>
-            <a href="${quoteUrl}" class="button">View Full Quote & Approve</a>
-            <p>Click the button above to view the complete quote and approve it online.</p>
+            <a href="${quoteUrl}" class="button">View ${quoteLabel} & Approve</a>
+            <p>Click the button above to view the full ${quoteLabel.toLowerCase()} and approve it online.</p>
         </div>
         <div class="footer">
             <p>${companyName}</p>
@@ -4437,6 +4437,7 @@ app.get('/quote-view/:token', async (req, res) => {
                            '<span style="background: #667eea; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600;">📋 PENDING</span>';
 
         const showButtons = quote.status === 'sent' && !isExpired;
+        const viewLabel = (quote.source === 'portal' && client?.isPropertyManagement) ? 'Work Order' : 'Quote';
 
         const quoteHTML = `
 <!DOCTYPE html>
@@ -4444,7 +4445,7 @@ app.get('/quote-view/:token', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quote #${quote.quoteNumber} - ${companyName}</title>
+    <title>${viewLabel} #${quote.quoteNumber} - ${companyName}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; padding: 2rem; background: #f7fafc; }
@@ -4483,7 +4484,7 @@ app.get('/quote-view/:token', async (req, res) => {
         <div class="header">
             ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" class="logo">` : ''}
             <h1>${companyName}</h1>
-            <h2>Quote #${quote.quoteNumber}</h2>
+            <h2>${viewLabel} #${quote.quoteNumber}</h2>
         </div>
 
         <div class="status">
@@ -4492,14 +4493,14 @@ app.get('/quote-view/:token', async (req, res) => {
 
         <div class="info-grid">
             <div class="info-section">
-                <h3>Quote For:</h3>
+                <h3>${viewLabel} For:</h3>
                 <p><strong>${client ? client.name : 'Client'}</strong></p>
                 ${client?.email ? `<p>${client.email}</p>` : ''}
                 ${client?.phone ? `<p>${client.phone}</p>` : ''}
                 ${client?.address ? `<p>${client.address}</p>` : ''}
             </div>
             <div class="info-section">
-                <h3>Quote Details:</h3>
+                <h3>${viewLabel} Details:</h3>
                 <p><strong>Date:</strong> ${new Date(quote.createdAt).toLocaleDateString()}</p>
                 <p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>
                 ${quote.createdByName ? `<p><strong>Prepared By:</strong> ${quote.createdByName}</p>` : ''}
@@ -4588,9 +4589,23 @@ app.get('/quote-view/:token', async (req, res) => {
         </div>
         ` : ''}
 
+        ${quote.status === 'in_review' ? `
+        <div style="background:#f0fff4;border:1.5px solid #68d391;border-radius:10px;padding:1.25rem 1.5rem;margin:2rem 0;text-align:center;">
+            <p style="font-size:1.1rem;font-weight:700;color:#276749;margin-bottom:0.4rem;">✓ ${viewLabel} Approved</p>
+            <p style="color:#2f855a;margin:0;">We've received your approval and will be in touch shortly to confirm scheduling. Thank you!</p>
+        </div>
+        ` : ''}
+
+        ${quote.status === 'rejected' ? `
+        <div style="background:#fff5f5;border:1.5px solid #fc8181;border-radius:10px;padding:1.25rem 1.5rem;margin:2rem 0;text-align:center;">
+            <p style="font-size:1.1rem;font-weight:700;color:#742a2a;margin-bottom:0.4rem;">✗ ${viewLabel} Declined</p>
+            <p style="color:#9b2c2c;margin:0;">If you have questions or would like to revisit this, please don't hesitate to reach out to us directly.</p>
+        </div>
+        ` : ''}
+
         <div class="footer">
-            <p>Thank you for considering ${companyName}</p>
-            <p>Quote generated on ${new Date(quote.createdAt).toLocaleDateString()}</p>
+            <p>Thank you for choosing ${companyName}</p>
+            <p>${viewLabel} generated on ${new Date(quote.createdAt).toLocaleDateString()}</p>
         </div>
     </div>
 
@@ -4679,16 +4694,37 @@ app.post('/quote-action/:token/approve', async (req, res) => {
             { $set: { status: 'in_review', approvedAt: new Date(), clientNote: note || '' }, $push: { auditLog: auditEntry } }
         );
 
+        const approvalLabel = quote.source === 'portal' ? 'work order' : 'quote';
         await db.collection('client_messages').insertOne({
             clientId: new ObjectId(quote.clientId),
             clientName: client?.name || 'Unknown Client',
             clientEmail: client?.email || '',
-            message: `Client approved ${quote.source === 'portal' ? 'work order' : 'quote'} ${quote.quoteNumber} — "${quote.title}"\n\nTotal: ${fmt$(parseFloat(quote.total || 0))}${note ? '\n\nClient note: ' + note : ''}\n\nNow in review — please schedule the work.`,
+            message: `Client approved ${approvalLabel} ${quote.quoteNumber} — "${quote.title}"\n\nTotal: ${fmt$(parseFloat(quote.total || 0))}${note ? '\n\nClient note: ' + note : ''}\n\nNow in review — please schedule the work.`,
             subject: 'quote',
             reference: quote.quoteNumber,
             createdAt: new Date(),
             read: false
         });
+
+        if (emailService.initialized) {
+            const settings = await db.collection('settings').findOne({});
+            const companyName = settings?.companyName || 'GSD Home Improvement & Property Services';
+            await emailService.sendEmail({
+                to: 'franzthehandyman@gmail.com',
+                subject: `✅ ${approvalLabel.charAt(0).toUpperCase() + approvalLabel.slice(1)} Approved — ${quote.quoteNumber} — ${client?.name || 'Client'}`,
+                html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                    <h2 style="color:#48bb78;">✅ ${approvalLabel.charAt(0).toUpperCase() + approvalLabel.slice(1)} Approved</h2>
+                    <p style="background:#f0fff4;padding:10px 14px;border-radius:6px;font-weight:700;color:#276749;">${quote.quoteNumber} — ${quote.title}</p>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;width:140px;">Client</td><td>${client?.name || 'Unknown'}</td></tr>
+                        <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Total</td><td><strong>${fmt$(parseFloat(quote.total || 0))}</strong></td></tr>
+                        ${note ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Client Note</td><td>${note}</td></tr>` : ''}
+                    </table>
+                    <p style="margin-top:16px;color:#4a5568;">Ready to schedule — log in to convert this to a job.</p>
+                </div>`,
+                text: `${approvalLabel.charAt(0).toUpperCase() + approvalLabel.slice(1)} Approved\n\n${quote.quoteNumber} — ${quote.title}\nClient: ${client?.name || 'Unknown'}\nTotal: ${fmt$(parseFloat(quote.total || 0))}${note ? '\nClient Note: ' + note : ''}\n\nLog in to schedule the work.`
+            });
+        }
 
         res.json({ success: true });
     } catch (error) {
@@ -4716,6 +4752,17 @@ app.post('/quote-action/:token/reject', async (req, res) => {
             { _id: quote._id },
             { $set: { status: 'rejected', rejectedAt: new Date(), rejectionReason: reason || '' }, $push: { auditLog: auditEntry } }
         );
+
+        await db.collection('client_messages').insertOne({
+            clientId: new ObjectId(quote.clientId),
+            clientName: client?.name || 'Unknown Client',
+            clientEmail: client?.email || '',
+            message: `Client declined ${quote.source === 'portal' ? 'work order' : 'quote'} ${quote.quoteNumber} — "${quote.title}"${reason ? '\n\nReason: ' + reason : ''}`,
+            subject: 'quote',
+            reference: quote.quoteNumber,
+            createdAt: new Date(),
+            read: false
+        });
 
         res.json({ success: true });
     } catch (error) {
@@ -5081,6 +5128,30 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
                 </div>`,
                 text: `Portal Quote Request [${quoteNumber}]\n\nClient: ${client.name}\nPhone: ${client.phone}\nService: ${service}\nPriority: ${priorityLabel}\n${serviceAddress ? 'Address: ' + serviceAddress + '\n' : ''}${description ? '\n' + description : ''}`
             });
+
+            // Confirm receipt to the submitter (PM location contact or client email)
+            const loc = serviceLocationId ? (client.serviceLocations || []).find(l => String(l.id) === String(serviceLocationId)) : null;
+            const confirmEmail = loc?.contactEmail || client.email;
+            const confirmName  = loc?.contact || client.name;
+            if (confirmEmail) {
+                await emailService.sendEmail({
+                    to: confirmEmail,
+                    subject: `Work Order Received — ${quoteNumber} — ${businessName}`,
+                    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                        <div style="background:#667eea;color:white;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
+                            <h1 style="margin:0;font-size:1.4rem;">${businessName}</h1>
+                        </div>
+                        <div style="background:#f9f9f9;padding:30px;border:1px solid #ddd;border-radius:0 0 8px 8px;">
+                            <p>Hi ${confirmName},</p>
+                            <p>We've received your work order request and will review it shortly. Once we've priced it out, you'll get an email with the details and a link to approve.</p>
+                            <p style="background:#f0f4ff;padding:10px 14px;border-radius:6px;"><strong>Reference #:</strong> ${quoteNumber}<br><strong>Service:</strong> ${service}<br><strong>Priority:</strong> ${priorityLabel}${serviceAddress ? `<br><strong>Address:</strong> ${serviceAddress}` : ''}</p>
+                            <p>Questions? Reply to this email or call us directly.</p>
+                        </div>
+                        <div style="text-align:center;color:#888;font-size:12px;margin-top:20px;"><p>${businessName}</p></div>
+                    </div>`,
+                    text: `Hi ${confirmName},\n\nWe've received your work order request (${quoteNumber}) for: ${service}.\n\nOnce we price it out, you'll get an email to review and approve.\n\n— ${businessName}`
+                });
+            }
         }
 
         res.json({ success: true, quoteNumber });
