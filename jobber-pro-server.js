@@ -11930,22 +11930,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }, 30000);
 
-        // ── Activity Bot ──────────────────────────────────────────────────────────
+        // ── Clippit (Activity Bot) ────────────────────────────────────────────────
         let _botLoaded = false;
+
+        function clippyAnim(anim) {
+            const el = document.getElementById('clippyChar');
+            if (!el) return;
+            el.style.animation = 'none';
+            void el.offsetWidth; // reflow
+            el.style.animation = anim;
+        }
 
         function toggleActivityBot() {
             const panel = document.getElementById('activityBotPanel');
             const isOpen = panel.style.display !== 'none';
             panel.style.display = isOpen ? 'none' : 'flex';
             document.getElementById('activityBotDot').style.display = 'none';
-            if (!isOpen && !_botLoaded) {
-                _botLoaded = true;
-                loadActivityBrief();
+            if (!isOpen) {
+                clippyAnim('clippyBounce 0.6s ease');
+                setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 650);
+                if (!_botLoaded) { _botLoaded = true; loadActivityBrief(); }
+            } else {
+                clippyAnim('clippyIdle 3s ease-in-out infinite');
             }
         }
 
         async function loadActivityBrief() {
-            appendBotMessage('bot', '⏳ Checking what\'s changed since your last login...');
+            clippyAnim('clippyThink 1s ease-in-out infinite');
+            appendBotMessage('bot', 'It looks like you just logged in! Let me check what\'s new... 🔍');
             try {
                 const res  = await fetch('/api/activity-brief');
                 const data = await res.json();
@@ -11956,59 +11968,51 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 if (data.newPortalQuotes.length)
                     lines.push(\`📥 **\${data.newPortalQuotes.length} new work order\${data.newPortalQuotes.length !== 1 ? 's' : ''}** came in via the portal\${data.newPortalQuotes.length <= 3 ? ': ' + data.newPortalQuotes.map(q => q.clientName + ' (' + (q.priority || 'flexible') + ')').join(', ') : ''}.\`);
-
                 if (data.quoteStatusChanges.length)
                     lines.push(\`📋 **\${data.quoteStatusChanges.length} quote\${data.quoteStatusChanges.length !== 1 ? 's' : ''}** changed status: \${data.quoteStatusChanges.map(q => q.clientName + ' → ' + q.status).join(', ')}.\`);
-
                 if (data.completedJobs.length)
                     lines.push(\`✅ **\${data.completedJobs.length} job\${data.completedJobs.length !== 1 ? 's' : ''}** marked complete: \${data.completedJobs.map(j => j.clientName).slice(0,3).join(', ')}\${data.completedJobs.length > 3 ? ' +more' : ''}.\`);
-
                 if (data.newJobs.length)
                     lines.push(\`🔨 **\${data.newJobs.length} new job\${data.newJobs.length !== 1 ? 's' : ''}** created.\`);
-
                 if (data.newMessages > 0)
                     lines.push(\`💬 **\${data.newMessages} unread message\${data.newMessages !== 1 ? 's' : ''}** from clients.\`);
-
                 if (data.newLeads > 0)
                     lines.push(\`🎯 **\${data.newLeads} new lead\${data.newLeads !== 1 ? 's' : ''}** came in.\`);
-
-                if (data.upcomingJobs.length) {
+                if (data.upcomingJobs.length)
                     lines.push(\`📅 **Upcoming this week:** \${data.upcomingJobs.map(j => j.scheduledDate + ' · ' + j.clientName).join(' | ')}.\`);
-                }
-
                 if (data.outstandingTotal > 0)
                     lines.push(\`💰 **$\${data.outstandingTotal.toFixed(2)}** in outstanding invoices.\`);
-
                 if (lines.length === 1)
-                    lines.push('No major changes — all quiet. 👍');
+                    lines.push('All quiet since your last visit! Everything looks good. 👍');
 
                 removeBotTyping();
+                clippyAnim('clippyTalk 0.4s ease-in-out 3');
+                setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 1300);
                 appendBotMessage('bot', lines.join('\n'));
             } catch (e) {
                 removeBotTyping();
-                appendBotMessage('bot', 'Couldn\'t load activity: ' + e.message);
+                clippyAnim('clippyIdle 3s ease-in-out infinite');
+                appendBotMessage('bot', 'Hmm, I had trouble loading your activity. Sorry about that!');
             }
         }
 
-        const _quickQueries = [
-            'Outstanding invoices', 'Urgent work orders',
-            'This week\'s schedule', 'Recent payments',
-            'Unread messages', 'Revenue this month'
-        ];
-
         async function sendBotQuery(text) {
             appendBotMessage('user', text);
-            appendBotMessage('bot', '⏳ Looking that up...');
+            appendBotMessage('bot', '...');
+            clippyAnim('clippyThink 1s ease-in-out infinite');
             try {
                 const res  = await fetch('/api/activity-query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: text }) });
                 const data = await res.json();
                 removeBotTyping();
+                clippyAnim('clippyTalk 0.4s ease-in-out 3');
+                setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 1300);
                 let msg = data.answer || 'No data found.';
                 if (data.items && data.items.length) msg += '\n\n' + data.items.map(i => '• ' + i).join('\n');
                 appendBotMessage('bot', msg);
             } catch (e) {
                 removeBotTyping();
-                appendBotMessage('bot', 'Something went wrong: ' + e.message);
+                clippyAnim('clippyIdle 3s ease-in-out infinite');
+                appendBotMessage('bot', 'Something went wrong — try again!');
             }
         }
 
@@ -12016,8 +12020,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const log = document.getElementById('botMessageLog');
             const div = document.createElement('div');
             div.className = 'bot-msg bot-msg-' + role;
-            if (role === 'bot' && text.startsWith('⏳')) div.dataset.typing = '1';
-            // Simple markdown: **bold**, newlines
+            if (role === 'bot' && text === '...') { div.dataset.typing = '1'; div.innerHTML = '<span class="bot-dots"><span>.</span><span>.</span><span>.</span></span>'; log.appendChild(div); log.scrollTop = log.scrollHeight; return; }
             div.innerHTML = text
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;')
                 .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -12037,50 +12040,159 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (val) { input.value = ''; sendBotQuery(val); }
             }
         }
+
+        // Random blink every 3-6s
+        setInterval(() => {
+            const eyes = document.querySelectorAll('.clippy-eye');
+            eyes.forEach(e => { e.style.transform = 'scaleY(0.1)'; setTimeout(() => e.style.transform = '', 120); });
+        }, 3000 + Math.random() * 3000);
     </script>
 
-    <!-- Activity Bot -->
+    <!-- Clippit -->
     <style>
-        #activityBotBtn { position:fixed;bottom:1.5rem;right:1.5rem;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 15px rgba(102,126,234,0.5);z-index:900;display:flex;align-items:center;justify-content:center; }
-        #activityBotDot { position:absolute;top:2px;right:2px;width:12px;height:12px;background:#e53e3e;border-radius:50%;border:2px solid white; }
-        #activityBotPanel { position:fixed;bottom:5rem;right:1.5rem;width:340px;max-width:calc(100vw - 2rem);height:480px;background:white;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);z-index:901;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0; }
-        #botHeader { background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:0.9rem 1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0; }
-        #botHeader h4 { margin:0;font-size:0.95rem; }
-        #botMessageLog { flex:1;overflow-y:auto;padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;background:#f7fafc; }
-        .bot-msg { max-width:88%;padding:0.6rem 0.85rem;border-radius:12px;font-size:0.85rem;line-height:1.5;word-break:break-word; }
-        .bot-msg-bot { background:white;border:1px solid #e2e8f0;align-self:flex-start;border-bottom-left-radius:3px; }
+        @keyframes clippyIdle {
+            0%,100% { transform: translateY(0) rotate(0deg); }
+            25%      { transform: translateY(-5px) rotate(2deg); }
+            75%      { transform: translateY(-3px) rotate(-2deg); }
+        }
+        @keyframes clippyBounce {
+            0%   { transform: translateY(0) scaleY(1); }
+            30%  { transform: translateY(-18px) scaleY(1.06); }
+            55%  { transform: translateY(-6px) scaleY(0.94); }
+            75%  { transform: translateY(-12px) scaleY(1.03); }
+            100% { transform: translateY(0) scaleY(1); }
+        }
+        @keyframes clippyTalk {
+            0%,100% { transform: rotate(0deg) translateY(0); }
+            25%     { transform: rotate(-7deg) translateY(-3px); }
+            75%     { transform: rotate(7deg) translateY(-3px); }
+        }
+        @keyframes clippyThink {
+            0%,100% { transform: rotate(0deg) translateY(0); }
+            50%     { transform: rotate(18deg) translateY(-4px); }
+        }
+        @keyframes clippyAppear {
+            0%   { transform: translateY(80px) rotate(-15deg); opacity: 0; }
+            60%  { transform: translateY(-8px) rotate(3deg); opacity: 1; }
+            80%  { transform: translateY(4px) rotate(-2deg); }
+            100% { transform: translateY(0) rotate(0); }
+        }
+        @keyframes dotPulse {
+            0%,80%,100% { opacity: 0.3; transform: scale(0.8); }
+            40%         { opacity: 1;   transform: scale(1.2); }
+        }
+        @keyframes bubblePop {
+            0%   { transform: scale(0.6) translateY(10px); opacity: 0; transform-origin: bottom right; }
+            70%  { transform: scale(1.04) translateY(-2px); opacity: 1; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        #clippyWrap { position:fixed;bottom:1.2rem;right:1.4rem;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem; }
+        #clippyChar { width:58px;height:96px;cursor:pointer;animation: clippyAppear 0.7s cubic-bezier(.36,.07,.19,.97) both, clippyIdle 3s ease-in-out 0.7s infinite;position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
+        #clippyChar:hover { filter:drop-shadow(0 6px 14px rgba(102,126,234,0.5)); }
+        #activityBotDot { position:absolute;top:-2px;right:-2px;width:14px;height:14px;background:#e53e3e;border-radius:50%;border:2.5px solid white;box-shadow:0 0 6px rgba(229,62,62,0.6);display:none; }
+
+        #activityBotPanel { width:320px;max-width:calc(100vw - 2rem);height:440px;background:white;border-radius:16px 16px 4px 16px;box-shadow:0 8px 40px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;border:2px solid #e2e8f0;animation:bubblePop 0.35s cubic-bezier(.36,.07,.19,.97) both; }
+        #botHeader { background:#fef9c3;border-bottom:2px solid #fde68a;padding:0.7rem 1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0; }
+        #botHeader span { font-size:0.82rem;font-weight:700;color:#92400e;letter-spacing:0.02em; }
+        #botHeader button { background:none;border:none;font-size:1rem;cursor:pointer;color:#92400e;line-height:1; }
+        #botMessageLog { flex:1;overflow-y:auto;padding:0.75rem;display:flex;flex-direction:column;gap:0.6rem;background:#fffef7; }
+        .bot-msg { max-width:90%;padding:0.55rem 0.85rem;border-radius:12px;font-size:0.83rem;line-height:1.55;word-break:break-word; }
+        .bot-msg-bot { background:white;border:1.5px solid #fde68a;align-self:flex-start;border-bottom-left-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,0.06); }
         .bot-msg-user { background:#667eea;color:white;align-self:flex-end;border-bottom-right-radius:3px; }
-        #botQuickReplies { display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0.75rem;border-top:1px solid #e2e8f0;background:white;flex-shrink:0; }
-        #botQuickReplies button { background:#f0f4ff;border:1px solid #c3d0f5;color:#4a5568;padding:0.3rem 0.6rem;border-radius:20px;font-size:0.75rem;cursor:pointer;white-space:nowrap; }
-        #botQuickReplies button:hover { background:#e0e8ff; }
-        #botInputRow { display:flex;padding:0.5rem 0.75rem;border-top:1px solid #e2e8f0;background:white;flex-shrink:0;gap:0.4rem; }
-        #botInput { flex:1;padding:0.5rem 0.75rem;border:1.5px solid #e2e8f0;border-radius:20px;font-size:0.85rem;outline:none; }
-        #botInput:focus { border-color:#667eea; }
-        #botSendBtn { background:#667eea;color:white;border:none;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:1rem;flex-shrink:0; }
+        .bot-dots span { display:inline-block;animation:dotPulse 1.2s ease-in-out infinite; }
+        .bot-dots span:nth-child(2) { animation-delay:0.2s; }
+        .bot-dots span:nth-child(3) { animation-delay:0.4s; }
+        #botQuickReplies { display:flex;flex-wrap:wrap;gap:0.35rem;padding:0.45rem 0.65rem;border-top:1.5px solid #fde68a;background:#fffef7;flex-shrink:0; }
+        #botQuickReplies button { background:#fef9c3;border:1px solid #fde68a;color:#78350f;padding:0.25rem 0.6rem;border-radius:20px;font-size:0.73rem;cursor:pointer;white-space:nowrap;transition:background 0.15s; }
+        #botQuickReplies button:hover { background:#fde68a; }
+        #botInputRow { display:flex;padding:0.45rem 0.65rem;border-top:1.5px solid #fde68a;background:white;flex-shrink:0;gap:0.4rem; }
+        #botInput { flex:1;padding:0.45rem 0.7rem;border:1.5px solid #fde68a;border-radius:20px;font-size:0.83rem;outline:none;background:#fffef7; }
+        #botInput:focus { border-color:#f59e0b; }
+        #botSendBtn { background:#f59e0b;color:white;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:0.9rem;flex-shrink:0;transition:background 0.15s; }
+        #botSendBtn:hover { background:#d97706; }
+        .clippy-eye { transition: transform 0.1s; }
     </style>
 
-    <button id="activityBotBtn" onclick="toggleActivityBot()" title="Activity briefing">
-        🤖
-        <span id="activityBotDot"></span>
-    </button>
+    <div id="clippyWrap">
+        <!-- Speech bubble panel -->
+        <div id="activityBotPanel" style="display:none;">
+            <div id="botHeader">
+                <span>📎 Clippit says...</span>
+                <button onclick="toggleActivityBot()" title="Close">✕</button>
+            </div>
+            <div id="botMessageLog"></div>
+            <div id="botQuickReplies">
+                <button onclick="sendBotQuery('Outstanding invoices')">💰 Outstanding</button>
+                <button onclick="sendBotQuery('Urgent work orders')">🔴 Urgent</button>
+                <button onclick="sendBotQuery('This week schedule')">📅 This week</button>
+                <button onclick="sendBotQuery('Recent payments')">✅ Payments</button>
+                <button onclick="sendBotQuery('Unread messages')">💬 Messages</button>
+                <button onclick="sendBotQuery('Revenue this month')">📈 Revenue</button>
+            </div>
+            <div id="botInputRow">
+                <input id="botInput" placeholder="Ask Clippit anything..." onkeydown="handleBotInput(event)">
+                <button id="botSendBtn" onclick="(()=>{const i=document.getElementById('botInput');const v=i.value.trim();if(v){i.value='';sendBotQuery(v);}})()">➤</button>
+            </div>
+        </div>
 
-    <div id="activityBotPanel" style="display:none;">
-        <div id="botHeader">
-            <h4>🤖 Activity Brief</h4>
-            <button onclick="toggleActivityBot()" style="background:none;border:none;color:white;font-size:1.1rem;cursor:pointer;">✕</button>
-        </div>
-        <div id="botMessageLog"></div>
-        <div id="botQuickReplies">
-            <button onclick="sendBotQuery('Outstanding invoices')">💰 Outstanding</button>
-            <button onclick="sendBotQuery('Urgent work orders')">🔴 Urgent</button>
-            <button onclick="sendBotQuery('This week schedule')">📅 This week</button>
-            <button onclick="sendBotQuery('Recent payments')">✅ Payments</button>
-            <button onclick="sendBotQuery('Unread messages')">💬 Messages</button>
-            <button onclick="sendBotQuery('Revenue this month')">📈 Revenue</button>
-        </div>
-        <div id="botInputRow">
-            <input id="botInput" placeholder="Ask anything..." onkeydown="handleBotInput(event)">
-            <button id="botSendBtn" onclick="(()=>{const i=document.getElementById('botInput');const v=i.value.trim();if(v){i.value='';sendBotQuery(v);}})()">➤</button>
+        <!-- Clippit SVG character -->
+        <div id="clippyChar" onclick="toggleActivityBot()" title="It looks like you have a business to run!">
+            <span id="activityBotDot"></span>
+            <svg viewBox="0 0 58 96" width="58" height="96" xmlns="http://www.w3.org/2000/svg">
+                <!-- Drop shadow filter -->
+                <defs>
+                    <filter id="cshadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.25)"/>
+                    </filter>
+                    <linearGradient id="clipMetal" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#e8e0f0"/>
+                        <stop offset="45%" stop-color="#c8b8d8"/>
+                        <stop offset="100%" stop-color="#a090b8"/>
+                    </linearGradient>
+                    <linearGradient id="clipShine" x1="0%" y1="0%" x2="60%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(255,255,255,0.7)"/>
+                        <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                    </linearGradient>
+                </defs>
+
+                <!-- Outer clip loop -->
+                <rect x="7" y="6" width="44" height="82" rx="22" ry="22"
+                      fill="url(#clipMetal)" stroke="#9070a8" stroke-width="2.5" filter="url(#cshadow)"/>
+                <!-- Shine on outer loop -->
+                <rect x="7" y="6" width="44" height="82" rx="22" ry="22"
+                      fill="url(#clipShine)" opacity="0.5"/>
+
+                <!-- Inner return wire -->
+                <path d="M 42 76 Q 42 62 29 62 Q 16 62 16 76 L 16 26 Q 16 14 29 14 Q 42 14 42 26 L 42 54"
+                      fill="none" stroke="#9070a8" stroke-width="5" stroke-linecap="round"/>
+                <!-- Inner wire shine -->
+                <path d="M 40 76 Q 40 63 29 63 L 29 15"
+                      fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-linecap="round"/>
+
+                <!-- Face area background -->
+                <ellipse cx="29" cy="36" rx="13" ry="11" fill="rgba(255,255,255,0.18)"/>
+
+                <!-- Eyes -->
+                <ellipse class="clippy-eye" cx="22" cy="34" rx="4" ry="4.5" fill="#2d1b4e"/>
+                <ellipse class="clippy-eye" cx="36" cy="34" rx="4" ry="4.5" fill="#2d1b4e"/>
+                <!-- Eye shine -->
+                <circle cx="23.5" cy="32.2" r="1.5" fill="white" opacity="0.9"/>
+                <circle cx="37.5" cy="32.2" r="1.5" fill="white" opacity="0.9"/>
+                <!-- Pupils -->
+                <circle cx="22.5" cy="34.5" r="1.8" fill="#1a0a2e"/>
+                <circle cx="36.5" cy="34.5" r="1.8" fill="#1a0a2e"/>
+
+                <!-- Eyebrows (expressive) -->
+                <path d="M 18.5 29.5 Q 22 27.5 25.5 29.5" fill="none" stroke="#5a3a7a" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M 32.5 29.5 Q 36 27.5 39.5 29.5" fill="none" stroke="#5a3a7a" stroke-width="1.8" stroke-linecap="round"/>
+
+                <!-- Smile -->
+                <path d="M 23 41 Q 29 46 35 41" fill="none" stroke="#5a3a7a" stroke-width="1.8" stroke-linecap="round"/>
+
+                <!-- Feet / bottom bends -->
+                <ellipse cx="29" cy="84" rx="8" ry="3.5" fill="#b090c8" opacity="0.5"/>
+            </svg>
         </div>
     </div>
 </body>
