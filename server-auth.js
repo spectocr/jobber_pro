@@ -2727,9 +2727,16 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         }
 
         const client = await db.collection('clients').findOne({ _id: quote.clientId });
-        if (!client || !client.email) {
-            return res.status(400).json({ error: 'Client email not found' });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+
+        // For portal quotes tied to a service location, email the location contact
+        let toEmail = client.email;
+        let toName  = client.name;
+        if (quote.serviceLocationId) {
+            const loc = (client.serviceLocations || []).find(l => String(l.id) === String(quote.serviceLocationId));
+            if (loc?.contactEmail) { toEmail = loc.contactEmail; toName = loc.contact || loc.name || client.name; }
         }
+        if (!toEmail) return res.status(400).json({ error: 'No email address found for this client' });
 
         const settings = await db.collection('settings').findOne({});
         const companyName = settings?.companyName || 'Your Company';
@@ -2737,8 +2744,9 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         // Get quote URL
         const quoteUrl = `${process.env.APP_URL}/quote-view/${quote.secureToken}`;
 
-        // Send email
-        const subject = `Quote #${quote.quoteNumber} from ${companyName}`;
+        const isPortalQuote = quote.source === 'portal';
+        const quoteLabel = (isPortalQuote && client.isPropertyManagement) ? 'Work Order' : 'Quote';
+        const subject = `${quoteLabel} #${quote.quoteNumber} from ${companyName}`;
         const html = `
 <!DOCTYPE html>
 <html>
@@ -2755,12 +2763,12 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
 <body>
     <div class="container">
         <div class="header">
-            <h1>Quote from ${companyName}</h1>
+            <h1>${quoteLabel} from ${companyName}</h1>
         </div>
         <div class="content">
-            <p>Dear ${client.name},</p>
-            <p>Thank you for your interest! We've prepared a quote for: <strong>${quote.title}</strong></p>
-            <p><strong>Quote Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>
+            <p>Dear ${toName},</p>
+            <p>${isPortalQuote ? 'Your submission has been reviewed and priced.' : 'Thank you for your interest!'} Here is your ${quoteLabel.toLowerCase()} for: <strong>${quote.title}</strong></p>
+            <p><strong>Quote Total:</strong> ${fmt$(parseFloat(quote.total || 0))}</p>
             <p><strong>Valid Until:</strong> ${quote.validUntil}</p>
             <a href="${quoteUrl}" class="button">View Full Quote & Approve</a>
             <p>Click the button above to view the complete quote and approve it online.</p>
@@ -2775,16 +2783,16 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         `;
 
         await emailService.sendEmail({
-            to: client.email,
+            to: toEmail,
             subject: subject,
             html: html,
-            text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: $${parseFloat(quote.total || 0).toFixed(2)}\nValid until: ${quote.validUntil}`
+            text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: ${fmt$(parseFloat(quote.total || 0))}\nValid until: ${quote.validUntil}`
         });
 
         await db.collection('email_logs').insertOne({
             type: 'quote',
-            to: client.email,
-            toName: client.name,
+            to: toEmail,
+            toName: toName,
             subject: subject,
             trigger: `Quote #${quote.quoteNumber} — ${quote.title}`,
             relatedId: quote._id,
@@ -2802,7 +2810,7 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
             action: 'sent_email',
             oldStatus: quote.status,
             newStatus: 'sent',
-            note: `Quote emailed to ${client.email}`
+            note: `Quote emailed to ${toEmail}`
         };
 
         await db.collection('quotes').updateOne(
