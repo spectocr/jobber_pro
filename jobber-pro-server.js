@@ -9729,6 +9729,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     quotesBadge.style.display = portalQuotes > 0 ? 'inline' : 'none';
                 }
 
+                // Bot dot — show if anything new
+                const botDot = document.getElementById('activityBotDot');
+                if (botDot) botDot.style.display = (messages + leads + portalQuotes) > 0 ? 'block' : 'none';
+
                 // Page title
                 updatePageTitleBadge(messages + leads + portalQuotes);
 
@@ -11925,7 +11929,160 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadDashboard();
             }
         }, 30000);
+
+        // ── Activity Bot ──────────────────────────────────────────────────────────
+        let _botLoaded = false;
+
+        function toggleActivityBot() {
+            const panel = document.getElementById('activityBotPanel');
+            const isOpen = panel.style.display !== 'none';
+            panel.style.display = isOpen ? 'none' : 'flex';
+            document.getElementById('activityBotDot').style.display = 'none';
+            if (!isOpen && !_botLoaded) {
+                _botLoaded = true;
+                loadActivityBrief();
+            }
+        }
+
+        async function loadActivityBrief() {
+            appendBotMessage('bot', '⏳ Checking what\'s changed since your last login...');
+            try {
+                const res  = await fetch('/api/activity-brief');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                const lines = [];
+                lines.push(\`Here's your update since **\${data.since}**:\n\`);
+
+                if (data.newPortalQuotes.length)
+                    lines.push(\`📥 **\${data.newPortalQuotes.length} new work order\${data.newPortalQuotes.length !== 1 ? 's' : ''}** came in via the portal\${data.newPortalQuotes.length <= 3 ? ': ' + data.newPortalQuotes.map(q => q.clientName + ' (' + (q.priority || 'flexible') + ')').join(', ') : ''}.\`);
+
+                if (data.quoteStatusChanges.length)
+                    lines.push(\`📋 **\${data.quoteStatusChanges.length} quote\${data.quoteStatusChanges.length !== 1 ? 's' : ''}** changed status: \${data.quoteStatusChanges.map(q => q.clientName + ' → ' + q.status).join(', ')}.\`);
+
+                if (data.completedJobs.length)
+                    lines.push(\`✅ **\${data.completedJobs.length} job\${data.completedJobs.length !== 1 ? 's' : ''}** marked complete: \${data.completedJobs.map(j => j.clientName).slice(0,3).join(', ')}\${data.completedJobs.length > 3 ? ' +more' : ''}.\`);
+
+                if (data.newJobs.length)
+                    lines.push(\`🔨 **\${data.newJobs.length} new job\${data.newJobs.length !== 1 ? 's' : ''}** created.\`);
+
+                if (data.newMessages > 0)
+                    lines.push(\`💬 **\${data.newMessages} unread message\${data.newMessages !== 1 ? 's' : ''}** from clients.\`);
+
+                if (data.newLeads > 0)
+                    lines.push(\`🎯 **\${data.newLeads} new lead\${data.newLeads !== 1 ? 's' : ''}** came in.\`);
+
+                if (data.upcomingJobs.length) {
+                    lines.push(\`📅 **Upcoming this week:** \${data.upcomingJobs.map(j => j.scheduledDate + ' · ' + j.clientName).join(' | ')}.\`);
+                }
+
+                if (data.outstandingTotal > 0)
+                    lines.push(\`💰 **$\${data.outstandingTotal.toFixed(2)}** in outstanding invoices.\`);
+
+                if (lines.length === 1)
+                    lines.push('No major changes — all quiet. 👍');
+
+                removeBotTyping();
+                appendBotMessage('bot', lines.join('\n'));
+            } catch (e) {
+                removeBotTyping();
+                appendBotMessage('bot', 'Couldn\'t load activity: ' + e.message);
+            }
+        }
+
+        const _quickQueries = [
+            'Outstanding invoices', 'Urgent work orders',
+            'This week\'s schedule', 'Recent payments',
+            'Unread messages', 'Revenue this month'
+        ];
+
+        async function sendBotQuery(text) {
+            appendBotMessage('user', text);
+            appendBotMessage('bot', '⏳ Looking that up...');
+            try {
+                const res  = await fetch('/api/activity-query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: text }) });
+                const data = await res.json();
+                removeBotTyping();
+                let msg = data.answer || 'No data found.';
+                if (data.items && data.items.length) msg += '\n\n' + data.items.map(i => '• ' + i).join('\n');
+                appendBotMessage('bot', msg);
+            } catch (e) {
+                removeBotTyping();
+                appendBotMessage('bot', 'Something went wrong: ' + e.message);
+            }
+        }
+
+        function appendBotMessage(role, text) {
+            const log = document.getElementById('botMessageLog');
+            const div = document.createElement('div');
+            div.className = 'bot-msg bot-msg-' + role;
+            if (role === 'bot' && text.startsWith('⏳')) div.dataset.typing = '1';
+            // Simple markdown: **bold**, newlines
+            div.innerHTML = text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function removeBotTyping() {
+            document.querySelectorAll('[data-typing="1"]').forEach(el => el.remove());
+        }
+
+        function handleBotInput(e) {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('botInput');
+                const val = input.value.trim();
+                if (val) { input.value = ''; sendBotQuery(val); }
+            }
+        }
     </script>
+
+    <!-- Activity Bot -->
+    <style>
+        #activityBotBtn { position:fixed;bottom:1.5rem;right:1.5rem;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 15px rgba(102,126,234,0.5);z-index:900;display:flex;align-items:center;justify-content:center; }
+        #activityBotDot { position:absolute;top:2px;right:2px;width:12px;height:12px;background:#e53e3e;border-radius:50%;border:2px solid white; }
+        #activityBotPanel { position:fixed;bottom:5rem;right:1.5rem;width:340px;max-width:calc(100vw - 2rem);height:480px;background:white;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);z-index:901;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0; }
+        #botHeader { background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:0.9rem 1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0; }
+        #botHeader h4 { margin:0;font-size:0.95rem; }
+        #botMessageLog { flex:1;overflow-y:auto;padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;background:#f7fafc; }
+        .bot-msg { max-width:88%;padding:0.6rem 0.85rem;border-radius:12px;font-size:0.85rem;line-height:1.5;word-break:break-word; }
+        .bot-msg-bot { background:white;border:1px solid #e2e8f0;align-self:flex-start;border-bottom-left-radius:3px; }
+        .bot-msg-user { background:#667eea;color:white;align-self:flex-end;border-bottom-right-radius:3px; }
+        #botQuickReplies { display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem 0.75rem;border-top:1px solid #e2e8f0;background:white;flex-shrink:0; }
+        #botQuickReplies button { background:#f0f4ff;border:1px solid #c3d0f5;color:#4a5568;padding:0.3rem 0.6rem;border-radius:20px;font-size:0.75rem;cursor:pointer;white-space:nowrap; }
+        #botQuickReplies button:hover { background:#e0e8ff; }
+        #botInputRow { display:flex;padding:0.5rem 0.75rem;border-top:1px solid #e2e8f0;background:white;flex-shrink:0;gap:0.4rem; }
+        #botInput { flex:1;padding:0.5rem 0.75rem;border:1.5px solid #e2e8f0;border-radius:20px;font-size:0.85rem;outline:none; }
+        #botInput:focus { border-color:#667eea; }
+        #botSendBtn { background:#667eea;color:white;border:none;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:1rem;flex-shrink:0; }
+    </style>
+
+    <button id="activityBotBtn" onclick="toggleActivityBot()" title="Activity briefing">
+        🤖
+        <span id="activityBotDot"></span>
+    </button>
+
+    <div id="activityBotPanel" style="display:none;">
+        <div id="botHeader">
+            <h4>🤖 Activity Brief</h4>
+            <button onclick="toggleActivityBot()" style="background:none;border:none;color:white;font-size:1.1rem;cursor:pointer;">✕</button>
+        </div>
+        <div id="botMessageLog"></div>
+        <div id="botQuickReplies">
+            <button onclick="sendBotQuery('Outstanding invoices')">💰 Outstanding</button>
+            <button onclick="sendBotQuery('Urgent work orders')">🔴 Urgent</button>
+            <button onclick="sendBotQuery('This week schedule')">📅 This week</button>
+            <button onclick="sendBotQuery('Recent payments')">✅ Payments</button>
+            <button onclick="sendBotQuery('Unread messages')">💬 Messages</button>
+            <button onclick="sendBotQuery('Revenue this month')">📈 Revenue</button>
+        </div>
+        <div id="botInputRow">
+            <input id="botInput" placeholder="Ask anything..." onkeydown="handleBotInput(event)">
+            <button id="botSendBtn" onclick="(()=>{const i=document.getElementById('botInput');const v=i.value.trim();if(v){i.value='';sendBotQuery(v);}})()">➤</button>
+        </div>
+    </div>
 </body>
 </html>`;
 

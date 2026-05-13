@@ -703,7 +703,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
         await db.collection('login_logs').insertOne({ type: 'business', targetId: user._id, email: user.email, at: new Date(), ip, success: true, reason: null });
 
-        // Update last login time
+        // Capture previous login time as briefing baseline, then update
+        const prevLogin = user.lastLogin || null;
         await db.collection('users').updateOne(
             { _id: user._id },
             { $set: { lastLogin: new Date() } }
@@ -713,6 +714,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         req.session.userEmail = user.email;
         req.session.userName = user.name;
         req.session.userRole = user.role || 'user';
+        req.session.briefingSince = prevLogin ? prevLogin.toISOString() : null;
 
         // Save session before responding
         req.session.save((err) => {
@@ -5207,6 +5209,137 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
 });
 
 // ── End Compliance ────────────────────────────────────────────────────────────
+
+// ── Activity Briefing ────────────────────────────────────────────────────────
+app.get('/api/activity-brief', isAuthenticated, async (req, res) => {
+    try {
+        const since = req.session.briefingSince ? new Date(req.session.briefingSince) : null;
+        const sinceFilter = since ? { $gt: since } : { $gt: new Date(Date.now() - 7 * 86400000) };
+
+        const now = new Date();
+        const weekFromNow = new Date(now.getTime() + 7 * 86400000);
+        const todayStr = now.toISOString().split('T')[0];
+        const weekStr  = weekFromNow.toISOString().split('T')[0];
+
+        const [
+            newPortalQuotes,
+            quoteStatusChanges,
+            newJobs,
+            completedJobs,
+            newMessages,
+            newLeads,
+            upcomingJobs,
+            allJobs
+        ] = await Promise.all([
+            db.collection('quotes').find({ source: 'portal', status: 'draft', createdAt: sinceFilter }).toArray(),
+            db.collection('quotes').find({ source: 'portal', status: { $ne: 'draft' }, updatedAt: sinceFilter }).toArray(),
+            db.collection('jobs').find({ createdAt: sinceFilter }).toArray(),
+            db.collection('jobs').find({ status: 'completed', updatedAt: sinceFilter }).toArray(),
+            db.collection('client_messages').find({ createdAt: sinceFilter, read: false }).toArray(),
+            db.collection('leads').find({ createdAt: sinceFilter }).toArray(),
+            db.collection('jobs').find({ scheduledDate: { $gte: todayStr, $lte: weekStr }, status: { $in: ['scheduled', 'in_progress'] } }).sort({ scheduledDate: 1 }).limit(5).toArray(),
+            db.collection('jobs').find({ status: { $in: ['invoiced', 'completed'] } }).toArray()
+        ]);
+
+        // Outstanding invoice total
+        const outstanding = allJobs.reduce((sum, j) => {
+            const total = parseFloat(j.totalWithTax || j.total) || 0;
+            const paid  = parseFloat(j.totalPaid) || 0;
+            return sum + Math.max(0, total - paid);
+        }, 0);
+
+        const sinceLabel = since
+            ? (() => {
+                const diff = Math.round((now - since) / 60000);
+                if (diff < 60) return `${diff} minute${diff !== 1 ? 's' : ''} ago`;
+                const hrs = Math.round(diff / 60);
+                if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
+                const days = Math.round(hrs / 24);
+                return `${days} day${days !== 1 ? 's' : ''} ago`;
+            })()
+            : 'the last 7 days';
+
+        res.json({
+            since: sinceLabel,
+            newPortalQuotes:   newPortalQuotes.map(q => ({ id: q._id, quoteNumber: q.quoteNumber, title: q.title, clientName: q.clientName, priority: q.priority })),
+            quoteStatusChanges: quoteStatusChanges.map(q => ({ id: q._id, quoteNumber: q.quoteNumber, title: q.title, clientName: q.clientName, status: q.status })),
+            newJobs:           newJobs.map(j => ({ id: j._id, title: j.title, clientName: j.clientName, scheduledDate: j.scheduledDate })),
+            completedJobs:     completedJobs.map(j => ({ id: j._id, title: j.title, clientName: j.clientName })),
+            newMessages:       newMessages.length,
+            newLeads:          newLeads.length,
+            upcomingJobs:      upcomingJobs.map(j => ({ id: j._id, title: j.title, clientName: j.clientName, scheduledDate: j.scheduledDate })),
+            outstandingTotal:  outstanding
+        });
+    } catch (e) {
+        console.error('Activity brief error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/activity-query', isAuthenticated, async (req, res) => {
+    try {
+        const { query } = req.body;
+        const q = (query || '').toLowerCase();
+        const now = new Date();
+
+        if (q.includes('outstanding') || q.includes('unpaid') || q.includes('owed')) {
+            const jobs = await db.collection('jobs').find({ status: { $in: ['invoiced', 'completed'] } }).toArray();
+            const unpaid = jobs.filter(j => {
+                const total = parseFloat(j.totalWithTax || j.total) || 0;
+                const paid  = parseFloat(j.totalPaid) || 0;
+                return total - paid > 0.01;
+            });
+            const total = unpaid.reduce((s, j) => s + parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0), 0);
+            return res.json({ answer: `You have **${unpaid.length} outstanding invoice${unpaid.length !== 1 ? 's'  : ''}** totalling **$${total.toFixed(2)}**.`, items: unpaid.slice(0, 5).map(j => `${j.clientName} — $${(parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0)).toFixed(2)}`) });
+        }
+
+        if (q.includes('urgent')) {
+            const quotes = await db.collection('quotes').find({ priority: 'urgent', status: 'draft' }).toArray();
+            return res.json({ answer: `There ${quotes.length === 1 ? 'is' : 'are'} **${quotes.length} urgent work order${quotes.length !== 1 ? 's' : ''}** waiting for review.`, items: quotes.map(q => `${q.clientName} — ${q.title} [${q.quoteNumber}]`) });
+        }
+
+        if (q.includes('this week') || q.includes('week') || q.includes('schedule') || q.includes('coming up')) {
+            const weekStr = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
+            const todayStr = now.toISOString().split('T')[0];
+            const jobs = await db.collection('jobs').find({ scheduledDate: { $gte: todayStr, $lte: weekStr }, status: { $in: ['scheduled', 'in_progress'] } }).sort({ scheduledDate: 1 }).toArray();
+            return res.json({ answer: `You have **${jobs.length} job${jobs.length !== 1 ? 's' : ''}** scheduled in the next 7 days.`, items: jobs.map(j => `${j.scheduledDate} — ${j.clientName}: ${j.title}`) });
+        }
+
+        if (q.includes('payment') || q.includes('paid') || q.includes('recent payment')) {
+            const week = new Date(now.getTime() - 7 * 86400000);
+            const jobs = await db.collection('jobs').find({ totalPaid: { $gt: 0 }, updatedAt: { $gt: week } }).sort({ updatedAt: -1 }).limit(10).toArray();
+            const total = jobs.reduce((s, j) => s + parseFloat(j.totalPaid || 0), 0);
+            return res.json({ answer: `**${jobs.length} payment${jobs.length !== 1 ? 's' : ''}** received in the last 7 days totalling **$${total.toFixed(2)}**.`, items: jobs.map(j => `${j.clientName} — $${parseFloat(j.totalPaid).toFixed(2)}`) });
+        }
+
+        if (q.includes('lead') || q.includes('new request')) {
+            const leads = await db.collection('leads').find({ status: 'new' }).sort({ createdAt: -1 }).toArray();
+            return res.json({ answer: `You have **${leads.length} unreviewed lead${leads.length !== 1 ? 's' : ''}**.`, items: leads.slice(0, 5).map(l => `${l.firstName} ${l.lastName} — ${l.service}`) });
+        }
+
+        if (q.includes('message') || q.includes('unread')) {
+            const msgs = await db.collection('client_messages').find({ read: false }).sort({ createdAt: -1 }).toArray();
+            return res.json({ answer: `You have **${msgs.length} unread message${msgs.length !== 1 ? 's' : ''}**.`, items: msgs.slice(0, 5).map(m => `${m.clientName}: ${(m.message || '').slice(0, 60)}`) });
+        }
+
+        if (q.includes('work order') || q.includes('portal') || q.includes('ticket')) {
+            const quotes = await db.collection('quotes').find({ source: 'portal', status: 'draft' }).sort({ createdAt: -1 }).toArray();
+            return res.json({ answer: `**${quotes.length} portal work order${quotes.length !== 1 ? 's' : ''}** waiting for review.`, items: quotes.map(q => `${q.clientName} — ${q.title} [${q.quoteNumber}] · ${q.priority || 'flexible'}`) });
+        }
+
+        if (q.includes('revenue') || q.includes('earned') || q.includes('month')) {
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const jobs = await db.collection('jobs').find({ status: { $in: ['completed', 'invoiced'] }, updatedAt: { $gt: startOfMonth } }).toArray();
+            const total = jobs.reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
+            return res.json({ answer: `**$${total.toFixed(2)}** in completed/invoiced jobs so far this month (${jobs.length} job${jobs.length !== 1 ? 's' : ''}).`, items: [] });
+        }
+
+        return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, or **revenue this month**.`, items: [] });
+
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // Lightweight notification counts (messages + leads + expiring compliance docs)
 app.get('/api/notifications/counts', isAuthenticated, async (req, res) => {
