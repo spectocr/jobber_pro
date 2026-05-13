@@ -11981,7 +11981,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (data.upcomingJobs.length)
                     lines.push(\`📅 **Upcoming this week:** \${data.upcomingJobs.map(j => j.scheduledDate + ' · ' + j.clientName).join(' | ')}.\`);
                 if (data.outstandingTotal > 0)
-                    lines.push(\`💰 **$\${data.outstandingTotal.toFixed(2)}** in outstanding invoices.\`);
+                    lines.push(\`💰 **\${formatMoney(data.outstandingTotal)}** in outstanding invoices.\`);
                 if (lines.length === 1)
                     lines.push('All quiet since your last visit! Everything looks good. 👍');
 

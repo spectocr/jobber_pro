@@ -5210,6 +5210,8 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
 
 // ── End Compliance ────────────────────────────────────────────────────────────
 
+const fmt$ = n => '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 // ── Activity Briefing ────────────────────────────────────────────────────────
 app.get('/api/activity-brief', isAuthenticated, async (req, res) => {
     try {
@@ -5319,9 +5321,9 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             });
             const total = unpaid.reduce((s, j) => s + parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0), 0);
             const items = await Promise.all(unpaid.slice(0, 5).map(async j =>
-                `${await clientName(j)} — $${(parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0)).toFixed(2)}`
+                `${await clientName(j)} — ${fmt$(parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0))}`
             ));
-            return res.json({ answer: `You have **${unpaid.length} outstanding invoice${unpaid.length !== 1 ? 's' : ''}** totalling **$${total.toFixed(2)}**.`, items });
+            return res.json({ answer: `You have **${unpaid.length} outstanding invoice${unpaid.length !== 1 ? 's' : ''}** totalling **${fmt$(total)}**.`, items });
         }
 
         if (q.includes('urgent')) {
@@ -5341,8 +5343,8 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             const week = new Date(now.getTime() - 7 * 86400000);
             const jobs = await db.collection('jobs').find({ totalPaid: { $gt: 0 }, updatedAt: { $gt: week } }).sort({ updatedAt: -1 }).limit(10).toArray();
             const total = jobs.reduce((s, j) => s + parseFloat(j.totalPaid || 0), 0);
-            const items = await Promise.all(jobs.map(async j => `${await clientName(j)} — $${parseFloat(j.totalPaid).toFixed(2)}`));
-            return res.json({ answer: `**${jobs.length} payment${jobs.length !== 1 ? 's' : ''}** received in the last 7 days totalling **$${total.toFixed(2)}**.`, items });
+            const items = await Promise.all(jobs.map(async j => `${await clientName(j)} — ${fmt$(j.totalPaid)}`));
+            return res.json({ answer: `**${jobs.length} payment${jobs.length !== 1 ? 's' : ''}** received in the last 7 days totalling **${fmt$(total)}**.`, items });
         }
 
         if (q.includes('lead') || q.includes('new request')) {
@@ -5364,7 +5366,7 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
             const jobs = await db.collection('jobs').find({ status: { $in: ['completed', 'invoiced'] }, updatedAt: { $gt: startOfMonth } }).toArray();
             const total = jobs.reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
-            return res.json({ answer: `**$${total.toFixed(2)}** in completed/invoiced jobs so far this month (${jobs.length} job${jobs.length !== 1 ? 's' : ''}).`, items: [] });
+            return res.json({ answer: `**${fmt$(total)}** in completed/invoiced jobs so far this month (${jobs.length} job${jobs.length !== 1 ? 's' : ''}).`, items: [] });
         }
 
         return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, or **revenue this month**.`, items: [] });
