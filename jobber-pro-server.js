@@ -1228,7 +1228,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <div class="nav-scroll">
             <button class="nav-btn active" onclick="showView('dashboard')" data-admin-only>📊 Dashboard</button>
             <button class="nav-btn" onclick="showView('clients')" data-admin-only>👥 Clients</button>
-            <button class="nav-btn" onclick="showView('quotes')" data-admin-only>💰 Quotes</button>
+            <button class="nav-btn" onclick="showView('quotes')" data-admin-only style="position:relative;">
+                💰 Quotes
+                <span id="quotes-badge" style="display:none;position:absolute;top:6px;right:4px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
+            </button>
             <button class="nav-btn" onclick="showView('jobs')">📋 Jobs</button>
             <button class="nav-btn" onclick="showView('leads')" data-admin-only style="position:relative;">
                 🎯 Leads
@@ -9679,6 +9682,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         let _lastMessageCount = 0;
         let _lastLeadCount = 0;
+        let _lastPortalQuoteCount = 0;
         let _notifPermAsked = false;
 
         function updatePageTitleBadge(total) {
@@ -9696,7 +9700,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             try {
                 const res = await fetch('/api/notifications/counts');
                 if (!res.ok) return;
-                const { messages, leads, expiringDocs } = await res.json();
+                const { messages, leads, expiringDocs, portalQuotes } = await res.json();
 
                 // Compliance expiry badge on settings tab
                 const compTabBtn = document.getElementById('complianceTabBtn');
@@ -9719,9 +9723,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     leadBadge.textContent = leads;
                     leadBadge.style.display = leads > 0 ? 'inline' : 'none';
                 }
+                const quotesBadge = document.getElementById('quotes-badge');
+                if (quotesBadge) {
+                    quotesBadge.textContent = portalQuotes;
+                    quotesBadge.style.display = portalQuotes > 0 ? 'inline' : 'none';
+                }
 
                 // Page title
-                updatePageTitleBadge(messages + leads);
+                updatePageTitleBadge(messages + leads + portalQuotes);
 
                 // Browser notifications on new arrivals
                 if (messages > _lastMessageCount) {
@@ -9732,9 +9741,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const n = leads - _lastLeadCount;
                     fireNotification('New Lead', \`You have \${n} new lead\${n > 1 ? 's' : ''} waiting.\`);
                 }
+                if (portalQuotes > _lastPortalQuoteCount) {
+                    const n = portalQuotes - _lastPortalQuoteCount;
+                    fireNotification('New Work Order', \`\${n} new portal work order\${n > 1 ? 's' : ''} waiting for review.\`);
+                }
 
                 _lastMessageCount = messages;
                 _lastLeadCount = leads;
+                _lastPortalQuoteCount = portalQuotes;
 
                 // If leads are in memory, keep in sync too
                 if (typeof allLeads !== 'undefined' && allLeads.length > 0) {

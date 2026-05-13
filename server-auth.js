@@ -5213,12 +5213,13 @@ app.get('/api/notifications/counts', isAuthenticated, async (req, res) => {
     try {
         const now = new Date();
         const warn30 = new Date(); warn30.setDate(warn30.getDate() + 30);
-        const [messages, leads, expiringDocs] = await Promise.all([
+        const [messages, leads, expiringDocs, portalQuotes] = await Promise.all([
             db.collection('client_messages').countDocuments({ read: false }),
             db.collection('leads').countDocuments({ status: 'new' }),
-            db.collection('compliance_docs').countDocuments({ expiresAt: { $ne: null, $lte: warn30 } })
+            db.collection('compliance_docs').countDocuments({ expiresAt: { $ne: null, $lte: warn30 } }),
+            db.collection('quotes').countDocuments({ status: 'draft', source: 'portal' })
         ]);
-        res.json({ messages, leads, expiringDocs });
+        res.json({ messages, leads, expiringDocs, portalQuotes });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
