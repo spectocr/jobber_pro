@@ -5259,16 +5259,33 @@ app.get('/api/activity-brief', isAuthenticated, async (req, res) => {
             })()
             : 'the last 7 days';
 
+        // Resolve client names for jobs (jobs use clientId ref, not embedded clientName)
+        const resolveJobName = async (job) => {
+            if (job.clientName) return job.clientName;
+            if (!job.clientId) return 'Unknown';
+            try {
+                const id = typeof job.clientId === 'string' ? new ObjectId(job.clientId) : job.clientId;
+                const c = await db.collection('clients').findOne({ _id: id }, { projection: { name: 1 } });
+                return c?.name || 'Unknown';
+            } catch { return 'Unknown'; }
+        };
+
+        const [newJobsMapped, completedMapped, upcomingMapped] = await Promise.all([
+            Promise.all(newJobs.map(async j => ({ id: j._id, title: j.title, clientName: await resolveJobName(j), scheduledDate: j.scheduledDate }))),
+            Promise.all(completedJobs.map(async j => ({ id: j._id, title: j.title, clientName: await resolveJobName(j) }))),
+            Promise.all(upcomingJobs.map(async j => ({ id: j._id, title: j.title, clientName: await resolveJobName(j), scheduledDate: j.scheduledDate })))
+        ]);
+
         res.json({
             since: sinceLabel,
-            newPortalQuotes:   newPortalQuotes.map(q => ({ id: q._id, quoteNumber: q.quoteNumber, title: q.title, clientName: q.clientName, priority: q.priority })),
+            newPortalQuotes:    newPortalQuotes.map(q => ({ id: q._id, quoteNumber: q.quoteNumber, title: q.title, clientName: q.clientName, priority: q.priority })),
             quoteStatusChanges: quoteStatusChanges.map(q => ({ id: q._id, quoteNumber: q.quoteNumber, title: q.title, clientName: q.clientName, status: q.status })),
-            newJobs:           newJobs.map(j => ({ id: j._id, title: j.title, clientName: j.clientName, scheduledDate: j.scheduledDate })),
-            completedJobs:     completedJobs.map(j => ({ id: j._id, title: j.title, clientName: j.clientName })),
-            newMessages:       newMessages.length,
-            newLeads:          newLeads.length,
-            upcomingJobs:      upcomingJobs.map(j => ({ id: j._id, title: j.title, clientName: j.clientName, scheduledDate: j.scheduledDate })),
-            outstandingTotal:  outstanding
+            newJobs:            newJobsMapped,
+            completedJobs:      completedMapped,
+            newMessages:        newMessages.length,
+            newLeads:           newLeads.length,
+            upcomingJobs:       upcomingMapped,
+            outstandingTotal:   outstanding
         });
     } catch (e) {
         console.error('Activity brief error:', e);
@@ -5282,6 +5299,17 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
         const q = (query || '').toLowerCase();
         const now = new Date();
 
+        // Helper: resolve client name from a job record
+        const clientName = async (job) => {
+            if (job.clientName) return job.clientName;
+            if (!job.clientId) return 'Unknown';
+            try {
+                const id = typeof job.clientId === 'string' ? new ObjectId(job.clientId) : job.clientId;
+                const c = await db.collection('clients').findOne({ _id: id }, { projection: { name: 1 } });
+                return c?.name || 'Unknown';
+            } catch { return 'Unknown'; }
+        };
+
         if (q.includes('outstanding') || q.includes('unpaid') || q.includes('owed')) {
             const jobs = await db.collection('jobs').find({ status: { $in: ['invoiced', 'completed'] } }).toArray();
             const unpaid = jobs.filter(j => {
@@ -5290,7 +5318,10 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
                 return total - paid > 0.01;
             });
             const total = unpaid.reduce((s, j) => s + parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0), 0);
-            return res.json({ answer: `You have **${unpaid.length} outstanding invoice${unpaid.length !== 1 ? 's'  : ''}** totalling **$${total.toFixed(2)}**.`, items: unpaid.slice(0, 5).map(j => `${j.clientName} — $${(parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0)).toFixed(2)}`) });
+            const items = await Promise.all(unpaid.slice(0, 5).map(async j =>
+                `${await clientName(j)} — $${(parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0)).toFixed(2)}`
+            ));
+            return res.json({ answer: `You have **${unpaid.length} outstanding invoice${unpaid.length !== 1 ? 's' : ''}** totalling **$${total.toFixed(2)}**.`, items });
         }
 
         if (q.includes('urgent')) {
@@ -5299,17 +5330,19 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
         }
 
         if (q.includes('this week') || q.includes('week') || q.includes('schedule') || q.includes('coming up')) {
-            const weekStr = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
+            const weekStr  = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
             const todayStr = now.toISOString().split('T')[0];
             const jobs = await db.collection('jobs').find({ scheduledDate: { $gte: todayStr, $lte: weekStr }, status: { $in: ['scheduled', 'in_progress'] } }).sort({ scheduledDate: 1 }).toArray();
-            return res.json({ answer: `You have **${jobs.length} job${jobs.length !== 1 ? 's' : ''}** scheduled in the next 7 days.`, items: jobs.map(j => `${j.scheduledDate} — ${j.clientName}: ${j.title}`) });
+            const items = await Promise.all(jobs.map(async j => `${j.scheduledDate} — ${await clientName(j)}: ${j.title}`));
+            return res.json({ answer: `You have **${jobs.length} job${jobs.length !== 1 ? 's' : ''}** scheduled in the next 7 days.`, items });
         }
 
         if (q.includes('payment') || q.includes('paid') || q.includes('recent payment')) {
             const week = new Date(now.getTime() - 7 * 86400000);
             const jobs = await db.collection('jobs').find({ totalPaid: { $gt: 0 }, updatedAt: { $gt: week } }).sort({ updatedAt: -1 }).limit(10).toArray();
             const total = jobs.reduce((s, j) => s + parseFloat(j.totalPaid || 0), 0);
-            return res.json({ answer: `**${jobs.length} payment${jobs.length !== 1 ? 's' : ''}** received in the last 7 days totalling **$${total.toFixed(2)}**.`, items: jobs.map(j => `${j.clientName} — $${parseFloat(j.totalPaid).toFixed(2)}`) });
+            const items = await Promise.all(jobs.map(async j => `${await clientName(j)} — $${parseFloat(j.totalPaid).toFixed(2)}`));
+            return res.json({ answer: `**${jobs.length} payment${jobs.length !== 1 ? 's' : ''}** received in the last 7 days totalling **$${total.toFixed(2)}**.`, items });
         }
 
         if (q.includes('lead') || q.includes('new request')) {
