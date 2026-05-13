@@ -4646,7 +4646,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function addPaymentItem() {
             const id = Date.now();
             const today = new Date().toISOString().split('T')[0];
-            paymentItems.push({ id, date: today, amount: 0, method: 'cash', notes: '' });
+            const balanceEl = document.getElementById('balanceOwedSummary');
+            const defaultAmount = balanceEl ? Math.max(0, parseFloat(balanceEl.textContent) || 0) : 0;
+            paymentItems.push({ id, date: today, amount: defaultAmount, method: 'cash', notes: '' });
             renderLineItems();
             markFormDirty();
         }
