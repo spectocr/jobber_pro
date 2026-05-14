@@ -2894,38 +2894,6 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
     }
 });
 
-// One-time migration: backfill sourceQuoteHistory onto converted jobs
-app.post('/api/quotes/backfill-job-history', isAdmin, async (req, res) => {
-    try {
-        const quotes = await db.collection('quotes').find({ convertedToJobId: { $exists: true } }).toArray();
-        let updated = 0;
-        for (const quote of quotes) {
-            const jobId = quote.convertedToJobId;
-            const job = await db.collection('jobs').findOne({ _id: jobId });
-            if (!job) continue;
-            if (job.sourceQuoteHistory && job.sourceQuoteHistory.length > 0) continue; // already done
-            const patch = {
-                sourceQuoteId: quote._id,
-                sourceQuoteNumber: quote.quoteNumber,
-                sourceQuoteHistory: quote.auditLog || []
-            };
-            // Merge quote touchPoints (mark fromQuote) into job touchPoints if not already there
-            const existingIds = new Set((job.touchPoints || []).map(tp => String(tp.id)));
-            const newTps = (quote.touchPoints || [])
-                .filter(tp => !existingIds.has(String(tp.id)))
-                .map(tp => ({ ...tp, fromQuote: true }));
-            if (newTps.length > 0) {
-                patch.touchPoints = [...newTps, ...(job.touchPoints || [])];
-            }
-            await db.collection('jobs').updateOne({ _id: jobId }, { $set: patch });
-            updated++;
-        }
-        res.json({ success: true, updated });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Backfill audit logs for existing quotes
 app.post('/api/quotes/migrate-audit-logs', isAuthenticated, async (req, res) => {
     try {
