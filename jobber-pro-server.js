@@ -6948,11 +6948,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         }
                     }
 
-                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                    const truncDesc = w => { const words = (w||'').split(/\s+/); return words.length > 20 ? words.slice(0,20).join(' ') + '…' : w; };
+                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;cursor:pointer;" onclick="editJob('\${j.id}')">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
                             <div>
                                 <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
                                 <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${j.title}</div>
+                                \${j.description ? \`<div style="color:#718096;font-size:0.8rem;margin-top:0.1rem;">\${truncDesc(j.description)}</div>\` : ''}
                             </div>
                             <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace(/_/g, ' ')}</span>
                         </div>
@@ -6970,8 +6972,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${j.invoiceSentAt ? \`<span style="color:#4a5568;">📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>\` : ''}
                             \${j.invoiceViewCount > 0 ? \` · <button onclick="showInvoiceViewLog('\${j.id}')" style="background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-size:0.78rem;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</button>\` : (j.invoiceSentAt ? \` · <span style="color:#9ca3af;">Not opened</span>\` : '')}
                         </div>\` : ''}
-                        <div style="display:flex;gap:0.4rem;align-items:center;">
-                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
+                        <div style="display:flex;gap:0.4rem;align-items:center;" onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
                             \${isAdmin ? \`<div style="position:relative;display:inline-block;">
                                 <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
@@ -7018,16 +7020,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </td>\`;
                     }
 
-                    return \`<tr>
+                    const truncD = w => { const ws = (w||'').split(/\s+/); return ws.length > 20 ? ws.slice(0,20).join(' ') + '…' : w; };
+                    return \`<tr style="cursor:pointer;" onclick="editJob('\${j.id}')">
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
                         <td>\${maskName(client ? client.name : 'Unknown')}</td>
-                        <td><strong>\${j.title}</strong><br><small>\${j.description || ''}</small></td>
+                        <td><strong>\${j.title}</strong>\${j.description ? \`<br><small style="color:#718096;">\${truncD(j.description)}</small>\` : ''}</td>
                         <td>\${assignedNames}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
                         \${moneyCell}
                         \${activityCell}
                         <td>
-                            <div style="display:flex;gap:0.4rem;align-items:center;">
+                            <div style="display:flex;gap:0.4rem;align-items:center;" onclick="event.stopPropagation()">
                                 <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
                                 \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
                                 \${isAdmin ? \`<div style="position:relative;display:inline-block;">
