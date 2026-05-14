@@ -2699,36 +2699,34 @@ app.get('/api/jobs/:id/photos', isAuthenticated, async (req, res) => {
     }
 });
 
-app.post('/api/jobs/:id/signoff', isAuthenticated, async (req, res) => {
+app.post('/api/jobs/:id/signoff-attachment', isAuthenticated, async (req, res) => {
     try {
-        const { signatureDataUrl, signerName } = req.body;
-        if (!signatureDataUrl) return res.status(400).json({ error: 'No signature data' });
-        const match = signatureDataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
-        if (!match) return res.status(400).json({ error: 'Invalid signature format' });
+        const { imageDataUrl, signerName } = req.body;
+        if (!imageDataUrl) return res.status(400).json({ error: 'No image data' });
+        const match = imageDataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/);
+        if (!match) return res.status(400).json({ error: 'Invalid image format' });
         if (!s3Client) return res.status(500).json({ error: 'S3 not configured' });
         const buffer = Buffer.from(match[2], 'base64');
-        const key = `signatures/${req.params.id}/${Date.now()}.png`;
+        const key = `jobber-attachments/${req.params.id}-signoff-${Date.now()}.png`;
         await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: buffer, ContentType: 'image/png' }));
-        const signoff = { signedAt: new Date().toISOString(), signerName: signerName || '', signatureKey: key };
-        await db.collection('jobs').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { signoff } });
-        res.json({ ok: true });
+        const attachment = {
+            id: new ObjectId().toString(),
+            name: 'Business Sign-Off',
+            type: 'image/png',
+            size: buffer.length,
+            s3Key: key,
+            comment: signerName ? `Signed by ${signerName}` : '',
+            uploadedAt: new Date(),
+            uploadedBy: req.session.userName || 'Admin'
+        };
+        const signoff = { signedAt: new Date().toISOString(), signerName: signerName || '' };
+        await db.collection('jobs').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $push: { attachments: attachment }, $set: { signoff, updatedAt: new Date() } }
+        );
+        res.json({ ok: true, attachment });
     } catch (e) {
-        console.error('Signoff save error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/api/jobs/:id/signoff', isAuthenticated, async (req, res) => {
-    try {
-        const job = await db.collection('jobs').findOne(
-            { _id: new ObjectId(req.params.id) }, { projection: { signoff: 1 } });
-        if (!job || !job.signoff) return res.json({ signoff: null });
-        const signoff = { ...job.signoff };
-        if (signoff.signatureKey && s3Client) {
-            signoff.signatureUrl = await getS3SignedUrl(signoff.signatureKey, 3600);
-        }
-        res.json({ signoff });
-    } catch (e) {
+        console.error('Signoff attachment error:', e);
         res.status(500).json({ error: e.message });
     }
 });

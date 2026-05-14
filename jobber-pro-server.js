@@ -3109,12 +3109,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
 
-                    <!-- Sign-off record -->
-                    <div id="jobSignoffSection" style="margin-top:2rem;padding-top:1rem;border-top:2px solid #ddd;display:none;">
-                        <h3 style="margin-bottom:0.75rem;color:#22543d;">✅ Signed Off</h3>
-                        <div id="jobSignoffBody"></div>
-                    </div>
-
                     <!-- Audit Log -->
                     <div id="jobPhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                         <h3 style="margin-bottom: 0.75rem;">📷 Photos</h3>
@@ -3949,12 +3943,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.job-action-menu').forEach(m => m.style.display = 'none');
         });
 
-        window._saveSignoffToJob = function(jobId, sigData, signerName, cb) {
-            fetch(\`/api/jobs/\${jobId}/signoff\`, {
+        window._saveSignoffToJob = function(jobId, imageDataUrl, signerName, cb) {
+            fetch(\`/api/jobs/\${jobId}/signoff-attachment\`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ signatureDataUrl: sigData, signerName: signerName })
+                body: JSON.stringify({ imageDataUrl: imageDataUrl, signerName: signerName })
             }).then(function(r) { return r.json(); })
               .then(function(d) { cb(d.ok, d.error); })
               .catch(function(e) { cb(false, e.message); });
@@ -3978,6 +3972,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const win = window.open('','_blank','width=840,height=1000');
             win.document.write(\`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Sign-Off — \${job.title}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:2.5rem 3rem;max-width:760px;margin:0 auto;}
@@ -4037,14 +4032,13 @@ hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
   <button onclick="clearSig()" type="button" style="background:none;border:1.5px solid #d1d5db;padding:0.3rem 0.9rem;border-radius:5px;cursor:pointer;font-size:0.78rem;color:#888;">Clear</button>
 </div>
 
+<div style="margin-bottom:1.5rem;">
+  <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#aaa;display:block;margin-bottom:0.4rem;">Print Full Name *</label>
+  <input id="signerInput" type="text" value="\${signerName}" placeholder="Type your full name here" style="width:100%;border:none;border-bottom:2px solid #222;background:none;font-size:1rem;padding:0.3rem 0;outline:none;color:#1a1a1a;font-family:inherit;">
+</div>
 <div class="sig-row">
   <div>
-    <div class="sig-field"><input id="signerInput" type="text" value="\${signerName}" placeholder="Printed name" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#333;"></div>
-    <div class="sig-hint">Edit if needed</div>
-    <div class="sig-label">Printed Name</div>
-  </div>
-  <div>
-    <div class="sig-field"><input id="titleInput" type="text" value="Manager on Duty" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#666;"></div>
+    <div class="sig-field"><input id="titleInput" type="text" value="Manager on Duty" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#666;font-family:inherit;"></div>
     <div class="sig-label">Title / Role</div>
   </div>
   <div>
@@ -4108,23 +4102,32 @@ function doPrint() {
 var JOB_ID = '\${_jobId}';
 function saveToJob() {
   if (!hasSig) { alert('Please sign first.'); return; }
-  var btn = document.getElementById('saveBtn');
-  var sigData = canvas.toDataURL('image/png');
-  var signer = document.getElementById('signerInput').value;
-  btn.textContent = 'Saving...'; btn.disabled = true;
+  var signer = document.getElementById('signerInput').value.trim();
+  if (!signer) { alert('Please enter your full name.'); document.getElementById('signerInput').focus(); return; }
   if (!window.opener || !window.opener._saveSignoffToJob) {
     alert('Cannot reach main window. Please keep the admin tab open.');
-    btn.textContent = '💾 Save to Job'; btn.disabled = false;
     return;
   }
-  window.opener._saveSignoffToJob(JOB_ID, sigData, signer, function(ok, err) {
-    if (ok) {
-      btn.textContent = '✅ Saved!';
-      btn.style.background = '#22543d';
-    } else {
-      alert('Error: ' + (err || 'Save failed'));
-      btn.textContent = '💾 Save to Job'; btn.disabled = false;
-    }
+  var btn = document.getElementById('saveBtn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  var noPrint = document.querySelector('.no-print');
+  if (noPrint) noPrint.style.visibility = 'hidden';
+  html2canvas(document.body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(function(c) {
+    if (noPrint) noPrint.style.visibility = '';
+    var imgData = c.toDataURL('image/png');
+    window.opener._saveSignoffToJob(JOB_ID, imgData, signer, function(ok, err) {
+      if (ok) {
+        btn.textContent = '✅ Saved to Job!';
+        btn.style.background = '#22543d';
+      } else {
+        alert('Error: ' + (err || 'Save failed'));
+        btn.textContent = '💾 Save to Job'; btn.disabled = false;
+      }
+    });
+  }).catch(function(e) {
+    if (noPrint) noPrint.style.visibility = '';
+    alert('Capture failed: ' + e.message);
+    btn.textContent = '💾 Save to Job'; btn.disabled = false;
   });
 }
 <\/script>
@@ -4304,29 +4307,6 @@ function saveToJob() {
                     }).catch(() => {});
             } else {
                 document.getElementById('jobPhotosSection').style.display = 'none';
-            }
-
-            // Load signoff record
-            const _soSection = document.getElementById('jobSignoffSection');
-            const _soBody = document.getElementById('jobSignoffBody');
-            if (_photoJobId) {
-                fetch(\`/api/jobs/\${_photoJobId}/signoff\`)
-                    .then(r => r.json())
-                    .then(({ signoff }) => {
-                        if (signoff) {
-                            _soSection.style.display = 'block';
-                            const d = new Date(signoff.signedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-                            _soBody.innerHTML = \`
-                                <p style="font-size:0.9rem;color:#4a5568;margin-bottom:0.5rem;"><strong>Signer:</strong> \${signoff.signerName || '—'}</p>
-                                <p style="font-size:0.9rem;color:#4a5568;margin-bottom:0.75rem;"><strong>Date:</strong> \${d}</p>
-                                \${signoff.signatureUrl ? \`<img src="\${signoff.signatureUrl}" style="max-width:320px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fafafa;">\` : ''}
-                            \`;
-                        } else {
-                            _soSection.style.display = 'none';
-                        }
-                    }).catch(() => { _soSection.style.display = 'none'; });
-            } else {
-                _soSection.style.display = 'none';
             }
 
             // Show merged audit log: job entries + source quote history
