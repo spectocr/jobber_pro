@@ -589,10 +589,10 @@ function setupRoutes() {
 async function buildAuthHtml(html) {
     try {
         const settings = await db.collection('settings').findOne({});
-        const appName = settings?.appName || 'GSD Home Improvement & Property Services';
+        const appName = settings?.appName || 'GSD Property Services';
         return html.replace(/\{\{APP_NAME\}\}/g, appName);
     } catch {
-        return html.replace(/\{\{APP_NAME\}\}/g, 'GSD Home Improvement & Property Services');
+        return html.replace(/\{\{APP_NAME\}\}/g, 'GSD Property Services');
     }
 }
 
@@ -626,7 +626,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         );
 
         const settings = await db.collection('settings').findOne({});
-        const appName = settings?.appName || 'GSD Home Improvement & Property Services';
+        const appName = settings?.appName || 'GSD Property Services';
         const resetUrl = `${process.env.APP_URL}/reset-password?token=${token}`;
 
         await emailService.sendEmail({
@@ -1149,7 +1149,7 @@ app.get('/request-quote', (req, res) => {
     <input type="hidden" name="entryPage" value="${entry}">
     <div class="sms-consent">
       <input type="checkbox" id="smsConsent" name="smsConsent">
-      <label for="smsConsent">I agree to receive text messages from GSD Handyman Service regarding my quote, appointment reminders, and job updates. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out or HELP for help. No mobile information will be shared with third parties. <a href="https://gsdhandymanservice.com/privacy" target="_blank">Privacy Policy</a></label>
+      <label for="smsConsent">I agree to receive text messages from GSD Property Services regarding my quote, appointment reminders, and job updates. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out or HELP for help. No mobile information will be shared with third parties. <a href="https://gsdhandymanservice.com/privacy" target="_blank">Privacy Policy</a></label>
     </div>
     <p class="error-msg" id="errorMsg">Something went wrong. Please try again or call 856-872-4636.</p>
     <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
@@ -3167,7 +3167,7 @@ app.get('/api/email/config', isAuthenticated, async (req, res) => {
         res.json({
             configured: !!(process.env.SES_ACCESS_KEY_ID && process.env.SES_SECRET_ACCESS_KEY && process.env.SES_FROM_EMAIL),
             fromEmail: process.env.SES_FROM_EMAIL || '',
-            fromName: process.env.SES_FROM_NAME || 'GSD Home Improvement & Property Services',
+            fromName: process.env.SES_FROM_NAME || 'GSD Property Services',
             provider: 'AWS SES',
             templates: settings?.emailTemplates || {},
             calendar: settings?.calendarSettings || {}
@@ -3234,7 +3234,7 @@ app.post('/api/email/test', isAuthenticated, async (req, res) => {
             type: 'test',
             to: to,
             toName: to,
-            subject: 'GSD Home Improvement & Property Services — Email Test',
+            subject: 'GSD Property Services — Email Test',
             trigger: 'Manual test email sent from settings',
             relatedId: null,
             relatedTitle: null,
@@ -4454,6 +4454,7 @@ app.get('/invoice/:jobId', async (req, res) => {
     <div class="footer" style="margin-top: 40px;">
         <p>Thank you for your business!</p>
         <p>Please remit payment within 3 days.</p>
+        <p style="margin-top:8px;font-size:0.85em;color:#aaa;">Licensed &amp; Insured · LIC# 13VH13491700</p>
     </div>
 </body>
 </html>`;
@@ -4774,7 +4775,7 @@ app.post('/quote-action/:token/approve', async (req, res) => {
 
         if (emailService.initialized) {
             const settings = await db.collection('settings').findOne({});
-            const companyName = settings?.companyName || 'GSD Home Improvement & Property Services';
+            const companyName = settings?.companyName || 'GSD Property Services';
             await emailService.sendEmail({
                 to: 'info@gsdhandymanservice.com',
                 subject: `✅ ${approvalLabel.charAt(0).toUpperCase() + approvalLabel.slice(1)} Approved — ${quote.quoteNumber} — ${client?.name || 'Client'}`,
@@ -5164,7 +5165,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
         await db.collection('quotes').insertOne(quote);
 
         const settings = await db.collection('settings').findOne({});
-        const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
+        const businessName = settings?.companyName || settings?.appName || 'GSD Property Services';
 
         const priorityLabels = { urgent: '🔴 Urgent', '1_day': '🟠 Within 1 Day', '3_days': '🟡 Within 3 Days', '1_week': '🟢 Within 1 Week', '2_weeks': '🔵 Within 2 Weeks', flexible: '⚪ Flexible / No Rush' };
         const priorityLabel = priorityLabels[priority] || priority || 'Flexible';
@@ -5339,7 +5340,7 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
         }));
 
         const settings = await db.collection('settings').findOne({});
-        const businessName = settings?.companyName || settings?.appName || 'GSD Home Improvement & Property Services';
+        const businessName = settings?.companyName || settings?.appName || 'GSD Property Services';
 
         const typeLabels = {
             license: 'License', gl_insurance: 'Insurance — General Liability',
@@ -6220,7 +6221,7 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
 
         const client = job.clientId ? await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) }) : null;
         const settings = await db.collection('settings').findOne() || {};
-        const companyName = settings.appName || 'GSD Home Improvement & Property Services';
+        const companyName = settings.appName || 'GSD Property Services';
 
         // Resolve email same way as invoice
         let toEmail = client?.email;
@@ -6271,7 +6272,7 @@ app.get('/deposit/:token', async (req, res) => {
     if (!job) return res.status(404).send('<h2>Deposit link not found or expired.</h2>');
 
     const settings = await db.collection('settings').findOne() || {};
-    const companyName = settings.appName || 'GSD Home Improvement & Property Services';
+    const companyName = settings.appName || 'GSD Property Services';
     const deposit = job.deposit;
     const isPaid = deposit.status === 'paid';
 

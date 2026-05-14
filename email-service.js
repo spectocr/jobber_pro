@@ -40,7 +40,7 @@ class EmailService {
             });
 
             this.fromEmail = fromEmail;
-            this.fromName = process.env.SES_FROM_NAME || 'GSD Handyman Service';
+            this.fromName = process.env.SES_FROM_NAME || 'GSD Property Services';
             this.initialized = true;
             console.log(`✅ AWS SES initialized — sending from ${fromEmail}`);
             return true;
@@ -169,7 +169,7 @@ class EmailService {
     async sendTestEmail(to) {
         return this.sendEmail({
             to,
-            subject: 'GSD Handyman Service — Email Test',
+            subject: 'GSD Property Services — Email Test',
             html: `<h2>✅ Email Test Successful</h2><p>AWS SES is configured and sending correctly from ${this.fromEmail}.</p>`,
             text: `Email test successful. AWS SES is sending correctly from ${this.fromEmail}.`
         });
