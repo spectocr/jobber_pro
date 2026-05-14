@@ -3834,12 +3834,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 currentEditingClientId = client._id || client.id;
 
                 // Populate form fields
+                form.reset();
                 Object.keys(client).forEach(key => {
                     const input = form.elements[key];
                     if (input && input.type !== 'checkbox') {
                         input.value = client[key] || '';
                     }
                 });
+                // Explicitly reset select fields that may not exist on older records
+                const ptSelect = form.elements['paymentTerms'];
+                if (ptSelect) ptSelect.value = client.paymentTerms || '';
 
                 // Handle property management checkbox
                 const pmCheckbox = document.getElementById('isPropertyManagementCheckbox');
