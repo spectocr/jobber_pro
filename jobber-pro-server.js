@@ -4214,7 +4214,7 @@ function saveToJob() {
     var doc = buildDoc();
     var imgData = doc.toDataURL('image/jpeg', 0.82);
     window.opener._saveSignoffToJob(JOB_ID, imgData, signer, function(ok, err) {
-      if (ok) { btn.textContent = '✅ Saved to Job!'; btn.style.background = '#22543d'; }
+      if (ok) { btn.textContent = '✅ Saved!'; btn.style.background = '#22543d'; setTimeout(function(){ window.close(); }, 800); }
       else { alert('Error: ' + (err || 'Save failed')); btn.textContent = '💾 Save to Job'; btn.disabled = false; }
     });
   } catch(e) {
