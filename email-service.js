@@ -59,7 +59,7 @@ class EmailService {
         try {
             const result = await this.transporter.sendMail({
                 from: `"${this.fromName}" <${this.fromEmail}>`,
-                replyTo: 'franzthehandyman@gmail.com',
+                replyTo: 'info@gsdhandymanservice.com',
                 to,
                 subject,
                 text,

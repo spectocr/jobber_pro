@@ -1341,7 +1341,7 @@ app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
                 ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${emailPhotoUrls.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>`
                 : '';
             await emailService.sendEmail({
-                to: 'franzthehandyman@gmail.com',
+                to: 'info@gsdhandymanservice.com',
                 subject: `New Quote Request — ${service} — ${firstName} ${lastName}${validPhotos.length ? ` (${validPhotos.length} photo${validPhotos.length > 1 ? 's' : ''})` : ''}`,
                 html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                     <h2 style="color:#0f1c2e;">New Quote Request</h2>
@@ -4776,7 +4776,7 @@ app.post('/quote-action/:token/approve', async (req, res) => {
             const settings = await db.collection('settings').findOne({});
             const companyName = settings?.companyName || 'GSD Home Improvement & Property Services';
             await emailService.sendEmail({
-                to: 'franzthehandyman@gmail.com',
+                to: 'info@gsdhandymanservice.com',
                 subject: `✅ ${approvalLabel.charAt(0).toUpperCase() + approvalLabel.slice(1)} Approved — ${quote.quoteNumber} — ${client?.name || 'Client'}`,
                 html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                     <h2 style="color:#48bb78;">✅ ${approvalLabel.charAt(0).toUpperCase() + approvalLabel.slice(1)} Approved</h2>
@@ -5176,7 +5176,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             const photoHtml = emailPhotoUrls.length
                 ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Photos</td><td><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${emailPhotoUrls.map(p => `<img src="${p}" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;">`).join('')}</div></td></tr>` : '';
             await emailService.sendEmail({
-                to: 'franzthehandyman@gmail.com',
+                to: 'info@gsdhandymanservice.com',
                 subject: `Portal Quote Request — ${service} — ${client.name} [${quoteNumber}]`,
                 html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                     <h2 style="color:#667eea;">Client Portal Quote Request</h2>
