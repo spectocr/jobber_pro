@@ -4038,7 +4038,7 @@ hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
 </div>
 <div class="sig-row">
   <div>
-    <div class="sig-field"><input id="titleInput" type="text" value="Manager on Duty" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#666;font-family:inherit;"></div>
+    <div class="sig-field"><input id="titleInput" type="text" value="" placeholder="Title / role" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#333;font-family:inherit;"></div>
     <div class="sig-label">Title / Role</div>
   </div>
   <div>
