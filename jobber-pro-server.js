@@ -3123,6 +3123,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('jobModal')">Cancel</button>
+                <button class="btn btn-secondary" id="jobSignoffBtn" style="display:none;" onclick="openSignoffForm(document.querySelector('#jobForm [name=id]').value)">✍️ Sign-Off</button>
                 <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
             </div>
         </div>
@@ -3942,6 +3943,102 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.job-action-menu').forEach(m => m.style.display = 'none');
         });
 
+        function openSignoffForm(jobId) {
+            const job = [...(jobs||[]),...(window.upcomingJobs||[]),...(window.inProgressJobs||[])].find(j=>j.id==jobId||j._id==jobId);
+            if (!job) return;
+            const client = (clients||[]).find(c=>c.id==job.clientId||c._id==job.clientId);
+            let locAddr = '';
+            if (job.serviceLocationId && client && client.serviceLocations) {
+                const loc = client.serviceLocations.find(l=>(l.id||l._id)==job.serviceLocationId);
+                if (loc) locAddr = loc.address || loc.label || '';
+            }
+            if (!locAddr && client) locAddr = [client.addressLine1,client.city,client.state].filter(Boolean).join(', ') || client.address || '';
+            const signerName = (client && (client.contactName || client.name)) || '';
+            const today = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+            const schedDate = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
+            const desc = (job.description||'').trim() || 'See work order for details.';
+            const win = window.open('','_blank','width=840,height=1000');
+            win.document.write(\`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Sign-Off — \${job.title}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:2.5rem 3rem;max-width:760px;margin:0 auto;}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0f1c2e;padding-bottom:1.25rem;margin-bottom:2rem;}
+.co-name{font-size:1.35rem;font-weight:800;color:#0f1c2e;letter-spacing:-0.01em;}
+.co-sub{font-size:0.78rem;color:#666;margin-top:0.25rem;line-height:1.6;}
+.doc-title{font-size:0.95rem;font-weight:800;color:#0f1c2e;text-align:right;text-transform:uppercase;letter-spacing:0.05em;}
+.doc-date{font-size:0.78rem;color:#888;text-align:right;margin-top:0.25rem;}
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem 2.5rem;margin-bottom:1.75rem;}
+.meta-label{font-size:0.63rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#aaa;margin-bottom:0.2rem;}
+.meta-value{font-size:0.95rem;font-weight:600;color:#1a1a1a;line-height:1.4;}
+.section-head{font-size:0.63rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#aaa;margin-bottom:0.5rem;}
+.work-box{background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:1rem 1.25rem;font-size:0.9rem;line-height:1.7;color:#333;white-space:pre-wrap;min-height:90px;}
+hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
+.statement{font-size:0.88rem;color:#444;line-height:1.7;margin-bottom:2.5rem;}
+.sig-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0 2rem;margin-bottom:1.75rem;}
+.sig-field{padding-bottom:0.5rem;border-bottom:1.5px solid #222;}
+.sig-prefill{font-size:0.875rem;color:#666;padding-top:0.2rem;min-height:1.5rem;}
+.sig-hint{font-size:0.66rem;color:#bbb;font-style:italic;margin-top:0.2rem;}
+.sig-label{font-size:0.6rem;text-transform:uppercase;letter-spacing:0.07em;color:#bbb;margin-top:0.3rem;}
+.no-print{margin-top:2.5rem;text-align:center;padding-top:1.5rem;border-top:1px dashed #e5e7eb;}
+.pbtn{background:#0f1c2e;color:#fff;border:none;padding:0.7rem 2.25rem;border-radius:6px;font-size:0.9rem;font-weight:700;cursor:pointer;margin-right:0.6rem;}
+.pbtn:hover{background:#1a2f4a;}
+@media print{.no-print{display:none!important}body{padding:1.5rem 2rem;}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div class="co-name">GSD Property Services</div>
+    <div class="co-sub">Mount Laurel, NJ &nbsp;·&nbsp; (856) 872-4636<br>info@gsdhandymanservice.com &nbsp;·&nbsp; LIC# 13VH13491700</div>
+  </div>
+  <div>
+    <div class="doc-title">Work Completion Sign-Off</div>
+    <div class="doc-date">Printed: \${today}</div>
+  </div>
+</div>
+
+<div class="meta-grid">
+  <div><div class="meta-label">Job</div><div class="meta-value">\${job.title}</div></div>
+  <div><div class="meta-label">Client</div><div class="meta-value">\${client ? client.name : '—'}</div></div>
+  <div><div class="meta-label">Service Location</div><div class="meta-value">\${locAddr || '—'}</div></div>
+  <div><div class="meta-label">Date of Service</div><div class="meta-value">\${schedDate}</div></div>
+</div>
+
+<div class="section-head">Work Performed</div>
+<div class="work-box">\${desc}</div>
+
+<hr>
+
+<div class="statement">By signing below, I confirm that the work described above has been completed satisfactorily and to my approval. GSD Property Services is authorized to close this work order.</div>
+
+<div class="section-head">Authorized Signature</div>
+<div class="sig-row">
+  <div>
+    <div class="sig-field" style="min-height:2rem;"></div>
+    <div class="sig-label">Signature</div>
+  </div>
+  <div>
+    <div class="sig-field"><div class="sig-prefill">\${signerName}</div></div>
+    <div class="sig-hint">Suggested signer</div>
+    <div class="sig-label">Printed Name</div>
+  </div>
+  <div>
+    <div class="sig-field"><div class="sig-prefill">\${today}</div></div>
+    <div class="sig-label">Date</div>
+  </div>
+</div>
+<div style="max-width:260px;">
+  <div class="sig-field"><div class="sig-prefill" style="color:#bbb;font-size:0.8rem;">Manager on Duty</div></div>
+  <div class="sig-label">Title / Role</div>
+</div>
+
+<div class="no-print">
+  <button class="pbtn" onclick="window.print()">🖨️ Print / Save PDF</button>
+  <button onclick="window.close()" style="background:none;border:1.5px solid #d1d5db;padding:0.7rem 1.5rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;">Close</button>
+</div>
+</body></html>\`);
+            win.document.close();
+        }
+
         function buildWorkflowStepper(stages) {
             const completedCount = stages.filter(s => s.s === 'wf-done').length;
             const activeIdx = stages.findIndex(s => s.s === 'wf-now');
@@ -4083,13 +4180,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('laborActualsSection').style.display = 'none';
             }
 
-            // Workflow stepper
+            // Workflow stepper + sign-off button visibility
             const _stepperEl = document.getElementById('jobWorkflowStepper');
+            const _signoffBtn = document.getElementById('jobSignoffBtn');
             if (job && (job._id || job.id)) {
                 _stepperEl.style.display = 'block';
                 _stepperEl.innerHTML = buildWorkflowStepper(buildJobStages(job));
+                if (_signoffBtn) _signoffBtn.style.display = '';
             } else {
                 _stepperEl.style.display = 'none';
+                if (_signoffBtn) _signoffBtn.style.display = 'none';
             }
 
             // Load job photos (carried over from quote submission)
@@ -7072,6 +7172,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     \${!isPaidInFull && client?.cloverCustomerId ? \`<button onclick="openChargeCardModal('\${j.id}','\${client.cloverCardLast4||''}','\${client.cloverCardBrand||''}',\${j.totalWithTax||j.total||0})" class="jm-item">💳 Charge ••••\${client.cloverCardLast4||'?'}</button>\` : ''}
                                     \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
                                     <button onclick="showPayDiag('\${j.id}')" class="jm-item">⚡ Pay Log</button>
+                                    <button onclick="openSignoffForm('\${j.id}')" class="jm-item">✍️ Sign-Off Form</button>
                                     <div style="border-top:1px solid #f1f5f9;margin:0.25rem 0;"></div>
                                     <button onclick="deleteJob('\${j.id}')" class="jm-item" style="color:#dc2626;">🗑 Delete</button>
                                 </div>
@@ -7131,6 +7232,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                         \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
                                         <button onclick="showPayDiag('\${j.id}')" class="jm-item">⚡ Pay Log</button>
                                         \${j.calendarEventId ? \`<button onclick="window.open('\${j.calendarEventLink}','_blank')" class="jm-item">📅 View Calendar</button>\` : (j.scheduledDate && j.status==='scheduled' ? \`<button onclick="createCalendarEvent('\${j.id}')" class="jm-item">📅 Add to Calendar</button>\` : '')}
+                                        <button onclick="openSignoffForm('\${j.id}')" class="jm-item">✍️ Sign-Off Form</button>
                                         <div style="border-top:1px solid #f1f5f9;margin:0.25rem 0;"></div>
                                         <button onclick="deleteJob('\${j.id}')" class="jm-item" style="color:#dc2626;">🗑 Delete</button>
                                     </div>
