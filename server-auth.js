@@ -2934,15 +2934,20 @@ app.get('/api/export/tax-prep', isAuthenticated, async (req, res) => {
             db.collection('expenses').find({ date: { $gte: start.toISOString().slice(0,10), $lt: end.toISOString().slice(0,10) } }).toArray()
         ]);
         const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
-        const lines = ['Type,Date,Description,Client,Category,Amount'];
+        const toDate = v => { if (!v) return ''; try { return new Date(v).toISOString().slice(0,10); } catch { return ''; } };
+        const lines = ['Type,Date,Description,Client,Job,Category,Amount'];
         for (const j of jobs) {
-            const d = j.invoicedAt||j.completedDate||j.scheduledDate; const ds = d ? new Date(d).toISOString().slice(0,10) : '';
-            lines.push([esc('Income'), esc(ds),
-                esc(j.title), esc(j.clientName), esc('Service Revenue'), esc((parseFloat(j.totalWithTax||j.total)||0).toFixed(2))].join(','));
+            const ds = toDate(j.invoicedAt||j.completedDate||j.scheduledDate);
+            const rev = parseFloat(j.totalWithTax||j.total)||0;
+            lines.push([esc('Income'), esc(ds), esc(j.title), esc(j.clientName), esc(j.jobNumber||''), esc('Service Revenue'), esc(rev.toFixed(2))].join(','));
+            for (const m of (j.materialItems||[])) {
+                const cost = (parseFloat(m.quantity)||0) * (parseFloat(m.price)||0);
+                if (cost > 0) lines.push([esc('COGS'), esc(ds), esc(m.description||m.name||'Material'), esc(j.clientName), esc(j.jobNumber||''), esc('Materials / COGS'), esc((-cost).toFixed(2))].join(','));
+            }
         }
         for (const e of expenses) {
-            lines.push([esc('Expense'), esc((e.date||'').slice(0,10)), esc(e.description||e.title),
-                esc(''), esc(e.category||'Expense'), esc((-Math.abs(parseFloat(e.amount)||0)).toFixed(2))].join(','));
+            const ed = typeof e.date === 'string' ? e.date.slice(0,10) : toDate(e.date);
+            lines.push([esc('Expense'), esc(ed), esc(e.description||e.title), esc(''), esc(''), esc(e.category||'Business Expense'), esc((-Math.abs(parseFloat(e.amount)||0)).toFixed(2))].join(','));
         }
         res.setHeader('Content-Type','text/csv');
         res.setHeader('Content-Disposition',`attachment; filename="tax-prep-${year}.csv"`);
@@ -5699,12 +5704,19 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             const rate = allQuotes.length ? Math.round(won.length / allQuotes.length * 100) : 0;
             const thirtyDays = new Date(now.getTime() - 30*86400000);
             const recentLost = lost.filter(q => new Date(q.updatedAt || q.createdAt) > thirtyDays);
-            const lostAmounts = recentLost.map(q => parseFloat(q.total||0));
-            const lostTotal = lostAmounts.reduce((s,v)=>s+v,0);
-            const items = recentLost.slice(0,5).map(q => `${q.clientName||'Client'} — ${q.quoteNumber} · ${fmt$(parseFloat(q.total||0))} (rejected)`);
+            const lostTotal = recentLost.reduce((s,q) => {
+                const rev = parseFloat(q.total||0);
+                const mat = (q.materialItems||[]).reduce((sm,m)=>sm+(parseFloat(m.quantity)||0)*(parseFloat(m.price)||0),0);
+                return s + (rev - mat);
+            }, 0);
+            const items = recentLost.slice(0,5).map(q => {
+                const rev = parseFloat(q.total||0);
+                const mat = (q.materialItems||[]).reduce((sm,m)=>sm+(parseFloat(m.quantity)||0)*(parseFloat(m.price)||0),0);
+                return `${q.clientName||'Client'} — ${q.quoteNumber} · ${fmt$(rev)} bid · ~${fmt$(rev-mat)} margin (rejected)`;
+            });
             const answer = allQuotes.length === 0
                 ? 'No quote history yet to analyze win/loss rate.'
-                : `Your win rate is **${rate}%** (${won.length} won, ${lost.length} lost). In the last 30 days you lost **${recentLost.length} bids** worth **${fmt$(lostTotal)}**.`;
+                : `Your win rate is **${rate}%** (${won.length} won, ${lost.length} lost). In the last 30 days you lost **${recentLost.length} bids** representing ~**${fmt$(lostTotal)}** in gross margin.`;
             return res.json({ answer, items });
         }
 
@@ -5715,15 +5727,19 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             const ltvMap = {};
             for (const j of allJobs) {
                 const cid = j.clientId?.toString(); if (!cid) continue;
-                if (!ltvMap[cid]) ltvMap[cid] = { name: j.clientName||'Unknown', total: 0, count: 0 };
-                ltvMap[cid].total += parseFloat(j.totalWithTax||j.total)||0;
+                const rev = parseFloat(j.totalWithTax||j.total)||0;
+                const matCost = (j.materialItems||[]).reduce((s,m)=>s+(parseFloat(m.quantity)||0)*(parseFloat(m.price)||0),0);
+                const profit = rev - matCost;
+                if (!ltvMap[cid]) ltvMap[cid] = { name: j.clientName||'Unknown', revenue: 0, profit: 0, count: 0 };
+                ltvMap[cid].revenue += rev;
+                ltvMap[cid].profit  += profit;
                 ltvMap[cid].count++;
             }
-            const sorted = Object.values(ltvMap).sort((a,b)=>b.total-a.total).slice(0,8);
+            const sorted = Object.values(ltvMap).sort((a,b)=>b.profit-a.profit).slice(0,8);
             if (sorted.length === 0) return res.json({ answer: 'No completed jobs to rank clients by yet.', items: [] });
             const top = sorted[0];
-            const items = sorted.map((c,i) => `#${i+1} ${c.name} — ${fmt$(c.total)} (${c.count} job${c.count!==1?'s':''})`);
-            return res.json({ answer: `Your highest-value client is **${top.name}** with **${fmt$(top.total)}** in completed work.`, items });
+            const items = sorted.map((c,i) => `#${i+1} ${c.name} — ${fmt$(c.profit)} gross profit · ${fmt$(c.revenue)} revenue (${c.count} job${c.count!==1?'s':''})`);
+            return res.json({ answer: `Your most profitable client is **${top.name}** with **${fmt$(top.profit)}** gross profit on **${fmt$(top.revenue)}** revenue.`, items });
         }
 
         return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, **revenue this month**, **top recurring jobs**, **win/loss rate**, or **client lifetime value**.`, items: [] });
