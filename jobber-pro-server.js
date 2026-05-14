@@ -12202,107 +12202,116 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <!-- Maddox the German Shepherd -->
         <div id="clippyChar" onclick="toggleActivityBot()" title="Woof! Need a hand?">
             <span id="activityBotDot"></span>
-            <svg viewBox="0 0 88 108" width="64" height="90" xmlns="http://www.w3.org/2000/svg">
+            <svg viewBox="0 0 90 100" width="72" height="90" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <filter id="gshadow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
+                        <feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="rgba(0,0,0,0.3)"/>
                     </filter>
                 </defs>
 
                 <!-- Ground shadow -->
-                <ellipse cx="43" cy="106" rx="18" ry="3" fill="rgba(0,0,0,0.10)"/>
+                <ellipse cx="43" cy="97" rx="21" ry="3.5" fill="rgba(0,0,0,0.10)"/>
 
-                <!-- TAIL -->
+                <!-- TAIL (animated — behind body) -->
                 <g id="rexTail">
-                    <path d="M 59 84 Q 78 68 74 52 Q 71 41 62 48"
-                          fill="none" stroke="#1c0a04" stroke-width="7.5" stroke-linecap="round"/>
-                    <path d="M 59 84 Q 78 68 74 52 Q 71 41 62 48"
-                          fill="none" stroke="#d4903a" stroke-width="4.5" stroke-linecap="round"/>
-                    <path d="M 72 43 Q 66 46 62 51"
-                          fill="none" stroke="#f0dea0" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M 63 74 Q 83 60 79 44 Q 76 34 67 41"
+                          fill="none" stroke="#1c0a04" stroke-width="9" stroke-linecap="round"/>
+                    <path d="M 63 74 Q 83 60 79 44 Q 76 34 67 41"
+                          fill="none" stroke="#c98030" stroke-width="5.5" stroke-linecap="round"/>
+                    <path d="M 77 37 Q 71 39 67 44"
+                          fill="none" stroke="#f0dea0" stroke-width="5" stroke-linecap="round"/>
                 </g>
 
-                <!-- BODY -->
-                <ellipse cx="42" cy="88" rx="19" ry="15" fill="#1c0a04"/>
-                <ellipse cx="42" cy="92" rx="17" ry="11" fill="#d4903a"/>
-                <ellipse cx="41" cy="94" rx="8" ry="7.5" fill="#f0c870"/>
+                <!-- BODY — black saddle over rich tan, cream chest like Maddox -->
+                <ellipse cx="42" cy="72" rx="24" ry="20" fill="#1c0a04"/>
+                <ellipse cx="42" cy="76" rx="22" ry="17" fill="#c98030"/>
+                <ellipse cx="41" cy="79" rx="13" ry="13" fill="#e8b050"/>
 
-                <!-- PAWS -->
-                <rect x="26" y="98" width="10" height="7" rx="5" fill="#d4903a"/>
-                <rect x="52" y="98" width="10" height="7" rx="5" fill="#d4903a"/>
-                <ellipse cx="31" cy="104" rx="4.5" ry="2" fill="#a06820"/>
-                <ellipse cx="57" cy="104" rx="4.5" ry="2" fill="#a06820"/>
-                <line x1="28.5" y1="103" x2="28.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="31" y1="104" x2="31" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="33.5" y1="103" x2="33.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="54.5" y1="103" x2="54.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="57" y1="104" x2="57" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="59.5" y1="103" x2="59.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <!-- FRONT PAWS -->
+                <rect x="21" y="85" width="14" height="10" rx="7" fill="#c98030"/>
+                <rect x="49" y="85" width="14" height="10" rx="7" fill="#c98030"/>
+                <ellipse cx="28" cy="94" rx="6" ry="2.8" fill="#a06020"/>
+                <ellipse cx="56" cy="94" rx="6" ry="2.8" fill="#a06020"/>
+                <line x1="25" y1="93" x2="25" y2="88" stroke="#8a5010" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
+                <line x1="28" y1="94" x2="28" y2="88" stroke="#8a5010" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
+                <line x1="31" y1="93" x2="31" y2="88" stroke="#8a5010" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
+                <line x1="53" y1="93" x2="53" y2="88" stroke="#8a5010" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
+                <line x1="56" y1="94" x2="56" y2="88" stroke="#8a5010" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
+                <line x1="59" y1="93" x2="59" y2="88" stroke="#8a5010" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
 
-                <!-- BANDANA -->
-                <path d="M 31 79 Q 43 74 55 79 L 43 96 Z" fill="#c0392b"/>
-                <circle cx="37" cy="85" r="1.8" fill="white" opacity="0.55"/>
-                <circle cx="43" cy="90" r="1.8" fill="white" opacity="0.55"/>
-                <circle cx="49" cy="85" r="1.8" fill="white" opacity="0.55"/>
-                <circle cx="34" cy="80.5" r="1.2" fill="white" opacity="0.4"/>
-                <circle cx="52" cy="80.5" r="1.2" fill="white" opacity="0.4"/>
-                <ellipse cx="43" cy="79" rx="8.5" ry="4.8" fill="#e74c3c"/>
-                <ellipse cx="43" cy="77.5" rx="5.5" ry="2.5" fill="rgba(255,255,255,0.18)"/>
+                <!-- EARS — behind head in render order -->
+                <polygon points="23,28 14,5 37,20" fill="#1c0a04"/>
+                <polygon points="24,26 18,9 35,21" fill="#c98030"/>
+                <polygon points="24,25 21,13 32,21" fill="#d89060" opacity="0.5"/>
+                <polygon points="65,28 76,5 53,20" fill="#1c0a04"/>
+                <polygon points="64,26 72,9 55,21" fill="#c98030"/>
+                <polygon points="64,25 69,13 58,21" fill="#d89060" opacity="0.5"/>
 
-                <!-- NECK -->
-                <path d="M 33 71 Q 43 66 53 71 L 53 81 Q 43 78 33 81 Z" fill="#d4903a"/>
-                <ellipse cx="43" cy="71" rx="8" ry="4" fill="#1c0a04" opacity="0.45"/>
+                <!-- HEAD — warm tan base, Maddox's coloring -->
+                <circle cx="44" cy="37" r="22" fill="#c98030" filter="url(#gshadow)"/>
 
-                <!-- EARS — sharp triangles, rendered behind skull -->
-                <polygon points="14,38 21,3 38,22" fill="#1c0a04"/>
-                <polygon points="17,36 23,9 36,23" fill="#d4903a"/>
-                <polygon points="74,38 67,3 50,22" fill="#1c0a04"/>
-                <polygon points="71,36 65,9 52,23" fill="#d4903a"/>
+                <!-- BLACK CROWN — wide across top, the classic GSD cap -->
+                <path d="M 23 31 Q 24 13 44 11 Q 64 13 65 31 Q 58 20 44 19 Q 30 20 23 31 Z" fill="#1c0a04"/>
 
-                <!-- SKULL — geometric octagon, golden tan -->
-                <polygon points="44,10 67,19 74,40 63,64 44,74 25,64 14,40 21,19"
-                         fill="#d4903a" filter="url(#gshadow)"/>
+                <!-- BLACK MASK — runs center forehead down to muzzle, GSD signature -->
+                <path d="M 38 19 Q 44 20 50 19 L 52 31 Q 44 33 36 31 Z" fill="#1c0a04" opacity="0.65"/>
 
-                <!-- CROWN — dark saddle on upper skull -->
-                <polygon points="44,10 67,19 60,38 44,28 28,38 21,19" fill="#1c0a04"/>
+                <!-- TAN EYEBROW SPOTS — Maddox's most expressive feature -->
+                <ellipse cx="35" cy="29" rx="5.2" ry="3.2" fill="#e8a830"/>
+                <ellipse cx="53" cy="29" rx="5.2" ry="3.2" fill="#e8a830"/>
 
-                <!-- EYEBROW SPOTS — tan on dark crown -->
-                <ellipse cx="30" cy="26" rx="6" ry="3" fill="#e8a830"/>
-                <ellipse cx="58" cy="26" rx="6" ry="3" fill="#e8a830"/>
+                <!-- TAN CHEEKS — warm sides of face around the black mask -->
+                <ellipse cx="26" cy="43" rx="8" ry="10" fill="#c98030"/>
+                <ellipse cx="62" cy="43" rx="8" ry="10" fill="#c98030"/>
 
-                <!-- EYES -->
+                <!-- EYES — large, dark, soulful like the photo -->
                 <g class="clippy-eye">
-                    <circle cx="29" cy="43" r="5.5" fill="#1c0a04"/>
-                    <circle cx="29" cy="43" r="3.5" fill="#5a2e10"/>
-                    <circle cx="30.8" cy="41.3" r="1.8" fill="white" opacity="0.9"/>
-                    <circle cx="27.5" cy="44.5" r="0.8" fill="white" opacity="0.3"/>
+                    <circle cx="35" cy="37" r="6.2" fill="#1c0a04"/>
+                    <circle cx="35" cy="37" r="4.2" fill="#5a2e10"/>
+                    <circle cx="36.8" cy="35" r="2.1" fill="white" opacity="0.92"/>
+                    <circle cx="33.2" cy="38.8" r="1.1" fill="white" opacity="0.32"/>
                 </g>
                 <g class="clippy-eye">
-                    <circle cx="59" cy="43" r="5.5" fill="#1c0a04"/>
-                    <circle cx="59" cy="43" r="3.5" fill="#5a2e10"/>
-                    <circle cx="60.8" cy="41.3" r="1.8" fill="white" opacity="0.9"/>
-                    <circle cx="57.5" cy="44.5" r="0.8" fill="white" opacity="0.3"/>
+                    <circle cx="53" cy="37" r="6.2" fill="#1c0a04"/>
+                    <circle cx="53" cy="37" r="4.2" fill="#5a2e10"/>
+                    <circle cx="54.8" cy="35" r="2.1" fill="white" opacity="0.92"/>
+                    <circle cx="51.2" cy="38.8" r="1.1" fill="white" opacity="0.32"/>
                 </g>
 
-                <!-- MUZZLE ZONE — geometric polygon, slightly darker -->
-                <polygon points="32,49 56,49 52,65 44,74 36,65" fill="#b87028"/>
+                <!-- BLACK MUZZLE — long elegant GSD snout -->
+                <ellipse cx="44" cy="49" rx="11.5" ry="10.5" fill="#1c0a04"/>
+                <ellipse cx="44" cy="52" rx="8" ry="7" fill="#1e0c06"/>
 
-                <!-- NOSE -->
-                <ellipse cx="44" cy="53" rx="7.5" ry="5" fill="#0a0604"/>
-                <ellipse cx="42" cy="51.5" rx="2.5" ry="1.5" fill="rgba(255,255,255,0.50)"/>
-                <ellipse cx="46" cy="52.5" rx="1" ry="0.8" fill="rgba(255,255,255,0.2)"/>
+                <!-- NOSE — broad, wet, prominent -->
+                <ellipse cx="44" cy="44.5" rx="6.8" ry="5.2" fill="#080604"/>
+                <ellipse cx="42" cy="43" rx="2.5" ry="1.6" fill="rgba(255,255,255,0.52)"/>
+                <ellipse cx="46" cy="44" rx="1.1" ry="0.9" fill="rgba(255,255,255,0.22)"/>
 
-                <!-- MOUTH + TONGUE -->
-                <path d="M 37 65 Q 44 71 51 65"
-                      fill="none" stroke="#0e0604" stroke-width="1.8" stroke-linecap="round"/>
-                <ellipse cx="44" cy="69" rx="5" ry="4" fill="#d83055"/>
-                <ellipse cx="44" cy="71" rx="4" ry="2.5" fill="#b82040"/>
-                <line x1="44" y1="66" x2="44" y2="70" stroke="#c02848" stroke-width="1.5" stroke-linecap="round"/>
+                <!-- MOUTH + happy tongue (good boy!) -->
+                <path d="M 37.5 55 Q 44 61 50.5 55"
+                      fill="none" stroke="#1c0a04" stroke-width="2" stroke-linecap="round"/>
+                <ellipse cx="44" cy="59.5" rx="5.2" ry="4.5" fill="#d83055"/>
+                <ellipse cx="44" cy="61.5" rx="4.4" ry="2.6" fill="#b82040"/>
+                <line x1="44" y1="56" x2="44" y2="60" stroke="#c02848" stroke-width="1.8" stroke-linecap="round"/>
 
-                <!-- GREEN M TAG -->
-                <circle cx="43" cy="87" r="3.2" fill="#27ae60"/>
-                <circle cx="43" cy="87" r="3.2" fill="none" stroke="#1e8449" stroke-width="0.7"/>
-                <text x="43" y="88.4" text-anchor="middle" font-size="3.4" fill="white" font-weight="bold" font-family="Arial">M</text>
+                <!-- BANDANA — red with white polka dots, triangle on chest -->
+                <path d="M 30 63 Q 44 58 58 63 L 44 83 Z" fill="#c0392b"/>
+                <circle cx="37" cy="69" r="2.2" fill="white" opacity="0.55"/>
+                <circle cx="44" cy="75" r="2.2" fill="white" opacity="0.55"/>
+                <circle cx="51" cy="69" r="2.2" fill="white" opacity="0.55"/>
+                <circle cx="33" cy="64.5" r="1.4" fill="white" opacity="0.45"/>
+                <circle cx="55" cy="64.5" r="1.4" fill="white" opacity="0.45"/>
+                <circle cx="40.5" cy="80" r="1.5" fill="white" opacity="0.38"/>
+                <circle cx="47.5" cy="80" r="1.5" fill="white" opacity="0.38"/>
+                <!-- Knot roll -->
+                <ellipse cx="44" cy="63" rx="9.5" ry="5.5" fill="#e74c3c"/>
+                <ellipse cx="44" cy="61.5" rx="6.5" ry="3" fill="rgba(255,255,255,0.18)"/>
+                <path d="M 35 63 Q 44 67 53 63" fill="none" stroke="#a93226" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+
+                <!-- TAG — green like the real Maddox tag in the photo -->
+                <circle cx="44" cy="70" r="3.5" fill="#27ae60"/>
+                <circle cx="44" cy="70" r="3.5" fill="none" stroke="#1e8449" stroke-width="0.8"/>
+                <text x="44" y="71.5" text-anchor="middle" font-size="3.5" fill="white" font-weight="bold" font-family="Arial">M</text>
             </svg>
         </div>
     </div>
