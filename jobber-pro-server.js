@@ -1989,6 +1989,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
                             <button class="btn btn-primary" onclick="generateReports()" style="flex: 1;">Generate Reports</button>
                             <button class="btn btn-secondary" onclick="printReports()">🖨️ Print</button>
+                            <button class="btn btn-secondary" onclick="exportTaxPrep()">📥 Tax Prep CSV</button>
                         </div>
                     </div>
                 </div>
@@ -3130,7 +3131,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Quote Title *</label>
-                        <input type="text" name="title" required placeholder="e.g., Kitchen Renovation">
+                        <input type="text" name="title" required placeholder="e.g., Kitchen Renovation" oninput="debounceUpsell(this.value)">
+                        <div id="upsellSuggestions" style="display:none;"></div>
                     </div>
 
                     <div class="form-group">
@@ -6532,6 +6534,40 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('quoteClientInput').value = client ? client.name : '';
             document.getElementById('quoteClientTypeaheadDropdown').style.display = 'none';
             handleQuoteClientChange();
+        }
+
+        function exportTaxPrep() {
+            const year = new Date().getFullYear();
+            window.location.href = `/api/export/tax-prep?year=${year}`;
+        }
+
+        let _upsellTimer;
+        function debounceUpsell(val) {
+            clearTimeout(_upsellTimer);
+            const el = document.getElementById('upsellSuggestions');
+            if (!el) return;
+            if (val.length < 4) { el.style.display = 'none'; return; }
+            _upsellTimer = setTimeout(() => fetchUpsellSuggestions(val), 600);
+        }
+        async function fetchUpsellSuggestions(title) {
+            try {
+                const res = await fetch(`/api/quotes/upsell-suggestions?title=${encodeURIComponent(title)}`);
+                const { suggestions } = await res.json();
+                const el = document.getElementById('upsellSuggestions');
+                if (!el) return;
+                if (!suggestions || suggestions.length === 0) { el.style.display = 'none'; return; }
+                el.style.display = 'block';
+                el.innerHTML = `<div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:8px;padding:0.6rem 0.9rem;font-size:0.82rem;margin-top:0.5rem;">
+                    💡 <strong>Often paired with this job:</strong> ${suggestions.map(s => `<span style="background:#fef3c7;border-radius:4px;padding:2px 7px;margin:0 3px;cursor:pointer;" onclick="addSuggestedQuoteItem('${s.desc.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">` + s.desc + ` (${s.pct}%)</span>`).join('')}
+                </div>`;
+            } catch(e) {}
+        }
+        function addSuggestedQuoteItem(desc) {
+            addQuoteLaborItem();
+            const items = document.querySelectorAll('#quoteLaborItems input[placeholder="Description"]');
+            if (items.length) items[items.length - 1].value = desc;
+            const idx = quoteLaborItems.length - 1;
+            if (idx >= 0) quoteLaborItems[idx].description = desc;
         }
 
         function addQuoteLaborItem() {

@@ -2923,6 +2923,32 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
     }
 });
 
+// Tax prep CSV export
+app.get('/api/export/tax-prep', isAuthenticated, async (req, res) => {
+    try {
+        const year = parseInt(req.query.year) || new Date().getFullYear();
+        const start = new Date(`${year}-01-01T00:00:00Z`);
+        const end   = new Date(`${year+1}-01-01T00:00:00Z`);
+        const [jobs, expenses] = await Promise.all([
+            db.collection('jobs').find({ status: { $in: ['completed','invoiced'] }, updatedAt: { $gte: start, $lt: end } }).toArray(),
+            db.collection('expenses').find({ date: { $gte: start.toISOString().slice(0,10), $lt: end.toISOString().slice(0,10) } }).toArray()
+        ]);
+        const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
+        const lines = ['Type,Date,Description,Client,Category,Amount'];
+        for (const j of jobs) {
+            lines.push([esc('Income'), esc((j.invoicedAt||j.completedDate||j.scheduledDate||'').slice(0,10)),
+                esc(j.title), esc(j.clientName), esc('Service Revenue'), esc((parseFloat(j.totalWithTax||j.total)||0).toFixed(2))].join(','));
+        }
+        for (const e of expenses) {
+            lines.push([esc('Expense'), esc((e.date||'').slice(0,10)), esc(e.description||e.title),
+                esc(''), esc(e.category||'Expense'), esc((-Math.abs(parseFloat(e.amount)||0)).toFixed(2))].join(','));
+        }
+        res.setHeader('Content-Type','text/csv');
+        res.setHeader('Content-Disposition',`attachment; filename="tax-prep-${year}.csv"`);
+        res.send(lines.join('\n'));
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Backfill audit logs for existing quotes
 app.post('/api/quotes/migrate-audit-logs', isAuthenticated, async (req, res) => {
     try {
@@ -5663,7 +5689,43 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             return res.json({ answer: intro, items });
         }
 
-        return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, **revenue this month**, or **top recurring jobs**.`, items: [] });
+        if (q.includes('win rate') || q.includes('close rate') || q.includes('lost') ||
+            q.includes('rejected quote') || q.includes('bid win') || q.includes('win loss') ||
+            q.includes('losing') || q.includes('quote win')) {
+            const allQuotes = await db.collection('quotes').find({ status: { $in: ['approved','rejected'] } }).toArray();
+            const won  = allQuotes.filter(q => q.status === 'approved');
+            const lost = allQuotes.filter(q => q.status === 'rejected');
+            const rate = allQuotes.length ? Math.round(won.length / allQuotes.length * 100) : 0;
+            const thirtyDays = new Date(now.getTime() - 30*86400000);
+            const recentLost = lost.filter(q => new Date(q.updatedAt || q.createdAt) > thirtyDays);
+            const lostAmounts = recentLost.map(q => parseFloat(q.total||0));
+            const lostTotal = lostAmounts.reduce((s,v)=>s+v,0);
+            const items = recentLost.slice(0,5).map(q => `${q.clientName||'Client'} — ${q.quoteNumber} · ${fmt$(parseFloat(q.total||0))} (rejected)`);
+            const answer = allQuotes.length === 0
+                ? 'No quote history yet to analyze win/loss rate.'
+                : `Your win rate is **${rate}%** (${won.length} won, ${lost.length} lost). In the last 30 days you lost **${recentLost.length} bids** worth **${fmt$(lostTotal)}**.`;
+            return res.json({ answer, items });
+        }
+
+        if (q.includes('lifetime value') || q.includes('ltv') || q.includes('best client') ||
+            q.includes('top client') || q.includes('who pays') || q.includes('most revenue') ||
+            q.includes('valuable client') || q.includes('biggest client')) {
+            const allJobs = await db.collection('jobs').find({ status: { $in: ['completed','invoiced'] } }).toArray();
+            const ltvMap = {};
+            for (const j of allJobs) {
+                const cid = j.clientId?.toString(); if (!cid) continue;
+                if (!ltvMap[cid]) ltvMap[cid] = { name: j.clientName||'Unknown', total: 0, count: 0 };
+                ltvMap[cid].total += parseFloat(j.totalWithTax||j.total)||0;
+                ltvMap[cid].count++;
+            }
+            const sorted = Object.values(ltvMap).sort((a,b)=>b.total-a.total).slice(0,8);
+            if (sorted.length === 0) return res.json({ answer: 'No completed jobs to rank clients by yet.', items: [] });
+            const top = sorted[0];
+            const items = sorted.map((c,i) => `#${i+1} ${c.name} — ${fmt$(c.total)} (${c.count} job${c.count!==1?'s':''})`);
+            return res.json({ answer: `Your highest-value client is **${top.name}** with **${fmt$(top.total)}** in completed work.`, items });
+        }
+
+        return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, **revenue this month**, **top recurring jobs**, **win/loss rate**, or **client lifetime value**.`, items: [] });
 
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -5685,6 +5747,33 @@ app.get('/api/notifications/counts', isAuthenticated, async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// Upsell suggestions — common labor items paired with similar jobs
+app.get('/api/quotes/upsell-suggestions', isAuthenticated, async (req, res) => {
+    try {
+        const title = (req.query.title || '').toLowerCase().trim();
+        if (title.length < 4) return res.json({ suggestions: [] });
+        const keywords = title.split(' ').filter(w => w.length > 3).slice(0, 2);
+        if (keywords.length === 0) return res.json({ suggestions: [] });
+        const regex = new RegExp(keywords.join('|'), 'i');
+        const jobs = await db.collection('jobs').find({ status: { $in: ['completed','invoiced'] }, title: { $regex: regex } }).toArray();
+        if (jobs.length < 2) return res.json({ suggestions: [] });
+        const itemCounts = {};
+        for (const job of jobs) {
+            const seen = new Set();
+            for (const item of (job.laborItems || [])) {
+                const desc = (item.description || '').trim();
+                if (desc && !seen.has(desc)) { seen.add(desc); itemCounts[desc] = (itemCounts[desc]||0)+1; }
+            }
+        }
+        const threshold = Math.max(2, Math.floor(jobs.length * 0.3));
+        const suggestions = Object.entries(itemCounts)
+            .filter(([,count]) => count >= threshold)
+            .sort((a,b) => b[1]-a[1]).slice(0, 4)
+            .map(([desc, count]) => ({ desc, pct: Math.round(count/jobs.length*100) }));
+        res.json({ suggestions, jobCount: jobs.length });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Maddox nudges — proactive business health checks
@@ -5811,6 +5900,42 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
             if (todayUnstarted.length > 0) {
                 nudges.push({ key: `today_unstarted_${today}`, type: 'today_unstarted', severity: 'info',
                     message: `${todayUnstarted.length} job${todayUnstarted.length > 1 ? 's' : ''} scheduled for today ${todayUnstarted.length > 1 ? 'are' : 'is'} still showing "Scheduled" — are they underway?` });
+            }
+        }
+
+        // 7. Seasonal outreach — same month last year had a job cluster
+        const lyDate = new Date(); lyDate.setFullYear(lyDate.getFullYear()-1); lyDate.setDate(1);
+        const lyKey = lyDate.toISOString().slice(0,7);
+        const lyJobs = jobs.filter(j => j.scheduledDate && j.scheduledDate.startsWith(lyKey) && (j.status==='completed'||j.status==='invoiced'));
+        if (lyJobs.length >= 2) {
+            const lyGroups = {};
+            for (const j of lyJobs) { const k=(j.title||'').toLowerCase().trim(); lyGroups[k]=(lyGroups[k]||0)+1; }
+            const topLy = Object.entries(lyGroups).sort((a,b)=>b[1]-a[1])[0];
+            if (topLy && topLy[1] >= 2) {
+                const monthName = lyDate.toLocaleString('default',{month:'long'});
+                nudges.push({ key:`seasonal_${lyKey}_${topLy[0].slice(0,15).replace(/\s+/g,'_')}`, type:'seasonal_outreach', severity:'info',
+                    message:`Last ${monthName} you did ${topLy[1]} "${topLy[0]}" jobs — time to reach out to those clients for this year?` });
+            }
+        }
+
+        // 8. Quote comparison — client re-quoted for similar service within 12 months
+        const recentDrafts = await db.collection('quotes').find({ status: { $in: ['draft','in_review'] }, createdAt: { $gte: new Date(Date.now() - 7*86400000) } }).limit(10).toArray();
+        for (const draft of recentDrafts) {
+            if (!draft.clientId || !draft.title) continue;
+            const keyword = (draft.title.split(' ')[0]||'').trim();
+            if (keyword.length < 4) continue;
+            const prior = await db.collection('quotes').findOne({
+                clientId: draft.clientId,
+                _id: { $ne: draft._id },
+                status: { $in: ['approved','rejected'] },
+                title: { $regex: new RegExp(keyword,'i') },
+                createdAt: { $gte: new Date(Date.now() - 365*86400000) }
+            });
+            if (prior) {
+                const daysAgo = Math.floor((now-new Date(prior.createdAt))/86400000);
+                nudges.push({ key:`requote_${draft._id}`, type:'quote_comparison', severity:'info',
+                    message:`${draft.clientName||'A client'} was quoted "${prior.title}" ${daysAgo}d ago (${prior.quoteNumber} · ${fmt$(parseFloat(prior.total||0))}) — check if pricing still applies.` });
+                break;
             }
         }
 
