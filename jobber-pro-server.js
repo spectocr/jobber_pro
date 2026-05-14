@@ -2838,6 +2838,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="other">Other</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label>Payment Terms</label>
+                        <select name="paymentTerms">
+                            <option value="">— None —</option>
+                            <option value="due_receipt">Due on Receipt</option>
+                            <option value="net_15">Net 15</option>
+                            <option value="net_30">Net 30</option>
+                            <option value="net_45">Net 45</option>
+                            <option value="net_60">Net 60</option>
+                            <option value="net_90">Net 90</option>
+                        </select>
+                    </div>
                     <div class="form-group" style="margin-top: 1rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" name="isPropertyManagement" id="isPropertyManagementCheckbox" onchange="togglePropertyManagementFields()" style="width: auto; cursor: pointer;">
@@ -5476,10 +5488,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (arJobs.length === 0) {
                 document.getElementById('ar-jobs-list').innerHTML = '<div class="empty-state" style="padding: 2rem;"><p style="color: #a0aec0;">No outstanding balances</p></div>';
             } else {
+                const _termsDays = { due_receipt: 0, net_15: 15, net_30: 30, net_45: 45, net_60: 60, net_90: 90 };
                 document.getElementById('ar-jobs-list').innerHTML = '<div style="max-height: 400px; overflow-y: auto;"><table style="font-size: 0.875rem;"><tbody>' +
                     arJobs.map(j => {
                         const client = findClient(j.clientId);
                         const balanceOwed = j.balanceOwed || 0;
+                        const terms = client?.paymentTerms;
+                        const td = _termsDays[terms];
+                        let dueInfo = '';
+                        if (td !== undefined && j.invoicedAt) {
+                            const dueDate = new Date(new Date(j.invoicedAt).getTime() + td * 86400000);
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const diffDays = Math.round((dueDate.setHours(0,0,0,0), dueDate - today) / 86400000);
+                            if (diffDays > 0)      dueInfo = `<div style="font-size:0.7rem;color:#48bb78;">Due in ${diffDays}d (${new Date(new Date(j.invoicedAt).getTime() + td*86400000).toLocaleDateString()})</div>`;
+                            else if (diffDays === 0) dueInfo = `<div style="font-size:0.7rem;color:#ed8936;font-weight:600;">Due today</div>`;
+                            else                    dueInfo = `<div style="font-size:0.7rem;color:#e53e3e;font-weight:600;">${Math.abs(diffDays)} days overdue</div>`;
+                        } else if (terms) {
+                            dueInfo = `<div style="font-size:0.7rem;color:#a0aec0;">${terms.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>`;
+                        }
                         return `<tr style="cursor: pointer; border-bottom: 1px solid #e2e8f0;" onclick="editJob('${j.id}')">
                             <td style="padding: 0.75rem;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">${j.title}</div>
@@ -5489,7 +5515,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </td>
                             <td style="padding: 0.75rem; text-align: right;">
                                 <div style="font-weight: 700; color: #e53e3e; font-size: 1rem;">${formatMoney(balanceOwed)}</div>
-                                <div style="font-size: 0.7rem; color: #718096;">owed</div>
+                                ${dueInfo || '<div style="font-size:0.7rem;color:#718096;">owed</div>'}
                             </td>
                         </tr>`;
                     }).join('') +

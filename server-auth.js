@@ -2421,6 +2421,11 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 updateData.auditLog = oldJob.auditLog || [];
             }
             updateData.auditLog.push(auditEntry);
+
+            // Stamp invoicedAt the first time a job reaches 'invoiced' status
+            if (job.status === 'invoiced' && oldJob.status !== 'invoiced') {
+                updateData.invoicedAt = new Date();
+            }
         }
 
         // Auto-complete when paid in full
@@ -5623,11 +5628,14 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
         const today = now.toISOString().split('T')[0];
         const nudges = [];
 
-        const [jobs, quotes, leads] = await Promise.all([
+        const [jobs, quotes, leads, clientsList] = await Promise.all([
             db.collection('jobs').find({}).toArray(),
             db.collection('quotes').find({ status: { $in: ['approved', 'draft'] }, convertedToJobId: { $exists: false } }).toArray(),
-            db.collection('leads').find({ status: 'new' }).toArray()
+            db.collection('leads').find({ status: 'new' }).toArray(),
+            db.collection('clients').find({}).toArray()
         ]);
+        const clientMap = Object.fromEntries(clientsList.map(c => [c._id.toString(), c]));
+        const TERMS_DAYS = { due_receipt: 0, net_15: 15, net_30: 30, net_45: 45, net_60: 60, net_90: 90 };
 
         // 1. Approved quotes sitting unconverted for 3+ days
         const staleApproved = quotes.filter(q => {
@@ -5669,14 +5677,23 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
                 message: `${staleInProgress.length} job${staleInProgress.length > 1 ? 's have' : ' has'} been "In Progress" for 3+ days. Need a status update?` });
         }
 
-        // 4. Large overdue balances (30+ days since job completed)
-        const overdueThreshold = new Date(); overdueThreshold.setDate(overdueThreshold.getDate() - 30);
+        // 4. Overdue balances — respects client payment terms
         const bigOverdue = jobs.filter(j => {
             if (j.status !== 'invoiced' && j.status !== 'completed') return false;
             const balance = (j.totalWithTax || parseFloat(j.total) || 0) - (parseFloat(j.totalPaid) || 0);
             if (balance < 200) return false;
-            const since = j.completedDate || j.scheduledDate;
-            return since && new Date(since) < overdueThreshold;
+            const client = clientMap[j.clientId?.toString()];
+            const terms = client?.paymentTerms;
+            const td = TERMS_DAYS[terms];
+            if (td !== undefined && j.invoicedAt) {
+                // Has payment terms + invoice date — check if past due
+                const dueDate = new Date(new Date(j.invoicedAt).getTime() + td * 86400000);
+                return now > dueDate;
+            }
+            // Fallback: no terms set — flag after 30 days from invoicedAt or scheduledDate
+            const since = j.invoicedAt || j.completedDate || j.scheduledDate;
+            const fallbackThreshold = new Date(); fallbackThreshold.setDate(fallbackThreshold.getDate() - 30);
+            return since && new Date(since) < fallbackThreshold;
         }).sort((a, b) => {
             const balA = (a.totalWithTax || parseFloat(a.total) || 0) - (parseFloat(a.totalPaid) || 0);
             const balB = (b.totalWithTax || parseFloat(b.total) || 0) - (parseFloat(b.totalPaid) || 0);
@@ -5684,9 +5701,11 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
         });
         if (bigOverdue.length > 0) {
             const top = bigOverdue[0];
+            const topClient = clientMap[top.clientId?.toString()];
             const bal = ((top.totalWithTax || parseFloat(top.total) || 0) - (parseFloat(top.totalPaid) || 0)).toFixed(2);
+            const terms = topClient?.paymentTerms ? ` (${topClient.paymentTerms.replace('_',' ')})` : ' (30+ days)';
             nudges.push({ key: `overdue_${top._id}`, type: 'overdue_invoice', severity: 'urgent',
-                message: `$${bal} overdue for "${top.title}" — 30+ days unpaid. Time to follow up?` });
+                message: `$${bal} overdue for "${top.title}"${terms} — time to follow up?` });
         }
 
         // 5. Cold leads — no touchpoint in 7+ days
