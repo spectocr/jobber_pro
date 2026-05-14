@@ -3950,7 +3950,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ imageDataUrl: imageDataUrl, signerName: signerName })
             }).then(function(r) { return r.json(); })
-              .then(function(d) { cb(d.ok, d.error); })
+              .then(function(d) {
+                  if (d.ok && d.attachment) {
+                      attachments.push(d.attachment);
+                      renderAttachments();
+                  }
+                  cb(d.ok, d.error);
+              })
               .catch(function(e) { cb(false, e.message); });
         };
 
