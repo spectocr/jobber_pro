@@ -5737,37 +5737,6 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
     }
 });
 
-// One-time migration: backfill invoicedAt on existing invoiced jobs
-app.post('/api/jobs/backfill-invoiced-at', isAdmin, async (req, res) => {
-    try {
-        const jobs = await db.collection('jobs').find({
-            status: { $in: ['invoiced', 'completed'] },
-            invoicedAt: { $exists: false }
-        }).toArray();
-
-        let updated = 0;
-        for (const job of jobs) {
-            // Find the audit log entry when status became 'invoiced'
-            const invoiceEntry = (job.auditLog || [])
-                .filter(e => e.action === 'status_change' && e.newStatus === 'invoiced')
-                .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0];
-
-            const invoicedAt = invoiceEntry
-                ? new Date(invoiceEntry.timestamp)
-                : (job.updatedAt || job.completedDate || job.scheduledDate
-                    ? new Date(job.updatedAt || job.completedDate || job.scheduledDate)
-                    : null);
-
-            if (!invoicedAt) continue;
-            await db.collection('jobs').updateOne({ _id: job._id }, { $set: { invoicedAt } });
-            updated++;
-        }
-        res.json({ success: true, updated });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
 // Admin Messages API - Get all client messages
 app.get('/api/client-messages', isAuthenticated, async (req, res) => {
     try {
