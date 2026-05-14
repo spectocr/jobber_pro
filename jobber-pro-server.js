@@ -4192,10 +4192,15 @@ function buildDoc() {
   var signer = document.getElementById('signerInput').value;
   var title  = document.getElementById('titleInput').value;
   [['PRINTED NAME', signer, pad], ['TITLE / ROLE', title, pad + nameW + 20], ['DATE', D_TODAY, pad + nameW + titleW + 40]].forEach(function(f) {
+    var fw = f[0]==='DATE' ? dateW : f[0]==='TITLE / ROLE' ? titleW : nameW;
+    // Value sits on the line (baseline = fieldY - 4)
+    x.fillStyle = '#1a1a1a'; x.font = '13px Arial';
+    x.fillText(f[1] || '', f[2], fieldY - 4);
+    // Line
     x.strokeStyle = '#222'; x.lineWidth = 1;
-    x.beginPath(); x.moveTo(f[2], fieldY); x.lineTo(f[2] + (f[0]==='DATE' ? dateW : f[0]==='TITLE / ROLE' ? titleW : nameW), fieldY); x.stroke();
+    x.beginPath(); x.moveTo(f[2], fieldY); x.lineTo(f[2] + fw, fieldY); x.stroke();
+    // Label below the line
     x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText(f[0], f[2], fieldY + 12);
-    x.fillStyle = '#1a1a1a'; x.font = '12px Arial'; x.fillText(f[1] || '', f[2], fieldY + 26);
   });
   return c;
 }
