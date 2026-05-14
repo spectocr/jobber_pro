@@ -1904,6 +1904,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Caption</label>
                         <textarea id="portfolioCaption" rows="3" placeholder="Brief description of the work done..." style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
                     </div>
+                    <div style="margin-bottom:1.5rem;">
+                        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-weight:600;">
+                            <input type="checkbox" id="portfolioCommercial" style="width:1.1rem;height:1.1rem;accent-color:#1d6fa4;">
+                            Commercial job
+                        </label>
+                        <div style="font-size:0.78rem;color:#6b7280;margin-top:0.25rem;margin-left:1.7rem;">Shows in the commercial portfolio section on the property management page.</div>
+                    </div>
                     <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
                         <button class="btn btn-secondary" onclick="closePortfolioModal()">Cancel</button>
                         <button class="btn btn-primary" onclick="savePortfolioItem()">Save</button>
@@ -7317,7 +7324,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             onclick="openLightbox(this.src)">
                     </div>
                     <div style="padding:0.9rem 1rem;">
-                        \${item.category ? \`<span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">\${catLabel[item.category] || item.category}</span>\` : ''}
+                        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.35rem;">
+                            \${item.category ? \`<span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">\${catLabel[item.category] || item.category}</span>\` : ''}
+                            \${item.commercial ? \`<span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>\` : ''}
+                        </div>
                         \${item.title ? \`<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;font-size:1rem;">\${item.title}</div>\` : ''}
                         \${item.caption ? \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.4;">\${item.caption}</div>\` : ''}
                         <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
@@ -7342,6 +7352,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     document.getElementById('portfolioTitle').value = item.title;
                     document.getElementById('portfolioCategory').value = item.category;
                     document.getElementById('portfolioCaption').value = item.caption;
+                    document.getElementById('portfolioCommercial').checked = !!item.commercial;
                     if (item.photoUrl) {
                         document.getElementById('portfolio-preview-img').src = item.photoUrl;
                         document.getElementById('portfolio-upload-preview').style.display = '';
@@ -7352,6 +7363,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('portfolioTitle').value = '';
                 document.getElementById('portfolioCategory').value = '';
                 document.getElementById('portfolioCaption').value = '';
+                document.getElementById('portfolioCommercial').checked = false;
             }
             openModal('portfolioModal');
         }
@@ -7424,6 +7436,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const title = document.getElementById('portfolioTitle').value.trim();
             const category = document.getElementById('portfolioCategory').value;
             const caption = document.getElementById('portfolioCaption').value.trim();
+            const commercial = document.getElementById('portfolioCommercial').checked;
 
             if (!id && !_portfolioPhotoData) { alert('Please select a photo.'); return; }
 
@@ -7433,7 +7446,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             try {
                 if (id) {
-                    const body = { title, category, caption };
+                    const body = { title, category, caption, commercial };
                     if (_portfolioPhotoData) {
                         body.fileData = _portfolioPhotoData.dataUrl;
                         body.fileName = _portfolioPhotoData.name;
@@ -7448,7 +7461,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         if (!res.ok) throw new Error('Save failed');
                     }
                 } else {
-                    const body = { title, category, caption, fileData: _portfolioPhotoData.dataUrl, fileName: _portfolioPhotoData.name, fileType: _portfolioPhotoData.type };
+                    const body = { title, category, caption, commercial, fileData: _portfolioPhotoData.dataUrl, fileName: _portfolioPhotoData.name, fileType: _portfolioPhotoData.type };
                     const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
                     if (!res.ok) throw new Error('Save failed');
                 }
