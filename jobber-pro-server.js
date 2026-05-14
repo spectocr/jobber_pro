@@ -4011,30 +4011,82 @@ hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
 <div class="statement">By signing below, I confirm that the work described above has been completed satisfactorily and to my approval. GSD Property Services is authorized to close this work order.</div>
 
 <div class="section-head">Authorized Signature</div>
+<div style="border:2px dashed #cbd5e0;border-radius:8px;background:#fafafa;position:relative;margin-bottom:0.5rem;overflow:hidden;">
+  <canvas id="sigPad" width="700" height="160" style="display:block;width:100%;height:auto;cursor:crosshair;touch-action:none;"></canvas>
+  <div id="sigHint" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:0.9rem;pointer-events:none;user-select:none;letter-spacing:0.03em;">✏️ Sign here</div>
+</div>
+<div id="sigControls" style="margin-bottom:1.5rem;">
+  <button onclick="clearSig()" type="button" style="background:none;border:1.5px solid #d1d5db;padding:0.3rem 0.9rem;border-radius:5px;cursor:pointer;font-size:0.78rem;color:#888;">Clear</button>
+</div>
+
 <div class="sig-row">
-  <div>
-    <div class="sig-field" style="min-height:2rem;"></div>
-    <div class="sig-label">Signature</div>
-  </div>
   <div>
     <div class="sig-field"><div class="sig-prefill">\${signerName}</div></div>
     <div class="sig-hint">Suggested signer</div>
     <div class="sig-label">Printed Name</div>
   </div>
   <div>
+    <div class="sig-field"><div class="sig-prefill" style="color:#bbb;font-size:0.8rem;">Manager on Duty</div></div>
+    <div class="sig-label">Title / Role</div>
+  </div>
+  <div>
     <div class="sig-field"><div class="sig-prefill">\${today}</div></div>
     <div class="sig-label">Date</div>
   </div>
 </div>
-<div style="max-width:260px;">
-  <div class="sig-field"><div class="sig-prefill" style="color:#bbb;font-size:0.8rem;">Manager on Duty</div></div>
-  <div class="sig-label">Title / Role</div>
-</div>
+
+<img id="sigImg" style="display:none;" alt="Signature">
 
 <div class="no-print">
-  <button class="pbtn" onclick="window.print()">🖨️ Print / Save PDF</button>
+  <button class="pbtn" onclick="doPrint()">🖨️ Print / Save PDF</button>
   <button onclick="window.close()" style="background:none;border:1.5px solid #d1d5db;padding:0.7rem 1.5rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;">Close</button>
 </div>
+
+<script>
+var canvas = document.getElementById('sigPad');
+var ctx = canvas.getContext('2d');
+ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1a1a';
+var drawing = false, lastX = 0, lastY = 0, hasSig = false;
+function getPos(e) {
+  var r = canvas.getBoundingClientRect();
+  var sx = canvas.width / r.width, sy = canvas.height / r.height;
+  var src = (e.touches && e.touches[0]) ? e.touches[0] : e;
+  return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
+}
+function startDraw(e) { e.preventDefault(); drawing = true; var p = getPos(e); lastX = p.x; lastY = p.y; }
+function draw(e) {
+  e.preventDefault(); if (!drawing) return;
+  var p = getPos(e);
+  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+  lastX = p.x; lastY = p.y; hasSig = true;
+  document.getElementById('sigHint').style.display = 'none';
+}
+function stopDraw() { drawing = false; }
+canvas.addEventListener('mousedown', startDraw);
+canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', stopDraw);
+canvas.addEventListener('mouseleave', stopDraw);
+canvas.addEventListener('touchstart', startDraw, { passive: false });
+canvas.addEventListener('touchmove', draw, { passive: false });
+canvas.addEventListener('touchend', stopDraw);
+function clearSig() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hasSig = false;
+  document.getElementById('sigHint').style.display = '';
+}
+function doPrint() {
+  var img = document.getElementById('sigImg');
+  var ctrl = document.getElementById('sigControls');
+  img.src = canvas.toDataURL('image/png');
+  img.style.cssText = 'display:block;width:' + canvas.offsetWidth + 'px;height:' + canvas.offsetHeight + 'px;border:2px dashed #cbd5e0;border-radius:8px;margin-bottom:0.5rem;';
+  canvas.style.display = 'none';
+  ctrl.style.display = 'none';
+  window.print();
+  canvas.style.display = 'block';
+  ctrl.style.display = 'block';
+  img.style.display = 'none';
+}
+</script>
 </body></html>\`);
             win.document.close();
         }
