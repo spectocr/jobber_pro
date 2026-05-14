@@ -5621,7 +5621,49 @@ app.post('/api/activity-query', isAuthenticated, async (req, res) => {
             return res.json({ answer: `**${fmt$(total)}** in completed/invoiced jobs so far this month (${jobs.length} job${jobs.length !== 1 ? 's' : ''}).`, items: [] });
         }
 
-        return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, or **revenue this month**.`, items: [] });
+        if (q.includes('recurring') || q.includes('common') || q.includes('popular') || q.includes('frequent') ||
+            q.includes('top job') || q.includes('top service') || q.includes('most') || q.includes('pattern') ||
+            q.includes('what do i') || q.includes('often') || q.includes('repeat')) {
+            const jobs = await db.collection('jobs').find({
+                status: { $in: ['completed', 'invoiced', 'in_progress', 'scheduled', 'prospecting'] }
+            }).toArray();
+
+            const groups = {};
+            for (const job of jobs) {
+                const key = (job.title || 'Untitled').toLowerCase().trim()
+                    .replace(/\s+for\s+.*/i, '').replace(/\s+at\s+.*/i, '').trim();
+                if (!groups[key]) groups[key] = { title: job.title || 'Untitled', count: 0, revenue: 0 };
+                groups[key].count++;
+                groups[key].revenue += parseFloat(job.totalWithTax || job.total) || 0;
+            }
+
+            const sorted = Object.values(groups).sort((a, b) => b.count - a.count).slice(0, 8);
+
+            if (sorted.length === 0) {
+                return res.json({ answer: 'No job history to analyze yet.', items: [] });
+            }
+
+            const wantsProfitable = q.includes('profit') || q.includes('best') || q.includes('money') || q.includes('lucrative');
+            const list = wantsProfitable
+                ? [...sorted].sort((a, b) => (b.revenue / b.count) - (a.revenue / a.count))
+                : sorted;
+
+            const items = list.slice(0, 7).map(g =>
+                `**${g.title}** — ${g.count}x · avg ${fmt$(g.revenue / g.count)} · total ${fmt$(g.revenue)}`
+            );
+
+            const top = list[0];
+            const recurring = sorted.filter(g => g.count > 1);
+            const intro = wantsProfitable
+                ? `Your highest-value job type is **${top.title}** averaging **${fmt$(top.revenue / top.count)}** per job.`
+                : recurring.length > 0
+                    ? `Your most common job is **${top.title}** (${top.count} times). Here are your top services:`
+                    : `Here's a breakdown of your jobs so far:`;
+
+            return res.json({ answer: intro, items });
+        }
+
+        return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, **revenue this month**, or **top recurring jobs**.`, items: [] });
 
     } catch (e) {
         res.status(500).json({ error: e.message });
