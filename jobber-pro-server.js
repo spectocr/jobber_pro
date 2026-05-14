@@ -9808,6 +9808,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     fireNotification('New Work Order', \`\${n} new portal work order\${n > 1 ? 's' : ''} waiting for review.\`);
                 }
 
+                // Proactive Maddox alert on new arrivals
+                const _prevTotal = _lastMessageCount + _lastLeadCount + _lastPortalQuoteCount;
+                const _curTotal = messages + leads + portalQuotes;
+                if (_curTotal > _prevTotal) {
+                    const _panel = document.getElementById('activityBotPanel');
+                    if (_panel && _panel.style.display === 'none') {
+                        clippyAnim('clippyAlert 0.5s ease-in-out 3');
+                        setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 1700);
+                    }
+                }
+                // Mood state
+                if (_curTotal > 0) {
+                    setMaddoxMood('alert');
+                } else {
+                    fetch('/api/dashboard').then(r => r.json()).then(dash => {
+                        if (dash.totalAccountsReceivable > 500) setMaddoxMood('concerned');
+                        else if (dash.jobsToday > 0) setMaddoxMood('excited');
+                        else setMaddoxMood('happy');
+                    }).catch(() => {});
+                }
+
                 _lastMessageCount = messages;
                 _lastLeadCount = leads;
                 _lastPortalQuoteCount = portalQuotes;
@@ -10066,6 +10087,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             pollNotificationCounts();
             setInterval(pollNotificationCounts, 30000);
+
+            // Morning briefing — auto-open Maddox once per calendar day
+            const todayStr = new Date().toDateString();
+            if (localStorage.getItem('maddoxBriefDate') !== todayStr) {
+                localStorage.setItem('maddoxBriefDate', todayStr);
+                setTimeout(() => {
+                    const panel = document.getElementById('activityBotPanel');
+                    if (panel && panel.style.display === 'none') toggleActivityBot();
+                }, 2500);
+            }
         }
 
         async function markMessageRead(messageId) {
@@ -12099,6 +12130,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function setMaddoxMood(mood) {
+            const el = document.getElementById('clippyChar');
+            if (!el) return;
+            el.classList.remove('mood-happy', 'mood-concerned', 'mood-alert', 'mood-excited');
+            if (mood !== 'happy') el.classList.add('mood-' + mood);
+        }
+
         // Random blink every 3-6s
         setInterval(() => {
             const eyes = document.querySelectorAll('.clippy-eye');
@@ -12150,6 +12188,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
+        @keyframes clippyAlert {
+            0%,100% { transform: translateX(0) rotate(0deg); }
+            20%     { transform: translateX(-9px) rotate(-7deg); }
+            40%     { transform: translateX(9px) rotate(7deg); }
+            60%     { transform: translateX(-5px) rotate(-4deg); }
+            80%     { transform: translateX(5px) rotate(4deg); }
+        }
+        .mood-alert #rexTail      { animation-duration: 0.22s !important; }
+        .mood-excited #rexTail    { animation-duration: 0.33s !important; }
+        .mood-concerned #rexTail  { animation-duration: 1.5s !important; }
+        #maddoxMouthConcerned     { display: none; }
+        .mood-concerned #maddoxMouthHappy     { display: none !important; }
+        .mood-concerned #maddoxMouthConcerned { display: block !important; }
         #clippyWrap { position:fixed;bottom:1.2rem;right:1.4rem;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem; }
         #clippyChar { width:72px;height:90px;cursor:pointer;animation: clippyAppear 0.7s cubic-bezier(.36,.07,.19,.97) both, clippyIdle 3s ease-in-out 0.7s infinite;position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
         #clippyChar:hover { filter:drop-shadow(0 6px 14px rgba(196,124,48,0.55)); }
@@ -12287,12 +12338,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <ellipse cx="42" cy="43" rx="2.5" ry="1.6" fill="rgba(255,255,255,0.52)"/>
                 <ellipse cx="46" cy="44" rx="1.1" ry="0.9" fill="rgba(255,255,255,0.22)"/>
 
-                <!-- MOUTH + happy tongue (good boy!) -->
-                <path d="M 37.5 55 Q 44 61 50.5 55"
-                      fill="none" stroke="#1c0a04" stroke-width="2" stroke-linecap="round"/>
-                <ellipse cx="44" cy="59.5" rx="5.2" ry="4.5" fill="#d83055"/>
-                <ellipse cx="44" cy="61.5" rx="4.4" ry="2.6" fill="#b82040"/>
-                <line x1="44" y1="56" x2="44" y2="60" stroke="#c02848" stroke-width="1.8" stroke-linecap="round"/>
+                <g id="maddoxMouthHappy">
+                    <path d="M 37.5 55 Q 44 61 50.5 55"
+                          fill="none" stroke="#1c0a04" stroke-width="2" stroke-linecap="round"/>
+                    <ellipse cx="44" cy="59.5" rx="5.2" ry="4.5" fill="#d83055"/>
+                    <ellipse cx="44" cy="61.5" rx="4.4" ry="2.6" fill="#b82040"/>
+                    <line x1="44" y1="56" x2="44" y2="60" stroke="#c02848" stroke-width="1.8" stroke-linecap="round"/>
+                </g>
+                <g id="maddoxMouthConcerned">
+                    <path d="M 37.5 59 Q 44 54 50.5 59"
+                          fill="none" stroke="#1c0a04" stroke-width="2" stroke-linecap="round"/>
+                </g>
 
                 <!-- BANDANA — red with white polka dots, triangle on chest -->
                 <path d="M 30 63 Q 44 58 58 63 L 44 83 Z" fill="#c0392b"/>
