@@ -6974,7 +6974,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>\` : ''}
                         <div style="display:flex;gap:0.4rem;align-items:center;" onclick="event.stopPropagation()">
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')">Edit</button>
-                            \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
+                            \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')" style="white-space:nowrap;">📄 Invoice</button>\` : ''}
                             \${isAdmin ? \`<div style="position:relative;display:inline-block;">
                                 <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
                                 <div id="jm-\${j.id}" class="job-action-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + 4px);background:white;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,0.13);z-index:200;min-width:175px;padding:0.3rem 0;">
@@ -7032,7 +7032,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>
                             <div style="display:flex;gap:0.4rem;align-items:center;" onclick="event.stopPropagation()">
                                 <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
-                                \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
+                                \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')" style="white-space:nowrap;">📄 Invoice</button>\` : ''}
                                 \${isAdmin ? \`<div style="position:relative;display:inline-block;">
                                     <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
                                     <div id="jm-\${j.id}" class="job-action-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,0.13);z-index:200;min-width:175px;padding:0.3rem 0;">
