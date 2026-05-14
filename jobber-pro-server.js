@@ -1272,10 +1272,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="stat-card">
                     <h3>Jobs This Month</h3>
                     <div class="value" id="stat-jobs-month">0</div>
+                    <div id="stat-jobs-month-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
                 </div>
                 <div class="stat-card">
                     <h3>Revenue This Month</h3>
                     <div class="value" id="stat-revenue">$0</div>
+                    <div id="stat-revenue-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
                 </div>
                 <div class="stat-card" style="border-left-color: #48bb78;">
                     <h3>Profit This Month</h3>
@@ -1316,6 +1318,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="stat-card" style="border-left-color: #e53e3e;">
                     <h3>Accounts Receivable</h3>
                     <div class="value" id="stat-ar">$0</div>
+                </div>
+            </div>
+
+            <!-- Revenue Trend Chart -->
+            <div class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header" style="padding-bottom:0;">
+                    <h2>📈 Revenue — Last 6 Months</h2>
+                </div>
+                <div style="padding:1rem 1.5rem 0.75rem;">
+                    <svg id="revenueTrendSvg" width="100%" height="160" viewBox="0 0 600 160" preserveAspectRatio="xMidYMid meet" style="display:block;"></svg>
                 </div>
             </div>
 
@@ -5433,6 +5445,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-revenue').textContent = formatMoney(stats.revenueThisMonth || 0);
             document.getElementById('stat-profit').textContent = formatMoney(stats.profitThisMonth || 0);
             document.getElementById('stat-jobs-today').textContent = stats.jobsToday;
+
+            // Month-over-month deltas
+            (function() {
+                function deltaHtml(current, last) {
+                    if (!last || last === 0) return '';
+                    const pct = Math.round((current - last) / last * 100);
+                    const up = pct >= 0;
+                    return `<span style="color:${up ? '#48bb78' : '#e53e3e'}">${up ? '▲' : '▼'} ${Math.abs(pct)}% vs last month</span>`;
+                }
+                const rd = document.getElementById('stat-revenue-delta');
+                const jd = document.getElementById('stat-jobs-month-delta');
+                if (rd) rd.innerHTML = deltaHtml(stats.revenueThisMonth || 0, stats.lastMonthRevenue || 0);
+                if (jd) jd.innerHTML = deltaHtml(stats.jobsThisMonth || 0, stats.lastMonthJobs || 0);
+            })();
+
+            // Revenue trend bar chart
+            (function() {
+                const months = stats.revenueByMonth;
+                const svg = document.getElementById('revenueTrendSvg');
+                if (!svg || !months || months.length === 0) return;
+                const maxRev = Math.max(...months.map(m => m.revenue), 1);
+                const W = 600, chartH = 115, barAreaW = W / months.length;
+                const barW = barAreaW * 0.52;
+                svg.innerHTML = months.map((m, i) => {
+                    const barH = Math.max(4, (m.revenue / maxRev) * chartH);
+                    const x = i * barAreaW + (barAreaW - barW) / 2;
+                    const y = chartH - barH;
+                    const isCurrent = i === months.length - 1;
+                    const fill = isCurrent ? '#667eea' : '#e2e8f0';
+                    const textFill = isCurrent ? '#667eea' : '#a0aec0';
+                    const valLabel = m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}k` : m.revenue > 0 ? `$${Math.round(m.revenue)}` : '';
+                    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="4" fill="${fill}"/>` +
+                        `<text x="${(x+barW/2).toFixed(1)}" y="135" text-anchor="middle" font-size="11" fill="#718096" font-family="sans-serif">${m.label}</text>` +
+                        (valLabel ? `<text x="${(x+barW/2).toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" font-size="10" fill="${textFill}" font-weight="600" font-family="sans-serif">${valLabel}</text>` : '');
+                }).join('');
+            })();
 
             document.getElementById('stat-prospecting').textContent = stats.prospecting;
             document.getElementById('stat-to-be-scheduled').textContent = stats.toBeScheduled;

@@ -1996,6 +1996,30 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         profitThisMonth: totalProfit,
         totalAccountsReceivable: totalAccountsReceivable,
         accountsReceivableJobs: accountsReceivableJobs,
+        lastMonthRevenue: (() => {
+            const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+            const lm = d.toISOString().slice(0, 7);
+            return jobsMapped.filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(lm))
+                .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+        })(),
+        lastMonthJobs: (() => {
+            const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+            const lm = d.toISOString().slice(0, 7);
+            return jobsMapped.filter(j => j.scheduledDate && j.scheduledDate.startsWith(lm)).length;
+        })(),
+        revenueByMonth: (() => {
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+                const key = d.toISOString().slice(0, 7);
+                const label = d.toLocaleString('default', { month: 'short' });
+                const revenue = jobsMapped
+                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(key))
+                    .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+                months.push({ key, label, revenue });
+            }
+            return months;
+        })(),
         upcomingJobs: jobsMapped
             .filter(j => j.status === 'scheduled' && j.scheduledDate >= today)
             .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)),
@@ -5630,7 +5654,7 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
 
         const [jobs, quotes, leads, clientsList] = await Promise.all([
             db.collection('jobs').find({}).toArray(),
-            db.collection('quotes').find({ status: { $in: ['approved', 'draft'] }, convertedToJobId: { $exists: false } }).toArray(),
+            db.collection('quotes').find({ status: { $in: ['approved', 'draft', 'in_review'] }, convertedToJobId: { $exists: false } }).toArray(),
             db.collection('leads').find({ status: 'new' }).toArray(),
             db.collection('clients').find({}).toArray()
         ]);
@@ -5720,6 +5744,23 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
         if (coldLeads.length > 0) {
             nudges.push({ key: `cold_leads_${coldLeads.length}_${today}`, type: 'cold_leads', severity: 'info',
                 message: `${coldLeads.length} lead${coldLeads.length > 1 ? 's haven\'t' : ' hasn\'t'} been touched in 7+ days. Don't let them go cold.` });
+        }
+
+        // 5b. Sent quotes with no response in 3+ days
+        const staleSent = quotes.filter(q => {
+            if (q.status === 'approved' || q.status === 'rejected') return false;
+            const sentEntry = (q.auditLog || [])
+                .filter(e => e.action === 'sent_email')
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+            if (!sentEntry) return false;
+            return (now - new Date(sentEntry.timestamp)) > 3 * 24 * 60 * 60 * 1000;
+        });
+        if (staleSent.length === 1) {
+            nudges.push({ key: `stale_sent_${staleSent[0]._id}`, type: 'stale_sent', severity: 'info',
+                message: `${staleSent[0].quoteNumber} was sent ${Math.floor((now - new Date((staleSent[0].auditLog||[]).filter(e=>e.action==='sent_email').slice(-1)[0]?.timestamp)) / 86400000)}d ago with no response — time to follow up?` });
+        } else if (staleSent.length > 1) {
+            nudges.push({ key: `stale_sent_${staleSent.length}_${today}`, type: 'stale_sent', severity: 'info',
+                message: `${staleSent.length} sent quotes haven't gotten a response in 3+ days.` });
         }
 
         // 6. Today's scheduled jobs still showing 'scheduled' after 10am
