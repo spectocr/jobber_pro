@@ -294,6 +294,25 @@
             align-self: flex-start;
         }
 
+        /* Workflow Stepper */
+        .wf-wrap{padding:0.6rem 0 0.1rem;margin-bottom:0.75rem;}
+        .wf-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;}
+        .wf-hdr-title{font-weight:700;font-size:0.82rem;color:#2d3748;}
+        .wf-pill{background:#f0ebff;color:#553c9a;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.7rem;font-weight:700;}
+        .wf-stages-wrap{position:relative;display:flex;padding:0 0.5rem;}
+        .wf-track-bg{position:absolute;top:15px;left:calc(0.5rem + 15px);right:calc(0.5rem + 15px);height:3px;background:#e2e8f0;border-radius:2px;}
+        .wf-track-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#48bb78 0%,#667eea 100%);border-radius:2px;transition:width 0.4s ease;}
+        .wf-stage{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;}
+        .wf-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.9rem;font-weight:700;}
+        .wf-dot.wf-done{background:#48bb78;color:white;}
+        .wf-dot.wf-now{background:#553c9a;color:white;animation:wfpulse 1.8s infinite;}
+        .wf-dot.wf-wait{background:#e2e8f0;color:#a0aec0;}
+        @keyframes wfpulse{0%,100%{box-shadow:0 0 0 3px rgba(85,60,154,0.25)}50%{box-shadow:0 0 0 8px rgba(85,60,154,0.05)}}
+        .wf-lbl{font-size:0.6rem;font-weight:600;color:#4a5568;text-align:center;margin-top:0.3rem;line-height:1.25;max-width:46px;}
+        .wf-st{font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:0.12rem;padding:1px 4px;border-radius:999px;}
+        .wf-st.wf-done{background:#c6f6d5;color:#22543d;}
+        .wf-st.wf-now{background:#e9d8fd;color:#553c9a;}
+
         @media (max-width: 768px) {
             body {
                 padding: 1rem;
@@ -433,6 +452,45 @@
         let clientData = null;
         let qrPhotos = []; // { dataUrl, file }
 
+        function buildWorkflowStepper(stages) {
+            const completedCount = stages.filter(s => s.s === 'wf-done').length;
+            const activeIdx = stages.findIndex(s => s.s === 'wf-now');
+            const doneCount = completedCount + (activeIdx >= 0 ? 1 : 0);
+            const fillIdx = activeIdx >= 0 ? activeIdx : completedCount - 1;
+            const fillPct = fillIdx < 0 ? 0 : (fillIdx / (stages.length - 1)) * 100;
+            const dots = stages.map(s => {
+                const icon = s.s === 'wf-done' ? '✓' : s.s === 'wf-now' ? '⬤' : '·';
+                const badge = s.s === 'wf-done' ? 'DONE' : s.s === 'wf-now' ? 'NOW' : '';
+                return `<div class="wf-stage"><div class="wf-dot ${s.s}">${icon}</div><div class="wf-lbl">${s.l}</div>${badge ? `<div class="wf-st ${s.s}">${badge}</div>` : ''}</div>`;
+            }).join('');
+            return `<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Progress</div><div class="wf-pill">⚡ ${doneCount} / ${stages.length}</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:${fillPct}%"></div></div>${dots}</div></div>`;
+        }
+
+        function getQuoteStages(quote) {
+            const s = quote.status;
+            return [
+                { l: 'Submitted', s: 'wf-done' },
+                { l: 'Reviewing', s: (s === 'sent' || s === 'approved') ? 'wf-done' : 'wf-now' },
+                { l: 'Quote Sent', s: s === 'approved' ? 'wf-done' : s === 'sent' ? 'wf-now' : 'wf-wait' },
+                { l: 'Approved', s: s === 'approved' ? 'wf-done' : 'wf-wait' },
+                { l: 'Scheduled', s: 'wf-wait' },
+                { l: 'Complete', s: 'wf-wait' },
+            ];
+        }
+
+        function getJobStages(job) {
+            const ordered = ['pending', 'scheduled', 'in-progress', 'completed', 'invoiced'];
+            const idx = Math.max(0, ordered.indexOf(job.status));
+            return [
+                { l: 'Received', s: 'wf-done' },
+                { l: 'Reviewed', s: 'wf-done' },
+                { l: 'Approved', s: 'wf-done' },
+                { l: 'Scheduled', s: idx >= 2 ? 'wf-done' : idx === 1 ? 'wf-now' : 'wf-wait' },
+                { l: 'In Progress', s: idx >= 3 ? 'wf-done' : idx === 2 ? 'wf-now' : 'wf-wait' },
+                { l: 'Complete', s: idx >= 4 ? 'wf-done' : idx === 3 ? 'wf-now' : 'wf-wait' },
+            ];
+        }
+
         async function loadClientData() {
             try {
                 const response = await fetch('/api/client-portal/me');
@@ -515,6 +573,7 @@
 
                 return `
                     <div class="quote-card">
+                        ${buildWorkflowStepper(getQuoteStages(quote))}
                         <h3>${quote.title}</h3>
                         <p><strong>${T.quoteNum || 'Quote #:'}</strong> ${quote.quoteNumber}</p>
                         ${!isDraft ? `<p><strong>Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>` : ''}
@@ -542,6 +601,7 @@
 
                 return `
                     <div class="job-card">
+                        ${buildWorkflowStepper(getJobStages(job))}
                         <h3>${job.title}</h3>
                         <p><strong>Date:</strong> ${date} ${job.scheduledTime || ''}</p>
                         <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${job.status.replace('_', ' ').toUpperCase()}</span></p>

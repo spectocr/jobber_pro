@@ -627,6 +627,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             overflow-y: auto;
         }
 
+        /* Workflow Stepper */
+        .wf-wrap{padding:0.75rem 0 0.25rem;}
+        .wf-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;}
+        .wf-hdr-title{font-weight:700;font-size:0.85rem;color:#2d3748;}
+        .wf-pill{background:#f0ebff;color:#553c9a;padding:0.2rem 0.65rem;border-radius:999px;font-size:0.73rem;font-weight:700;}
+        .wf-stages-wrap{position:relative;display:flex;padding:0 0.75rem;}
+        .wf-track-bg{position:absolute;top:16px;left:calc(0.75rem + 16px);right:calc(0.75rem + 16px);height:3px;background:#e2e8f0;border-radius:2px;}
+        .wf-track-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#48bb78 0%,#667eea 100%);border-radius:2px;transition:width 0.4s ease;}
+        .wf-stage{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;}
+        .wf-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;}
+        .wf-dot.wf-done{background:#48bb78;color:white;}
+        .wf-dot.wf-now{background:#553c9a;color:white;animation:wfpulse 1.8s infinite;}
+        .wf-dot.wf-wait{background:#e2e8f0;color:#a0aec0;}
+        @keyframes wfpulse{0%,100%{box-shadow:0 0 0 3px rgba(85,60,154,0.25)}50%{box-shadow:0 0 0 8px rgba(85,60,154,0.05)}}
+        .wf-lbl{font-size:0.64rem;font-weight:600;color:#4a5568;text-align:center;margin-top:0.35rem;line-height:1.3;max-width:52px;}
+        .wf-st{font-size:0.59rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:0.15rem;padding:1px 5px;border-radius:999px;}
+        .wf-st.wf-done{background:#c6f6d5;color:#22543d;}
+        .wf-st.wf-now{background:#e9d8fd;color:#553c9a;}
+
         .modal-footer {
             padding: 1.5rem;
             border-top: 2px solid #e2e8f0;
@@ -2952,6 +2971,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="close-btn" onclick="closeModal('jobModal')">&times;</button>
             </div>
             <div class="modal-body">
+                <div id="jobWorkflowStepper" style="display:none;background:#f8f9ff;border:1.5px solid #e2e8f0;border-radius:10px;padding:0.75rem 1rem 0.5rem;margin-bottom:1.25rem;"></div>
                 <form id="jobForm">
                     <input type="hidden" name="id">
                     <div class="form-group">
@@ -3922,6 +3942,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.job-action-menu').forEach(m => m.style.display = 'none');
         });
 
+        function buildWorkflowStepper(stages) {
+            const completedCount = stages.filter(s => s.s === 'wf-done').length;
+            const activeIdx = stages.findIndex(s => s.s === 'wf-now');
+            const doneCount = completedCount + (activeIdx >= 0 ? 1 : 0);
+            const fillIdx = activeIdx >= 0 ? activeIdx : completedCount - 1;
+            const fillPct = fillIdx < 0 ? 0 : (fillIdx / (stages.length - 1)) * 100;
+            const dots = stages.map(s => {
+                const icon = s.s === 'wf-done' ? '✓' : s.s === 'wf-now' ? '⬤' : '·';
+                const badge = s.s === 'wf-done' ? 'DONE' : s.s === 'wf-now' ? 'NOW' : '';
+                return \`<div class="wf-stage"><div class="wf-dot \${s.s}">\${icon}</div><div class="wf-lbl">\${s.l}</div>\${badge ? \`<div class="wf-st \${s.s}">\${badge}</div>\` : ''}</div>\`;
+            }).join('');
+            return \`<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Workflow Progress</div><div class="wf-pill">⚡ \${doneCount} / \${stages.length} stages</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:\${fillPct}%"></div></div>\${dots}</div></div>\`;
+        }
+
+        function buildJobStages(job) {
+            const ordered = ['pending', 'scheduled', 'in-progress', 'completed', 'invoiced'];
+            const idx = Math.max(0, ordered.indexOf(job.status));
+            return [
+                { l: 'Received', s: 'wf-done' },
+                { l: 'Reviewed', s: 'wf-done' },
+                { l: 'Approved', s: 'wf-done' },
+                { l: 'Scheduled', s: idx >= 2 ? 'wf-done' : idx === 1 ? 'wf-now' : 'wf-wait' },
+                { l: 'In Progress', s: idx >= 3 ? 'wf-done' : idx === 2 ? 'wf-now' : 'wf-wait' },
+                { l: 'Complete', s: idx >= 4 ? 'wf-done' : idx === 3 ? 'wf-now' : 'wf-wait' },
+            ];
+        }
+
         function editJob(jobId) {
             if (!checkAdminPermission('edit jobs')) return;
             // Search in all job arrays
@@ -4034,6 +4081,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadLaborActuals(job._id || job.id);
             } else {
                 document.getElementById('laborActualsSection').style.display = 'none';
+            }
+
+            // Workflow stepper
+            const _stepperEl = document.getElementById('jobWorkflowStepper');
+            if (job && (job._id || job.id)) {
+                _stepperEl.style.display = 'block';
+                _stepperEl.innerHTML = buildWorkflowStepper(buildJobStages(job));
+            } else {
+                _stepperEl.style.display = 'none';
             }
 
             // Load job photos (carried over from quote submission)
