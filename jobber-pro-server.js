@@ -10102,6 +10102,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             pollNotificationCounts();
             setInterval(pollNotificationCounts, 30000);
+            pollNudges();
+            setInterval(pollNudges, 5 * 60 * 1000);
 
             // Morning briefing — auto-open Maddox once per calendar day
             const todayStr = new Date().toDateString();
@@ -12145,6 +12147,54 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        // ── Maddox Nudges ────────────────────────────────────────────────────────
+        let _nudgeQueue = [];
+        let _nudgeTimer = null;
+
+        async function pollNudges() {
+            try {
+                const res = await fetch('/api/maddox/nudges');
+                if (!res.ok) return;
+                const { nudges } = await res.json();
+                // Filter out dismissed ones (stored in localStorage with 24h TTL)
+                const now = Date.now();
+                _nudgeQueue = nudges.filter(n => {
+                    const dismissed = localStorage.getItem('nudge_dismiss_' + n.key);
+                    return !dismissed || (now - parseInt(dismissed)) > 12 * 60 * 60 * 1000;
+                });
+                if (_nudgeQueue.length > 0) showNextNudge();
+            } catch (e) { /* silent */ }
+        }
+
+        function showNextNudge() {
+            if (_nudgeQueue.length === 0) return;
+            const panel = document.getElementById('activityBotPanel');
+            if (panel && panel.style.display !== 'none') return; // panel open, no need
+            const nudge = _nudgeQueue[0];
+            const el = document.getElementById('maddoxNudge');
+            if (!el) return;
+            document.getElementById('maddoxNudgeText').textContent = nudge.message;
+            el.style.display = 'flex';
+            el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+            // Accent color by severity
+            const colors = { urgent: '#e53e3e', warning: '#ed8936', info: '#4299e1' };
+            el.style.borderColor = colors[nudge.severity] || '#fde68a';
+            // Auto-dismiss after 12s
+            clearTimeout(_nudgeTimer);
+            _nudgeTimer = setTimeout(dismissNudge, 12000);
+        }
+
+        function dismissNudge() {
+            const el = document.getElementById('maddoxNudge');
+            if (!el) return;
+            el.style.display = 'none';
+            clearTimeout(_nudgeTimer);
+            if (_nudgeQueue.length > 0) {
+                const dismissed = _nudgeQueue.shift();
+                localStorage.setItem('nudge_dismiss_' + dismissed.key, Date.now().toString());
+            }
+        }
+
         function setMaddoxMood(mood) {
             const el = document.getElementById('clippyChar');
             if (!el) return;
@@ -12216,6 +12266,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         #maddoxMouthConcerned     { display: none; }
         .mood-concerned #maddoxMouthHappy     { display: none !important; }
         .mood-concerned #maddoxMouthConcerned { display: block !important; }
+        @keyframes nudgePop {
+            0%   { transform: scale(0.85) translateY(6px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        #maddoxNudge { position:absolute;bottom:calc(100% + 10px);right:0;background:white;border:2px solid #fde68a;border-radius:12px 12px 2px 12px;padding:0.55rem 0.8rem 0.55rem 0.75rem;font-size:0.78rem;color:#1a202c;max-width:210px;box-shadow:0 4px 18px rgba(0,0,0,0.13);animation:nudgePop 0.3s cubic-bezier(.36,.07,.19,.97) both;display:flex;gap:0.4rem;align-items:flex-start;line-height:1.45; }
+        #maddoxNudgeDismiss { background:none;border:none;color:#a0aec0;cursor:pointer;font-size:0.85rem;line-height:1;padding:0;flex-shrink:0;margin-top:1px; }
+        #maddoxNudgeDismiss:hover { color:#e53e3e; }
         #clippyWrap { position:fixed;bottom:1.2rem;right:1.4rem;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem; }
         #clippyChar { width:72px;height:90px;cursor:pointer;animation: clippyAppear 0.7s cubic-bezier(.36,.07,.19,.97) both, clippyIdle 3s ease-in-out 0.7s infinite;position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
         #clippyChar:hover { filter:drop-shadow(0 6px 14px rgba(196,124,48,0.55)); }
@@ -12268,6 +12325,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <!-- Maddox the German Shepherd -->
         <div id="clippyChar" onclick="toggleActivityBot()" title="Woof! Need a hand?">
             <span id="activityBotDot"></span>
+            <div id="maddoxNudge" style="display:none;">
+                <button id="maddoxNudgeDismiss" onclick="dismissNudge()" title="Dismiss">✕</button>
+                <span id="maddoxNudgeText"></span>
+            </div>
             <svg viewBox="0 0 90 100" width="72" height="90" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <filter id="gshadow" x="-20%" y="-20%" width="140%" height="140%">

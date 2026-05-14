@@ -5616,6 +5616,108 @@ app.get('/api/notifications/counts', isAuthenticated, async (req, res) => {
     }
 });
 
+// Maddox nudges — proactive business health checks
+app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
+    try {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const nudges = [];
+
+        const [jobs, quotes, leads] = await Promise.all([
+            db.collection('jobs').find({}).toArray(),
+            db.collection('quotes').find({ status: { $in: ['approved', 'draft'] }, convertedToJobId: { $exists: false } }).toArray(),
+            db.collection('leads').find({ status: 'new' }).toArray()
+        ]);
+
+        // 1. Approved quotes sitting unconverted for 3+ days
+        const staleApproved = quotes.filter(q => {
+            if (q.status !== 'approved') return false;
+            const converted = (q.auditLog || []).find(e => e.action === 'status_change' && e.newStatus === 'approved');
+            const approvedAt = converted ? new Date(converted.timestamp) : new Date(q.createdAt);
+            return (now - approvedAt) > 3 * 24 * 60 * 60 * 1000;
+        });
+        if (staleApproved.length === 1) {
+            const q = staleApproved[0];
+            const days = Math.floor((now - new Date(q.createdAt)) / (24 * 60 * 60 * 1000));
+            nudges.push({ key: `stale_quote_${q._id}`, type: 'stale_quote', severity: 'warning',
+                message: `${q.quoteNumber} has been approved for ${days} days — ready to convert to a job?` });
+        } else if (staleApproved.length > 1) {
+            nudges.push({ key: `stale_quotes_${staleApproved.length}`, type: 'stale_quote', severity: 'warning',
+                message: `${staleApproved.length} approved quotes haven't been converted yet. Don't let them go cold.` });
+        }
+
+        // 2. Scheduled jobs this week with no crew assigned
+        const weekOut = new Date(); weekOut.setDate(weekOut.getDate() + 7);
+        const weekStr = weekOut.toISOString().split('T')[0];
+        const unassigned = jobs.filter(j =>
+            j.status === 'scheduled' && j.scheduledDate >= today && j.scheduledDate <= weekStr &&
+            (!j.assignedTo || (Array.isArray(j.assignedTo) && j.assignedTo.length === 0))
+        );
+        if (unassigned.length > 0) {
+            nudges.push({ key: `unassigned_${unassigned.length}_${today}`, type: 'unassigned_jobs', severity: 'warning',
+                message: `${unassigned.length} job${unassigned.length > 1 ? 's' : ''} scheduled this week ${unassigned.length > 1 ? 'have' : 'has'} no crew assigned.` });
+        }
+
+        // 3. Jobs stuck in-progress for 3+ days
+        const staleInProgress = jobs.filter(j => {
+            if (j.status !== 'in_progress') return false;
+            const since = j.statusChangedAt || j.scheduledDate || j.createdAt;
+            return since && (now - new Date(since)) > 3 * 24 * 60 * 60 * 1000;
+        });
+        if (staleInProgress.length > 0) {
+            nudges.push({ key: `stale_inprogress_${staleInProgress.length}_${today}`, type: 'stale_inprogress', severity: 'info',
+                message: `${staleInProgress.length} job${staleInProgress.length > 1 ? 's have' : ' has'} been "In Progress" for 3+ days. Need a status update?` });
+        }
+
+        // 4. Large overdue balances (30+ days since job completed)
+        const overdueThreshold = new Date(); overdueThreshold.setDate(overdueThreshold.getDate() - 30);
+        const bigOverdue = jobs.filter(j => {
+            if (j.status !== 'invoiced' && j.status !== 'completed') return false;
+            const balance = (j.totalWithTax || parseFloat(j.total) || 0) - (parseFloat(j.totalPaid) || 0);
+            if (balance < 200) return false;
+            const since = j.completedDate || j.scheduledDate;
+            return since && new Date(since) < overdueThreshold;
+        }).sort((a, b) => {
+            const balA = (a.totalWithTax || parseFloat(a.total) || 0) - (parseFloat(a.totalPaid) || 0);
+            const balB = (b.totalWithTax || parseFloat(b.total) || 0) - (parseFloat(b.totalPaid) || 0);
+            return balB - balA;
+        });
+        if (bigOverdue.length > 0) {
+            const top = bigOverdue[0];
+            const bal = ((top.totalWithTax || parseFloat(top.total) || 0) - (parseFloat(top.totalPaid) || 0)).toFixed(2);
+            nudges.push({ key: `overdue_${top._id}`, type: 'overdue_invoice', severity: 'urgent',
+                message: `$${bal} overdue for "${top.title}" — 30+ days unpaid. Time to follow up?` });
+        }
+
+        // 5. Cold leads — no touchpoint in 7+ days
+        const coldLeads = leads.filter(l => {
+            const tps = l.touchPoints || [];
+            if (tps.length === 0) {
+                return (now - new Date(l.createdAt)) > 7 * 24 * 60 * 60 * 1000;
+            }
+            const lastTp = Math.max(...tps.map(tp => new Date(tp.timestamp)));
+            return (now - lastTp) > 7 * 24 * 60 * 60 * 1000;
+        });
+        if (coldLeads.length > 0) {
+            nudges.push({ key: `cold_leads_${coldLeads.length}_${today}`, type: 'cold_leads', severity: 'info',
+                message: `${coldLeads.length} lead${coldLeads.length > 1 ? 's haven\'t' : ' hasn\'t'} been touched in 7+ days. Don't let them go cold.` });
+        }
+
+        // 6. Today's scheduled jobs still showing 'scheduled' after 10am
+        if (now.getHours() >= 10) {
+            const todayUnstarted = jobs.filter(j => j.status === 'scheduled' && j.scheduledDate === today);
+            if (todayUnstarted.length > 0) {
+                nudges.push({ key: `today_unstarted_${today}`, type: 'today_unstarted', severity: 'info',
+                    message: `${todayUnstarted.length} job${todayUnstarted.length > 1 ? 's' : ''} scheduled for today ${todayUnstarted.length > 1 ? 'are' : 'is'} still showing "Scheduled" — are they underway?` });
+            }
+        }
+
+        res.json({ nudges });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Admin Messages API - Get all client messages
 app.get('/api/client-messages', isAuthenticated, async (req, res) => {
     try {
