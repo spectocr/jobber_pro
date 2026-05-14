@@ -5476,9 +5476,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const fill = isCurrent ? '#667eea' : '#e2e8f0';
                     const textFill = isCurrent ? '#667eea' : '#a0aec0';
                     const valLabel = m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}k` : m.revenue > 0 ? `$${Math.round(m.revenue)}` : '';
+                    const labelY = Math.max(11, y - 5);
                     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="4" fill="${fill}"/>` +
                         `<text x="${(x+barW/2).toFixed(1)}" y="135" text-anchor="middle" font-size="11" fill="#718096" font-family="sans-serif">${m.label}</text>` +
-                        (valLabel ? `<text x="${(x+barW/2).toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" font-size="10" fill="${textFill}" font-weight="600" font-family="sans-serif">${valLabel}</text>` : '');
+                        (valLabel ? `<text x="${(x+barW/2).toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="10" fill="${textFill}" font-weight="600" font-family="sans-serif">${valLabel}</text>` : '');
                 }).join('');
             })();
 
