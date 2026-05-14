@@ -12146,8 +12146,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         #clippyWrap { position:fixed;bottom:1.2rem;right:1.4rem;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem; }
-        #clippyChar { width:58px;height:96px;cursor:pointer;animation: clippyAppear 0.7s cubic-bezier(.36,.07,.19,.97) both, clippyIdle 3s ease-in-out 0.7s infinite;position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
-        #clippyChar:hover { filter:drop-shadow(0 6px 14px rgba(102,126,234,0.5)); }
+        #clippyChar { width:72px;height:90px;cursor:pointer;animation: clippyAppear 0.7s cubic-bezier(.36,.07,.19,.97) both, clippyIdle 3s ease-in-out 0.7s infinite;position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
+        #clippyChar:hover { filter:drop-shadow(0 6px 14px rgba(196,124,48,0.55)); }
         #activityBotDot { position:absolute;top:-2px;right:-2px;width:14px;height:14px;background:#e53e3e;border-radius:50%;border:2.5px solid white;box-shadow:0 0 6px rgba(229,62,62,0.6);display:none; }
 
         #activityBotPanel { width:320px;max-width:calc(100vw - 2rem);height:440px;background:white;border-radius:16px 16px 4px 16px;box-shadow:0 8px 40px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;border:2px solid #e2e8f0;animation:bubblePop 0.35s cubic-bezier(.36,.07,.19,.97) both; }
@@ -12169,14 +12169,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         #botInput:focus { border-color:#f59e0b; }
         #botSendBtn { background:#f59e0b;color:white;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:0.9rem;flex-shrink:0;transition:background 0.15s; }
         #botSendBtn:hover { background:#d97706; }
-        .clippy-eye { transition: transform 0.1s; }
+        .clippy-eye { transition: transform 0.1s; transform-box: fill-box; transform-origin: center; }
     </style>
 
     <div id="clippyWrap">
         <!-- Speech bubble panel -->
         <div id="activityBotPanel" style="display:none;">
             <div id="botHeader">
-                <span>📎 Clippit says...</span>
+                <span>🐾 Rex says...</span>
                 <button onclick="toggleActivityBot()" title="Close">✕</button>
             </div>
             <div id="botMessageLog"></div>
@@ -12189,67 +12189,131 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button onclick="sendBotQuery('Revenue this month')">📈 Revenue</button>
             </div>
             <div id="botInputRow">
-                <input id="botInput" placeholder="Ask Clippit anything..." onkeydown="handleBotInput(event)">
+                <input id="botInput" placeholder="Ask Rex anything..." onkeydown="handleBotInput(event)">
                 <button id="botSendBtn" onclick="(()=>{const i=document.getElementById('botInput');const v=i.value.trim();if(v){i.value='';sendBotQuery(v);}})()">➤</button>
             </div>
         </div>
 
-        <!-- Clippit SVG character -->
-        <div id="clippyChar" onclick="toggleActivityBot()" title="It looks like you have a business to run!">
+        <!-- Rex the German Shepherd -->
+        <div id="clippyChar" onclick="toggleActivityBot()" title="Woof! Need a hand?">
             <span id="activityBotDot"></span>
-            <svg viewBox="0 0 58 96" width="58" height="96" xmlns="http://www.w3.org/2000/svg">
-                <!-- Drop shadow filter -->
+            <svg viewBox="0 0 80 96" width="72" height="90" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                    <filter id="cshadow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.25)"/>
+                    <filter id="gshadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="1" dy="2.5" stdDeviation="2" flood-color="rgba(0,0,0,0.28)"/>
                     </filter>
-                    <linearGradient id="clipMetal" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#e8e0f0"/>
-                        <stop offset="45%" stop-color="#c8b8d8"/>
-                        <stop offset="100%" stop-color="#a090b8"/>
-                    </linearGradient>
-                    <linearGradient id="clipShine" x1="0%" y1="0%" x2="60%" y2="100%">
-                        <stop offset="0%" stop-color="rgba(255,255,255,0.7)"/>
-                        <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-                    </linearGradient>
+                    <radialGradient id="bodyGrad" cx="40%" cy="35%" r="65%">
+                        <stop offset="0%" stop-color="#e0a050"/>
+                        <stop offset="100%" stop-color="#b06820"/>
+                    </radialGradient>
+                    <radialGradient id="chestGrad" cx="50%" cy="30%" r="60%">
+                        <stop offset="0%" stop-color="#f0c878"/>
+                        <stop offset="100%" stop-color="#d89040"/>
+                    </radialGradient>
                 </defs>
 
-                <!-- Outer clip loop -->
-                <rect x="7" y="6" width="44" height="82" rx="22" ry="22"
-                      fill="url(#clipMetal)" stroke="#9070a8" stroke-width="2.5" filter="url(#cshadow)"/>
-                <!-- Shine on outer loop -->
-                <rect x="7" y="6" width="44" height="82" rx="22" ry="22"
-                      fill="url(#clipShine)" opacity="0.5"/>
+                <!-- Ground shadow -->
+                <ellipse cx="40" cy="94" rx="19" ry="3.5" fill="rgba(0,0,0,0.10)"/>
 
-                <!-- Inner return wire -->
-                <path d="M 42 76 Q 42 62 29 62 Q 16 62 16 76 L 16 26 Q 16 14 29 14 Q 42 14 42 26 L 42 54"
-                      fill="none" stroke="#9070a8" stroke-width="5" stroke-linecap="round"/>
-                <!-- Inner wire shine -->
-                <path d="M 40 76 Q 40 63 29 63 L 29 15"
-                      fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-linecap="round"/>
+                <!-- Tail (curving up right side) -->
+                <path d="M 60 72 Q 78 58 73 43 Q 70 35 62 41"
+                      fill="none" stroke="#2d1508" stroke-width="7.5" stroke-linecap="round"/>
+                <path d="M 60 72 Q 78 58 73 43 Q 70 35 62 41"
+                      fill="none" stroke="#c47c30" stroke-width="4.5" stroke-linecap="round"/>
+                <!-- Tail tip cream -->
+                <path d="M 70 37 Q 65 40 62 44"
+                      fill="none" stroke="#f0d888" stroke-width="4" stroke-linecap="round"/>
 
-                <!-- Face area background -->
-                <ellipse cx="29" cy="36" rx="13" ry="11" fill="rgba(255,255,255,0.18)"/>
+                <!-- Body (sitting) -->
+                <!-- Dark saddle/back -->
+                <ellipse cx="40" cy="70" rx="22" ry="19" fill="#2d1508"/>
+                <!-- Main tan body -->
+                <ellipse cx="40" cy="73" rx="20" ry="17" fill="url(#bodyGrad)"/>
+                <!-- Lighter chest -->
+                <ellipse cx="39" cy="76" rx="12" ry="12" fill="url(#chestGrad)"/>
 
-                <!-- Eyes -->
-                <ellipse class="clippy-eye" cx="22" cy="34" rx="4" ry="4.5" fill="#2d1b4e"/>
-                <ellipse class="clippy-eye" cx="36" cy="34" rx="4" ry="4.5" fill="#2d1b4e"/>
-                <!-- Eye shine -->
-                <circle cx="23.5" cy="32.2" r="1.5" fill="white" opacity="0.9"/>
-                <circle cx="37.5" cy="32.2" r="1.5" fill="white" opacity="0.9"/>
-                <!-- Pupils -->
-                <circle cx="22.5" cy="34.5" r="1.8" fill="#1a0a2e"/>
-                <circle cx="36.5" cy="34.5" r="1.8" fill="#1a0a2e"/>
+                <!-- Front paws -->
+                <rect x="21" y="83" width="13" height="9" rx="6.5" fill="#c47c30"/>
+                <rect x="46" y="83" width="13" height="9" rx="6.5" fill="#c47c30"/>
+                <!-- Paw pads -->
+                <ellipse cx="27.5" cy="91" rx="5.5" ry="2.5" fill="#b06820"/>
+                <ellipse cx="52.5" cy="91" rx="5.5" ry="2.5" fill="#b06820"/>
+                <!-- Toe lines -->
+                <path d="M 24 90 L 24 87" stroke="#9a5815" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 27.5 91 L 27.5 87" stroke="#9a5815" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 31 90 L 31 87" stroke="#9a5815" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 49 90 L 49 87" stroke="#9a5815" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 52.5 91 L 52.5 87" stroke="#9a5815" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 56 90 L 56 87" stroke="#9a5815" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
 
-                <!-- Eyebrows (expressive) -->
-                <path d="M 18.5 29.5 Q 22 27.5 25.5 29.5" fill="none" stroke="#5a3a7a" stroke-width="1.8" stroke-linecap="round"/>
-                <path d="M 32.5 29.5 Q 36 27.5 39.5 29.5" fill="none" stroke="#5a3a7a" stroke-width="1.8" stroke-linecap="round"/>
+                <!-- Neck -->
+                <ellipse cx="40" cy="55" rx="11" ry="9" fill="#c47c30"/>
+                <!-- Neck dark stripe -->
+                <ellipse cx="40" cy="52" rx="8" ry="5" fill="#2d1508" opacity="0.45"/>
 
-                <!-- Smile -->
-                <path d="M 23 41 Q 29 46 35 41" fill="none" stroke="#5a3a7a" stroke-width="1.8" stroke-linecap="round"/>
+                <!-- Head (main) -->
+                <circle cx="40" cy="37" r="20" fill="url(#bodyGrad)" filter="url(#gshadow)"/>
 
-                <!-- Feet / bottom bends -->
-                <ellipse cx="29" cy="84" rx="8" ry="3.5" fill="#b090c8" opacity="0.5"/>
+                <!-- Dark forehead/cap -->
+                <path d="M 21 31 Q 22 17 40 15 Q 58 17 59 31 Q 54 22 40 21 Q 26 22 21 31 Z" fill="#2d1508"/>
+
+                <!-- Left ear outer (black, pointy) -->
+                <polygon points="22,27 15,5 35,19" fill="#2d1508"/>
+                <!-- Left ear inner (tan) -->
+                <polygon points="23,25 18,9 33,20" fill="#d08030"/>
+                <!-- Left ear inner highlight -->
+                <polygon points="23,24 20,13 31,21" fill="#e8a85a" opacity="0.55"/>
+
+                <!-- Right ear outer -->
+                <polygon points="58,27 65,5 45,19" fill="#2d1508"/>
+                <!-- Right ear inner -->
+                <polygon points="57,25 62,9 47,20" fill="#d08030"/>
+                <!-- Right ear inner highlight -->
+                <polygon points="57,24 60,13 49,21" fill="#e8a85a" opacity="0.55"/>
+
+                <!-- Muzzle (lighter, elongated) -->
+                <ellipse cx="40" cy="47" rx="11" ry="9" fill="#e8c070"/>
+                <!-- Muzzle center divot -->
+                <path d="M 40 42 L 40 45" fill="none" stroke="#c09040" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+
+                <!-- Left eye -->
+                <g class="clippy-eye">
+                    <circle cx="33" cy="35" r="5" fill="#1a0a04"/>
+                    <circle cx="33" cy="35" r="3.2" fill="#4a2008"/>
+                    <circle cx="34.5" cy="33.3" r="1.7" fill="white" opacity="0.88"/>
+                    <circle cx="32" cy="36.2" r="0.8" fill="white" opacity="0.35"/>
+                </g>
+
+                <!-- Right eye -->
+                <g class="clippy-eye">
+                    <circle cx="47" cy="35" r="5" fill="#1a0a04"/>
+                    <circle cx="47" cy="35" r="3.2" fill="#4a2008"/>
+                    <circle cx="48.5" cy="33.3" r="1.7" fill="white" opacity="0.88"/>
+                    <circle cx="46" cy="36.2" r="0.8" fill="white" opacity="0.35"/>
+                </g>
+
+                <!-- Eyebrows (expressive, arched) -->
+                <path d="M 28 29 Q 33 26.5 37 29" fill="none" stroke="#2d1508" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M 43 29 Q 47 26.5 52 29" fill="none" stroke="#2d1508" stroke-width="2.2" stroke-linecap="round"/>
+
+                <!-- Nose (big, black, wet-looking) -->
+                <ellipse cx="40" cy="43.5" rx="5.5" ry="4" fill="#111"/>
+                <!-- Nose shine -->
+                <ellipse cx="38.2" cy="42" rx="2" ry="1.3" fill="rgba(255,255,255,0.5)"/>
+
+                <!-- Mouth + tongue -->
+                <path d="M 34 50 Q 40 55 46 50" fill="none" stroke="#2d1508" stroke-width="1.8" stroke-linecap="round"/>
+                <!-- Little tongue hanging out -->
+                <ellipse cx="40" cy="54" rx="4" ry="3" fill="#e84060"/>
+                <ellipse cx="40" cy="55.5" rx="3.5" ry="1.8" fill="#c03050"/>
+                <path d="M 36 50 L 40 52" fill="none" stroke="#2d1508" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>
+
+                <!-- Collar (GSD blue, with tag) -->
+                <rect x="29" y="53" width="22" height="5.5" rx="2.75" fill="#667eea"/>
+                <rect x="29" y="53" width="22" height="5.5" rx="2.75" fill="none" stroke="#4a5cc8" stroke-width="0.8" opacity="0.6"/>
+                <circle cx="40" cy="59" r="2.5" fill="#ffd700"/>
+                <circle cx="40" cy="59" r="2.5" fill="none" stroke="#d4a000" stroke-width="0.5"/>
+                <text x="40" y="60.5" text-anchor="middle" font-size="2.5" fill="#a06000" font-family="Arial">R</text>
             </svg>
         </div>
     </div>
