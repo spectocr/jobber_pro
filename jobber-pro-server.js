@@ -12202,152 +12202,129 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <!-- Maddox the German Shepherd -->
         <div id="clippyChar" onclick="toggleActivityBot()" title="Woof! Need a hand?">
             <span id="activityBotDot"></span>
-            <svg viewBox="0 0 88 112" width="64" height="90" xmlns="http://www.w3.org/2000/svg">
+            <svg viewBox="0 0 88 108" width="64" height="90" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <filter id="gshadow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.32)"/>
+                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
                     </filter>
                 </defs>
 
                 <!-- Ground shadow -->
-                <ellipse cx="43" cy="109" rx="19" ry="3" fill="rgba(0,0,0,0.10)"/>
+                <ellipse cx="43" cy="106" rx="18" ry="3" fill="rgba(0,0,0,0.10)"/>
 
-                <!-- TAIL (animated — rendered behind body) -->
+                <!-- TAIL — wagging, behind everything else -->
                 <g id="rexTail">
-                    <path d="M 61 82 Q 80 66 76 50 Q 73 39 64 46"
-                          fill="none" stroke="#1c0a04" stroke-width="8" stroke-linecap="round"/>
-                    <path d="M 61 82 Q 80 66 76 50 Q 73 39 64 46"
-                          fill="none" stroke="#c8802a" stroke-width="4.5" stroke-linecap="round"/>
-                    <path d="M 74 41 Q 68 44 64 49"
-                          fill="none" stroke="#f0dea0" stroke-width="4.5" stroke-linecap="round"/>
+                    <path d="M 59 84 Q 78 68 74 52 Q 71 41 62 48"
+                          fill="none" stroke="#1c0a04" stroke-width="7.5" stroke-linecap="round"/>
+                    <path d="M 59 84 Q 78 68 74 52 Q 71 41 62 48"
+                          fill="none" stroke="#d4903a" stroke-width="4.5" stroke-linecap="round"/>
+                    <path d="M 72 43 Q 66 46 62 51"
+                          fill="none" stroke="#f0dea0" stroke-width="4" stroke-linecap="round"/>
                 </g>
 
-                <!-- BODY — lean black saddle, rich tan flanks, cream chest -->
-                <ellipse cx="42" cy="86" rx="20" ry="16" fill="#1c0a04"/>
-                <ellipse cx="42" cy="90" rx="18" ry="12" fill="#c8802a"/>
-                <ellipse cx="41" cy="92" rx="9" ry="8" fill="#e8b050"/>
+                <!-- BODY — black saddle, golden tan, cream chest -->
+                <ellipse cx="42" cy="88" rx="19" ry="15" fill="#1c0a04"/>
+                <ellipse cx="42" cy="92" rx="17" ry="11" fill="#d4903a"/>
+                <ellipse cx="41" cy="94" rx="8" ry="7.5" fill="#f0c870"/>
 
-                <!-- FRONT PAWS — small and neat -->
-                <rect x="25" y="96" width="10" height="8" rx="5" fill="#c8802a"/>
-                <rect x="53" y="96" width="10" height="8" rx="5" fill="#c8802a"/>
-                <ellipse cx="30" cy="103" rx="4.5" ry="2" fill="#9a5e18"/>
-                <ellipse cx="58" cy="103" rx="4.5" ry="2" fill="#9a5e18"/>
-                <line x1="27.5" y1="102" x2="27.5" y2="98" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="30" y1="103" x2="30" y2="98" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="32.5" y1="102" x2="32.5" y2="98" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="55.5" y1="102" x2="55.5" y2="98" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="58" y1="103" x2="58" y2="98" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                <line x1="60.5" y1="102" x2="60.5" y2="98" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <!-- PAWS -->
+                <rect x="26" y="98" width="10" height="7" rx="5" fill="#d4903a"/>
+                <rect x="52" y="98" width="10" height="7" rx="5" fill="#d4903a"/>
+                <ellipse cx="31" cy="104" rx="4.5" ry="2" fill="#a06820"/>
+                <ellipse cx="57" cy="104" rx="4.5" ry="2" fill="#a06820"/>
+                <line x1="28.5" y1="103" x2="28.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <line x1="31" y1="104" x2="31" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <line x1="33.5" y1="103" x2="33.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <line x1="54.5" y1="103" x2="54.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <line x1="57" y1="104" x2="57" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                <line x1="59.5" y1="103" x2="59.5" y2="99" stroke="#7a4a10" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
 
-                <!-- BANDANA — behind muzzle in render order, sits at neck -->
-                <path d="M 30 78 Q 43 73 56 78 L 43 96 Z" fill="#c0392b"/>
-                <circle cx="37" cy="84" r="1.9" fill="white" opacity="0.55"/>
-                <circle cx="43" cy="89" r="1.9" fill="white" opacity="0.55"/>
-                <circle cx="49" cy="84" r="1.9" fill="white" opacity="0.55"/>
-                <circle cx="33.5" cy="79.5" r="1.2" fill="white" opacity="0.4"/>
-                <circle cx="52.5" cy="79.5" r="1.2" fill="white" opacity="0.4"/>
-                <ellipse cx="43" cy="78" rx="8.5" ry="4.8" fill="#e74c3c"/>
-                <ellipse cx="43" cy="76.5" rx="5.5" ry="2.6" fill="rgba(255,255,255,0.18)"/>
-                <path d="M 35 78 Q 43 81.5 51 78" fill="none" stroke="#a93226" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
+                <!-- BANDANA — rendered before muzzle (muzzle draws on top) -->
+                <path d="M 31 79 Q 43 74 55 79 L 43 96 Z" fill="#c0392b"/>
+                <circle cx="37" cy="85" r="1.8" fill="white" opacity="0.55"/>
+                <circle cx="43" cy="90" r="1.8" fill="white" opacity="0.55"/>
+                <circle cx="49" cy="85" r="1.8" fill="white" opacity="0.55"/>
+                <circle cx="34" cy="80.5" r="1.2" fill="white" opacity="0.4"/>
+                <circle cx="52" cy="80.5" r="1.2" fill="white" opacity="0.4"/>
+                <ellipse cx="43" cy="79" rx="8.5" ry="4.8" fill="#e74c3c"/>
+                <ellipse cx="43" cy="77.5" rx="5.5" ry="2.5" fill="rgba(255,255,255,0.18)"/>
 
                 <!-- NECK -->
-                <path d="M 33 70 Q 43 65 53 70 L 53 80 Q 43 77 33 80 Z" fill="#c8802a"/>
-                <ellipse cx="43" cy="70" rx="8" ry="4" fill="#1c0a04" opacity="0.5"/>
+                <path d="M 33 71 Q 43 66 53 71 L 53 81 Q 43 78 33 81 Z" fill="#d4903a"/>
+                <ellipse cx="43" cy="71" rx="8" ry="4" fill="#1c0a04" opacity="0.45"/>
 
-                <!-- EARS — very tall, thin, erect — rendered before head -->
-                <!-- Left ear: peak at (19,3), base at (15,34)→(34,26) -->
-                <polygon points="15,34 19,3 35,26" fill="#1c0a04"/>
-                <polygon points="17,32 20,7 33,27" fill="#c8802a"/>
-                <polygon points="18,31 22,13 31,27" fill="#c09050" opacity="0.38"/>
-                <!-- Right ear: peak at (69,3), base at (73,34)→(54,26) -->
-                <polygon points="73,34 69,3 53,26" fill="#1c0a04"/>
-                <polygon points="71,32 68,7 55,27" fill="#c8802a"/>
-                <polygon points="70,31 66,13 57,27" fill="#c09050" opacity="0.38"/>
+                <!-- EARS — tall, narrow triangles, rendered before skull so skull sits in front -->
+                <polygon points="14,32 21,4 36,24" fill="#1c0a04"/>
+                <polygon points="16,30 22,8 34,25" fill="#d4903a"/>
+                <polygon points="17,29 23,14 32,25" fill="#c09050" opacity="0.38"/>
+                <polygon points="72,32 67,4 52,24" fill="#1c0a04"/>
+                <polygon points="70,30 66,8 54,25" fill="#d4903a"/>
+                <polygon points="69,29 65,14 56,25" fill="#c09050" opacity="0.38"/>
 
-                <!-- HEAD — angular wolf path, NOT a circle -->
-                <!-- Wide skull, prominent cheekbones, narrows at stop where muzzle begins -->
-                <path d="M 18 42
-                         L 17 28
-                         Q 19 15 30 10
-                         Q 37 7 43 7
-                         Q 49 7 58 10
-                         Q 69 15 71 28
-                         L 70 42
-                         Q 67 54 57 57
-                         Q 50 59 43 59
-                         Q 36 59 29 57
-                         Q 19 54 18 42 Z"
-                      fill="#c8802a" filter="url(#gshadow)"/>
+                <!--
+                  HEAD STRATEGY: two separate smooth shapes
+                  1) Skull = wide flat ellipse (rx > ry) for the wolflike broad cranium
+                  2) Muzzle = tall narrow ellipse clearly below the eyes
+                  Together they make the face taller than wide — GSD proportions
+                -->
 
-                <!-- BLACK CROWN — flat, wide, covers top of skull like Maddox -->
-                <path d="M 18 42
-                         L 17 28
-                         Q 19 15 30 10
-                         Q 37 7 43 7
-                         Q 49 7 58 10
-                         Q 69 15 71 28
-                         L 70 42
-                         Q 64 30 56 25
-                         Q 50 21 43 20
-                         Q 36 21 30 25
-                         Q 22 30 18 42 Z"
+                <!-- SKULL — flat wide ellipse, wolflike broad cranium -->
+                <ellipse cx="43" cy="32" rx="24" ry="20" fill="#d4903a" filter="url(#gshadow)"/>
+
+                <!-- BLACK CROWN — covers upper 55% of skull, wide saddle pattern -->
+                <path d="M 19 32
+                         Q 21 17 32 11
+                         Q 37 8 43 8
+                         Q 49 8 54 11
+                         Q 65 17 67 32
+                         Q 61 22 53 19
+                         Q 48 17 43 17
+                         Q 38 17 33 19
+                         Q 25 22 19 32 Z"
                       fill="#1c0a04"/>
 
-                <!-- TAN EYEBROW SPOTS — Maddox's signature, sit on top of the black crown -->
-                <ellipse cx="31" cy="33" rx="5.2" ry="3" fill="#e8a830"/>
-                <ellipse cx="55" cy="33" rx="5.2" ry="3" fill="#e8a830"/>
+                <!-- TAN EYEBROW SPOTS — on top of the black crown -->
+                <ellipse cx="30" cy="23" rx="5.5" ry="3" fill="#e8a830"/>
+                <ellipse cx="56" cy="23" rx="5.5" ry="3" fill="#e8a830"/>
 
-                <!-- TAN CHEEKS — outside and below the black, frame the face -->
-                <ellipse cx="20" cy="49" rx="7" ry="9" fill="#c8802a"/>
-                <ellipse cx="66" cy="49" rx="7" ry="9" fill="#c8802a"/>
-
-                <!-- EYES — alert amber-brown, positioned in the skull (NOT muzzle area) -->
+                <!-- EYES — in the skull, just below crown line, wide-set like GSD -->
                 <g class="clippy-eye">
-                    <circle cx="31" cy="43" r="5.5" fill="#1c0a04"/>
-                    <circle cx="31" cy="43" r="3.6" fill="#5a2e10"/>
-                    <circle cx="32.7" cy="41.3" r="1.9" fill="white" opacity="0.9"/>
-                    <circle cx="29.5" cy="44.5" r="0.95" fill="white" opacity="0.3"/>
+                    <circle cx="30" cy="34" r="5.5" fill="#1c0a04"/>
+                    <circle cx="30" cy="34" r="3.6" fill="#5a2e10"/>
+                    <circle cx="31.8" cy="32.2" r="1.9" fill="white" opacity="0.9"/>
+                    <circle cx="28.5" cy="35.5" r="0.9" fill="white" opacity="0.3"/>
                 </g>
                 <g class="clippy-eye">
-                    <circle cx="55" cy="43" r="5.5" fill="#1c0a04"/>
-                    <circle cx="55" cy="43" r="3.6" fill="#5a2e10"/>
-                    <circle cx="56.7" cy="41.3" r="1.9" fill="white" opacity="0.9"/>
-                    <circle cx="53.5" cy="44.5" r="0.95" fill="white" opacity="0.3"/>
+                    <circle cx="56" cy="34" r="5.5" fill="#1c0a04"/>
+                    <circle cx="56" cy="34" r="3.6" fill="#5a2e10"/>
+                    <circle cx="57.8" cy="32.2" r="1.9" fill="white" opacity="0.9"/>
+                    <circle cx="54.5" cy="35.5" r="0.9" fill="white" opacity="0.3"/>
                 </g>
 
-                <!-- MUZZLE — long, narrow, wolf-like: clearly separate from skull -->
-                <!-- Starts at stop (y≈56), runs down 22 units to nose tip (y≈78) -->
-                <path d="M 33 56
-                         Q 43 52 55 56
-                         Q 57 64 55 75
-                         Q 43 80 33 75
-                         Q 31 64 33 56 Z"
-                      fill="#1c0a04"/>
-                <!-- Subtle lighter snout plane -->
-                <path d="M 36 62
-                         Q 43 59 52 62
-                         Q 53 68 52 75
-                         Q 43 78 36 75
-                         Q 35 68 36 62 Z"
-                      fill="#1a0a04"/>
+                <!-- TAN CHEEKS — outside and below the black, frame the snout -->
+                <ellipse cx="19" cy="42" rx="8" ry="10" fill="#d4903a"/>
+                <ellipse cx="67" cy="42" rx="8" ry="10" fill="#d4903a"/>
 
-                <!-- NOSE — at the tip of the long muzzle -->
-                <ellipse cx="43" cy="67" rx="7" ry="5" fill="#060402"/>
-                <ellipse cx="41" cy="65.5" rx="2.5" ry="1.6" fill="rgba(255,255,255,0.5)"/>
-                <ellipse cx="45.5" cy="66.5" rx="1" ry="0.9" fill="rgba(255,255,255,0.2)"/>
+                <!-- MUZZLE — separate tall oval, clearly below eyes, narrow GSD snout -->
+                <!-- Skull bottom is y=52. Muzzle overlaps slightly at stop (~y=48), extends to y=70 -->
+                <ellipse cx="43" cy="58" rx="13" ry="14" fill="#1c0a04"/>
 
-                <!-- MOUTH — below nose, at the very tip of the long muzzle -->
-                <path d="M 37 74 Q 43 79 49 74"
+                <!-- NOSE — at the top of the muzzle oval where the nostrils would be -->
+                <ellipse cx="43" cy="52" rx="7" ry="5" fill="#060402"/>
+                <ellipse cx="41" cy="50.5" rx="2.4" ry="1.5" fill="rgba(255,255,255,0.52)"/>
+                <ellipse cx="45.5" cy="51.5" rx="1" ry="0.8" fill="rgba(255,255,255,0.2)"/>
+
+                <!-- MOUTH and tongue — below nose, at chin of muzzle -->
+                <path d="M 36.5 65 Q 43 71 49.5 65"
                       fill="none" stroke="#0e0604" stroke-width="1.8" stroke-linecap="round"/>
-                <!-- Happy tongue -->
-                <ellipse cx="43" cy="78" rx="4.8" ry="4.2" fill="#d83055"/>
-                <ellipse cx="43" cy="80" rx="4" ry="2.4" fill="#b82040"/>
-                <line x1="43" y1="75" x2="43" y2="78" stroke="#c02848" stroke-width="1.7" stroke-linecap="round"/>
+                <ellipse cx="43" cy="69.5" rx="4.8" ry="4.2" fill="#d83055"/>
+                <ellipse cx="43" cy="71.5" rx="4" ry="2.3" fill="#b82040"/>
+                <line x1="43" y1="66" x2="43" y2="70" stroke="#c02848" stroke-width="1.7" stroke-linecap="round"/>
 
-                <!-- GREEN M TAG (like photo) -->
-                <circle cx="43" cy="85" r="3.2" fill="#27ae60"/>
-                <circle cx="43" cy="85" r="3.2" fill="none" stroke="#1e8449" stroke-width="0.7"/>
-                <text x="43" y="86.4" text-anchor="middle" font-size="3.4" fill="white" font-weight="bold" font-family="Arial">M</text>
+                <!-- GREEN M TAG -->
+                <circle cx="43" cy="87" r="3.2" fill="#27ae60"/>
+                <circle cx="43" cy="87" r="3.2" fill="none" stroke="#1e8449" stroke-width="0.7"/>
+                <text x="43" y="88.4" text-anchor="middle" font-size="3.4" fill="white" font-weight="bold" font-family="Arial">M</text>
             </svg>
         </div>
     </div>
