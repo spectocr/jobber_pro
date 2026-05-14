@@ -2853,10 +2853,13 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             status: 'prospecting',
             scheduledDate: '',
             payments: [],
-            touchPoints: [],
+            touchPoints: (quote.touchPoints || []).map(tp => ({ ...tp, fromQuote: true })),
             attachments: [],
             createdAt: new Date(),
-            notes: `Converted from Quote #${quote.quoteNumber}\n\nNeeds scheduling review.\n\n${quote.notes || ''}`
+            notes: `Converted from Quote #${quote.quoteNumber}\n\nNeeds scheduling review.\n\n${quote.notes || ''}`,
+            sourceQuoteId: quote._id,
+            sourceQuoteNumber: quote.quoteNumber,
+            sourceQuoteHistory: quote.auditLog || []
         };
 
         if (quote.serviceLocationId) {

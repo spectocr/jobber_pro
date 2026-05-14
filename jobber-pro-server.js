@@ -3982,27 +3982,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('laborActualsSection').style.display = 'none';
             }
 
-            // Show and populate audit log if exists
-            if (job && job.auditLog && job.auditLog.length > 0) {
+            // Show merged audit log: job entries + source quote history
+            const _jobEntries = (job.auditLog || []).map(e => ({ ...e, _src: 'job' }));
+            const _quoteEntries = (job.sourceQuoteHistory || []).map(e => ({ ...e, _src: 'quote' }));
+            const _allEntries = [..._jobEntries, ..._quoteEntries]
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            if (_allEntries.length > 0) {
                 document.getElementById('jobAuditLogSection').style.display = 'block';
-                const auditLogHtml = job.auditLog
-                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                    .map(entry => {
-                        const date = new Date(entry.timestamp);
-                        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-                        const actionColor = entry.action === 'created' ? '#48bb78' :
-                                          entry.action === 'status_change' ? '#ed8936' : '#718096';
-                        return `
-                            <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f7fafc; border-left: 4px solid ${actionColor}; border-radius: 4px;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                    <strong style="color: ${actionColor};">${entry.action.replace(/_/g, ' ').toUpperCase()}</strong>
-                                    <span style="color: #718096; font-size: 0.875rem;">${dateStr}</span>
-                                </div>
-                                <div style="color: #4a5568; font-size: 0.9rem;">${entry.note}</div>
-                                <div style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.25rem;">by ${entry.userName}</div>
+                const auditLogHtml = _allEntries.map(entry => {
+                    const date = new Date(entry.timestamp);
+                    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                    const actionColor = entry.action === 'created' ? '#48bb78' :
+                                      entry.action === 'sent_email' ? '#4299e1' :
+                                      entry.action === 'converted_to_job' ? '#9f7aea' :
+                                      entry.action === 'status_change' ? '#ed8936' : '#718096';
+                    const srcTag = entry._src === 'quote'
+                        ? `<span style="background:#9f7aea;color:white;font-size:0.7rem;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;">QUOTE</span>`
+                        : '';
+                    return `
+                        <div style="padding:1rem;margin-bottom:0.75rem;background:#f7fafc;border-left:4px solid ${actionColor};border-radius:4px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+                                <span><strong style="color:${actionColor};">${entry.action.replace(/_/g, ' ').toUpperCase()}</strong>${srcTag}</span>
+                                <span style="color:#718096;font-size:0.875rem;">${dateStr}</span>
                             </div>
-                        `;
-                    }).join('');
+                            <div style="color:#4a5568;font-size:0.9rem;">${entry.note || ''}</div>
+                            <div style="color:#a0aec0;font-size:0.8rem;margin-top:0.25rem;">by ${entry.userName || '—'}</div>
+                        </div>
+                    `;
+                }).join('');
                 document.getElementById('jobAuditLog').innerHTML = auditLogHtml;
             } else {
                 document.getElementById('jobAuditLogSection').style.display = 'none';
@@ -5058,16 +5066,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             container.innerHTML = touchPoints.slice().reverse().map(tp => {
                 const date = new Date(tp.timestamp);
                 const formattedDate = date.toLocaleString();
+                const borderColor = tp.fromQuote ? '#9f7aea' : '#667eea';
+                const srcBadge = tp.fromQuote
+                    ? \`<span style="background:#9f7aea;color:white;font-size:0.68rem;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;">QUOTE</span>\`
+                    : '';
+                const deleteBtn = tp.fromQuote
+                    ? ''
+                    : \`<button type="button" onclick="removeTouchPoint(\${tp.id})" style="background:transparent;border:none;color:#e53e3e;cursor:pointer;padding:0;font-size:1.2rem;line-height:1;">&times;</button>\`;
 
                 return \`
-                    <div style="background: #f7fafc; border-left: 3px solid #667eea; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                            <div style="font-size: 0.85rem; color: #4a5568;">
-                                <strong>\${tp.user}</strong> · \${formattedDate}
+                    <div style="background:#f7fafc;border-left:3px solid \${borderColor};padding:0.75rem;margin-bottom:0.5rem;border-radius:4px;">
+                        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem;">
+                            <div style="font-size:0.85rem;color:#4a5568;">
+                                <strong>\${tp.user}</strong> · \${formattedDate}\${srcBadge}
                             </div>
-                            <button type="button" onclick="removeTouchPoint(\${tp.id})" style="background: transparent; border: none; color: #e53e3e; cursor: pointer; padding: 0; font-size: 1.2rem; line-height: 1;">&times;</button>
+                            \${deleteBtn}
                         </div>
-                        <div style="color: #1a202c;">\${tp.note}</div>
+                        <div style="color:#1a202c;">\${tp.note}</div>
                     </div>
                 \`;
             }).join('');
