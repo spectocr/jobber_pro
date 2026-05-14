@@ -2936,7 +2936,8 @@ app.get('/api/export/tax-prep', isAuthenticated, async (req, res) => {
         const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
         const lines = ['Type,Date,Description,Client,Category,Amount'];
         for (const j of jobs) {
-            lines.push([esc('Income'), esc((j.invoicedAt||j.completedDate||j.scheduledDate||'').slice(0,10)),
+            const d = j.invoicedAt||j.completedDate||j.scheduledDate; const ds = d ? new Date(d).toISOString().slice(0,10) : '';
+            lines.push([esc('Income'), esc(ds),
                 esc(j.title), esc(j.clientName), esc('Service Revenue'), esc((parseFloat(j.totalWithTax||j.total)||0).toFixed(2))].join(','));
         }
         for (const e of expenses) {
