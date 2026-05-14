@@ -3970,7 +3970,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (loc) locAddr = loc.address || loc.label || '';
             }
             if (!locAddr && client) locAddr = [client.addressLine1,client.city,client.state].filter(Boolean).join(', ') || client.address || '';
-            const signerName = (client && (client.contactName || client.name)) || '';
+            let signerName = '';
+            if (client && client.isPropertyManagement && job.serviceLocationId && client.serviceLocations) {
+                const loc = client.serviceLocations.find(l => (l.id || l._id) == job.serviceLocationId);
+                signerName = (loc && loc.contact) || '';
+            }
+            if (!signerName) signerName = (client && (client.contactName || client.name)) || '';
             const today = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
             const schedDate = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
             const desc = (job.description||'').trim() || 'See work order for details.';
