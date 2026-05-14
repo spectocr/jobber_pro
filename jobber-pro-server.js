@@ -3109,6 +3109,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
 
+                    <!-- Sign-off record -->
+                    <div id="jobSignoffSection" style="margin-top:2rem;padding-top:1rem;border-top:2px solid #ddd;display:none;">
+                        <h3 style="margin-bottom:0.75rem;color:#22543d;">✅ Signed Off</h3>
+                        <div id="jobSignoffBody"></div>
+                    </div>
+
                     <!-- Audit Log -->
                     <div id="jobPhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                         <h3 style="margin-bottom: 0.75rem;">📷 Photos</h3>
@@ -3957,6 +3963,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const today = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
             const schedDate = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
             const desc = (job.description||'').trim() || 'See work order for details.';
+            const _jobId = job._id || job.id;
             const win = window.open('','_blank','width=840,height=1000');
             win.document.write(\`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Sign-Off — \${job.title}</title>
@@ -4021,12 +4028,12 @@ hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
 
 <div class="sig-row">
   <div>
-    <div class="sig-field"><div class="sig-prefill">\${signerName}</div></div>
-    <div class="sig-hint">Suggested signer</div>
+    <div class="sig-field"><input id="signerInput" type="text" value="\${signerName}" placeholder="Printed name" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#333;"></div>
+    <div class="sig-hint">Edit if needed</div>
     <div class="sig-label">Printed Name</div>
   </div>
   <div>
-    <div class="sig-field"><div class="sig-prefill" style="color:#bbb;font-size:0.8rem;">Manager on Duty</div></div>
+    <div class="sig-field"><input id="titleInput" type="text" value="Manager on Duty" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#666;"></div>
     <div class="sig-label">Title / Role</div>
   </div>
   <div>
@@ -4039,7 +4046,8 @@ hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
 
 <div class="no-print">
   <button class="pbtn" onclick="doPrint()">🖨️ Print / Save PDF</button>
-  <button onclick="window.close()" style="background:none;border:1.5px solid #d1d5db;padding:0.7rem 1.5rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;">Close</button>
+  <button id="saveBtn" class="pbtn" onclick="saveToJob()" style="background:#48bb78;">💾 Save to Job</button>
+  <button onclick="window.close()" style="background:none;border:1.5px solid #d1d5db;padding:0.7rem 1.5rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;margin-left:0.25rem;">Close</button>
 </div>
 
 <script>
@@ -4085,6 +4093,32 @@ function doPrint() {
   canvas.style.display = 'block';
   ctrl.style.display = 'block';
   img.style.display = 'none';
+}
+var JOB_ID = '\${_jobId}';
+function saveToJob() {
+  if (!hasSig) { alert('Please sign first.'); return; }
+  var btn = document.getElementById('saveBtn');
+  var sigData = canvas.toDataURL('image/png');
+  var signer = document.getElementById('signerInput').value;
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  fetch('/api/jobs/' + JOB_ID + '/signoff', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signatureDataUrl: sigData, signerName: signer })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      btn.textContent = '✅ Saved!';
+      btn.style.background = '#22543d';
+      btn.disabled = false;
+    } else {
+      alert('Error: ' + (d.error || 'Save failed'));
+      btn.textContent = '💾 Save to Job'; btn.disabled = false;
+    }
+  }).catch(function() {
+    alert('Save failed — check connection.');
+    btn.textContent = '💾 Save to Job'; btn.disabled = false;
+  });
 }
 <\/script>
 </body></html>\`);
@@ -4263,6 +4297,29 @@ function doPrint() {
                     }).catch(() => {});
             } else {
                 document.getElementById('jobPhotosSection').style.display = 'none';
+            }
+
+            // Load signoff record
+            const _soSection = document.getElementById('jobSignoffSection');
+            const _soBody = document.getElementById('jobSignoffBody');
+            if (_photoJobId) {
+                fetch(\`/api/jobs/\${_photoJobId}/signoff\`)
+                    .then(r => r.json())
+                    .then(({ signoff }) => {
+                        if (signoff) {
+                            _soSection.style.display = 'block';
+                            const d = new Date(signoff.signedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+                            _soBody.innerHTML = \`
+                                <p style="font-size:0.9rem;color:#4a5568;margin-bottom:0.5rem;"><strong>Signer:</strong> \${signoff.signerName || '—'}</p>
+                                <p style="font-size:0.9rem;color:#4a5568;margin-bottom:0.75rem;"><strong>Date:</strong> \${d}</p>
+                                \${signoff.signatureUrl ? \`<img src="\${signoff.signatureUrl}" style="max-width:320px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fafafa;">\` : ''}
+                            \`;
+                        } else {
+                            _soSection.style.display = 'none';
+                        }
+                    }).catch(() => { _soSection.style.display = 'none'; });
+            } else {
+                _soSection.style.display = 'none';
             }
 
             // Show merged audit log: job entries + source quote history
@@ -7198,6 +7255,7 @@ function doPrint() {
                                 \${j.description ? \`<div style="color:#718096;font-size:0.8rem;margin-top:0.1rem;">\${truncDesc(j.description)}</div>\` : ''}
                             </div>
                             <span class="status-badge status-\${j.status}" style="white-space:nowrap;margin-left:0.5rem;">\${j.status.replace(/_/g, ' ')}</span>
+                            \${j.signoff ? \`<span style="background:#c6f6d5;color:#22543d;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:0.4rem;white-space:nowrap;">✅ Signed</span>\` : ''}
                         </div>
                         <div style="color:#718096;font-size:0.85rem;margin-bottom:0.5rem;">
                             \${j.scheduledDate ? \`📅 \${j.scheduledDate}\${j.scheduledTime ? ' · ' + j.scheduledTime : ''}\` : 'No date set'}
@@ -7268,7 +7326,7 @@ function doPrint() {
                         <td>\${maskName(client ? client.name : 'Unknown')}</td>
                         <td><strong>\${j.title}</strong>\${j.description ? \`<br><small style="color:#718096;">\${truncD(j.description)}</small>\` : ''}</td>
                         <td>\${assignedNames}</td>
-                        <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span></td>
+                        <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span>\${j.signoff ? \` <span style="background:#c6f6d5;color:#22543d;font-size:0.68rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;">✅ Signed</span>\` : ''}</td>
                         \${moneyCell}
                         \${activityCell}
                         <td>
