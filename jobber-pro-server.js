@@ -4086,7 +4086,7 @@ function doPrint() {
   ctrl.style.display = 'block';
   img.style.display = 'none';
 }
-</script>
+<\/script>
 </body></html>\`);
             win.document.close();
         }
