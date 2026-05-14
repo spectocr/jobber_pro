@@ -7247,10 +7247,10 @@ function saveToJob() {
                     }
 
                     const truncDesc = w => { const words = (w||'').split(/\s+/); return words.length > 20 ? words.slice(0,20).join(' ') + '…' : w; };
-                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;cursor:pointer;" onclick="editJob('\${j.id}')">
+                    return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
                             <div>
-                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
+                                <div style="font-size:1.1rem;font-weight:700;"><a href="#" onclick="editJob('\${j.id}');return false;" style="color:#667eea;text-decoration:none;">\${maskName(client ? client.name : 'Unknown')}</a></div>
                                 <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${j.title}</div>
                                 \${j.description ? \`<div style="color:#718096;font-size:0.8rem;margin-top:0.1rem;">\${truncDesc(j.description)}</div>\` : ''}
                             </div>
@@ -7321,9 +7321,9 @@ function saveToJob() {
                     }
 
                     const truncD = w => { const ws = (w||'').split(/\s+/); return ws.length > 20 ? ws.slice(0,20).join(' ') + '…' : w; };
-                    return \`<tr style="cursor:pointer;" onclick="editJob('\${j.id}')">
+                    return \`<tr>
                         <td>\${j.scheduledDate}<br><small>\${j.scheduledTime || ''}</small></td>
-                        <td>\${maskName(client ? client.name : 'Unknown')}</td>
+                        <td><a href="#" onclick="editJob('\${j.id}');return false;" style="color:#667eea;font-weight:600;text-decoration:none;">\${maskName(client ? client.name : 'Unknown')}</a></td>
                         <td><strong>\${j.title}</strong>\${j.description ? \`<br><small style="color:#718096;">\${truncD(j.description)}</small>\` : ''}</td>
                         <td>\${assignedNames}</td>
                         <td><span class="status-badge status-\${j.status}">\${j.status.replace('_', ' ')}</span>\${j.signoff ? \` <span style="background:#c6f6d5;color:#22543d;font-size:0.68rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;">✅ Signed</span>\` : ''}</td>
