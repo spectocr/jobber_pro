@@ -3972,7 +3972,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const win = window.open('','_blank','width=840,height=1000');
             win.document.write(\`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Sign-Off — \${job.title}</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:2.5rem 3rem;max-width:760px;margin:0 auto;}
@@ -4099,7 +4098,102 @@ function doPrint() {
   ctrl.style.display = 'block';
   img.style.display = 'none';
 }
-var JOB_ID = '\${_jobId}';
+var JOB_ID = \${JSON.stringify(_jobId)};
+var D_TITLE = \${JSON.stringify(job.title)};
+var D_CLIENT = \${JSON.stringify(client ? client.name : '')};
+var D_LOC = \${JSON.stringify(locAddr || '')};
+var D_DATE = \${JSON.stringify(schedDate)};
+var D_DESC = \${JSON.stringify(desc)};
+var D_TODAY = \${JSON.stringify(today)};
+
+function wrapLines(ctx, text, maxW) {
+  var words = (text || '').split(/\\s+/);
+  var lines = [], line = '';
+  for (var i = 0; i < words.length; i++) {
+    var test = line ? line + ' ' + words[i] : words[i];
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = words[i]; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function buildDoc() {
+  var W = 800, pad = 40;
+  var inner = W - pad * 2;
+  // Measure description height first
+  var tmpC = document.createElement('canvas'); tmpC.width = W * 2;
+  var tmpCtx = tmpC.getContext('2d');
+  tmpCtx.font = '13px Arial';
+  var descLines = wrapLines(tmpCtx, D_DESC, inner);
+  var H = 580 + descLines.length * 18;
+  var c = document.createElement('canvas');
+  c.width = W * 2; c.height = H * 2;
+  var x = c.getContext('2d');
+  x.scale(2, 2);
+  // Background
+  x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+  // Top bar
+  x.fillStyle = '#0f1c2e'; x.fillRect(0, 0, W, 4);
+  // Company name
+  x.fillStyle = '#0f1c2e'; x.font = 'bold 18px Arial';
+  x.fillText('GSD Property Services', pad, 32);
+  x.fillStyle = '#888'; x.font = '10px Arial';
+  x.fillText('Mount Laurel, NJ  ·  (856) 872-4636  ·  info@gsdhandymanservice.com  ·  LIC# 13VH13491700', pad, 48);
+  // Doc title right
+  x.fillStyle = '#0f1c2e'; x.font = 'bold 11px Arial'; x.textAlign = 'right';
+  x.fillText('WORK COMPLETION SIGN-OFF', W - pad, 28);
+  x.fillStyle = '#aaa'; x.font = '10px Arial';
+  x.fillText('Printed: ' + D_TODAY, W - pad, 44);
+  x.textAlign = 'left';
+  // Header rule
+  x.strokeStyle = '#0f1c2e'; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(pad, 60); x.lineTo(W - pad, 60); x.stroke();
+  // Meta grid
+  var col2 = pad + inner / 2 + 20;
+  var labels = [['JOB', D_TITLE, pad, 80], ['CLIENT', D_CLIENT, col2, 80],
+                ['SERVICE LOCATION', D_LOC || '—', pad, 116], ['DATE OF SERVICE', D_DATE, col2, 116]];
+  labels.forEach(function(l) {
+    x.fillStyle = '#aaa'; x.font = 'bold 8px Arial';
+    x.fillText(l[0], l[2], l[3]);
+    x.fillStyle = '#1a1a1a'; x.font = 'bold 12px Arial';
+    x.fillText((l[1] || '—').substring(0, 45), l[2], l[3] + 14);
+  });
+  // Section rule
+  x.strokeStyle = '#e5e7eb'; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(pad, 142); x.lineTo(W - pad, 142); x.stroke();
+  // Description
+  x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText('WORK PERFORMED', pad, 158);
+  x.fillStyle = '#333'; x.font = '12px Arial';
+  descLines.forEach(function(l, i) { x.fillText(l, pad, 173 + i * 18); });
+  var afterDesc = 173 + descLines.length * 18 + 20;
+  // Rule
+  x.strokeStyle = '#e5e7eb'; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(pad, afterDesc); x.lineTo(W - pad, afterDesc); x.stroke();
+  // Statement
+  x.fillStyle = '#555'; x.font = '11px Arial';
+  x.fillText('By signing below, I confirm the work described above has been completed satisfactorily.', pad, afterDesc + 20);
+  // Sig label
+  x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText('AUTHORIZED SIGNATURE', pad, afterDesc + 42);
+  // Sig box (draw from sigPad canvas)
+  var sigY = afterDesc + 50, sigH = 110, sigW = inner;
+  x.strokeStyle = '#cbd5e0'; x.lineWidth = 1.5;
+  x.setLineDash([5,4]); x.strokeRect(pad, sigY, sigW, sigH); x.setLineDash([]);
+  x.drawImage(canvas, pad, sigY, sigW, sigH);
+  // Name / title / date row
+  var fieldY = sigY + sigH + 28;
+  var nameW = inner * 0.45, titleW = inner * 0.28, dateW = inner * 0.22;
+  var signer = document.getElementById('signerInput').value;
+  var title  = document.getElementById('titleInput').value;
+  [['PRINTED NAME', signer, pad], ['TITLE / ROLE', title, pad + nameW + 20], ['DATE', D_TODAY, pad + nameW + titleW + 40]].forEach(function(f) {
+    x.strokeStyle = '#222'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(f[2], fieldY); x.lineTo(f[2] + (f[0]==='DATE' ? dateW : f[0]==='TITLE / ROLE' ? titleW : nameW), fieldY); x.stroke();
+    x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText(f[0], f[2], fieldY + 12);
+    x.fillStyle = '#1a1a1a'; x.font = '12px Arial'; x.fillText(f[1] || '', f[2], fieldY + 26);
+  });
+  return c;
+}
+
 function saveToJob() {
   if (!hasSig) { alert('Please sign first.'); return; }
   var signer = document.getElementById('signerInput').value.trim();
@@ -4110,25 +4204,17 @@ function saveToJob() {
   }
   var btn = document.getElementById('saveBtn');
   btn.textContent = 'Saving...'; btn.disabled = true;
-  var noPrint = document.querySelector('.no-print');
-  if (noPrint) noPrint.style.visibility = 'hidden';
-  html2canvas(document.body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(function(c) {
-    if (noPrint) noPrint.style.visibility = '';
-    var imgData = c.toDataURL('image/png');
+  try {
+    var doc = buildDoc();
+    var imgData = doc.toDataURL('image/jpeg', 0.82);
     window.opener._saveSignoffToJob(JOB_ID, imgData, signer, function(ok, err) {
-      if (ok) {
-        btn.textContent = '✅ Saved to Job!';
-        btn.style.background = '#22543d';
-      } else {
-        alert('Error: ' + (err || 'Save failed'));
-        btn.textContent = '💾 Save to Job'; btn.disabled = false;
-      }
+      if (ok) { btn.textContent = '✅ Saved to Job!'; btn.style.background = '#22543d'; }
+      else { alert('Error: ' + (err || 'Save failed')); btn.textContent = '💾 Save to Job'; btn.disabled = false; }
     });
-  }).catch(function(e) {
-    if (noPrint) noPrint.style.visibility = '';
-    alert('Capture failed: ' + e.message);
+  } catch(e) {
+    alert('Build failed: ' + e.message);
     btn.textContent = '💾 Save to Job'; btn.disabled = false;
-  });
+  }
 }
 <\/script>
 </body></html>\`);

@@ -2706,13 +2706,16 @@ app.post('/api/jobs/:id/signoff-attachment', isAuthenticated, async (req, res) =
         const match = imageDataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/);
         if (!match) return res.status(400).json({ error: 'Invalid image format' });
         if (!s3Client) return res.status(500).json({ error: 'S3 not configured' });
+        const imgType = match[1]; // 'png' or 'jpeg'
+        const contentType = `image/${imgType}`;
         const buffer = Buffer.from(match[2], 'base64');
-        const key = `jobber-attachments/${req.params.id}-signoff-${Date.now()}.png`;
-        await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: buffer, ContentType: 'image/png' }));
+        const ext = imgType === 'jpeg' ? 'jpg' : imgType;
+        const key = `jobber-attachments/${req.params.id}-signoff-${Date.now()}.${ext}`;
+        await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType }));
         const attachment = {
             id: new ObjectId().toString(),
             name: 'Business Sign-Off',
-            type: 'image/png',
+            type: contentType,
             size: buffer.length,
             s3Key: key,
             comment: signerName ? `Signed by ${signerName}` : '',
