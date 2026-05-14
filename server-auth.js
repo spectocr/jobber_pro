@@ -2681,6 +2681,24 @@ app.get('/api/quotes/:id/photos', isAuthenticated, async (req, res) => {
     }
 });
 
+app.get('/api/jobs/:id/photos', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne(
+            { _id: new ObjectId(req.params.id) },
+            { projection: { photos: 1 } }
+        );
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        const photos = Array.isArray(job.photos) ? job.photos : [];
+        if (!photos.length || !s3Client) return res.json({ photos: [] });
+        const urls = await Promise.all(photos.map(p =>
+            typeof p === 'string' && !p.startsWith('data:') ? getS3SignedUrl(p, 3600) : Promise.resolve(p)
+        ));
+        res.json({ photos: urls.filter(Boolean) });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.post('/api/quotes/:id/photos', isAuthenticated, async (req, res) => {
     try {
         const quote = await db.collection('quotes').findOne({ _id: new ObjectId(req.params.id) });
@@ -2885,6 +2903,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             scheduledDate: '',
             payments: [],
             touchPoints: (quote.touchPoints || []).map(tp => ({ ...tp, fromQuote: true })),
+            photos: quote.photos || [],
             attachments: [],
             createdAt: new Date(),
             notes: `Converted from Quote #${quote.quoteNumber}\n\nNeeds scheduling review.\n\n${quote.notes || ''}`,

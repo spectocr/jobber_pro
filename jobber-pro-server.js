@@ -3090,6 +3090,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <!-- Audit Log -->
+                    <div id="jobPhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                        <h3 style="margin-bottom: 0.75rem;">📷 Photos</h3>
+                        <div id="jobPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                    </div>
+
                     <div id="jobAuditLogSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                         <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
                         <div id="jobAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
@@ -4030,6 +4035,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('laborActualsSection').style.display = 'none';
             }
+
+            // Load job photos (carried over from quote submission)
+            fetch(\`/api/jobs/\${jobId}/photos\`)
+                .then(r => r.json())
+                .then(({ photos }) => {
+                    const section = document.getElementById('jobPhotosSection');
+                    const grid = document.getElementById('jobPhotoGrid');
+                    if (photos && photos.length > 0) {
+                        section.style.display = 'block';
+                        grid.innerHTML = photos.map(p =>
+                            \`<img src="\${p}" style="width:130px;height:97px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`
+                        ).join('');
+                    } else {
+                        section.style.display = 'none';
+                    }
+                }).catch(() => {});
 
             // Show merged audit log: job entries + source quote history
             const _jobEntries = (job.auditLog || []).map(e => ({ ...e, _src: 'job' }));
