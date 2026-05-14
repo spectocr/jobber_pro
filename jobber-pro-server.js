@@ -417,6 +417,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             padding: 0.5rem 1rem;
             font-size: 0.75rem;
         }
+        .jm-item { display:block; width:100%; text-align:left; padding:0.45rem 1rem; background:none; border:none; cursor:pointer; font-size:0.84rem; color:#374151; white-space:nowrap; }
+        .jm-item:hover { background:#f8fafc; }
 
         .status-pill {
             display: inline-flex;
