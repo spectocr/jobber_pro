@@ -4037,20 +4037,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             // Load job photos (carried over from quote submission)
-            fetch(\`/api/jobs/\${jobId}/photos\`)
-                .then(r => r.json())
-                .then(({ photos }) => {
-                    const section = document.getElementById('jobPhotosSection');
-                    const grid = document.getElementById('jobPhotoGrid');
-                    if (photos && photos.length > 0) {
-                        section.style.display = 'block';
-                        grid.innerHTML = photos.map(p =>
-                            \`<img src="\${p}" style="width:130px;height:97px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`
-                        ).join('');
-                    } else {
-                        section.style.display = 'none';
-                    }
-                }).catch(() => {});
+            const _photoJobId = job && (job._id || job.id);
+            if (_photoJobId) {
+                fetch(\`/api/jobs/\${_photoJobId}/photos\`)
+                    .then(r => r.json())
+                    .then(({ photos }) => {
+                        const section = document.getElementById('jobPhotosSection');
+                        const grid = document.getElementById('jobPhotoGrid');
+                        if (photos && photos.length > 0) {
+                            section.style.display = 'block';
+                            grid.innerHTML = photos.map(p =>
+                                \`<img src="\${p}" style="width:130px;height:97px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`
+                            ).join('');
+                        } else {
+                            section.style.display = 'none';
+                        }
+                    }).catch(() => {});
+            } else {
+                document.getElementById('jobPhotosSection').style.display = 'none';
+            }
 
             // Show merged audit log: job entries + source quote history
             const _jobEntries = (job.auditLog || []).map(e => ({ ...e, _src: 'job' }));
