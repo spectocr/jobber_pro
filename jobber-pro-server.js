@@ -3900,6 +3900,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         let currentEditingJobId = null;
 
+        function toggleJobMenu(id, event) {
+            event.stopPropagation();
+            const menu = document.getElementById('jm-' + id);
+            document.querySelectorAll('.job-action-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.job-action-menu').forEach(m => m.style.display = 'none');
+        });
+
         function editJob(jobId) {
             if (!checkAdminPermission('edit jobs')) return;
             // Search in all job arrays
@@ -6960,14 +6970,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${j.invoiceSentAt ? \`<span style="color:#4a5568;">📧 \${new Date(j.invoiceSentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>\` : ''}
                             \${j.invoiceViewCount > 0 ? \` · <button onclick="showInvoiceViewLog('\${j.id}')" style="background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-size:0.78rem;">👁 \${j.invoiceViewCount} view\${j.invoiceViewCount>1?'s':''}</button>\` : (j.invoiceSentAt ? \` · <span style="color:#9ca3af;">Not opened</span>\` : '')}
                         </div>\` : ''}
-                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <div style="display:flex;gap:0.4rem;align-items:center;">
                             <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Edit</button>
                             \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
-                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')">📧 Email</button>\` : ''}
-                            \${isAdmin && !isPaidInFull && client?.cloverCustomerId ? \`<button class="btn btn-success btn-small" onclick="openChargeCardModal('\${j.id}', '\${client.cloverCardLast4 || ''}', '\${client.cloverCardBrand || ''}', \${j.totalWithTax || j.total || 0})" title="Charge saved card">💳 ••••\${client.cloverCardLast4 || '?'}</button>\` : ''}
-                            \${isAdmin && !isPaidInFull ? \`<button class="btn btn-secondary btn-small" onclick="openEnterCardModal('\${j.id}')" title="Enter new card">💳 Enter Card</button>\` : ''}
-                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="showPayDiag('\${j.id}')" title="Payment diagnostics">⚡ Pay Log</button>\` : ''}
-                            <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
+                            \${isAdmin ? \`<div style="position:relative;display:inline-block;">
+                                <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
+                                <div id="jm-\${j.id}" class="job-action-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + 4px);background:white;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,0.13);z-index:200;min-width:175px;padding:0.3rem 0;">
+                                    <button onclick="emailInvoice('\${j.id}')" class="jm-item">📧 Email Invoice</button>
+                                    \${!isPaidInFull ? \`<button onclick="openDepositModal('\${j.id}', \${parseFloat(j.total)||0})" class="jm-item">💳 Request Deposit</button>\` : ''}
+                                    \${!isPaidInFull && client?.cloverCustomerId ? \`<button onclick="openChargeCardModal('\${j.id}','\${client.cloverCardLast4||''}','\${client.cloverCardBrand||''}',\${j.totalWithTax||j.total||0})" class="jm-item">💳 Charge ••••\${client.cloverCardLast4||'?'}</button>\` : ''}
+                                    \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
+                                    <button onclick="showPayDiag('\${j.id}')" class="jm-item">⚡ Pay Log</button>
+                                    <div style="border-top:1px solid #f1f5f9;margin:0.25rem 0;"></div>
+                                    <button onclick="deleteJob('\${j.id}')" class="jm-item" style="color:#dc2626;">🗑 Delete</button>
+                                </div>
+                            </div>\` : ''}
                         </div>
                     </div>\`;
                 }).join('');
@@ -7010,16 +7027,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         \${moneyCell}
                         \${activityCell}
                         <td>
-                            <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
-                            \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
-                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="emailInvoice('\${j.id}')" title="Email invoice to client">📧 Email</button>\` : ''}
-                            \${isAdmin && !isPaidInFull ? \`<button class="btn btn-secondary btn-small" onclick="openDepositModal('\${j.id}', \${parseFloat(j.total)||0})" title="Request deposit">💳 Deposit\${j.deposit ? (j.deposit.status==='paid' ? ' ✅' : ' ⏳') : ''}</button>\` : ''}
-                            \${isAdmin && !isPaidInFull && client?.cloverCustomerId ? \`<button class="btn btn-success btn-small" onclick="openChargeCardModal('\${j.id}', '\${client.cloverCardLast4 || ''}', '\${client.cloverCardBrand || ''}', \${j.totalWithTax || j.total || 0})" title="Charge saved card ••••\${client.cloverCardLast4 || ''}">💳 ••••\${client.cloverCardLast4 || '?'}</button>\` : ''}
-                            \${isAdmin && !isPaidInFull ? \`<button class="btn btn-secondary btn-small" onclick="openEnterCardModal('\${j.id}')" title="Enter new card">💳 Enter Card</button>\` : ''}
-                            \${isAdmin ? \`<button class="btn btn-secondary btn-small" onclick="showPayDiag('\${j.id}')" title="Payment diagnostics">⚡ Pay Log</button>\` : ''}
-                            \${isAdmin && j.calendarEventId ? \`<button class="btn btn-secondary btn-small" onclick="window.open('\${j.calendarEventLink}', '_blank')" title="View calendar event">📅 View</button>\` : ''}
-                            \${isAdmin && !j.calendarEventId && j.scheduledDate && j.status === 'scheduled' ? \`<button class="btn btn-secondary btn-small" onclick="createCalendarEvent('\${j.id}')" title="Add to Google Calendar">📅 Add</button>\` : ''}
-                            <button class="btn btn-danger btn-small" onclick="deleteJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
+                            <div style="display:flex;gap:0.4rem;align-items:center;">
+                                <button class="btn btn-secondary btn-small" onclick="editJob('\${j.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
+                                \${isAdmin ? \`<button class="btn btn-primary btn-small" onclick="window.open('/invoice/\${j.id}', '_blank')">📄 Invoice</button>\` : ''}
+                                \${isAdmin ? \`<div style="position:relative;display:inline-block;">
+                                    <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
+                                    <div id="jm-\${j.id}" class="job-action-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,0.13);z-index:200;min-width:175px;padding:0.3rem 0;">
+                                        <button onclick="emailInvoice('\${j.id}')" class="jm-item">📧 Email Invoice</button>
+                                        \${!isPaidInFull ? \`<button onclick="openDepositModal('\${j.id}', \${parseFloat(j.total)||0})" class="jm-item">💳 Request Deposit</button>\` : ''}
+                                        \${!isPaidInFull && client?.cloverCustomerId ? \`<button onclick="openChargeCardModal('\${j.id}','\${client.cloverCardLast4||''}','\${client.cloverCardBrand||''}',\${j.totalWithTax||j.total||0})" class="jm-item">💳 Charge ••••\${client.cloverCardLast4||'?'}</button>\` : ''}
+                                        \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
+                                        <button onclick="showPayDiag('\${j.id}')" class="jm-item">⚡ Pay Log</button>
+                                        \${j.calendarEventId ? \`<button onclick="window.open('\${j.calendarEventLink}','_blank')" class="jm-item">📅 View Calendar</button>\` : (j.scheduledDate && j.status==='scheduled' ? \`<button onclick="createCalendarEvent('\${j.id}')" class="jm-item">📅 Add to Calendar</button>\` : '')}
+                                        <div style="border-top:1px solid #f1f5f9;margin:0.25rem 0;"></div>
+                                        <button onclick="deleteJob('\${j.id}')" class="jm-item" style="color:#dc2626;">🗑 Delete</button>
+                                    </div>
+                                </div>\` : ''}
+                            </div>
                         </td>
                     </tr>\`;
                 }).join('') +
