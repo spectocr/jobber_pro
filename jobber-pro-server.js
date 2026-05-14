@@ -3949,6 +3949,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.job-action-menu').forEach(m => m.style.display = 'none');
         });
 
+        window._saveSignoffToJob = function(jobId, sigData, signerName, cb) {
+            fetch(\`/api/jobs/\${jobId}/signoff\`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ signatureDataUrl: sigData, signerName: signerName })
+            }).then(function(r) { return r.json(); })
+              .then(function(d) { cb(d.ok, d.error); })
+              .catch(function(e) { cb(false, e.message); });
+        };
+
         function openSignoffForm(jobId) {
             const job = [...(jobs||[]),...(window.upcomingJobs||[]),...(window.inProgressJobs||[])].find(j=>j.id==jobId||j._id==jobId);
             if (!job) return;
@@ -4101,23 +4112,19 @@ function saveToJob() {
   var sigData = canvas.toDataURL('image/png');
   var signer = document.getElementById('signerInput').value;
   btn.textContent = 'Saving...'; btn.disabled = true;
-  fetch('/api/jobs/' + JOB_ID + '/signoff', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ signatureDataUrl: sigData, signerName: signer })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d.ok) {
+  if (!window.opener || !window.opener._saveSignoffToJob) {
+    alert('Cannot reach main window. Please keep the admin tab open.');
+    btn.textContent = '💾 Save to Job'; btn.disabled = false;
+    return;
+  }
+  window.opener._saveSignoffToJob(JOB_ID, sigData, signer, function(ok, err) {
+    if (ok) {
       btn.textContent = '✅ Saved!';
       btn.style.background = '#22543d';
-      btn.disabled = false;
     } else {
-      alert('Error: ' + (d.error || 'Save failed'));
+      alert('Error: ' + (err || 'Save failed'));
       btn.textContent = '💾 Save to Job'; btn.disabled = false;
     }
-  }).catch(function() {
-    alert('Save failed — check connection.');
-    btn.textContent = '💾 Save to Job'; btn.disabled = false;
   });
 }
 <\/script>
