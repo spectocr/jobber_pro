@@ -578,7 +578,8 @@
                 const T = window._portalT || {};
                 const pendingLabel = T.pendingBadge || 'PENDING REVIEW';
                 const isApproved = quote.status === 'approved' || quote.status === 'in_review';
-                const approvedLabel = 'APPROVED' + (quote.approverName ? ': ' + quote.approverName : '');
+                const approvedWhen = quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('en-US',{month:'numeric',day:'numeric',year:'2-digit',hour:'numeric',minute:'2-digit'}) : '';
+                const approvedLabel = 'APPROVED' + (quote.approverName ? ': ' + quote.approverName : '') + (approvedWhen ? ' · ' + approvedWhen : '');
                 const statusLabel = isDraft ? pendingLabel : isApproved ? approvedLabel : quote.status.replace(/_/g,' ').toUpperCase();
                 const statusStyle = isDraft ? 'background:#e9d8fd;color:#553c9a;' : '';
 
