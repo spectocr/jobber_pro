@@ -5086,6 +5086,26 @@ app.get('/api/client-portal/me', async (req, res) => {
 });
 
 // Client Portal API - Get single quote detail (with signed photo URLs)
+app.get('/api/client-portal/job/:id/photos', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+        const clientId = new ObjectId(req.session.clientId);
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id), clientId });
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        const photos = Array.isArray(job.photos) ? job.photos : [];
+        const urls = await Promise.all(photos.map(p =>
+            typeof p === 'string' && !p.startsWith('data:') && s3Client
+                ? getS3SignedUrl(p, 3600)
+                : Promise.resolve(p)
+        ));
+        res.json({ photos: urls.filter(Boolean) });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/client-portal/quote/:id', async (req, res) => {
     try {
         if (!req.session.clientId || !req.session.isClientPortal) {

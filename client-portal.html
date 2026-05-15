@@ -635,13 +635,17 @@
                 return `
                     <div class="job-card">
                         ${buildWorkflowStepper(getJobStages(job))}
-                        <h3>${job.title}</h3>
-                        <p><strong>Date:</strong> ${date} ${job.scheduledTime || ''}</p>
-                        <p style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-                            <span class="status-badge ${statusClass}">${job.status.replace(/_/g, ' ').toUpperCase()}</span>
-                            <button class="btn btn-primary" onclick="viewJobDetail('${job.id}')" style="font-size:0.78rem;padding:0.25rem 0.75rem;">View Details</button>
-                            ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="font-size:0.78rem;padding:0.25rem 0.75rem;">View Invoice</a>` : ''}
-                        </p>
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">
+                            <div>
+                                <h3 style="margin:0 0 0.25rem;">${job.title}</h3>
+                                <p style="font-size:0.85rem;color:#718096;margin:0;"><strong>Date:</strong> ${date} ${job.scheduledTime || ''}</p>
+                                <p style="margin:0.4rem 0 0;"><span class="status-badge ${statusClass}">${job.status.replace(/_/g, ' ').toUpperCase()}</span></p>
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;">
+                                <button class="btn btn-primary" onclick="viewJobDetail('${job.id}')" style="font-size:0.78rem;padding:0.3rem 0.85rem;white-space:nowrap;">View Details</button>
+                                ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.85rem;text-align:center;">View Invoice</a>` : ''}
+                            </div>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -916,7 +920,7 @@
             document.getElementById('submissionModal').style.display = 'none';
         }
 
-        function viewJobDetail(jobId) {
+        async function viewJobDetail(jobId) {
             const job = (clientData.jobs || []).find(j => j.id === jobId || j._id === jobId);
             if (!job) return;
 
@@ -931,26 +935,40 @@
             const date = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
             const time = job.scheduledTime || '';
             const statusLabel = job.status.replace(/_/g,' ').toUpperCase();
+            const rawDesc = (srcQuote?.description || job.description || '').replace(/^Converted from Quote[^\n]*\n+Needs scheduling review\.\n*/i,'').trim();
 
-            // Description: prefer job description, stripping the auto-prepended "Converted from…" header
-            const rawDesc = job.description || '';
-            const desc = rawDesc.replace(/^Converted from Quote[^\n]*\n+Needs scheduling review\.\n*/i,'').trim();
-
-            const row = (label, val, opts='') => val ? `<tr><td style="padding:7px 0;font-weight:600;color:#4a5568;width:120px;vertical-align:top;">${label}</td><td style="${opts}">${val}</td></tr>` : '';
+            const row = (label, val) => val ? `<tr><td style="padding:7px 0;font-weight:600;color:#4a5568;width:115px;vertical-align:top;font-size:0.85rem;">${label}</td><td style="padding:7px 0;font-size:0.9rem;">${val}</td></tr>` : '';
 
             document.getElementById('jobDetailBody').innerHTML = `
                 <h3 style="margin:0 0 0.75rem;color:#2d3748;padding-right:2rem;">${job.title}</h3>
                 ${buildWorkflowStepper(getJobStages(job))}
-                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-top:0.5rem;">
+                <table style="width:100%;border-collapse:collapse;margin-top:0.5rem;">
                     ${row('Status', `<span class="status-badge">${statusLabel}</span>`)}
-                    ${row('Scheduled', date + (time ? ' at ' + time : ''))}
-                    ${row('Description', desc ? `<span style="white-space:pre-wrap;">${desc}</span>` : '')}
-                    ${approverName ? row('Approved By', approverName + (approverTitle ? `<br><span style="font-size:0.8rem;color:#718096;">${approverTitle}</span>` : '')) : ''}
-                    ${approvedWhen ? row('Approved On', approvedWhen) : ''}
+                    ${row('Scheduled', date + (time ? ' · ' + time : ''))}
+                    ${rawDesc ? row('Description', `<span style="white-space:pre-wrap;color:#2d3748;">${rawDesc}</span>`) : ''}
+                    ${approverName ? row('Approved By', `${approverName}${approverTitle ? `<br><span style="font-size:0.8rem;color:#718096;">${approverTitle}</span>` : ''}`) : ''}
+                    ${approvedWhen ? row('Approved On', `<span style="color:#718096;">${approvedWhen}</span>`) : ''}
                 </table>
+                <div id="jobPhotoStrip" style="margin-top:1rem;"></div>
                 ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="margin-top:1rem;display:inline-block;">View Invoice</a>` : ''}
             `;
             document.getElementById('jobDetailModal').style.display = 'flex';
+
+            // Async: fetch signed photo URLs
+            const hasPhotos = Array.isArray(job.photos) && job.photos.length > 0;
+            if (hasPhotos) {
+                try {
+                    const r = await fetch(`/api/client-portal/job/${jobId}/photos`);
+                    const d = await r.json();
+                    if (d.photos && d.photos.length) {
+                        document.getElementById('jobPhotoStrip').innerHTML =
+                            `<div style="font-weight:600;color:#4a5568;font-size:0.85rem;margin-bottom:0.5rem;">Photos</div>` +
+                            `<div style="display:flex;flex-wrap:wrap;gap:8px;">${d.photos.map(p =>
+                                `<img src="${p}" style="width:90px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open('${p}','_blank')">`
+                            ).join('')}</div>`;
+                    }
+                } catch(e) {}
+            }
         }
 
         function closeJobDetail() {
