@@ -4264,7 +4264,7 @@ function saveToJob() {
                 { l: 'Scheduled',   s: isInProgress || isInvoiced || isComplete ? 'wf-done' : isScheduled ? 'wf-now' : 'wf-wait' },
                 { l: 'In Progress', s: isInvoiced || isComplete ? 'wf-done' : isInProgress ? 'wf-now' : 'wf-wait' },
                 { l: 'Invoiced',    s: isComplete ? 'wf-done' : isInvoiced ? 'wf-now' : 'wf-wait' },
-                { l: 'Complete',    s: isComplete ? 'wf-now' : 'wf-wait' },
+                { l: 'Complete',    s: isComplete ? 'wf-done' : 'wf-wait' },
             ];
         }
 
