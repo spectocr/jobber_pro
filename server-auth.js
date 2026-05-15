@@ -22,11 +22,13 @@ const calendarService = require('./calendar-service');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const fetch = require('node-fetch');
+const Anthropic = require('@anthropic-ai/sdk');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const DB_NAME = 'jobber_pro';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-in-production';
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
 
 // Twilio setup
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
@@ -5468,6 +5470,66 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
 
 const fmt$ = n => '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+async function getMaddoxContext() {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const weekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [jobs, quotes, msgs, leads] = await Promise.all([
+        db.collection('jobs').find({}).sort({ scheduledDate: -1 }).limit(100).toArray(),
+        db.collection('quotes').find({}).sort({ createdAt: -1 }).limit(50).toArray(),
+        db.collection('client_messages').find({ read: false }).toArray(),
+        db.collection('leads').find({ status: 'new' }).toArray(),
+    ]);
+
+    const todayJobs = jobs.filter(j => j.scheduledDate === today);
+    const weekJobs  = jobs.filter(j => j.scheduledDate >= today && j.scheduledDate <= weekEnd);
+    const inProgress = jobs.filter(j => j.status === 'in_progress');
+    const toSchedule = jobs.filter(j => j.status === 'to_be_scheduled' || j.status === 'prospecting');
+
+    const outstanding = jobs.filter(j => {
+        if (j.status !== 'invoiced' && j.status !== 'completed') return false;
+        return (parseFloat(j.totalWithTax || j.total) || 0) - (parseFloat(j.totalPaid) || 0) > 0.01;
+    });
+    const outstandingTotal = outstanding.reduce((s, j) =>
+        s + (parseFloat(j.totalWithTax || j.total) || 0) - (parseFloat(j.totalPaid) || 0), 0);
+
+    const monthRevenue = jobs
+        .filter(j => (j.status === 'completed' || j.status === 'invoiced') && new Date(j.updatedAt || j.createdAt) >= monthStart)
+        .reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
+
+    const pendingQuotes  = quotes.filter(q => q.status === 'draft' || q.status === 'in_review');
+    const approvedQuotes = quotes.filter(q => q.status === 'approved' && !q.convertedToJobId);
+
+    const topOutstanding = [...outstanding]
+        .sort((a, b) => ((parseFloat(b.totalWithTax||b.total)||0)-(parseFloat(b.totalPaid)||0)) - ((parseFloat(a.totalWithTax||a.total)||0)-(parseFloat(a.totalPaid)||0)))
+        .slice(0, 3)
+        .map(j => `${j.clientName||'?'} $${((parseFloat(j.totalWithTax||j.total)||0)-(parseFloat(j.totalPaid)||0)).toFixed(2)}`)
+        .join(', ');
+
+    return [
+        `Date: ${today}`,
+        `Jobs today: ${todayJobs.length} — ${todayJobs.map(j => `${j.title} (${j.clientName||'client'}, ${j.status})`).join('; ') || 'none'}`,
+        `Jobs this week: ${weekJobs.length}`,
+        `In progress: ${inProgress.length} — ${inProgress.map(j => j.title).join(', ') || 'none'}`,
+        `Awaiting scheduling: ${toSchedule.length}`,
+        `Outstanding invoices: ${outstanding.length} totalling $${outstandingTotal.toFixed(2)}`,
+        `Top outstanding: ${topOutstanding || 'none'}`,
+        `Revenue this month: $${monthRevenue.toFixed(2)}`,
+        `Unread messages: ${msgs.length}`,
+        `New leads: ${leads.length}`,
+        `Pending quotes (draft/review): ${pendingQuotes.length}`,
+        `Approved quotes awaiting conversion: ${approvedQuotes.length}`,
+        '',
+        'Recent jobs (last 15):',
+        ...jobs.slice(0, 15).map(j => `  ${j.scheduledDate||'no date'} | ${j.title} | ${j.clientName||'?'} | ${j.status} | $${parseFloat(j.totalWithTax||j.total||0).toFixed(2)}`),
+        '',
+        'Recent quotes (last 8):',
+        ...quotes.slice(0, 8).map(q => `  ${q.quoteNumber} | ${q.title} | ${q.clientName||'?'} | ${q.status} | $${parseFloat(q.total||0).toFixed(2)}`),
+    ].join('\n');
+}
+
 app.get('/api/activity-log', isAuthenticated, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 100;
@@ -5675,172 +5737,51 @@ app.get('/api/activity-brief', isAuthenticated, async (req, res) => {
 
 app.post('/api/activity-query', isAuthenticated, async (req, res) => {
     try {
+        if (!anthropic) {
+            return res.status(503).json({ answer: 'AI not configured — ANTHROPIC_API_KEY missing.', items: [] });
+        }
+
         const { query } = req.body;
-        const q = (query || '').toLowerCase();
-        const now = new Date();
+        if (!query || !query.trim()) return res.json({ answer: 'What can I help you with?', items: [] });
 
-        // Helper: resolve client name from a job record
-        const clientName = async (job) => {
-            if (job.clientName) return job.clientName;
-            if (!job.clientId) return 'Unknown';
-            try {
-                const id = typeof job.clientId === 'string' ? new ObjectId(job.clientId) : job.clientId;
-                const c = await db.collection('clients').findOne({ _id: id }, { projection: { name: 1 } });
-                return c?.name || 'Unknown';
-            } catch { return 'Unknown'; }
-        };
+        if (!req.session.maddoxHistory) req.session.maddoxHistory = [];
+        const history = req.session.maddoxHistory;
 
-        if (q.includes('outstanding') || q.includes('unpaid') || q.includes('owed')) {
-            const jobs = await db.collection('jobs').find({ status: { $in: ['invoiced', 'completed'] } }).toArray();
-            const unpaid = jobs.filter(j => {
-                const total = parseFloat(j.totalWithTax || j.total) || 0;
-                const paid  = parseFloat(j.totalPaid) || 0;
-                return total - paid > 0.01;
-            });
-            const total = unpaid.reduce((s, j) => s + parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0), 0);
-            const items = await Promise.all(unpaid.slice(0, 5).map(async j =>
-                `${await clientName(j)} — ${fmt$(parseFloat(j.totalWithTax || j.total || 0) - parseFloat(j.totalPaid || 0))}`
-            ));
-            return res.json({ answer: `You have **${unpaid.length} outstanding invoice${unpaid.length !== 1 ? 's' : ''}** totalling **${fmt$(total)}**.`, items });
-        }
+        const context = await getMaddoxContext();
+        const systemPrompt = `You are Maddox, a loyal German Shepherd and the business assistant for GSD Home Improvement & Property Services in South Jersey. You help Cris, the owner, run his business day-to-day.
 
-        if (q.includes('urgent')) {
-            const quotes = await db.collection('quotes').find({ priority: 'urgent', status: 'draft' }).toArray();
-            return res.json({ answer: `There ${quotes.length === 1 ? 'is' : 'are'} **${quotes.length} urgent work order${quotes.length !== 1 ? 's' : ''}** waiting for review.`, items: quotes.map(q => `${q.clientName} — ${q.title} [${q.quoteNumber}]`) });
-        }
+You have access to live business data below. Rules:
+- Be concise: 1-3 sentences unless listing items. Use bullet points for lists.
+- Use **bold** for key numbers and names.
+- A little dog personality is fine ("on it!", "woof, that's solid") but don't overdo it.
+- Only answer from the data provided — never invent numbers or client names.
+- If you cannot answer from the data, say so honestly.
+- Format dollar amounts with $ and two decimal places.
 
-        if (q.includes('this week') || q.includes('week') || q.includes('schedule') || q.includes('coming up')) {
-            const weekStr  = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
-            const todayStr = now.toISOString().split('T')[0];
-            const jobs = await db.collection('jobs').find({ scheduledDate: { $gte: todayStr, $lte: weekStr }, status: { $in: ['scheduled', 'in_progress'] } }).sort({ scheduledDate: 1 }).toArray();
-            const items = await Promise.all(jobs.map(async j => `${j.scheduledDate} — ${await clientName(j)}: ${j.title}`));
-            return res.json({ answer: `You have **${jobs.length} job${jobs.length !== 1 ? 's' : ''}** scheduled in the next 7 days.`, items });
-        }
+LIVE BUSINESS DATA:
+${context}`;
 
-        if (q.includes('payment') || q.includes('paid') || q.includes('recent payment')) {
-            const week = new Date(now.getTime() - 7 * 86400000);
-            const jobs = await db.collection('jobs').find({ totalPaid: { $gt: 0 }, updatedAt: { $gt: week } }).sort({ updatedAt: -1 }).limit(10).toArray();
-            const total = jobs.reduce((s, j) => s + parseFloat(j.totalPaid || 0), 0);
-            const items = await Promise.all(jobs.map(async j => `${await clientName(j)} — ${fmt$(j.totalPaid)}`));
-            return res.json({ answer: `**${jobs.length} payment${jobs.length !== 1 ? 's' : ''}** received in the last 7 days totalling **${fmt$(total)}**.`, items });
-        }
+        history.push({ role: 'user', content: query });
 
-        if (q.includes('lead') || q.includes('new request')) {
-            const leads = await db.collection('leads').find({ status: 'new' }).sort({ createdAt: -1 }).toArray();
-            return res.json({ answer: `You have **${leads.length} unreviewed lead${leads.length !== 1 ? 's' : ''}**.`, items: leads.slice(0, 5).map(l => `${l.firstName} ${l.lastName} — ${l.service}`) });
-        }
+        const response = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 450,
+            system: systemPrompt,
+            messages: history,
+        });
 
-        if (q.includes('message') || q.includes('unread')) {
-            const msgs = await db.collection('client_messages').find({ read: false }).sort({ createdAt: -1 }).toArray();
-            return res.json({ answer: `You have **${msgs.length} unread message${msgs.length !== 1 ? 's' : ''}**.`, items: msgs.slice(0, 5).map(m => `${m.clientName}: ${(m.message || '').slice(0, 60)}`) });
-        }
+        const answer = response.content[0]?.text || 'No response.';
+        history.push({ role: 'assistant', content: answer });
+        if (history.length > 10) history.splice(0, history.length - 10);
+        req.session.maddoxHistory = history;
 
-        if (q.includes('work order') || q.includes('portal') || q.includes('ticket')) {
-            const quotes = await db.collection('quotes').find({ source: 'portal', status: 'draft' }).sort({ createdAt: -1 }).toArray();
-            return res.json({ answer: `**${quotes.length} portal work order${quotes.length !== 1 ? 's' : ''}** waiting for review.`, items: quotes.map(q => `${q.clientName} — ${q.title} [${q.quoteNumber}] · ${q.priority || 'flexible'}`) });
-        }
-
-        if (q.includes('revenue') || q.includes('earned') || q.includes('month')) {
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            const jobs = await db.collection('jobs').find({ status: { $in: ['completed', 'invoiced'] }, updatedAt: { $gt: startOfMonth } }).toArray();
-            const total = jobs.reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
-            return res.json({ answer: `**${fmt$(total)}** in completed/invoiced jobs so far this month (${jobs.length} job${jobs.length !== 1 ? 's' : ''}).`, items: [] });
-        }
-
-        if (q.includes('recurring') || q.includes('common') || q.includes('popular') || q.includes('frequent') ||
-            q.includes('top job') || q.includes('top service') || q.includes('most') || q.includes('pattern') ||
-            q.includes('what do i') || q.includes('often') || q.includes('repeat')) {
-            const jobs = await db.collection('jobs').find({
-                status: { $in: ['completed', 'invoiced', 'in_progress', 'scheduled', 'prospecting'] }
-            }).toArray();
-
-            const groups = {};
-            for (const job of jobs) {
-                const key = (job.title || 'Untitled').toLowerCase().trim()
-                    .replace(/\s+for\s+.*/i, '').replace(/\s+at\s+.*/i, '').trim();
-                if (!groups[key]) groups[key] = { title: job.title || 'Untitled', count: 0, revenue: 0 };
-                groups[key].count++;
-                groups[key].revenue += parseFloat(job.totalWithTax || job.total) || 0;
-            }
-
-            const sorted = Object.values(groups).sort((a, b) => b.count - a.count).slice(0, 8);
-
-            if (sorted.length === 0) {
-                return res.json({ answer: 'No job history to analyze yet.', items: [] });
-            }
-
-            const wantsProfitable = q.includes('profit') || q.includes('best') || q.includes('money') || q.includes('lucrative');
-            const list = wantsProfitable
-                ? [...sorted].sort((a, b) => (b.revenue / b.count) - (a.revenue / a.count))
-                : sorted;
-
-            const items = list.slice(0, 7).map(g =>
-                `**${g.title}** — ${g.count}x · avg ${fmt$(g.revenue / g.count)} · total ${fmt$(g.revenue)}`
-            );
-
-            const top = list[0];
-            const recurring = sorted.filter(g => g.count > 1);
-            const intro = wantsProfitable
-                ? `Your highest-value job type is **${top.title}** averaging **${fmt$(top.revenue / top.count)}** per job.`
-                : recurring.length > 0
-                    ? `Your most common job is **${top.title}** (${top.count} times). Here are your top services:`
-                    : `Here's a breakdown of your jobs so far:`;
-
-            return res.json({ answer: intro, items });
-        }
-
-        if (q.includes('win rate') || q.includes('close rate') || q.includes('lost') ||
-            q.includes('rejected quote') || q.includes('bid win') || q.includes('win loss') ||
-            q.includes('losing') || q.includes('quote win')) {
-            const allQuotes = await db.collection('quotes').find({ status: { $in: ['approved','rejected'] } }).toArray();
-            const won  = allQuotes.filter(q => q.status === 'approved');
-            const lost = allQuotes.filter(q => q.status === 'rejected');
-            const rate = allQuotes.length ? Math.round(won.length / allQuotes.length * 100) : 0;
-            const thirtyDays = new Date(now.getTime() - 30*86400000);
-            const recentLost = lost.filter(q => new Date(q.updatedAt || q.createdAt) > thirtyDays);
-            const lostTotal = recentLost.reduce((s,q) => {
-                const rev = parseFloat(q.total||0);
-                const mat = (q.materialItems||[]).reduce((sm,m)=>sm+(parseFloat(m.quantity)||0)*(parseFloat(m.price)||0),0);
-                return s + (rev - mat);
-            }, 0);
-            const items = recentLost.slice(0,5).map(q => {
-                const rev = parseFloat(q.total||0);
-                const mat = (q.materialItems||[]).reduce((sm,m)=>sm+(parseFloat(m.quantity)||0)*(parseFloat(m.price)||0),0);
-                return `${q.clientName||'Client'} — ${q.quoteNumber} · ${fmt$(rev)} bid · ~${fmt$(rev-mat)} margin (rejected)`;
-            });
-            const answer = allQuotes.length === 0
-                ? 'No quote history yet to analyze win/loss rate.'
-                : `Your win rate is **${rate}%** (${won.length} won, ${lost.length} lost). In the last 30 days you lost **${recentLost.length} bids** representing ~**${fmt$(lostTotal)}** in gross margin.`;
-            return res.json({ answer, items });
-        }
-
-        if (q.includes('lifetime value') || q.includes('ltv') || q.includes('best client') ||
-            q.includes('top client') || q.includes('who pays') || q.includes('most revenue') ||
-            q.includes('valuable client') || q.includes('biggest client')) {
-            const allJobs = await db.collection('jobs').find({ status: { $in: ['completed','invoiced'] } }).toArray();
-            const ltvMap = {};
-            for (const j of allJobs) {
-                const cid = j.clientId?.toString(); if (!cid) continue;
-                const rev = parseFloat(j.totalWithTax||j.total)||0;
-                const matCost = (j.materialItems||[]).reduce((s,m)=>s+(parseFloat(m.quantity)||0)*(parseFloat(m.price)||0),0);
-                const profit = rev - matCost;
-                if (!ltvMap[cid]) ltvMap[cid] = { name: j.clientName||'Unknown', revenue: 0, profit: 0, count: 0 };
-                ltvMap[cid].revenue += rev;
-                ltvMap[cid].profit  += profit;
-                ltvMap[cid].count++;
-            }
-            const sorted = Object.values(ltvMap).sort((a,b)=>b.profit-a.profit).slice(0,8);
-            if (sorted.length === 0) return res.json({ answer: 'No completed jobs to rank clients by yet.', items: [] });
-            const top = sorted[0];
-            const items = sorted.map((c,i) => `#${i+1} ${c.name} — ${fmt$(c.profit)} gross profit · ${fmt$(c.revenue)} revenue (${c.count} job${c.count!==1?'s':''})`);
-            return res.json({ answer: `Your most profitable client is **${top.name}** with **${fmt$(top.profit)}** gross profit on **${fmt$(top.revenue)}** revenue.`, items });
-        }
-
-        return res.json({ answer: `I can help with: **outstanding invoices**, **urgent work orders**, **this week's schedule**, **recent payments**, **unread messages**, **new leads**, **revenue this month**, **top recurring jobs**, **win/loss rate**, or **client lifetime value**.`, items: [] });
+        return res.json({ answer, items: [] });
 
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        console.error('Maddox AI error:', e.message);
+        res.status(500).json({ answer: 'Woof — something went wrong. Try again!', items: [] });
     }
+
 });
 
 // Lightweight notification counts (messages + leads + expiring compliance docs)
@@ -6053,6 +5994,47 @@ app.get('/api/maddox/nudges', isAuthenticated, async (req, res) => {
         res.json({ nudges });
     } catch (e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/maddox/clear-history', isAuthenticated, (req, res) => {
+    req.session.maddoxHistory = [];
+    res.json({ ok: true });
+});
+
+// Maddox AI nudges — Claude analyzes live data and surfaces proactive insights
+app.get('/api/maddox/ai-nudges', isAuthenticated, async (req, res) => {
+    try {
+        if (!anthropic) return res.json({ nudges: [] });
+
+        const now = Date.now();
+        if (req.session.aiNudgeCache && (now - req.session.aiNudgeCache.at) < 60 * 60 * 1000) {
+            return res.json({ nudges: req.session.aiNudgeCache.nudges });
+        }
+
+        const context = await getMaddoxContext();
+        const response = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 300,
+            system: `You are Maddox, a business assistant for a handyman/property services company in South Jersey. Analyze the business snapshot and identify 2-3 of the most important things the owner should act on TODAY. Each nudge must be a single actionable sentence under 120 characters. Reply ONLY with a valid JSON array: [{"message":"...","severity":"urgent|warning|info"}]`,
+            messages: [{ role: 'user', content: `Business snapshot:\n\n${context}\n\nWhat should I focus on today?` }],
+        });
+
+        let nudges = [];
+        try {
+            const text = response.content[0]?.text || '[]';
+            const match = text.match(/\[[\s\S]*\]/);
+            nudges = match ? JSON.parse(match[0]) : [];
+        } catch { nudges = []; }
+
+        const today = new Date().toISOString().split('T')[0];
+        nudges = nudges.slice(0, 3).map((n, i) => ({ ...n, key: `ai_nudge_${today}_${i}`, type: 'ai' }));
+
+        req.session.aiNudgeCache = { at: now, nudges };
+        res.json({ nudges });
+    } catch (e) {
+        console.error('AI nudge error:', e.message);
+        res.json({ nudges: [] });
     }
 });
 

@@ -10674,13 +10674,14 @@ function saveToJob() {
             pollNudges();
             setInterval(pollNudges, 5 * 60 * 1000);
 
-            // Morning briefing — auto-open Maddox once per calendar day
+            // Morning briefing — auto-open Maddox with AI daily briefing once per calendar day
             const todayStr = new Date().toDateString();
             if (localStorage.getItem('maddoxBriefDate') !== todayStr) {
                 localStorage.setItem('maddoxBriefDate', todayStr);
                 setTimeout(() => {
                     const panel = document.getElementById('activityBotPanel');
                     if (panel && panel.style.display === 'none') toggleActivityBot();
+                    setTimeout(() => sendBotQuery('Good morning! Give me a quick briefing on the business today.'), 400);
                 }, 2500);
             }
         }
@@ -12716,18 +12717,26 @@ function saveToJob() {
             }
         }
 
+        async function clearBotHistory() {
+            try { await fetch('/api/maddox/clear-history', { method: 'POST' }); } catch {}
+            document.getElementById('botMessageLog').innerHTML = '';
+            appendBotMessage('bot', 'Fresh start! Woof — what do you need?');
+        }
+
         // ── Maddox Nudges ────────────────────────────────────────────────────────
         let _nudgeQueue = [];
         let _nudgeTimer = null;
 
         async function pollNudges() {
             try {
-                const res = await fetch('/api/maddox/nudges');
-                if (!res.ok) return;
-                const { nudges } = await res.json();
-                // Filter out dismissed ones (stored in localStorage with 24h TTL)
+                const [ruleRes, aiRes] = await Promise.all([
+                    fetch('/api/maddox/nudges'),
+                    fetch('/api/maddox/ai-nudges'),
+                ]);
+                const { nudges: ruleNudges } = ruleRes.ok ? await ruleRes.json() : { nudges: [] };
+                const { nudges: aiNudges }   = aiRes.ok   ? await aiRes.json()  : { nudges: [] };
                 const now = Date.now();
-                _nudgeQueue = nudges.filter(n => {
+                _nudgeQueue = [...ruleNudges, ...aiNudges].filter(n => {
                     const dismissed = localStorage.getItem('nudge_dismiss_' + n.key);
                     return !dismissed || (now - parseInt(dismissed)) > 12 * 60 * 60 * 1000;
                 });
@@ -12874,7 +12883,10 @@ function saveToJob() {
         <div id="activityBotPanel" style="display:none;">
             <div id="botHeader">
                 <span>🐾 Maddox says...</span>
-                <button onclick="toggleActivityBot()" title="Close">✕</button>
+                <div style="display:flex;gap:0.4rem;align-items:center;">
+                    <button onclick="clearBotHistory()" title="Clear chat" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:0.75rem;padding:0 0.2rem;">↺ clear</button>
+                    <button onclick="toggleActivityBot()" title="Close">✕</button>
+                </div>
             </div>
             <div id="botMessageLog"></div>
             <div id="botQuickReplies">
