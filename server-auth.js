@@ -2934,7 +2934,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             total: quote.total,
             totalPaid: 0,
             balanceOwed: quote.total,
-            status: 'prospecting',
+            status: 'to_be_scheduled',
             scheduledDate: '',
             payments: [],
             touchPoints: (quote.touchPoints || []).map(tp => ({ ...tp, fromQuote: true })),
