@@ -829,7 +829,7 @@
 
                 // Add to My Quotes list immediately
                 if (clientData) {
-                    clientData.quotes = [{ id: '', title: service, quoteNumber: data.quoteNumber, status: 'draft', total: 0 }, ...(clientData.quotes || [])];
+                    clientData.quotes = [{ id: data.id || '', title: service, quoteNumber: data.quoteNumber, status: 'draft', total: 0 }, ...(clientData.quotes || [])];
                     renderQuotes(clientData.quotes);
                 }
             } catch (e) {

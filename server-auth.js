@@ -5216,7 +5216,8 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             updatedAt: new Date()
         };
 
-        await db.collection('quotes').insertOne(quote);
+        const insertResult = await db.collection('quotes').insertOne(quote);
+        const newQuoteId = insertResult.insertedId.toString();
 
         const settings = await db.collection('settings').findOne({});
         const businessName = settings?.companyName || settings?.appName || 'GSD Property Services';
@@ -5275,7 +5276,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             }
         }
 
-        res.json({ success: true, quoteNumber });
+        res.json({ success: true, quoteNumber, id: newQuoteId });
     } catch (e) {
         console.error('Portal quote request error:', e);
         res.status(500).json({ error: e.message });
