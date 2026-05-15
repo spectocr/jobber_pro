@@ -4252,15 +4252,18 @@ function saveToJob() {
         }
 
         function buildJobStages(job) {
-            const ordered = ['pending', 'scheduled', 'in-progress', 'completed', 'invoiced'];
-            const idx = Math.max(0, ordered.indexOf(job.status));
+            // ordered maps to stepper slots 3-5 (0=sched, 1=in_progress, 2=completed/invoiced)
+            const s = job.status;
+            const isScheduled  = s === 'scheduled' || s === 'to_be_scheduled';
+            const isInProgress = s === 'in_progress';
+            const isComplete   = s === 'completed' || s === 'invoiced';
             return [
-                { l: 'Received', s: 'wf-done' },
-                { l: 'Reviewed', s: 'wf-done' },
-                { l: 'Approved', s: 'wf-done' },
-                { l: 'Scheduled', s: idx >= 2 ? 'wf-done' : idx === 1 ? 'wf-now' : 'wf-wait' },
-                { l: 'In Progress', s: idx >= 3 ? 'wf-done' : idx === 2 ? 'wf-now' : 'wf-wait' },
-                { l: 'Complete', s: idx >= 4 ? 'wf-done' : idx === 3 ? 'wf-now' : 'wf-wait' },
+                { l: 'Received',    s: 'wf-done' },
+                { l: 'Reviewed',    s: 'wf-done' },
+                { l: 'Approved',    s: 'wf-done' },
+                { l: 'Scheduled',   s: isInProgress || isComplete ? 'wf-done' : isScheduled ? 'wf-now' : 'wf-wait' },
+                { l: 'In Progress', s: isComplete ? 'wf-done' : isInProgress ? 'wf-now' : 'wf-wait' },
+                { l: 'Complete',    s: isComplete ? 'wf-now' : 'wf-wait' },
             ];
         }
 
