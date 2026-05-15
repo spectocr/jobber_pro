@@ -4252,17 +4252,18 @@ function saveToJob() {
         }
 
         function buildJobStages(job) {
-            // ordered maps to stepper slots 3-5 (0=sched, 1=in_progress, 2=completed/invoiced)
             const s = job.status;
             const isScheduled  = s === 'scheduled' || s === 'to_be_scheduled';
             const isInProgress = s === 'in_progress';
-            const isComplete   = s === 'completed' || s === 'invoiced';
+            const isInvoiced   = s === 'invoiced';
+            const isComplete   = s === 'completed';
             return [
                 { l: 'Received',    s: 'wf-done' },
                 { l: 'Reviewed',    s: 'wf-done' },
                 { l: 'Approved',    s: 'wf-done' },
-                { l: 'Scheduled',   s: isInProgress || isComplete ? 'wf-done' : isScheduled ? 'wf-now' : 'wf-wait' },
-                { l: 'In Progress', s: isComplete ? 'wf-done' : isInProgress ? 'wf-now' : 'wf-wait' },
+                { l: 'Scheduled',   s: isInProgress || isInvoiced || isComplete ? 'wf-done' : isScheduled ? 'wf-now' : 'wf-wait' },
+                { l: 'In Progress', s: isInvoiced || isComplete ? 'wf-done' : isInProgress ? 'wf-now' : 'wf-wait' },
+                { l: 'Invoiced',    s: isComplete ? 'wf-done' : isInvoiced ? 'wf-now' : 'wf-wait' },
                 { l: 'Complete',    s: isComplete ? 'wf-now' : 'wf-wait' },
             ];
         }
