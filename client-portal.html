@@ -637,11 +637,11 @@
                         ${buildWorkflowStepper(getJobStages(job))}
                         <h3>${job.title}</h3>
                         <p><strong>Date:</strong> ${date} ${job.scheduledTime || ''}</p>
-                        <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${job.status.replace('_', ' ').toUpperCase()}</span></p>
-                        ${job.status === 'invoiced' ? `
-                            <p><strong>Total:</strong> $${parseFloat(job.total || 0).toFixed(2)}</p>
-                            <a href="/invoice/${job.id}" target="_blank" class="btn btn-primary">View Invoice</a>
-                        ` : ''}
+                        <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${job.status.replace(/_/g, ' ').toUpperCase()}</span></p>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button class="btn btn-primary" onclick="viewJobDetail('${job.id}')" style="font-size:0.85rem;">View Job</button>
+                            ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="font-size:0.85rem;">View Invoice</a>` : ''}
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -916,9 +916,43 @@
             document.getElementById('submissionModal').style.display = 'none';
         }
 
+        function viewJobDetail(jobId) {
+            const job = (clientData.jobs || []).find(j => j.id === jobId || j._id === jobId);
+            if (!job) return;
+            const date = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
+            const time = job.scheduledTime || '';
+            const statusLabel = job.status.replace(/_/g,' ').toUpperCase();
+            const desc = job.description || '';
+            const notes = job.notes || '';
+            document.getElementById('jobDetailBody').innerHTML = `
+                <h3 style="margin:0 0 1rem;color:#2d3748;padding-right:2rem;">${job.title}</h3>
+                ${buildWorkflowStepper(getJobStages(job))}
+                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-top:0.75rem;">
+                    <tr><td style="padding:6px 0;font-weight:600;color:#4a5568;width:110px;">Status</td><td><span class="status-badge">${statusLabel}</span></td></tr>
+                    <tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Scheduled</td><td>${date}${time ? ' at ' + time : ''}</td></tr>
+                    ${desc ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;vertical-align:top;">Details</td><td style="white-space:pre-wrap;">${desc}</td></tr>` : ''}
+                    ${notes ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;vertical-align:top;">Notes</td><td style="white-space:pre-wrap;color:#718096;">${notes}</td></tr>` : ''}
+                </table>
+                ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="margin-top:1rem;display:inline-block;">View Invoice</a>` : ''}
+            `;
+            document.getElementById('jobDetailModal').style.display = 'flex';
+        }
+
+        function closeJobDetail() {
+            document.getElementById('jobDetailModal').style.display = 'none';
+        }
+
         // Load data on page load
         loadClientData();
     </script>
+
+    <!-- Job Detail Modal -->
+    <div id="jobDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeJobDetail()">
+        <div style="background:white;border-radius:12px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;padding:1.5rem;position:relative;">
+            <button onclick="closeJobDetail()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#718096;">✕</button>
+            <div id="jobDetailBody"></div>
+        </div>
+    </div>
 
     <!-- Work Order / Quote Detail Modal -->
     <div id="submissionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeSubmissionModal()">
