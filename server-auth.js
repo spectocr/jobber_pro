@@ -4732,9 +4732,14 @@ app.get('/quote-view/:token', async (req, res) => {
 
     <!-- Approve Modal -->
     <div id="approveModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;padding:1rem;">
-        <div style="background:white;border-radius:12px;padding:1.5rem;max-width:420px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
-            <h3 style="margin:0 0 0.75rem;color:#2d3748;">✓ Approve ${quote.source === 'portal' ? 'Work Order' : 'Quote'}</h3>
-            <p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Add a note for ${companyName} (optional):</p>
+        <div style="background:white;border-radius:12px;padding:1.5rem;max-width:460px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+            <h3 style="margin:0 0 0.25rem;color:#2d3748;">✓ Approve ${quote.source === 'portal' ? 'Work Order' : 'Quote'}</h3>
+            <p style="color:#718096;font-size:0.85rem;margin-bottom:1.25rem;">Please confirm who is authorizing this approval.</p>
+            <label style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#718096;display:block;margin-bottom:0.25rem;">Full Name <span style="color:#e53e3e;">*</span></label>
+            <input id="approveName" type="text" placeholder="Your full name" style="width:100%;padding:0.6rem 0.75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;box-sizing:border-box;margin-bottom:0.85rem;">
+            <label style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#718096;display:block;margin-bottom:0.25rem;">Title / Role</label>
+            <input id="approveTitle" type="text" placeholder="e.g. Property Manager, Owner" style="width:100%;padding:0.6rem 0.75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;box-sizing:border-box;margin-bottom:0.85rem;">
+            <label style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#718096;display:block;margin-bottom:0.25rem;">Comments</label>
             <textarea id="approveNote" rows="3" placeholder="e.g. Please schedule for mornings, gate code is 1234..." style="width:100%;padding:0.65rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;box-sizing:border-box;resize:vertical;"></textarea>
             <div style="display:flex;gap:0.5rem;margin-top:1rem;">
                 <button onclick="submitApprove()" style="flex:1;padding:0.75rem;background:#48bb78;color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;">Confirm Approval</button>
@@ -4758,12 +4763,19 @@ app.get('/quote-view/:token', async (req, res) => {
 
     <script>
         async function submitApprove() {
+            const approverName = document.getElementById('approveName').value.trim();
+            const approverTitle = document.getElementById('approveTitle').value.trim();
             const note = document.getElementById('approveNote').value.trim();
+            if (!approverName) {
+                document.getElementById('approveName').style.borderColor = '#e53e3e';
+                document.getElementById('approveName').focus();
+                return;
+            }
             try {
                 const res = await fetch('/quote-action/${quote.secureToken}/approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ note })
+                    body: JSON.stringify({ note, approverName, approverTitle })
                 });
                 if (res.ok) { document.getElementById('approveModal').style.display='none'; location.reload(); }
                 else alert('Failed to approve. Please try again or contact us directly.');
@@ -4799,20 +4811,22 @@ app.post('/quote-action/:token/approve', async (req, res) => {
         const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
         if (!quote) return res.status(404).json({ error: 'Quote not found' });
 
-        const { note } = req.body || {};
+        const { note, approverName, approverTitle } = req.body || {};
         const client = await db.collection('clients').findOne({ _id: new ObjectId(quote.clientId) });
+        const signerLabel = [approverName, approverTitle].filter(Boolean).join(' — ');
         const auditEntry = {
             timestamp: new Date(),
-            userName: client?.name || 'Client',
+            userName: approverName || client?.name || 'Client',
+            approverTitle: approverTitle || '',
             action: 'approved',
             oldStatus: quote.status,
             newStatus: 'in_review',
-            note: note ? `Approved with note: ${note}` : 'Approved by client'
+            note: [signerLabel ? `Authorized by: ${signerLabel}` : '', note ? `Comments: ${note}` : ''].filter(Boolean).join('\n') || 'Approved by client'
         };
 
         await db.collection('quotes').updateOne(
             { _id: quote._id },
-            { $set: { status: 'in_review', approvedAt: new Date(), clientNote: note || '' }, $push: { auditLog: auditEntry } }
+            { $set: { status: 'in_review', approvedAt: new Date(), clientNote: note || '', approverName: approverName || '', approverTitle: approverTitle || '' }, $push: { auditLog: auditEntry } }
         );
 
         const approvalLabel = quote.source === 'portal' ? 'work order' : 'quote';
@@ -4839,7 +4853,8 @@ app.post('/quote-action/:token/approve', async (req, res) => {
                     <table style="width:100%;border-collapse:collapse;">
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;width:140px;">Client</td><td>${client?.name || 'Unknown'}</td></tr>
                         <tr><td style="padding:8px 0;font-weight:600;color:#374151;">Total</td><td><strong>${fmt$(parseFloat(quote.total || 0))}</strong></td></tr>
-                        ${note ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Client Note</td><td>${note}</td></tr>` : ''}
+                        ${approverName ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;">Authorized By</td><td>${approverName}${approverTitle ? ' — ' + approverTitle : ''}</td></tr>` : ''}
+                        ${note ? `<tr><td style="padding:8px 0;font-weight:600;color:#374151;vertical-align:top;">Comments</td><td>${note}</td></tr>` : ''}
                     </table>
                     <p style="margin-top:16px;color:#4a5568;">Ready to schedule — log in to convert this to a job.</p>
                 </div>`,

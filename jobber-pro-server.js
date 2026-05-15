@@ -7113,19 +7113,24 @@ function saveToJob() {
                         const date = new Date(entry.timestamp);
                         const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
                         const actionColor = entry.action === 'created' ? '#48bb78' :
+                                          entry.action === 'approved' ? '#276749' :
                                           entry.action === 'sent_email' ? '#4299e1' :
                                           entry.action === 'converted_to_job' ? '#9f7aea' :
                                           entry.action === 'status_change' ? '#ed8936' : '#718096';
-                        return `
-                            <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f7fafc; border-left: 4px solid ${actionColor}; border-radius: 4px;">
+                        const approverLine = entry.action === 'approved' && entry.userName
+                            ? \`<div style="font-size:0.82rem;font-weight:700;color:#276749;margin-top:0.3rem;">✍️ \${entry.userName}\${entry.approverTitle ? ' — ' + entry.approverTitle : ''}</div>\`
+                            : '';
+                        return \`
+                            <div style="padding: 1rem; margin-bottom: 0.75rem; background: \${entry.action === 'approved' ? '#f0fff4' : '#f7fafc'}; border-left: 4px solid \${actionColor}; border-radius: 4px;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                    <strong style="color: ${actionColor};">${entry.action.replace(/_/g, ' ').toUpperCase()}</strong>
-                                    <span style="color: #718096; font-size: 0.875rem;">${dateStr}</span>
+                                    <strong style="color: \${actionColor};">\${entry.action.replace(/_/g, ' ').toUpperCase()}</strong>
+                                    <span style="color: #718096; font-size: 0.875rem;">\${dateStr}</span>
                                 </div>
-                                <div style="color: #4a5568; font-size: 0.9rem;">${entry.note}</div>
-                                <div style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.25rem;">by ${entry.userName}</div>
+                                \${approverLine}
+                                <div style="color: #4a5568; font-size: 0.9rem;white-space:pre-line;">\${entry.note}</div>
+                                <div style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.25rem;">by \${entry.userName}</div>
                             </div>
-                        `;
+                        \`;
                     }).join('');
                 document.getElementById('quoteAuditLog').innerHTML = auditLogHtml;
             } else {
