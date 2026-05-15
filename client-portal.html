@@ -466,6 +466,17 @@
         let clientData = null;
         let qrPhotos = []; // { dataUrl, file }
 
+        const WF_DESC = {
+            'Submitted':   { now: 'We received your request and will review it shortly.' },
+            'Reviewing':   { now: 'Our team is looking over your request.', next: 'We\'ll price it out and send it over for your approval.' },
+            'Priced':      { now: 'Your quote is ready and waiting for your review.', next: 'Approve or decline from the link we sent you.' },
+            'Approved':    { now: 'Approved — we\'re getting this on the calendar.', next: 'You\'ll hear from us to confirm the date and time.' },
+            'Scheduled':   { now: 'Your job is scheduled and on our calendar.', next: 'Our crew will be on-site at the confirmed time.' },
+            'In Progress': { now: 'The crew is actively on-site working on your job.', next: 'You\'ll receive an invoice once the work is complete.' },
+            'Invoiced':    { now: 'Work is done and your invoice has been issued.', next: 'The job will close once payment is received.' },
+            'Complete':    { done: 'All done! Thank you for trusting us with your property.' },
+        };
+
         function buildWorkflowStepper(stages) {
             const completedCount = stages.filter(s => s.s === 'wf-done').length;
             const activeIdx = stages.findIndex(s => s.s === 'wf-now');
@@ -477,7 +488,17 @@
                 const badge = s.s === 'wf-done' ? 'DONE' : s.s === 'wf-now' ? 'NOW' : '';
                 return `<div class="wf-stage"><div class="wf-dot ${s.s}">${icon}</div><div class="wf-lbl">${s.l}</div>${badge ? `<div class="wf-st ${s.s}">${badge}</div>` : ''}</div>`;
             }).join('');
-            return `<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Progress</div><div class="wf-pill">⚡ ${doneCount} / ${stages.length}</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:${fillPct}%"></div></div>${dots}</div></div>`;
+            const allDone = stages.every(s => s.s === 'wf-done');
+            const activeStage = stages[activeIdx];
+            let blurb = '';
+            if (allDone) {
+                blurb = '✅ All stages complete. Thank you for choosing us!';
+            } else if (activeStage) {
+                const d = WF_DESC[activeStage.l] || {};
+                blurb = d.now || '';
+                if (d.next) blurb += `<span style="display:block;margin-top:2px;color:#667eea;font-weight:600;">Next: ${d.next}</span>`;
+            }
+            return `<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Progress</div><div class="wf-pill">⚡ ${doneCount} / ${stages.length}</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:${fillPct}%"></div></div>${dots}</div>${blurb ? `<div style="font-size:0.78rem;color:#4a5568;margin-top:0.55rem;line-height:1.5;padding:0 0.25rem;">${blurb}</div>` : ''}</div>`;
         }
 
         function getQuoteStages(quote) {

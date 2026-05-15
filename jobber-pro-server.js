@@ -4237,6 +4237,16 @@ function saveToJob() {
             win.document.close();
         }
 
+        const WF_DESC = {
+            'Received':    { now: 'Request received — awaiting internal review.' },
+            'Reviewed':    { now: 'Team is reviewing the scope and details.', next: 'Price it out and send a quote for client approval.' },
+            'Approved':    { now: 'Client approved — get this on the schedule.', next: 'Assign crew and confirm the date/time with the client.' },
+            'Scheduled':   { now: 'Job is scheduled and on the calendar.', next: 'Crew reports on-site at the confirmed time.' },
+            'In Progress': { now: 'Crew is actively on-site working.', next: 'Issue the invoice once the work is complete.' },
+            'Invoiced':    { now: 'Invoice issued — awaiting payment.', next: 'Mark complete once payment is received.' },
+            'Complete':    { done: '✅ Job closed. All work and invoicing are complete.' },
+        };
+
         function buildWorkflowStepper(stages) {
             const completedCount = stages.filter(s => s.s === 'wf-done').length;
             const activeIdx = stages.findIndex(s => s.s === 'wf-now');
@@ -4248,7 +4258,17 @@ function saveToJob() {
                 const badge = s.s === 'wf-done' ? 'DONE' : s.s === 'wf-now' ? 'NOW' : '';
                 return \`<div class="wf-stage"><div class="wf-dot \${s.s}">\${icon}</div><div class="wf-lbl">\${s.l}</div>\${badge ? \`<div class="wf-st \${s.s}">\${badge}</div>\` : ''}</div>\`;
             }).join('');
-            return \`<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Workflow Progress</div><div class="wf-pill">⚡ \${doneCount} / \${stages.length} stages</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:\${fillPct}%"></div></div>\${dots}</div></div>\`;
+            const allDone = stages.every(s => s.s === 'wf-done');
+            let blurb = '';
+            if (allDone) {
+                blurb = '✅ All stages complete. Job is closed.';
+            } else if (activeIdx >= 0) {
+                const activeStage = stages[activeIdx];
+                const d = WF_DESC[activeStage.l] || {};
+                blurb = d.now || '';
+                if (d.next) blurb += \`<span style="display:block;margin-top:2px;color:#667eea;font-weight:600;">Next: \${d.next}</span>\`;
+            }
+            return \`<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Workflow Progress</div><div class="wf-pill">⚡ \${doneCount} / \${stages.length} stages</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:\${fillPct}%"></div></div>\${dots}</div>\${blurb ? \`<div style="font-size:0.78rem;color:#4a5568;margin-top:0.55rem;line-height:1.5;padding:0 0.25rem;">\${blurb}</div>\` : ''}</div>\`;
         }
 
         function buildJobStages(job) {
