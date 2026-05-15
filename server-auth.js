@@ -5075,7 +5075,8 @@ app.get('/api/client-portal/me', async (req, res) => {
             settings: {
                 appName: settings.appName || 'Jobber Pro',
                 favicon: settings.favicon || '',
-                companyName: settings.companyName || 'Your Company'
+                companyName: settings.companyName || 'Your Company',
+                companyPhone: settings.companyPhone || ''
             }
         });
     } catch (error) {

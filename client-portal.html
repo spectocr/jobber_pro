@@ -330,6 +330,9 @@
     </style>
 </head>
 <body>
+    <div id="urgentBanner" style="display:none;background:#fff3cd;border-bottom:2px solid #ffc107;padding:0.6rem 1.5rem;text-align:center;font-size:0.9rem;font-weight:600;color:#856404;">
+        🚨 Urgent? Text us at <a id="urgentPhone" href="#" style="color:#856404;text-decoration:underline;"></a>
+    </div>
     <div class="container">
         <div class="header">
             <div>
@@ -553,6 +556,14 @@
                 }
                 if (clientData.settings.favicon) {
                     document.getElementById('favicon-link').href = clientData.settings.favicon;
+                }
+                if (clientData.settings.companyPhone) {
+                    const ph = clientData.settings.companyPhone;
+                    const digits = ph.replace(/\D/g,'');
+                    const el = document.getElementById('urgentPhone');
+                    el.textContent = ph;
+                    el.href = 'sms:' + digits;
+                    document.getElementById('urgentBanner').style.display = 'block';
                 }
 
                 renderQuotes(clientData.quotes);
