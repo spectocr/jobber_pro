@@ -4253,7 +4253,7 @@ function saveToJob() {
 
         function buildJobStages(job) {
             const s = job.status;
-            const isScheduled  = s === 'scheduled' || s === 'to_be_scheduled';
+            const isScheduled  = s === 'scheduled' || s === 'to_be_scheduled' || s === 'prospecting';
             const isInProgress = s === 'in_progress';
             const isInvoiced   = s === 'invoiced';
             const isComplete   = s === 'completed';
