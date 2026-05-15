@@ -305,9 +305,9 @@
         .wf-stage{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;}
         .wf-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.9rem;font-weight:700;}
         .wf-dot.wf-done{background:#48bb78;color:white;}
-        .wf-dot.wf-now{background:#553c9a;color:white;animation:wfpulse 1.8s infinite;}
+        .wf-dot.wf-now{background:#553c9a;color:white;animation:wfpulse 1.4s ease-in-out infinite;}
         .wf-dot.wf-wait{background:#e2e8f0;color:#a0aec0;}
-        @keyframes wfpulse{0%,100%{box-shadow:0 0 0 3px rgba(85,60,154,0.25)}50%{box-shadow:0 0 0 8px rgba(85,60,154,0.05)}}
+        @keyframes wfpulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(85,60,154,0.5)}50%{transform:scale(1.15);box-shadow:0 0 0 7px rgba(85,60,154,0)}}
         .wf-lbl{font-size:0.6rem;font-weight:600;color:#4a5568;text-align:center;margin-top:0.3rem;line-height:1.25;max-width:46px;}
         .wf-st{font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:0.12rem;padding:1px 4px;border-radius:999px;}
         .wf-st.wf-done{background:#c6f6d5;color:#22543d;}
@@ -330,8 +330,12 @@
     </style>
 </head>
 <body>
-    <div id="urgentBanner" style="display:none;background:#fff3cd;border-bottom:2px solid #ffc107;padding:0.6rem 1.5rem;text-align:center;font-size:0.9rem;font-weight:600;color:#856404;">
-        🚨 Urgent? Text us at <a id="urgentPhone" href="#" style="color:#856404;text-decoration:underline;"></a>
+    <div id="urgentBanner" style="display:none;background:linear-gradient(90deg,#0f1c2e 0%,#1a3a5c 100%);padding:0.55rem 1.5rem;display:none;align-items:center;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
+        <span style="color:rgba(255,255,255,0.7);font-size:0.8rem;letter-spacing:0.04em;text-transform:uppercase;font-weight:600;">Need immediate help?</span>
+        <a id="urgentPhone" href="#" style="display:inline-flex;align-items:center;gap:0.4rem;background:#e53e3e;color:white;font-weight:700;font-size:0.88rem;padding:0.3rem 0.9rem;border-radius:999px;text-decoration:none;letter-spacing:0.01em;">
+            <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M20 10.999h2C22 5.869 18.127 2 12.99 2v2C17.052 4 20 6.943 20 10.999z"/><path d="M13 8c2.103 0 3 .897 3 3h2c0-3.225-1.775-5-5-5v2zm3.422 5.443a1.001 1.001 0 0 0-1.391.043l-2.393 2.461c-.576-.11-1.734-.471-2.926-1.66-1.192-1.193-1.553-2.354-1.66-2.926l2.459-2.394a1 1 0 0 0 .043-1.391L6.859 3.513a1 1 0 0 0-1.391-.087l-2.17 1.861a1 1 0 0 0-.29.649c-.015.25-.301 6.172 4.291 10.766C11.305 20.707 16.323 21 17.705 21c.202 0 .326-.006.359-.008a.992.992 0 0 0 .648-.291l1.86-2.171a1 1 0 0 0-.086-1.391l-3.064-2.696z"/></svg>
+            Text Us
+        </a>
     </div>
     <div class="container">
         <div class="header">
@@ -477,9 +481,8 @@
             const s = quote.status;
             // If converted to a job, look up the job and hand off to getJobStages
             if (quote.convertedToJobId && clientData && clientData.jobs) {
-                const linkedJob = clientData.jobs.find(j =>
-                    (j._id || j.id) == quote.convertedToJobId.toString()
-                );
+                const cid = String(quote.convertedToJobId);
+                const linkedJob = clientData.jobs.find(j => j.id === cid || String(j._id) === cid);
                 if (linkedJob) return getJobStages(linkedJob);
             }
             return [
@@ -561,9 +564,9 @@
                     const ph = clientData.settings.companyPhone;
                     const digits = ph.replace(/\D/g,'');
                     const el = document.getElementById('urgentPhone');
-                    el.textContent = ph;
+                    el.querySelector('svg').insertAdjacentText('afterend', ' ' + ph);
                     el.href = 'sms:' + digits;
-                    document.getElementById('urgentBanner').style.display = 'block';
+                    document.getElementById('urgentBanner').style.display = 'flex';
                 }
 
                 renderQuotes(clientData.quotes);

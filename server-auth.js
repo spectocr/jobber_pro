@@ -5023,7 +5023,7 @@ app.get('/api/client-portal/me', async (req, res) => {
         const settings = await db.collection('settings').findOne({}) || {};
 
         // Add id field for frontend
-        const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString() }));
+        const quotesWithId = quotes.map(q => ({ ...q, id: q._id.toString(), convertedToJobId: q.convertedToJobId ? q.convertedToJobId.toString() : null }));
         const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
 
         // Build address list for the portal address picker
