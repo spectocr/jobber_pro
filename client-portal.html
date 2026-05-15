@@ -468,13 +468,21 @@
 
         function getQuoteStages(quote) {
             const s = quote.status;
+            // If converted to a job, look up the job and hand off to getJobStages
+            if (quote.convertedToJobId && clientData && clientData.jobs) {
+                const linkedJob = clientData.jobs.find(j =>
+                    (j._id || j.id) == quote.convertedToJobId.toString()
+                );
+                if (linkedJob) return getJobStages(linkedJob);
+            }
             return [
-                { l: 'Submitted', s: 'wf-done' },
-                { l: 'Reviewing', s: (s === 'sent' || s === 'approved') ? 'wf-done' : 'wf-now' },
-                { l: 'Quote Sent', s: s === 'approved' ? 'wf-done' : s === 'sent' ? 'wf-now' : 'wf-wait' },
-                { l: 'Approved', s: s === 'approved' ? 'wf-done' : 'wf-wait' },
-                { l: 'Scheduled', s: 'wf-wait' },
-                { l: 'Complete', s: 'wf-wait' },
+                { l: 'Submitted',  s: 'wf-done' },
+                { l: 'Reviewing',  s: (s === 'sent' || s === 'approved' || s === 'in_review') ? 'wf-done' : 'wf-now' },
+                { l: 'Priced',     s: s === 'approved' || s === 'in_review' ? 'wf-done' : s === 'sent' ? 'wf-now' : 'wf-wait' },
+                { l: 'Approved',   s: s === 'approved' || s === 'in_review' ? 'wf-now' : 'wf-wait' },
+                { l: 'Scheduled',  s: 'wf-wait' },
+                { l: 'In Progress',s: 'wf-wait' },
+                { l: 'Complete',   s: 'wf-wait' },
             ];
         }
 
@@ -569,7 +577,9 @@
                                     isDraft ? '' : 'status-scheduled';
                 const T = window._portalT || {};
                 const pendingLabel = T.pendingBadge || 'PENDING REVIEW';
-                const statusLabel = isDraft ? pendingLabel : quote.status.toUpperCase();
+                const isApproved = quote.status === 'approved' || quote.status === 'in_review';
+                const approvedLabel = 'APPROVED' + (quote.approverName ? ': ' + quote.approverName : '');
+                const statusLabel = isDraft ? pendingLabel : isApproved ? approvedLabel : quote.status.replace(/_/g,' ').toUpperCase();
                 const statusStyle = isDraft ? 'background:#e9d8fd;color:#553c9a;' : '';
 
                 const validUntil = quote.validUntil ? new Date(quote.validUntil) : null;
