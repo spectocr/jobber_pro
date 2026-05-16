@@ -830,6 +830,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         @media (max-width: 768px) {
+            #quickAddFab { display:flex !important; }
+
             /* Header */
             .header {
                 padding: 0.75rem 1rem;
@@ -2102,6 +2104,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="revenue-report"></div>
                     </div>
 
+                    <!-- Revenue by Service Type -->
+                    <div class="report-section">
+                        <h3>🔧 Revenue by Service Type</h3>
+                        <div id="service-type-report"></div>
+                    </div>
+
                     <!-- Jobs by Status Report -->
                     <div class="report-section">
                         <h3>📋 Jobs by Status</h3>
@@ -3103,6 +3111,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <option value="completed">Completed</option>
                                 <option value="invoiced">Invoiced</option>
                                 <option value="bid_lost">Bid Lost</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Service Type</label>
+                            <select name="serviceType">
+                                <option value="">— Select type —</option>
+                                <option value="Drywall">Drywall</option>
+                                <option value="Painting">Painting</option>
+                                <option value="Plumbing">Plumbing</option>
+                                <option value="Electrical">Electrical</option>
+                                <option value="Carpentry">Carpentry</option>
+                                <option value="Gutters">Gutters</option>
+                                <option value="Flooring">Flooring</option>
+                                <option value="Tile">Tile</option>
+                                <option value="Pressure Washing">Pressure Washing</option>
+                                <option value="Landscaping">Landscaping</option>
+                                <option value="General">General Handyman</option>
+                                <option value="Other">Other</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-top: 1rem;">
@@ -4336,6 +4362,76 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 openJobModal(job);
             } else {
                 console.error('Job not found:', jobId);
+            }
+        }
+
+        function openQuickAdd() {
+            document.getElementById('qaClientInput').value = '';
+            document.getElementById('qaClientId').value = '';
+            document.getElementById('qaTitle').value = '';
+            document.getElementById('qaServiceType').value = '';
+            document.getElementById('qaDate').value = new Date().toISOString().slice(0,10);
+            document.getElementById('qaError').style.display = 'none';
+            document.getElementById('qaSubmitBtn').disabled = false;
+            document.getElementById('qaSubmitBtn').textContent = 'Create Job';
+            const m = document.getElementById('quickAddModal');
+            m.style.display = 'flex';
+        }
+
+        function closeQuickAdd() {
+            document.getElementById('quickAddModal').style.display = 'none';
+        }
+
+        function filterQaClient() {
+            const q = document.getElementById('qaClientInput').value.toLowerCase();
+            const dd = document.getElementById('qaClientDropdown');
+            const filtered = clients.filter(c => (c.name||'').toLowerCase().includes(q) || (c.contactName||'').toLowerCase().includes(q));
+            if (!filtered.length || !q) { dd.style.display = 'none'; return; }
+            dd.innerHTML = filtered.slice(0,8).map(c =>
+                \`<div onclick="selectQaClient('\${c.id}','\${(c.name||'').replace(/'/g,"\\\\'")}')"\
+                  style="padding:0.6rem 0.85rem;cursor:pointer;font-size:0.9rem;color:#2d3748;border-bottom:1px solid #f0f0f0;"
+                  onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">\${c.name}</div>\`
+            ).join('');
+            dd.style.display = 'block';
+        }
+
+        function selectQaClient(id, name) {
+            document.getElementById('qaClientId').value = id;
+            document.getElementById('qaClientInput').value = name;
+            document.getElementById('qaClientDropdown').style.display = 'none';
+        }
+
+        async function submitQuickAdd() {
+            const clientId = document.getElementById('qaClientId').value;
+            const title    = document.getElementById('qaTitle').value.trim();
+            const errEl    = document.getElementById('qaError');
+            errEl.style.display = 'none';
+            if (!clientId) { errEl.textContent = 'Please select a client.'; errEl.style.display = 'block'; return; }
+            if (!title)    { errEl.textContent = 'Job title is required.';   errEl.style.display = 'block'; return; }
+            const btn = document.getElementById('qaSubmitBtn');
+            btn.disabled = true; btn.textContent = 'Creating…';
+            try {
+                const res = await fetch('/api/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientId,
+                        title,
+                        serviceType: document.getElementById('qaServiceType').value,
+                        scheduledDate: document.getElementById('qaDate').value,
+                        status: 'to_be_scheduled',
+                        laborItems: [], materialItems: [], payments: [], touchPoints: [], auditLog: []
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to create job');
+                closeQuickAdd();
+                await loadJobs();
+                showView('jobs');
+            } catch (e) {
+                errEl.textContent = e.message;
+                errEl.style.display = 'block';
+                btn.disabled = false; btn.textContent = 'Create Job';
             }
         }
 
@@ -8862,6 +8958,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Generate Revenue Summary
                 generateRevenueSummary(filteredJobs, settings, label);
 
+                // Generate Revenue by Service Type
+                generateServiceTypeReport(filteredJobs);
+
                 // Generate Jobs by Status
                 generateJobsByStatus(filteredJobs);
 
@@ -8912,6 +9011,38 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </table>
                 </div>
             \`;
+        }
+
+        function generateServiceTypeReport(filteredJobs) {
+            const el = document.getElementById('service-type-report');
+            const billed = filteredJobs.filter(j => ['completed','invoiced'].includes(j.status));
+            if (!billed.length) { el.innerHTML = '<p style="padding:1rem;color:#718096;">No completed jobs in this period.</p>'; return; }
+
+            const byType = {};
+            for (const j of billed) {
+                const type = j.serviceType || 'Untagged';
+                if (!byType[type]) byType[type] = { count: 0, revenue: 0 };
+                byType[type].count++;
+                const labor = (j.laborItems || []).reduce((s, i) => s + (parseFloat(i.hours||0) * parseFloat(i.rate||0)), 0);
+                const mats  = (j.materialItems || []).reduce((s, i) => s + (parseFloat(i.quantity||0) * parseFloat(i.price||0)), 0);
+                byType[type].revenue += labor + mats;
+            }
+
+            const sorted = Object.entries(byType).sort((a, b) => b[1].revenue - a[1].revenue);
+            const maxRev = sorted[0]?.[1].revenue || 1;
+            const rows = sorted.map(([type, d]) => {
+                const pct = Math.round(d.revenue / maxRev * 100);
+                return \`<div style="margin-bottom:0.85rem;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+                        <span style="font-weight:600;color:#2d3748;">\${type}</span>
+                        <span style="color:#4a5568;">\${formatMoney(d.revenue)} <span style="color:#a0aec0;font-size:0.8rem;">(\${d.count} job\${d.count!==1?'s':''})</span></span>
+                    </div>
+                    <div style="background:#e2e8f0;border-radius:4px;height:10px;">
+                        <div style="background:#667eea;border-radius:4px;height:10px;width:\${pct}%;transition:width 0.4s;"></div>
+                    </div>
+                </div>\`;
+            }).join('');
+            el.innerHTML = \`<div style="padding:1rem;">\${rows}</div>\`;
         }
 
         function generateJobsByStatus(filteredJobs) {
@@ -13287,6 +13418,55 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       <button id="soSaveBtn" onclick="soSave()" style="background:#48bb78;color:#fff;border:none;padding:0.65rem 1.5rem;border-radius:6px;font-size:0.88rem;font-weight:700;cursor:pointer;flex:1;">💾 Save to Job</button>
       <button onclick="closeSignoffModal()" style="background:none;border:1.5px solid #d1d5db;padding:0.65rem 1.25rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Mobile Quick-Add Job FAB -->
+<button id="quickAddFab" onclick="openQuickAdd()" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;z-index:5000;width:56px;height:56px;border-radius:50%;background:#667eea;color:#fff;border:none;font-size:1.75rem;box-shadow:0 4px 16px rgba(102,126,234,0.5);cursor:pointer;align-items:center;justify-content:center;">+</button>
+
+<!-- Quick-Add Modal -->
+<div id="quickAddModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.55);align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;border-radius:16px 16px 0 0;padding:1.5rem;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">
+      <h3 style="font-size:1.15rem;font-weight:700;color:#0f1c2e;margin:0;">Quick Add Job</h3>
+      <button onclick="closeQuickAdd()" style="background:none;border:none;font-size:1.5rem;color:#718096;cursor:pointer;padding:0 0.25rem;">×</button>
+    </div>
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;display:block;margin-bottom:0.4rem;">Client *</label>
+      <div style="position:relative;">
+        <input type="text" id="qaClientInput" placeholder="Type to search..." autocomplete="off" oninput="filterQaClient()" onfocus="filterQaClient()" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:16px;">
+        <input type="hidden" id="qaClientId">
+        <div id="qaClientDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:2px solid #667eea;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;display:block;margin-bottom:0.4rem;">Job Title *</label>
+      <input type="text" id="qaTitle" placeholder="e.g. Patch drywall in kitchen" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:16px;">
+    </div>
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;display:block;margin-bottom:0.4rem;">Service Type</label>
+      <select id="qaServiceType" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:16px;">
+        <option value="">— Select type —</option>
+        <option value="Drywall">Drywall</option>
+        <option value="Painting">Painting</option>
+        <option value="Plumbing">Plumbing</option>
+        <option value="Electrical">Electrical</option>
+        <option value="Carpentry">Carpentry</option>
+        <option value="Gutters">Gutters</option>
+        <option value="Flooring">Flooring</option>
+        <option value="Tile">Tile</option>
+        <option value="Pressure Washing">Pressure Washing</option>
+        <option value="Landscaping">Landscaping</option>
+        <option value="General">General Handyman</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:1.5rem;">
+      <label style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;display:block;margin-bottom:0.4rem;">Scheduled Date</label>
+      <input type="date" id="qaDate" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:16px;">
+    </div>
+    <button id="qaSubmitBtn" onclick="submitQuickAdd()" style="width:100%;padding:0.9rem;background:#667eea;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;">Create Job</button>
+    <p id="qaError" style="color:#e53e3e;font-size:0.85rem;text-align:center;margin-top:0.5rem;display:none;"></p>
   </div>
 </div>
 

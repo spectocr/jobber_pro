@@ -2484,14 +2484,13 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         await db.collection('jobs').insertOne(job);
     }
 
-    // Send SMS notifications
+    // Send SMS + survey notifications
     try {
         const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Jobber Pro';
 
         if (client && client.phone) {
-            const settings = await db.collection('settings').findOne({});
-            const companyName = settings?.companyName || 'Jobber Pro';
-
             // New job scheduled
             if (!isUpdate && job.status === 'scheduled') {
                 const date = new Date(job.scheduledDate).toLocaleDateString();
@@ -2500,7 +2499,7 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                     companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
             }
 
-            // Status changed
+            // Status changed SMS
             if (isUpdate && oldJob && oldJob.status !== job.status) {
                 if (job.status === 'scheduled') {
                     const date = new Date(job.scheduledDate).toLocaleDateString();
@@ -2512,13 +2511,16 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 } else if (job.status === 'completed') {
                     await sendSMS(client.phone,
                         companyName + ': Job "' + job.title + '" is complete! Invoice will follow shortly.');
-                    // Send survey (fire and forget)
-                    sendJobSurvey(job._id || new ObjectId(_id), client, job.title, companyName).catch(e => console.error('Survey send error:', e));
                 } else if (job.status === 'invoiced') {
                     await sendSMS(client.phone,
                         companyName + ': Invoice ready for "' + job.title + '". Total: $' + (job.total || 0).toFixed(2) + '.');
                 }
             }
+        }
+
+        // Survey — send on completion regardless of phone, only requires email
+        if (client && isUpdate && oldJob && oldJob.status !== job.status && job.status === 'completed') {
+            sendJobSurvey(job._id || new ObjectId(_id), client, job.title, companyName).catch(e => console.error('Survey send error:', e));
         }
     } catch (smsError) {
         console.error('SMS notification error:', smsError);
