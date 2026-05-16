@@ -5748,53 +5748,211 @@ app.get('/api/activity-brief', isAuthenticated, async (req, res) => {
     }
 });
 
+const MADDOX_TOOLS = [
+    {
+        name: 'search_jobs',
+        description: 'Search jobs by client name or job title to identify the right job before making any changes.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                query: { type: 'string', description: 'Client name, job title, or keyword' }
+            },
+            required: ['query']
+        }
+    },
+    {
+        name: 'update_job_status',
+        description: 'Queue a job status update for user confirmation. Always call search_jobs first to confirm the correct job.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                job_id:     { type: 'string', description: 'MongoDB _id of the job' },
+                new_status: { type: 'string', enum: ['prospecting','to_be_scheduled','scheduled','in_progress','completed','invoiced','bid_lost'] },
+                job_title:  { type: 'string', description: 'Job title for the confirmation message' },
+                client_name:{ type: 'string', description: 'Client name for the confirmation message' }
+            },
+            required: ['job_id', 'new_status', 'job_title']
+        }
+    },
+    {
+        name: 'add_job_note',
+        description: 'Queue adding a touch point note to a job for user confirmation.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                job_id:     { type: 'string', description: 'MongoDB _id of the job' },
+                note:       { type: 'string', description: 'Note text to add' },
+                job_title:  { type: 'string', description: 'Job title for the confirmation message' },
+                client_name:{ type: 'string', description: 'Client name for the confirmation message' }
+            },
+            required: ['job_id', 'note', 'job_title']
+        }
+    }
+];
+
 app.post('/api/activity-query', isAuthenticated, async (req, res) => {
     try {
-        if (!anthropic) {
-            return res.status(503).json({ answer: 'AI not configured — ANTHROPIC_API_KEY missing.', items: [] });
-        }
+        if (!anthropic) return res.status(503).json({ answer: 'AI not configured.', items: [] });
 
         const { query } = req.body;
         if (!query || !query.trim()) return res.json({ answer: 'What can I help you with?', items: [] });
 
         if (!req.session.maddoxHistory) req.session.maddoxHistory = [];
         const history = req.session.maddoxHistory;
+        const pending = req.session.maddoxPendingAction;
 
+        // --- Confirmation / denial of a pending action ---
+        const isYes = pending && /^\s*(yes|yep|yeah|yup|do it|confirm|go ahead|correct|sure|ok|okay|sounds good)\s*$/i.test(query.trim());
+        const isNo  = pending && /^\s*(no|nope|cancel|stop|never mind|don't|dont|skip)\s*$/i.test(query.trim());
+
+        if (isYes && pending) {
+            let reply;
+            try {
+                const now = new Date();
+                if (pending.type === 'update_job_status') {
+                    const label = pending.new_status.replace(/_/g, ' ');
+                    await db.collection('jobs').updateOne(
+                        { _id: new ObjectId(pending.job_id) },
+                        {
+                            $set: { status: pending.new_status, updatedAt: now },
+                            $push: { auditLog: { action: 'status_change', note: `Status set to "${label}" via Maddox`, timestamp: now.toISOString(), userName: 'Maddox (AI)' } }
+                        }
+                    );
+                    reply = `✅ Done — **${pending.job_title}** is now **${label}**.`;
+                } else if (pending.type === 'add_job_note') {
+                    await db.collection('jobs').updateOne(
+                        { _id: new ObjectId(pending.job_id) },
+                        {
+                            $push: { touchPoints: { id: now.getTime().toString(), text: pending.note, timestamp: now.toISOString(), author: 'Maddox (AI)' } },
+                            $set: { updatedAt: now }
+                        }
+                    );
+                    reply = `✅ Note added to **${pending.job_title}**.`;
+                }
+            } catch (e) {
+                reply = `❌ Update failed: ${e.message}`;
+            }
+            req.session.maddoxPendingAction = null;
+            history.push({ role: 'user', content: query });
+            history.push({ role: 'assistant', content: reply });
+            if (history.length > 20) req.session.maddoxHistory = history.slice(-20);
+            return res.json({ answer: reply, items: [] });
+        }
+
+        if (isNo && pending) {
+            req.session.maddoxPendingAction = null;
+            const reply = 'Got it, cancelled. Anything else?';
+            history.push({ role: 'user', content: query });
+            history.push({ role: 'assistant', content: reply });
+            if (history.length > 20) req.session.maddoxHistory = history.slice(-20);
+            return res.json({ answer: reply, items: [] });
+        }
+
+        // Clear stale pending if user moved on
+        if (pending) req.session.maddoxPendingAction = null;
+
+        // --- Normal agentic Claude call ---
         const context = await getMaddoxContext();
-        const systemPrompt = `You are Maddox, a loyal German Shepherd and the business assistant for GSD Home Improvement & Property Services in South Jersey. You help Cris, the owner, run his business day-to-day.
+        const systemPrompt = `You are Maddox, a loyal German Shepherd and business assistant for GSD Handyman Service in South Jersey. You help Cris run his business.
 
-You have access to live business data below. Rules:
-- Be concise: 1-3 sentences unless listing items. Use bullet points for lists.
-- Use **bold** for key numbers and names.
-- A little dog personality is fine ("on it!", "woof, that's solid") but don't overdo it.
-- Only answer from the data provided — never invent numbers or client names.
-- If you cannot answer from the data, say so honestly.
-- Format dollar amounts with $ and two decimal places.
+You can read live data AND update records. When updating:
+1. Use search_jobs to find the right job first.
+2. Call the update tool — it queues the action for confirmation.
+3. Tell the user exactly what's pending and ask them to say "yes" or "cancel".
+
+Rules:
+- Be concise. **Bold** key names and statuses.
+- A little dog personality is fine but keep it brief.
+- Never invent data — only use what's in the context.
+- Valid statuses: prospecting, to_be_scheduled, scheduled, in_progress, completed, invoiced, bid_lost
 
 LIVE BUSINESS DATA:
 ${context}`;
 
         history.push({ role: 'user', content: query });
+        let messages = history.map(h => ({ role: h.role, content: h.content }));
+        let finalReply = '';
 
-        const response = await anthropic.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 450,
-            system: systemPrompt,
-            messages: history,
-        });
+        // Agentic loop — up to 5 rounds of tool use
+        for (let round = 0; round < 5; round++) {
+            const response = await anthropic.messages.create({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 600,
+                system: systemPrompt,
+                messages,
+                tools: MADDOX_TOOLS
+            });
 
-        const answer = response.content[0]?.text || 'No response.';
-        history.push({ role: 'assistant', content: answer });
-        if (history.length > 10) history.splice(0, history.length - 10);
-        req.session.maddoxHistory = history;
+            if (response.stop_reason === 'end_turn') {
+                finalReply = response.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+                break;
+            }
 
-        return res.json({ answer, items: [] });
+            if (response.stop_reason === 'tool_use') {
+                const toolBlocks = response.content.filter(b => b.type === 'tool_use');
+                const toolResults = [];
+
+                for (const tb of toolBlocks) {
+                    let result;
+                    if (tb.name === 'search_jobs') {
+                        const q = (tb.input.query || '').toLowerCase();
+                        const [allJobs, allClients] = await Promise.all([
+                            db.collection('jobs').find({}).project({ _id:1, title:1, status:1, clientId:1, scheduledDate:1 }).toArray(),
+                            db.collection('clients').find({}).project({ _id:1, name:1, contactName:1 }).toArray()
+                        ]);
+                        const clientMap = {};
+                        allClients.forEach(c => clientMap[c._id.toString()] = c.name || c.contactName || '');
+                        const matched = allJobs.filter(j =>
+                            (j.title||'').toLowerCase().includes(q) ||
+                            (clientMap[j.clientId?.toString()]||'').toLowerCase().includes(q)
+                        ).slice(0, 6).map(j => ({
+                            id: j._id.toString(), title: j.title,
+                            client: clientMap[j.clientId?.toString()] || 'Unknown',
+                            status: j.status, scheduledDate: j.scheduledDate
+                        }));
+                        result = matched.length ? { found: true, jobs: matched } : { found: false, message: `No jobs found matching "${tb.input.query}"` };
+
+                    } else if (tb.name === 'update_job_status') {
+                        req.session.maddoxPendingAction = {
+                            type: 'update_job_status',
+                            job_id: tb.input.job_id,
+                            new_status: tb.input.new_status,
+                            job_title: tb.input.job_title,
+                            client_name: tb.input.client_name || ''
+                        };
+                        result = { status: 'pending_confirmation', message: `Queued: set "${tb.input.job_title}" → ${tb.input.new_status}. Awaiting user confirmation.` };
+
+                    } else if (tb.name === 'add_job_note') {
+                        req.session.maddoxPendingAction = {
+                            type: 'add_job_note',
+                            job_id: tb.input.job_id,
+                            note: tb.input.note,
+                            job_title: tb.input.job_title,
+                            client_name: tb.input.client_name || ''
+                        };
+                        result = { status: 'pending_confirmation', message: `Queued: add note to "${tb.input.job_title}". Awaiting user confirmation.` };
+                    }
+
+                    toolResults.push({ type: 'tool_result', tool_use_id: tb.id, content: JSON.stringify(result) });
+                }
+
+                messages.push({ role: 'assistant', content: response.content });
+                messages.push({ role: 'user', content: toolResults });
+            }
+        }
+
+        if (!finalReply) finalReply = 'Woof — I had trouble with that one. Try again?';
+
+        history.push({ role: 'assistant', content: finalReply });
+        if (history.length > 20) req.session.maddoxHistory = history.slice(-20);
+        else req.session.maddoxHistory = history;
+
+        return res.json({ answer: finalReply, items: [] });
 
     } catch (e) {
         console.error('Maddox AI error:', e.message);
         res.status(500).json({ answer: 'Woof — something went wrong. Try again!', items: [] });
     }
-
 });
 
 // Lightweight notification counts (messages + leads + expiring compliance docs)
