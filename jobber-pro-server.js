@@ -10364,6 +10364,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 quote:        { icon: '📋', label: 'Quote',        color: '#38a169', bg: '#f0fff4' },
                 credentials:  { icon: '🔑', label: 'Credentials',  color: '#d69e2e', bg: '#fffff0' },
                 portal_access:{ icon: '🏠', label: 'Portal Access',color: '#805ad5', bg: '#faf5ff' },
+                survey:       { icon: '⭐', label: 'Survey',       color: '#c05621', bg: '#fffaf0' },
                 test:         { icon: '🧪', label: 'Test',         color: '#718096', bg: '#f7fafc' }
             };
 
