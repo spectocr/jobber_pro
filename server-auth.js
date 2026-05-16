@@ -2512,6 +2512,8 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 } else if (job.status === 'completed') {
                     await sendSMS(client.phone,
                         companyName + ': Job "' + job.title + '" is complete! Invoice will follow shortly.');
+                    // Send survey (fire and forget)
+                    sendJobSurvey(job._id || new ObjectId(_id), client, job.title, companyName).catch(e => console.error('Survey send error:', e));
                 } else if (job.status === 'invoiced') {
                     await sendSMS(client.phone,
                         companyName + ': Invoice ready for "' + job.title + '". Total: $' + (job.total || 0).toFixed(2) + '.');
@@ -2529,6 +2531,205 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
 app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
     await db.collection('jobs').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
+});
+
+// ── Survey system ─────────────────────────────────────────────────────────────
+
+async function sendJobSurvey(jobId, client, jobTitle, companyName) {
+    if (!client || !client.email) return; // no email, skip
+    const token = crypto.randomBytes(24).toString('hex');
+    const appUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
+    const surveyUrl = `${appUrl}/survey/${token}`;
+    await db.collection('jobs').updateOne(
+        { _id: new ObjectId(jobId.toString()) },
+        { $set: { surveyToken: token, surveyTokenSentAt: new Date() } }
+    );
+    const clientName = client.contactName || client.name || 'there';
+    await emailService.sendEmail({
+        to: client.email,
+        subject: `How did we do? — ${companyName}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;color:#1a202c;">
+            <div style="text-align:center;margin-bottom:1.5rem;">
+                <div style="font-size:2.5rem;">🐾</div>
+                <h2 style="color:#0f1c2e;margin:0.5rem 0;">How did we do?</h2>
+                <p style="color:#718096;margin:0;">Your feedback helps us grow.</p>
+            </div>
+            <p>Hi ${clientName},</p>
+            <p>We just wrapped up <strong>${jobTitle}</strong>. We'd love to know how we did — it takes 30 seconds.</p>
+            <div style="text-align:center;margin:2rem 0;">
+                <a href="${surveyUrl}" style="display:inline-block;background:#0f1c2e;color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem;">Leave Feedback</a>
+            </div>
+            <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">Or paste this link: <a href="${surveyUrl}" style="color:#667eea;">${surveyUrl}</a></p>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
+            <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">${companyName} · South Jersey</p>
+        </div>`
+    });
+}
+
+// Public survey page
+app.get('/survey/:token', async (req, res) => {
+    const job = await db.collection('jobs').findOne({ surveyToken: req.params.token });
+    if (!job) return res.status(404).send('<h2>Survey not found or already submitted.</h2>');
+    if (job.surveySubmittedAt) return res.status(410).send('<h2>This survey has already been submitted. Thank you!</h2>');
+    const settings = await db.collection('settings').findOne({});
+    const companyName = settings?.companyName || 'GSD Handyman Service';
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How did we do? — ${companyName}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f8fc;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}
+.card{background:#fff;border-radius:16px;padding:2rem 1.75rem;max-width:460px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
+.logo{text-align:center;font-size:2.5rem;margin-bottom:0.5rem;}
+h1{text-align:center;font-size:1.4rem;color:#0f1c2e;margin-bottom:0.25rem;}
+.sub{text-align:center;color:#718096;font-size:0.9rem;margin-bottom:1.75rem;}
+.job-name{text-align:center;font-weight:700;color:#553c9a;margin-bottom:1.5rem;font-size:0.95rem;}
+.stars{display:flex;justify-content:center;gap:0.5rem;margin-bottom:1.5rem;}
+.star{font-size:2.75rem;cursor:pointer;opacity:0.25;transition:opacity 0.15s,transform 0.1s;user-select:none;line-height:1;}
+.star.on{opacity:1;}
+.star:hover{transform:scale(1.15);}
+label{display:block;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;margin-bottom:0.4rem;}
+textarea{width:100%;border:2px solid #e2e8f0;border-radius:8px;padding:0.75rem;font-size:0.95rem;font-family:inherit;resize:vertical;min-height:90px;outline:none;transition:border-color 0.15s;}
+textarea:focus{border-color:#553c9a;}
+.recommend{display:flex;gap:0.75rem;margin:1rem 0 1.5rem;}
+.rec-btn{flex:1;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;background:#fff;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.15s;color:#4a5568;}
+.rec-btn.on{border-color:#48bb78;background:#f0fff4;color:#276749;}
+.rec-btn.on-no{border-color:#fc8181;background:#fff5f5;color:#c53030;}
+.submit{display:block;width:100%;background:#0f1c2e;color:#fff;border:none;padding:0.9rem;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;margin-top:0.5rem;transition:background 0.15s;}
+.submit:hover{background:#1a2e4a;}
+.submit:disabled{background:#a0aec0;cursor:not-allowed;}
+.thanks{text-align:center;padding:2rem 0;}
+.thanks .big{font-size:3rem;margin-bottom:0.75rem;}
+.thanks h2{color:#0f1c2e;margin-bottom:0.5rem;}
+.thanks p{color:#718096;}
+.err{color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;text-align:center;}
+</style></head><body>
+<div class="card">
+  <div id="surveyForm">
+    <div class="logo">🐾</div>
+    <h1>How did we do?</h1>
+    <p class="sub">Your feedback means everything to us.</p>
+    <p class="job-name">${job.title}</p>
+    <div class="stars" id="stars">
+      <span class="star" data-v="1">★</span>
+      <span class="star" data-v="2">★</span>
+      <span class="star" data-v="3">★</span>
+      <span class="star" data-v="4">★</span>
+      <span class="star" data-v="5">★</span>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <label>Comments (optional)</label>
+      <textarea id="comment" placeholder="Tell us what went well or what we could improve..."></textarea>
+    </div>
+    <div style="margin-bottom:0.25rem;">
+      <label>Would you recommend us?</label>
+      <div class="recommend">
+        <button class="rec-btn" id="recYes" onclick="setRec(true)">👍 Yes</button>
+        <button class="rec-btn" id="recNo"  onclick="setRec(false)">👎 No</button>
+      </div>
+    </div>
+    <button class="submit" id="submitBtn" onclick="submitSurvey()" disabled>Submit Feedback</button>
+    <p class="err" id="errMsg"></p>
+  </div>
+  <div class="thanks" id="thanksMsg" style="display:none;">
+    <div class="big">🙌</div>
+    <h2>Thank you!</h2>
+    <p>We really appreciate your feedback.<br>It helps us keep getting better.</p>
+  </div>
+</div>
+<script>
+let rating = 0, recommend = null;
+const stars = document.querySelectorAll('.star');
+stars.forEach(s => {
+  s.addEventListener('click', () => {
+    rating = +s.dataset.v;
+    stars.forEach(x => x.classList.toggle('on', +x.dataset.v <= rating));
+    checkReady();
+  });
+  s.addEventListener('mouseover', () => stars.forEach(x => x.classList.toggle('on', +x.dataset.v <= +s.dataset.v)));
+  s.addEventListener('mouseout',  () => stars.forEach(x => x.classList.toggle('on', +x.dataset.v <= rating)));
+});
+function setRec(val) {
+  recommend = val;
+  document.getElementById('recYes').className = 'rec-btn' + (val === true  ? ' on' : '');
+  document.getElementById('recNo').className  = 'rec-btn' + (val === false ? ' on-no' : '');
+  checkReady();
+}
+function checkReady() {
+  document.getElementById('submitBtn').disabled = !(rating > 0);
+}
+async function submitSurvey() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const r = await fetch('/api/survey/${req.params.token}', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ rating, comment: document.getElementById('comment').value.trim(), recommend })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('surveyForm').style.display = 'none';
+      document.getElementById('thanksMsg').style.display = 'block';
+    } else {
+      document.getElementById('errMsg').textContent = d.error || 'Something went wrong.';
+      btn.disabled = false; btn.textContent = 'Submit Feedback';
+    }
+  } catch(e) {
+    document.getElementById('errMsg').textContent = 'Network error — please try again.';
+    btn.disabled = false; btn.textContent = 'Submit Feedback';
+  }
+}
+</script></body></html>`);
+});
+
+// Survey submission
+app.post('/api/survey/:token', async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ surveyToken: req.params.token });
+        if (!job) return res.status(404).json({ error: 'Survey not found.' });
+        if (job.surveySubmittedAt) return res.status(410).json({ error: 'Already submitted.' });
+        const { rating, comment, recommend } = req.body;
+        if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating required.' });
+        const now = new Date();
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        await db.collection('surveys').insertOne({
+            jobId: job._id, clientId: job.clientId || null,
+            jobTitle: job.title, clientName: client?.name || client?.contactName || '',
+            rating: +rating, comment: comment || '', recommend: recommend ?? null,
+            submittedAt: now, token: req.params.token
+        });
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $set: { surveySubmittedAt: now, surveyRating: +rating } }
+        );
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Admin: all surveys
+app.get('/api/surveys', isAuthenticated, async (req, res) => {
+    const surveys = await db.collection('surveys').find().sort({ submittedAt: -1 }).toArray();
+    res.json(surveys.map(s => ({ ...s, id: s._id.toString() })));
+});
+
+// Admin: resend survey for a job
+app.post('/api/jobs/:id/resend-survey', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'GSD Handyman Service';
+        // Reset token so it can be re-submitted
+        await db.collection('jobs').updateOne({ _id: job._id }, { $unset: { surveyToken: '', surveyTokenSentAt: '', surveySubmittedAt: '', surveyRating: '' } });
+        await sendJobSurvey(job._id, client, job.title, companyName);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Quotes API
