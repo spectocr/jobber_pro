@@ -51,9 +51,15 @@ class EmailService {
         }
     }
 
-    async sendEmail({ to, subject, html, text, attachments = [] }) {
+    async sendEmail({ to, subject, html, text, attachments = [], trackingPixelUrl }) {
         if (!this.initialized) {
             throw new Error('Email service not initialized. Check SES_ACCESS_KEY_ID, SES_SECRET_ACCESS_KEY, and SES_FROM_EMAIL in config.');
+        }
+
+        let trackedHtml = html;
+        if (trackingPixelUrl && html) {
+            const pixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none" alt="">`;
+            trackedHtml = html.includes('</body>') ? html.replace('</body>', pixel + '</body>') : html + pixel;
         }
 
         try {
@@ -63,7 +69,7 @@ class EmailService {
                 to,
                 subject,
                 text,
-                html,
+                html: trackedHtml,
                 attachments
             });
             console.log('✅ Email sent to:', to, 'Message ID:', result.messageId);
@@ -83,7 +89,7 @@ class EmailService {
         return result;
     }
 
-    async sendUserCredentials({ to, name, email, tempPassword, companyName, loginUrl, customSubject, customBody }) {
+    async sendUserCredentials({ to, name, email, tempPassword, companyName, loginUrl, customSubject, customBody, trackingPixelUrl }) {
         const subjectTemplate = customSubject || `Your {companyName} Account Credentials`;
         const bodyTemplate = customBody || `Hi {name},\n\nYour account has been created!\n\nEmail: {email}\nTemporary Password: {tempPassword}\n\nLogin at: {loginUrl}\n\nPlease change your password after logging in.`;
 
@@ -115,10 +121,10 @@ class EmailService {
 </body>
 </html>`;
 
-        return this.sendEmail({ to, subject, html, text: textBody });
+        return this.sendEmail({ to, subject, html, text: textBody, trackingPixelUrl });
     }
 
-    async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName, customSubject, customBody }) {
+    async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName, customSubject, customBody, trackingPixelUrl }) {
         const subjectTemplate = customSubject || `Your job summary from {companyName} — {jobTitle}`;
         const bodyTemplate = customBody || `Hi {clientName},\n\nGreat news — your job is complete! Here's a summary of the work done.\n\nJob: {jobTitle}\nAmount due: ${parseFloat(total).toFixed(2)}\nReference: #{invoiceNumber}\n\nYou can view the full details and print a copy here:\n{invoiceUrl}\n\nThanks for choosing {companyName}. We appreciate your business!\n\nIf you have any questions, just reply to this email.`;
 
@@ -163,7 +169,7 @@ class EmailService {
             });
         }
 
-        return this.sendEmail({ to, subject, html, text: textBody, attachments });
+        return this.sendEmail({ to, subject, html, text: textBody, attachments, trackingPixelUrl });
     }
 
     async sendTestEmail(to) {

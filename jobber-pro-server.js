@@ -10507,6 +10507,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Recipient</th>
                             <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Triggered By</th>
                             <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:130px;">Sent By</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:90px;">Opened</th>
                             <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;width:160px;">Date</th>
                         </tr>
                     </thead>
@@ -10514,6 +10515,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         \${logs.map(log => {
                             const cfg = typeConfig[log.type] || typeConfig.test;
                             const date = new Date(log.sentAt).toLocaleString();
+                            const openedBadge = log.opened
+                                ? \`<span title="Opened \${new Date(log.openedAt).toLocaleString()}" style="background:#c6f6d5;color:#22543d;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;white-space:nowrap;cursor:default;">✓ Opened</span>\`
+                                : log.type === 'test'
+                                    ? '<span style="color:#a0aec0;font-size:0.8rem;">—</span>'
+                                    : '<span style="color:#a0aec0;font-size:0.8rem;">Not yet</span>';
                             return \`<tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
                                 <td style="padding:0.85rem 1rem;">
                                     <span style="background:\${cfg.bg};color:\${cfg.color};padding:0.25rem 0.6rem;border-radius:20px;font-size:0.8rem;font-weight:600;white-space:nowrap;">\${cfg.icon} \${cfg.label}</span>
@@ -10524,6 +10530,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 </td>
                                 <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${log.trigger || '—'}</td>
                                 <td style="padding:0.85rem 1rem;color:#718096;font-size:0.9rem;">\${log.sentBy || '—'}</td>
+                                <td style="padding:0.85rem 1rem;">\${openedBadge}</td>
                                 <td style="padding:0.85rem 1rem;text-align:right;color:#718096;font-size:0.85rem;white-space:nowrap;">\${date}</td>
                             </tr>\`;
                         }).join('')}

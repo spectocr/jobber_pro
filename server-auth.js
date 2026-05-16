@@ -2160,14 +2160,18 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
 </html>
         `;
 
+        const _portalLogId = new ObjectId();
+        const _appUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
         await emailService.sendEmail({
             to: sendTo,
             subject: subject,
             html: html,
-            text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: The last 4 digits of your phone number on file`
+            text: `${companyName} Client Portal Access\n\nYour client portal is ready! Access it at: ${portalUrl}\n\nEmail: ${client.email}\nAccess Code: The last 4 digits of your phone number on file`,
+            trackingPixelUrl: `${_appUrl}/api/email-track/${_portalLogId}`
         });
 
         await db.collection('email_logs').insertOne({
+            _id: _portalLogId,
             type: 'portal_access',
             to: sendTo,
             toName: client.name,
@@ -2177,7 +2181,8 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
             relatedTitle: client.name,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
-            status: 'sent'
+            status: 'sent',
+            opened: false
         });
 
         res.json({ success: true });
@@ -2548,6 +2553,8 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
     );
     const clientName = client.contactName || client.name || 'there';
     const subject = `How did we do? — ${companyName}`;
+    const _surveyLogId = new ObjectId();
+    const _surveyTrackUrl = `${appUrl}/api/email-track/${_surveyLogId}`;
     await emailService.sendEmail({
         to: client.email,
         subject,
@@ -2565,9 +2572,11 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
             <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">Or paste this link: <a href="${surveyUrl}" style="color:#667eea;">${surveyUrl}</a></p>
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
             <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">${companyName} · South Jersey</p>
-        </div>`
+        </div>`,
+        trackingPixelUrl: _surveyTrackUrl
     });
     await db.collection('email_logs').insertOne({
+        _id: _surveyLogId,
         type: 'survey',
         to: client.email,
         toName: client.name || clientName,
@@ -2577,7 +2586,8 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
         relatedTitle: jobTitle,
         sentBy: 'system',
         sentAt: new Date(),
-        status: 'sent'
+        status: 'sent',
+        opened: false
     });
 }
 
@@ -2745,6 +2755,26 @@ app.post('/api/jobs/:id/resend-survey', isAuthenticated, async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// Email open tracking pixel
+const TRACKING_PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+app.get('/api/email-track/:id', async (req, res) => {
+    try {
+        if (ObjectId.isValid(req.params.id)) {
+            await db.collection('email_logs').updateOne(
+                { _id: new ObjectId(req.params.id), opened: { $ne: true } },
+                { $set: { opened: true, openedAt: new Date() } }
+            );
+        }
+    } catch (_) {}
+    res.writeHead(200, {
+        'Content-Type': 'image/gif',
+        'Content-Length': TRACKING_PIXEL.length,
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+    });
+    res.end(TRACKING_PIXEL);
 });
 
 // Quotes API
@@ -3097,14 +3127,18 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
 </html>
         `;
 
+        const _quoteLogId = new ObjectId();
+        const _quoteAppUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
         await emailService.sendEmail({
             to: toEmail,
             subject: subject,
             html: html,
-            text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: ${fmt$(parseFloat(quote.total || 0))}\nValid until: ${quote.validUntil}`
+            text: `Quote #${quote.quoteNumber} from ${companyName}\n\nView quote: ${quoteUrl}\n\nTotal: ${fmt$(parseFloat(quote.total || 0))}\nValid until: ${quote.validUntil}`,
+            trackingPixelUrl: `${_quoteAppUrl}/api/email-track/${_quoteLogId}`
         });
 
         await db.collection('email_logs').insertOne({
+            _id: _quoteLogId,
             type: 'quote',
             to: toEmail,
             toName: toName,
@@ -3114,6 +3148,7 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
             relatedTitle: quote.title,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
+            opened: false,
             status: 'sent'
         });
 
@@ -3567,6 +3602,8 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
         const customSubject = settings?.emailTemplates?.credentialsSubject;
         const customBody = settings?.emailTemplates?.credentialsBody;
 
+        const _credLogId = new ObjectId();
+        const _credAppUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
         await emailService.sendUserCredentials({
             to: user.email,
             name: user.name,
@@ -3575,10 +3612,12 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
             companyName: companyName,
             loginUrl: loginUrl,
             customSubject: customSubject,
-            customBody: customBody
+            customBody: customBody,
+            trackingPixelUrl: `${_credAppUrl}/api/email-track/${_credLogId}`
         });
 
         await db.collection('email_logs').insertOne({
+            _id: _credLogId,
             type: 'credentials',
             to: user.email,
             toName: user.name,
@@ -3588,7 +3627,8 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
             relatedTitle: user.name,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
-            status: 'sent'
+            status: 'sent',
+            opened: false
         });
 
         res.json({ success: true, message: 'Credentials email sent to ' + user.email });
@@ -3647,6 +3687,8 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
         const customSubject = settings?.emailTemplates?.invoiceSubject;
         const customBody = settings?.emailTemplates?.invoiceBody;
 
+        const _invLogId = new ObjectId();
+        const _invAppUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
         await emailService.sendInvoice({
             to: invoiceEmail,
             clientName: client.name,
@@ -3657,10 +3699,12 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             pdfBuffer: null,
             companyName: companyName,
             customSubject: customSubject,
-            customBody: customBody
+            customBody: customBody,
+            trackingPixelUrl: `${_invAppUrl}/api/email-track/${_invLogId}`
         });
 
         await db.collection('email_logs').insertOne({
+            _id: _invLogId,
             type: 'invoice',
             to: invoiceEmail,
             toName: client.name,
@@ -3670,7 +3714,8 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             relatedTitle: job.title,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
-            status: 'sent'
+            status: 'sent',
+            opened: false
         });
 
         await db.collection('jobs').updateOne(
