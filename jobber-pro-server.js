@@ -1244,6 +1244,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             #signoffModal > div > div:first-child {
                 padding: 0.35rem 1rem !important;
             }
+            /* Show landscape banner */
+            #soLandscapeBanner { display: block !important; }
             /* Body: no padding, let canvas breathe */
             #soBody {
                 padding: 0 !important;
@@ -1253,9 +1255,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             #soMetaGrid, #soWorkSection, #soSigLabel,
             #soSigControls, #soNameWrap, #soTitleDateGrid,
             #soSignedByRow, #soSigImg { display: none !important; }
-            /* Canvas container: fill all available body height */
+            /* Canvas fills body: header ~44px + banner ~28px + footer ~44px = 116px */
             #soPad {
-                height: calc(100vh - 88px) !important;
+                height: calc(100vh - 116px) !important;
                 cursor: crosshair;
             }
             #soHint { font-size: 1.4rem !important; }
@@ -13113,6 +13115,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       </div>
       <button onclick="closeSignoffModal()" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:1.5rem;cursor:pointer;line-height:1;padding:0 0.25rem;">×</button>
     </div>
+    <!-- Landscape-only banner -->
+    <div id="soLandscapeBanner" style="display:none;background:#0f1c2e;color:rgba(255,255,255,0.85);text-align:center;font-size:0.75rem;font-weight:600;padding:0.3rem 1rem;letter-spacing:0.03em;flex-shrink:0;">↩ Rotate phone upright when done signing</div>
     <!-- Scrollable body -->
     <div id="soBody" style="overflow-y:auto;flex:1;padding:0.9rem 1rem;">
       <!-- Meta -->
