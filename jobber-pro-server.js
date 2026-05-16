@@ -3995,21 +3995,69 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('soLoc').textContent       = _soLoc || '—';
             document.getElementById('soSchedDate').textContent = _soDate;
             document.getElementById('soDesc').textContent      = _soDesc;
-            document.getElementById('soDate').textContent      = _soToday;
+            document.getElementById('soDate').textContent      = job.signoff ? new Date(job.signoff.signedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : _soToday;
             document.getElementById('soSignerInput').value     = signerName;
             document.getElementById('soTitleInput').value      = '';
             document.getElementById('soSaveBtn').textContent   = '💾 Save to Job';
             document.getElementById('soSaveBtn').disabled      = false;
             document.getElementById('soSaveBtn').style.background = '#48bb78';
 
-            // Init canvas
-            _soCanvas = document.getElementById('soPad');
-            _soCtx = _soCanvas.getContext('2d');
-            _soAttachEvents();
-            _soCtx.lineWidth = 2.5; _soCtx.lineCap = 'round'; _soCtx.lineJoin = 'round'; _soCtx.strokeStyle = '#1a1a1a';
-            _soCtx.clearRect(0, 0, _soCanvas.width, _soCanvas.height);
-            _soHasSig = false; _soDrawing = false;
-            document.getElementById('soHint').style.display = '';
+            const _soModalHeading = document.querySelector('#signoffModal [style*="font-weight:800"]');
+            if (_soModalHeading) _soModalHeading.textContent = job.signoff ? 'Client Sign-Off' : 'Work Completion Sign-Off';
+
+            const isViewMode = !!job.signoff;
+            const padWrap   = document.getElementById('soPad').parentElement;
+            const sigControls = document.getElementById('soSigControls');
+            const sigImg    = document.getElementById('soSigImg');
+            const saveBtn   = document.getElementById('soSaveBtn');
+            const disclaimer = document.querySelector('#signoffModal [style*="fffef7"]');
+
+            if (isViewMode) {
+                // View-only: show saved signature image, hide canvas
+                padWrap.style.display = 'none';
+                sigControls.style.display = 'none';
+                if (disclaimer) disclaimer.style.display = 'none';
+                saveBtn.style.display = 'none';
+                // Find the signoff attachment and display it
+                const sigAtt = (attachments||[]).slice().reverse().find(a => a.name === 'Business Sign-Off');
+                if (sigAtt) {
+                    sigImg.style.display = 'block';
+                    sigImg.style.cssText = 'display:block;max-width:100%;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:1rem;';
+                    if (sigAtt.s3Key) {
+                        fetch(\`/api/file/\${sigAtt.s3Key}\`).then(r=>r.json()).then(d=>{ if(d.url) sigImg.src=d.url; });
+                    } else {
+                        sigImg.src = sigAtt.data || '';
+                    }
+                } else {
+                    sigImg.style.display = 'none';
+                }
+                // Lock name/title fields
+                const nameIn = document.getElementById('soSignerInput');
+                const titleIn = document.getElementById('soTitleInput');
+                nameIn.value = job.signoff.signerName || signerName;
+                nameIn.readOnly = true;
+                titleIn.readOnly = true;
+                document.getElementById('soHint').style.display = 'none';
+            } else {
+                // Edit mode: show canvas, hide sig image
+                padWrap.style.display = '';
+                sigControls.style.display = '';
+                if (disclaimer) disclaimer.style.display = '';
+                saveBtn.style.display = '';
+                sigImg.style.display = 'none';
+                const nameIn = document.getElementById('soSignerInput');
+                const titleIn = document.getElementById('soTitleInput');
+                nameIn.readOnly = false;
+                titleIn.readOnly = false;
+                // Init canvas
+                _soCanvas = document.getElementById('soPad');
+                _soCtx = _soCanvas.getContext('2d');
+                _soAttachEvents();
+                _soCtx.lineWidth = 2.5; _soCtx.lineCap = 'round'; _soCtx.lineJoin = 'round'; _soCtx.strokeStyle = '#1a1a1a';
+                _soCtx.clearRect(0, 0, _soCanvas.width, _soCanvas.height);
+                _soHasSig = false; _soDrawing = false;
+                document.getElementById('soHint').style.display = '';
+            }
 
             document.getElementById('signoffModal').style.display = 'flex';
             document.body.style.overflow = 'hidden';
@@ -4311,7 +4359,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (job && (job._id || job.id)) {
                 _stepperEl.style.display = 'block';
                 _stepperEl.innerHTML = buildWorkflowStepper(buildJobStages(job));
-                if (_signoffBtn) _signoffBtn.style.display = '';
+                if (_signoffBtn) {
+                    _signoffBtn.style.display = '';
+                    _signoffBtn.innerHTML = job.signoff ? '✅ View Sign-Off' : '✍️ Sign-Off';
+                }
             } else {
                 _stepperEl.style.display = 'none';
                 if (_signoffBtn) _signoffBtn.style.display = 'none';
