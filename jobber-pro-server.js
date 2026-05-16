@@ -1337,6 +1337,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="nav-btn admin-item" onclick="showView('activity')">📜 Activity</button>
                 <button class="nav-btn admin-item" onclick="showView('reports')">📈 Reports</button>
                 <button class="nav-btn admin-item" onclick="showView('analytics')">📊 Analytics</button>
+                <button class="nav-btn admin-item" onclick="showView('surveys')">⭐ Surveys</button>
                 <button class="nav-btn admin-item" onclick="showView('settings')">⚙️ Settings</button>
             </div>
         </div>
@@ -2148,6 +2149,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div id="analyticsBody">
                     <div style="text-align:center;padding:3rem;color:#718096;">Loading analytics...</div>
                 </div>
+            </div>
+        </div>
+
+        <div id="surveys" class="view">
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>⭐ Client Surveys</h2>
+                    <button class="btn btn-secondary btn-small" onclick="loadSurveys()">↻ Refresh</button>
+                </div>
+                <div id="surveySummaryBar" style="display:flex;gap:1.5rem;flex-wrap:wrap;padding:1rem 0;border-bottom:1px solid #e2e8f0;margin-bottom:1rem;"></div>
+                <div id="surveyList" style="margin-top:0.5rem;"></div>
             </div>
         </div>
 
@@ -3837,6 +3849,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'activity') loadActivityLog();
             if (viewName === 'reports') loadReports();
             if (viewName === 'analytics') loadAnalytics();
+            if (viewName === 'surveys') loadSurveys();
             if (viewName === 'leads') loadLeads();
             if (viewName === 'settings') {
                 loadSettings();
@@ -9277,6 +9290,73 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 container.innerHTML = \`<div style="font-size:0.8rem;color:#a0aec0;margin-bottom:0.5rem;">\${filtered.length} events</div>\` + rows;
             } catch (e) {
                 container.innerHTML = \`<div style="color:#e53e3e;padding:1rem;">Failed to load: \${e.message}</div>\`;
+            }
+        }
+
+        async function loadSurveys() {
+            const list = document.getElementById('surveyList');
+            const bar  = document.getElementById('surveySummaryBar');
+            list.innerHTML = '<div style="color:#718096;padding:1rem;">Loading surveys...</div>';
+            bar.innerHTML  = '';
+            try {
+                const res  = await fetch('/api/surveys');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                if (!data.length) {
+                    list.innerHTML = '<div style="color:#718096;padding:1rem;">No surveys submitted yet.</div>';
+                    return;
+                }
+
+                // Summary bar
+                const avg = (data.reduce((s, r) => s + (r.rating || 0), 0) / data.length).toFixed(1);
+                const rec = data.filter(r => r.recommend === true).length;
+                const stars = n => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
+                bar.innerHTML = \`
+                    <div style="background:#f0f9ff;border-radius:8px;padding:0.75rem 1.25rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:#2d3748;">\${avg}</div>
+                        <div style="font-size:1rem;color:#f6ad55;">\${stars(avg)}</div>
+                        <div style="font-size:0.75rem;color:#718096;">Avg rating</div>
+                    </div>
+                    <div style="background:#f0fff4;border-radius:8px;padding:0.75rem 1.25rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:#2d3748;">\${data.length}</div>
+                        <div style="font-size:0.75rem;color:#718096;">Responses</div>
+                    </div>
+                    <div style="background:#fff5f5;border-radius:8px;padding:0.75rem 1.25rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:#2d3748;">\${Math.round(rec / data.length * 100)}%</div>
+                        <div style="font-size:0.75rem;color:#718096;">Would recommend</div>
+                    </div>\`;
+
+                // Rows
+                const starColor = r => r >= 4 ? '#38a169' : r >= 3 ? '#d69e2e' : '#e53e3e';
+                list.innerHTML = data.map(r => {
+                    const date = new Date(r.submittedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+                    const starHtml = \`<span style="color:\${starColor(r.rating)};font-size:1rem;">\${'★'.repeat(r.rating)}\${'☆'.repeat(5 - r.rating)}</span>\`;
+                    const recBadge = r.recommend === true
+                        ? '<span style="background:#c6f6d5;color:#22543d;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.72rem;font-weight:600;">👍 Recommends</span>'
+                        : r.recommend === false
+                        ? '<span style="background:#fed7d7;color:#9b2c2c;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.72rem;font-weight:600;">👎 Would not recommend</span>'
+                        : '';
+                    const comment = r.comment
+                        ? \`<div style="margin-top:0.4rem;font-size:0.875rem;color:#4a5568;font-style:italic;">" \${r.comment} "</div>\`
+                        : '';
+                    return \`
+                        <div style="padding:1rem 0;border-bottom:1px solid #f0f0f0;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
+                                <div>
+                                    <div style="font-weight:600;font-size:0.9rem;color:#2d3748;">\${r.clientName || 'Client'}</div>
+                                    <div style="font-size:0.8rem;color:#718096;">\${r.jobTitle || ''}</div>
+                                </div>
+                                <div style="text-align:right;">
+                                    \${starHtml}
+                                    <div style="font-size:0.75rem;color:#a0aec0;">\${date}</div>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.35rem;">\${recBadge}</div>
+                            \${comment}
+                        </div>\`;
+                }).join('');
+            } catch (e) {
+                list.innerHTML = \`<div style="color:#e53e3e;padding:1rem;">Failed to load: \${e.message}</div>\`;
             }
         }
 
