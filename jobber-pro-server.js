@@ -3960,6 +3960,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
               .catch(function(e) { cb(false, e.message); });
         };
 
+        // Sign-off modal state
+        let _soJobId, _soTitle, _soClient, _soLoc, _soDate, _soDesc, _soToday;
+        let _soCanvas, _soCtx, _soDrawing = false, _soLastX = 0, _soLastY = 0, _soHasSig = false;
+
         function openSignoffForm(jobId) {
             const job = [...(jobs||[]),...(window.upcomingJobs||[]),...(window.inProgressJobs||[])].find(j=>j.id==jobId||j._id==jobId);
             if (!job) return;
@@ -3976,265 +3980,161 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 signerName = (loc && loc.contact) || '';
             }
             if (!signerName) signerName = (client && (client.contactName || client.name)) || '';
-            const today = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-            const schedDate = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
-            const desc = (job.description||'').trim() || 'See work order for details.';
-            const _jobId = job._id || job.id;
-            const win = window.open('','_blank','width=840,height=1000');
-            win.document.write(\`<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Sign-Off — \${job.title}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:2.5rem 3rem;max-width:760px;margin:0 auto;}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0f1c2e;padding-bottom:1.25rem;margin-bottom:2rem;}
-.co-name{font-size:1.35rem;font-weight:800;color:#0f1c2e;letter-spacing:-0.01em;}
-.co-sub{font-size:0.78rem;color:#666;margin-top:0.25rem;line-height:1.6;}
-.doc-title{font-size:0.95rem;font-weight:800;color:#0f1c2e;text-align:right;text-transform:uppercase;letter-spacing:0.05em;}
-.doc-date{font-size:0.78rem;color:#888;text-align:right;margin-top:0.25rem;}
-.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem 2.5rem;margin-bottom:1.75rem;}
-.meta-label{font-size:0.63rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#aaa;margin-bottom:0.2rem;}
-.meta-value{font-size:0.95rem;font-weight:600;color:#1a1a1a;line-height:1.4;}
-.section-head{font-size:0.63rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#aaa;margin-bottom:0.5rem;}
-.work-box{background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:1rem 1.25rem;font-size:0.9rem;line-height:1.7;color:#333;white-space:pre-wrap;min-height:90px;}
-hr{border:none;border-top:1px solid #e5e7eb;margin:2rem 0;}
-.statement{font-size:0.88rem;color:#444;line-height:1.7;margin-bottom:2.5rem;}
-.sig-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0 2rem;margin-bottom:1.75rem;}
-.sig-field{padding-bottom:0.5rem;border-bottom:1.5px solid #222;}
-.sig-prefill{font-size:0.875rem;color:#666;padding-top:0.2rem;min-height:1.5rem;}
-.sig-hint{font-size:0.66rem;color:#bbb;font-style:italic;margin-top:0.2rem;}
-.sig-label{font-size:0.6rem;text-transform:uppercase;letter-spacing:0.07em;color:#bbb;margin-top:0.3rem;}
-.no-print{margin-top:2.5rem;text-align:center;padding-top:1.5rem;border-top:1px dashed #e5e7eb;}
-.pbtn{background:#0f1c2e;color:#fff;border:none;padding:0.7rem 2.25rem;border-radius:6px;font-size:0.9rem;font-weight:700;cursor:pointer;margin-right:0.6rem;}
-.pbtn:hover{background:#1a2f4a;}
-@media print{.no-print{display:none!important}body{padding:1.5rem 2rem;}}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <div class="co-name">GSD Property Services</div>
-    <div class="co-sub">Mount Laurel, NJ &nbsp;·&nbsp; (856) 872-4636<br>info@gsdhandymanservice.com &nbsp;·&nbsp; LIC# 13VH13491700</div>
-  </div>
-  <div>
-    <div class="doc-title">Work Completion Sign-Off</div>
-    <div class="doc-date">Printed: \${today}</div>
-  </div>
-</div>
 
-<div class="meta-grid">
-  <div><div class="meta-label">Job</div><div class="meta-value">\${job.title}</div></div>
-  <div><div class="meta-label">Client</div><div class="meta-value">\${client ? client.name : '—'}</div></div>
-  <div><div class="meta-label">Service Location</div><div class="meta-value">\${locAddr || '—'}</div></div>
-  <div><div class="meta-label">Date of Service</div><div class="meta-value">\${schedDate}</div></div>
-</div>
+            _soJobId  = job._id || job.id;
+            _soTitle  = job.title;
+            _soClient = client ? client.name : '';
+            _soLoc    = locAddr || '';
+            _soDate   = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
+            _soDesc   = (job.description||'').trim() || 'See work order for details.';
+            _soToday  = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
-<div class="section-head">Work Performed</div>
-<div class="work-box">\${desc}</div>
+            // Populate modal fields
+            document.getElementById('soJobTitle').textContent  = _soTitle;
+            document.getElementById('soClient').textContent    = _soClient || '—';
+            document.getElementById('soLoc').textContent       = _soLoc || '—';
+            document.getElementById('soSchedDate').textContent = _soDate;
+            document.getElementById('soDesc').textContent      = _soDesc;
+            document.getElementById('soDate').textContent      = _soToday;
+            document.getElementById('soSignerInput').value     = signerName;
+            document.getElementById('soTitleInput').value      = '';
+            document.getElementById('soSaveBtn').textContent   = '💾 Save to Job';
+            document.getElementById('soSaveBtn').disabled      = false;
+            document.getElementById('soSaveBtn').style.background = '#48bb78';
 
-<hr>
+            // Init canvas
+            _soCanvas = document.getElementById('soPad');
+            _soCtx = _soCanvas.getContext('2d');
+            _soCtx.lineWidth = 2.5; _soCtx.lineCap = 'round'; _soCtx.lineJoin = 'round'; _soCtx.strokeStyle = '#1a1a1a';
+            _soCtx.clearRect(0, 0, _soCanvas.width, _soCanvas.height);
+            _soHasSig = false; _soDrawing = false;
+            document.getElementById('soHint').style.display = '';
 
-<div class="statement">By signing below, I confirm that the work described above has been completed satisfactorily and to my approval. GSD Property Services is authorized to close this work order.</div>
+            document.getElementById('signoffModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
 
-<div class="section-head">Authorized Signature</div>
-<div style="border:2px dashed #cbd5e0;border-radius:8px;background:#fafafa;position:relative;margin-bottom:0.5rem;overflow:hidden;">
-  <canvas id="sigPad" width="700" height="160" style="display:block;width:100%;height:auto;cursor:crosshair;touch-action:none;"></canvas>
-  <div id="sigHint" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:0.9rem;pointer-events:none;user-select:none;letter-spacing:0.03em;">✏️ Sign here</div>
-</div>
-<div id="sigControls" style="margin-bottom:1.5rem;">
-  <button onclick="clearSig()" type="button" style="background:none;border:1.5px solid #d1d5db;padding:0.3rem 0.9rem;border-radius:5px;cursor:pointer;font-size:0.78rem;color:#888;">Clear</button>
-</div>
+        function closeSignoffModal() {
+            document.getElementById('signoffModal').style.display = 'none';
+            document.body.style.overflow = '';
+        }
 
-<div style="margin-bottom:1.5rem;">
-  <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#aaa;display:block;margin-bottom:0.4rem;">Print Full Name *</label>
-  <input id="signerInput" type="text" value="\${signerName}" placeholder="Type your full name here" style="width:100%;border:none;border-bottom:2px solid #222;background:none;font-size:1rem;padding:0.3rem 0;outline:none;color:#1a1a1a;font-family:inherit;">
-</div>
-<div class="sig-row">
-  <div>
-    <div class="sig-field"><input id="titleInput" type="text" value="" placeholder="Title / role" style="border:none;background:none;width:100%;font-size:0.875rem;padding:0.15rem 0;outline:none;color:#333;font-family:inherit;"></div>
-    <div class="sig-label">Title / Role</div>
-  </div>
-  <div>
-    <div class="sig-field"><div class="sig-prefill">\${today}</div></div>
-    <div class="sig-label">Date</div>
-  </div>
-</div>
+        function _soGetPos(e) {
+            var r = _soCanvas.getBoundingClientRect();
+            var sx = _soCanvas.width / r.width, sy = _soCanvas.height / r.height;
+            var src = (e.touches && e.touches[0]) ? e.touches[0] : e;
+            return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
+        }
+        function _soStart(e) { e.preventDefault(); _soDrawing = true; var p = _soGetPos(e); _soLastX = p.x; _soLastY = p.y; }
+        function _soDraw(e) {
+            e.preventDefault(); if (!_soDrawing) return;
+            var p = _soGetPos(e);
+            _soCtx.beginPath(); _soCtx.moveTo(_soLastX, _soLastY); _soCtx.lineTo(p.x, p.y); _soCtx.stroke();
+            _soLastX = p.x; _soLastY = p.y; _soHasSig = true;
+            document.getElementById('soHint').style.display = 'none';
+        }
+        function _soStop() { _soDrawing = false; }
+        function _soClear() {
+            _soCtx.clearRect(0, 0, _soCanvas.width, _soCanvas.height);
+            _soHasSig = false;
+            document.getElementById('soHint').style.display = '';
+        }
 
-<img id="sigImg" style="display:none;" alt="Signature">
+        function _soWrapLines(ctx, text, maxW) {
+            var words = (text||'').split(/\s+/), lines = [], line = '';
+            for (var i=0;i<words.length;i++) {
+                var test = line ? line+' '+words[i] : words[i];
+                if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = words[i]; } else line = test;
+            }
+            if (line) lines.push(line);
+            return lines;
+        }
 
-<div class="no-print">
-  <button class="pbtn" onclick="doPrint()">🖨️ Print / Save PDF</button>
-  <button id="saveBtn" class="pbtn" onclick="saveToJob()" style="background:#48bb78;">💾 Save to Job</button>
-  <button onclick="window.close()" style="background:none;border:1.5px solid #d1d5db;padding:0.7rem 1.5rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;margin-left:0.25rem;">Close</button>
-</div>
+        function _soBuildDoc() {
+            var W=800, pad=40, inner=W-pad*2;
+            var tmpC=document.createElement('canvas'); tmpC.width=W*2;
+            var tmpCtx=tmpC.getContext('2d'); tmpCtx.font='13px Arial';
+            var descLines=_soWrapLines(tmpCtx,_soDesc,inner);
+            var H=580+descLines.length*18;
+            var c=document.createElement('canvas'); c.width=W*2; c.height=H*2;
+            var x=c.getContext('2d'); x.scale(2,2);
+            x.fillStyle='#fff'; x.fillRect(0,0,W,H);
+            x.fillStyle='#0f1c2e'; x.fillRect(0,0,W,4);
+            x.fillStyle='#0f1c2e'; x.font='bold 18px Arial'; x.fillText('GSD Property Services',pad,32);
+            x.fillStyle='#888'; x.font='10px Arial'; x.fillText('Mount Laurel, NJ  ·  (856) 872-4636  ·  info@gsdhandymanservice.com  ·  LIC# 13VH13491700',pad,48);
+            x.fillStyle='#0f1c2e'; x.font='bold 11px Arial'; x.textAlign='right'; x.fillText('WORK COMPLETION SIGN-OFF',W-pad,28);
+            x.fillStyle='#aaa'; x.font='10px Arial'; x.fillText('Printed: '+_soToday,W-pad,44); x.textAlign='left';
+            x.strokeStyle='#0f1c2e'; x.lineWidth=2; x.beginPath(); x.moveTo(pad,60); x.lineTo(W-pad,60); x.stroke();
+            var col2=pad+inner/2+20;
+            [['JOB',_soTitle,pad,80],['CLIENT',_soClient,col2,80],['SERVICE LOCATION',_soLoc||'—',pad,116],['DATE OF SERVICE',_soDate,col2,116]].forEach(function(l){
+                x.fillStyle='#aaa'; x.font='bold 8px Arial'; x.fillText(l[0],l[2],l[3]);
+                x.fillStyle='#1a1a1a'; x.font='bold 12px Arial'; x.fillText((l[1]||'—').substring(0,45),l[2],l[3]+14);
+            });
+            x.strokeStyle='#e5e7eb'; x.lineWidth=1; x.beginPath(); x.moveTo(pad,142); x.lineTo(W-pad,142); x.stroke();
+            x.fillStyle='#aaa'; x.font='bold 8px Arial'; x.fillText('WORK PERFORMED',pad,158);
+            x.fillStyle='#333'; x.font='12px Arial';
+            descLines.forEach(function(l,i){ x.fillText(l,pad,173+i*18); });
+            var afterDesc=173+descLines.length*18+20;
+            x.strokeStyle='#e5e7eb'; x.lineWidth=1; x.beginPath(); x.moveTo(pad,afterDesc); x.lineTo(W-pad,afterDesc); x.stroke();
+            x.fillStyle='#555'; x.font='11px Arial'; x.fillText('By signing below, I confirm the work described above has been completed satisfactorily.',pad,afterDesc+20);
+            x.fillStyle='#aaa'; x.font='bold 8px Arial'; x.fillText('AUTHORIZED SIGNATURE',pad,afterDesc+42);
+            var sigY=afterDesc+50, sigH=110, sigW=inner;
+            x.strokeStyle='#cbd5e0'; x.lineWidth=1.5; x.setLineDash([5,4]); x.strokeRect(pad,sigY,sigW,sigH); x.setLineDash([]);
+            x.drawImage(_soCanvas,pad,sigY,sigW,sigH);
+            var fieldY=sigY+sigH+28, nameW=inner*0.45, titleW=inner*0.28, dateW=inner*0.22;
+            var signer=document.getElementById('soSignerInput').value;
+            var title=document.getElementById('soTitleInput').value;
+            [['PRINTED NAME',signer,pad],['TITLE / ROLE',title,pad+nameW+20],['DATE',_soToday,pad+nameW+titleW+40]].forEach(function(f){
+                var fw=f[0]==='DATE'?dateW:f[0]==='TITLE / ROLE'?titleW:nameW;
+                x.fillStyle='#1a1a1a'; x.font='13px Arial'; x.fillText(f[1]||'',f[2],fieldY-4);
+                x.strokeStyle='#222'; x.lineWidth=1; x.beginPath(); x.moveTo(f[2],fieldY); x.lineTo(f[2]+fw,fieldY); x.stroke();
+                x.fillStyle='#aaa'; x.font='bold 8px Arial'; x.fillText(f[0],f[2],fieldY+12);
+            });
+            return c;
+        }
 
-<script>
-var canvas = document.getElementById('sigPad');
-var ctx = canvas.getContext('2d');
-ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1a1a';
-var drawing = false, lastX = 0, lastY = 0, hasSig = false;
-function getPos(e) {
-  var r = canvas.getBoundingClientRect();
-  var sx = canvas.width / r.width, sy = canvas.height / r.height;
-  var src = (e.touches && e.touches[0]) ? e.touches[0] : e;
-  return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
-}
-function startDraw(e) { e.preventDefault(); drawing = true; var p = getPos(e); lastX = p.x; lastY = p.y; }
-function draw(e) {
-  e.preventDefault(); if (!drawing) return;
-  var p = getPos(e);
-  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
-  lastX = p.x; lastY = p.y; hasSig = true;
-  document.getElementById('sigHint').style.display = 'none';
-}
-function stopDraw() { drawing = false; }
-canvas.addEventListener('mousedown', startDraw);
-canvas.addEventListener('mousemove', draw);
-canvas.addEventListener('mouseup', stopDraw);
-canvas.addEventListener('mouseleave', stopDraw);
-canvas.addEventListener('touchstart', startDraw, { passive: false });
-canvas.addEventListener('touchmove', draw, { passive: false });
-canvas.addEventListener('touchend', stopDraw);
-function clearSig() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  hasSig = false;
-  document.getElementById('sigHint').style.display = '';
-}
-function doPrint() {
-  var img = document.getElementById('sigImg');
-  var ctrl = document.getElementById('sigControls');
-  img.src = canvas.toDataURL('image/png');
-  img.style.cssText = 'display:block;width:' + canvas.offsetWidth + 'px;height:' + canvas.offsetHeight + 'px;border:2px dashed #cbd5e0;border-radius:8px;margin-bottom:0.5rem;';
-  canvas.style.display = 'none';
-  ctrl.style.display = 'none';
-  window.print();
-  canvas.style.display = 'block';
-  ctrl.style.display = 'block';
-  img.style.display = 'none';
-}
-var JOB_ID = \${JSON.stringify(_jobId)};
-var D_TITLE = \${JSON.stringify(job.title)};
-var D_CLIENT = \${JSON.stringify(client ? client.name : '')};
-var D_LOC = \${JSON.stringify(locAddr || '')};
-var D_DATE = \${JSON.stringify(schedDate)};
-var D_DESC = \${JSON.stringify(desc)};
-var D_TODAY = \${JSON.stringify(today)};
+        function soPrint() {
+            var img = document.getElementById('soSigImg');
+            img.src = _soCanvas.toDataURL('image/png');
+            img.style.cssText = 'display:block;width:'+_soCanvas.offsetWidth+'px;height:'+_soCanvas.offsetHeight+'px;border:2px dashed #cbd5e0;border-radius:8px;margin-bottom:0.5rem;';
+            _soCanvas.style.display = 'none';
+            document.getElementById('soSigControls').style.display = 'none';
+            window.print();
+            _soCanvas.style.display = 'block';
+            document.getElementById('soSigControls').style.display = '';
+            img.style.display = 'none';
+        }
 
-function wrapLines(ctx, text, maxW) {
-  var words = (text || '').split(/\\s+/);
-  var lines = [], line = '';
-  for (var i = 0; i < words.length; i++) {
-    var test = line ? line + ' ' + words[i] : words[i];
-    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = words[i]; }
-    else line = test;
-  }
-  if (line) lines.push(line);
-  return lines;
-}
+        function soSave() {
+            if (!_soHasSig) { alert('Please sign first.'); return; }
+            var signer = document.getElementById('soSignerInput').value.trim();
+            if (!signer) { alert('Please enter your full name.'); document.getElementById('soSignerInput').focus(); return; }
+            var btn = document.getElementById('soSaveBtn');
+            btn.textContent = 'Saving...'; btn.disabled = true;
+            try {
+                var doc = _soBuildDoc();
+                var imgData = doc.toDataURL('image/jpeg', 0.82);
+                window._saveSignoffToJob(_soJobId, imgData, signer, function(ok, err) {
+                    if (ok) { closeSignoffModal(); }
+                    else { alert('Error: '+(err||'Save failed')); btn.textContent = '💾 Save to Job'; btn.disabled = false; }
+                });
+            } catch(e) {
+                alert('Build failed: '+e.message);
+                btn.textContent = '💾 Save to Job'; btn.disabled = false;
+            }
+        }
 
-function buildDoc() {
-  var W = 800, pad = 40;
-  var inner = W - pad * 2;
-  // Measure description height first
-  var tmpC = document.createElement('canvas'); tmpC.width = W * 2;
-  var tmpCtx = tmpC.getContext('2d');
-  tmpCtx.font = '13px Arial';
-  var descLines = wrapLines(tmpCtx, D_DESC, inner);
-  var H = 580 + descLines.length * 18;
-  var c = document.createElement('canvas');
-  c.width = W * 2; c.height = H * 2;
-  var x = c.getContext('2d');
-  x.scale(2, 2);
-  // Background
-  x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-  // Top bar
-  x.fillStyle = '#0f1c2e'; x.fillRect(0, 0, W, 4);
-  // Company name
-  x.fillStyle = '#0f1c2e'; x.font = 'bold 18px Arial';
-  x.fillText('GSD Property Services', pad, 32);
-  x.fillStyle = '#888'; x.font = '10px Arial';
-  x.fillText('Mount Laurel, NJ  ·  (856) 872-4636  ·  info@gsdhandymanservice.com  ·  LIC# 13VH13491700', pad, 48);
-  // Doc title right
-  x.fillStyle = '#0f1c2e'; x.font = 'bold 11px Arial'; x.textAlign = 'right';
-  x.fillText('WORK COMPLETION SIGN-OFF', W - pad, 28);
-  x.fillStyle = '#aaa'; x.font = '10px Arial';
-  x.fillText('Printed: ' + D_TODAY, W - pad, 44);
-  x.textAlign = 'left';
-  // Header rule
-  x.strokeStyle = '#0f1c2e'; x.lineWidth = 2;
-  x.beginPath(); x.moveTo(pad, 60); x.lineTo(W - pad, 60); x.stroke();
-  // Meta grid
-  var col2 = pad + inner / 2 + 20;
-  var labels = [['JOB', D_TITLE, pad, 80], ['CLIENT', D_CLIENT, col2, 80],
-                ['SERVICE LOCATION', D_LOC || '—', pad, 116], ['DATE OF SERVICE', D_DATE, col2, 116]];
-  labels.forEach(function(l) {
-    x.fillStyle = '#aaa'; x.font = 'bold 8px Arial';
-    x.fillText(l[0], l[2], l[3]);
-    x.fillStyle = '#1a1a1a'; x.font = 'bold 12px Arial';
-    x.fillText((l[1] || '—').substring(0, 45), l[2], l[3] + 14);
-  });
-  // Section rule
-  x.strokeStyle = '#e5e7eb'; x.lineWidth = 1;
-  x.beginPath(); x.moveTo(pad, 142); x.lineTo(W - pad, 142); x.stroke();
-  // Description
-  x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText('WORK PERFORMED', pad, 158);
-  x.fillStyle = '#333'; x.font = '12px Arial';
-  descLines.forEach(function(l, i) { x.fillText(l, pad, 173 + i * 18); });
-  var afterDesc = 173 + descLines.length * 18 + 20;
-  // Rule
-  x.strokeStyle = '#e5e7eb'; x.lineWidth = 1;
-  x.beginPath(); x.moveTo(pad, afterDesc); x.lineTo(W - pad, afterDesc); x.stroke();
-  // Statement
-  x.fillStyle = '#555'; x.font = '11px Arial';
-  x.fillText('By signing below, I confirm the work described above has been completed satisfactorily.', pad, afterDesc + 20);
-  // Sig label
-  x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText('AUTHORIZED SIGNATURE', pad, afterDesc + 42);
-  // Sig box (draw from sigPad canvas)
-  var sigY = afterDesc + 50, sigH = 110, sigW = inner;
-  x.strokeStyle = '#cbd5e0'; x.lineWidth = 1.5;
-  x.setLineDash([5,4]); x.strokeRect(pad, sigY, sigW, sigH); x.setLineDash([]);
-  x.drawImage(canvas, pad, sigY, sigW, sigH);
-  // Name / title / date row
-  var fieldY = sigY + sigH + 28;
-  var nameW = inner * 0.45, titleW = inner * 0.28, dateW = inner * 0.22;
-  var signer = document.getElementById('signerInput').value;
-  var title  = document.getElementById('titleInput').value;
-  [['PRINTED NAME', signer, pad], ['TITLE / ROLE', title, pad + nameW + 20], ['DATE', D_TODAY, pad + nameW + titleW + 40]].forEach(function(f) {
-    var fw = f[0]==='DATE' ? dateW : f[0]==='TITLE / ROLE' ? titleW : nameW;
-    // Value sits on the line (baseline = fieldY - 4)
-    x.fillStyle = '#1a1a1a'; x.font = '13px Arial';
-    x.fillText(f[1] || '', f[2], fieldY - 4);
-    // Line
-    x.strokeStyle = '#222'; x.lineWidth = 1;
-    x.beginPath(); x.moveTo(f[2], fieldY); x.lineTo(f[2] + fw, fieldY); x.stroke();
-    // Label below the line
-    x.fillStyle = '#aaa'; x.font = 'bold 8px Arial'; x.fillText(f[0], f[2], fieldY + 12);
-  });
-  return c;
-}
-
-function saveToJob() {
-  if (!hasSig) { alert('Please sign first.'); return; }
-  var signer = document.getElementById('signerInput').value.trim();
-  if (!signer) { alert('Please enter your full name.'); document.getElementById('signerInput').focus(); return; }
-  if (!window.opener || !window.opener._saveSignoffToJob) {
-    alert('Cannot reach main window. Please keep the admin tab open.');
-    return;
-  }
-  var btn = document.getElementById('saveBtn');
-  btn.textContent = 'Saving...'; btn.disabled = true;
-  try {
-    var doc = buildDoc();
-    var imgData = doc.toDataURL('image/jpeg', 0.82);
-    window.opener._saveSignoffToJob(JOB_ID, imgData, signer, function(ok, err) {
-      if (ok) { btn.textContent = '✅ Saved!'; btn.style.background = '#22543d'; setTimeout(function(){ window.close(); }, 800); }
-      else { alert('Error: ' + (err || 'Save failed')); btn.textContent = '💾 Save to Job'; btn.disabled = false; }
-    });
-  } catch(e) {
-    alert('Build failed: ' + e.message);
-    btn.textContent = '💾 Save to Job'; btn.disabled = false;
-  }
-}
-<\/script>
-</body></html>\`);
-            win.document.close();
+        // Wire up canvas events after DOM ready (called once)
+        function _initSignoffModal() {
+            var c = document.getElementById('soPad');
+            if (!c) return;
+            c.addEventListener('mousedown', _soStart);
+            c.addEventListener('mousemove', _soDraw);
+            c.addEventListener('mouseup',   _soStop);
+            c.addEventListener('mouseleave',_soStop);
+            c.addEventListener('touchstart',_soStart, { passive: false });
+            c.addEventListener('touchmove', _soDraw,  { passive: false });
+            c.addEventListener('touchend',  _soStop);
         }
 
         const WF_DESC = {
@@ -13028,6 +12928,68 @@ function saveToJob() {
             </svg>
         </div>
     </div>
+<!-- Sign-Off Modal -->
+<div id="signoffModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:12px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <!-- Header -->
+    <div style="background:#0f1c2e;color:#fff;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div>
+        <div style="font-weight:800;font-size:1rem;">Work Completion Sign-Off</div>
+        <div id="soJobTitle" style="font-size:0.8rem;opacity:0.7;margin-top:2px;"></div>
+      </div>
+      <button onclick="closeSignoffModal()" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:1.5rem;cursor:pointer;line-height:1;padding:0 0.25rem;">×</button>
+    </div>
+    <!-- Scrollable body -->
+    <div style="overflow-y:auto;flex:1;padding:1.25rem;">
+      <!-- Meta -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem 2rem;margin-bottom:1rem;font-size:0.85rem;">
+        <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Client</div><div id="soClient" style="font-weight:600;color:#1a1a1a;"></div></div>
+        <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Service Location</div><div id="soLoc" style="font-weight:600;color:#1a1a1a;"></div></div>
+        <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Date of Service</div><div id="soSchedDate" style="font-weight:600;color:#1a1a1a;"></div></div>
+      </div>
+      <!-- Work Performed -->
+      <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Work Performed</div>
+      <div id="soDesc" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:0.75rem 1rem;font-size:0.85rem;line-height:1.65;color:#333;white-space:pre-wrap;margin-bottom:1.25rem;"></div>
+      <div style="font-size:0.82rem;color:#555;line-height:1.6;margin-bottom:1.25rem;padding:0.75rem 1rem;background:#fffef7;border:1px solid #fde68a;border-radius:6px;">By signing below, I confirm the work described above has been completed satisfactorily and to my approval.</div>
+      <!-- Signature pad -->
+      <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Signature *</div>
+      <div style="position:relative;border:2px dashed #cbd5e0;border-radius:8px;background:#fafafa;overflow:hidden;margin-bottom:0.5rem;">
+        <canvas id="soPad" width="620" height="160" style="display:block;width:100%;height:auto;cursor:crosshair;touch-action:none;"></canvas>
+        <div id="soHint" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:0.9rem;pointer-events:none;user-select:none;">✏️ Sign here</div>
+      </div>
+      <div id="soSigControls" style="margin-bottom:1.25rem;">
+        <button onclick="_soClear()" style="background:none;border:1.5px solid #d1d5db;padding:0.3rem 0.9rem;border-radius:5px;cursor:pointer;font-size:0.78rem;color:#888;">Clear</button>
+      </div>
+      <img id="soSigImg" style="display:none;" alt="Signature">
+      <!-- Name / title -->
+      <div style="margin-bottom:1rem;">
+        <label style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;display:block;margin-bottom:0.3rem;">Print Full Name *</label>
+        <input id="soSignerInput" type="text" placeholder="Type full name here" style="width:100%;border:none;border-bottom:2px solid #222;background:none;font-size:1rem;padding:0.3rem 0;outline:none;color:#1a1a1a;font-family:inherit;">
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0 1.5rem;margin-bottom:1.25rem;">
+        <div>
+          <input id="soTitleInput" type="text" placeholder="Title / Role" style="width:100%;border:none;border-bottom:1.5px solid #222;background:none;font-size:0.875rem;padding:0.2rem 0;outline:none;color:#333;font-family:inherit;">
+          <div style="font-size:0.58rem;text-transform:uppercase;letter-spacing:0.07em;color:#bbb;margin-top:0.2rem;">Title / Role</div>
+        </div>
+        <div>
+          <div id="soDate" style="font-size:0.875rem;color:#555;padding:0.2rem 0;border-bottom:1.5px solid #222;"></div>
+          <div style="font-size:0.58rem;text-transform:uppercase;letter-spacing:0.07em;color:#bbb;margin-top:0.2rem;">Date</div>
+        </div>
+      </div>
+    </div>
+    <!-- Footer buttons -->
+    <div style="padding:1rem 1.25rem;border-top:1px solid #e5e7eb;display:flex;gap:0.6rem;flex-shrink:0;background:#fff;">
+      <button onclick="soPrint()" style="background:#0f1c2e;color:#fff;border:none;padding:0.65rem 1.25rem;border-radius:6px;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ Print</button>
+      <button id="soSaveBtn" onclick="soSave()" style="background:#48bb78;color:#fff;border:none;padding:0.65rem 1.5rem;border-radius:6px;font-size:0.88rem;font-weight:700;cursor:pointer;flex:1;">💾 Save to Job</button>
+      <button onclick="closeSignoffModal()" style="background:none;border:1.5px solid #d1d5db;padding:0.65rem 1.25rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', _initSignoffModal);
+<\/script>
+
 </body>
 </html>`;
 
