@@ -4932,44 +4932,86 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        async function viewAttachment(id) {
-            const attachment = attachments.find(att => att.id == id);
-            if (!attachment) return;
+        let _lbIndex = 0;
+        let _lbImages = [];
 
-            try {
-                let imageUrl;
-                if (attachment.s3Key) {
-                    // Get signed URL from S3
-                    const response = await fetch(\`/api/file/\${attachment.s3Key}\`);
-                    if (response.ok) {
-                        const result = await response.json();
-                        imageUrl = result.url;
-                    } else {
-                        alert('Failed to load image');
-                        return;
-                    }
-                } else {
-                    // Use base64 data directly
-                    imageUrl = attachment.data;
-                }
-
-                // Show inline lightbox
-                let lb = document.getElementById('attLightbox');
-                if (!lb) {
-                    lb = document.createElement('div');
-                    lb.id = 'attLightbox';
-                    lb.style.cssText = 'display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out;';
-                    lb.innerHTML = '<span style="position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer;line-height:1;">×</span><img style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:6px;">';
-                    lb.addEventListener('click', () => { lb.style.display = 'none'; document.body.style.overflow = ''; });
-                    document.body.appendChild(lb);
-                }
-                lb.querySelector('img').src = imageUrl;
-                lb.style.display = 'flex';
-                document.body.style.overflow = 'hidden';
-            } catch (error) {
-                console.error('View attachment error:', error);
-                alert('Failed to view attachment');
+        function _getLightbox() {
+            let lb = document.getElementById('attLightbox');
+            if (!lb) {
+                lb = document.createElement('div');
+                lb.id = 'attLightbox';
+                lb.style.cssText = 'display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;';
+                lb.innerHTML = \`
+                    <span id="lbClose" style="position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer;line-height:1;z-index:1;">×</span>
+                    <button id="lbPrev" style="position:absolute;left:1rem;background:rgba(255,255,255,0.15);border:none;color:white;font-size:2rem;width:48px;height:48px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">‹</button>
+                    <img id="lbImg" style="max-width:88vw;max-height:88vh;object-fit:contain;border-radius:6px;user-select:none;">
+                    <button id="lbNext" style="position:absolute;right:1rem;background:rgba(255,255,255,0.15);border:none;color:white;font-size:2rem;width:48px;height:48px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">›</button>
+                    <div id="lbCounter" style="position:absolute;bottom:1rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.6);font-size:0.82rem;"></div>
+                \`;
+                document.body.appendChild(lb);
+                document.getElementById('lbClose').addEventListener('click', _closeLightbox);
+                document.getElementById('lbPrev').addEventListener('click', e => { e.stopPropagation(); _lbNav(-1); });
+                document.getElementById('lbNext').addEventListener('click', e => { e.stopPropagation(); _lbNav(1); });
+                lb.addEventListener('click', _closeLightbox);
+                // Keyboard
+                document.addEventListener('keydown', e => {
+                    if (lb.style.display === 'none') return;
+                    if (e.key === 'Escape') _closeLightbox();
+                    if (e.key === 'ArrowLeft') _lbNav(-1);
+                    if (e.key === 'ArrowRight') _lbNav(1);
+                });
+                // Touch swipe
+                let _tsX = 0;
+                lb.addEventListener('touchstart', e => { _tsX = e.touches[0].clientX; }, { passive: true });
+                lb.addEventListener('touchend', e => {
+                    const dx = e.changedTouches[0].clientX - _tsX;
+                    if (Math.abs(dx) > 40) _lbNav(dx < 0 ? 1 : -1);
+                });
             }
+            return lb;
+        }
+
+        function _closeLightbox() {
+            const lb = document.getElementById('attLightbox');
+            if (lb) lb.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        async function _lbLoadIndex(idx) {
+            _lbIndex = (idx + _lbImages.length) % _lbImages.length;
+            const att = _lbImages[_lbIndex];
+            const img = document.getElementById('lbImg');
+            const counter = document.getElementById('lbCounter');
+            const prevBtn = document.getElementById('lbPrev');
+            const nextBtn = document.getElementById('lbNext');
+            img.style.opacity = '0.4';
+            try {
+                let url;
+                if (att.s3Key) {
+                    const r = await fetch(\`/api/file/\${att.s3Key}\`);
+                    url = r.ok ? (await r.json()).url : null;
+                } else {
+                    url = att.data;
+                }
+                if (!url) { img.style.opacity = '1'; return; }
+                img.src = url;
+                img.onload = () => { img.style.opacity = '1'; };
+            } catch { img.style.opacity = '1'; }
+            counter.textContent = _lbImages.length > 1 ? \`\${_lbIndex + 1} / \${_lbImages.length}\` : '';
+            prevBtn.style.display = _lbImages.length > 1 ? 'flex' : 'none';
+            nextBtn.style.display = _lbImages.length > 1 ? 'flex' : 'none';
+        }
+
+        function _lbNav(dir) { _lbLoadIndex(_lbIndex + dir); }
+
+        async function viewAttachment(id) {
+            _lbImages = attachments.filter(a => a.type && a.type.startsWith('image/'));
+            const startIdx = _lbImages.findIndex(a => a.id == id);
+            if (startIdx === -1 || _lbImages.length === 0) return;
+            const lb = _getLightbox();
+            lb.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            await _lbLoadIndex(startIdx);
         }
 
         async function downloadAttachment(id) {
