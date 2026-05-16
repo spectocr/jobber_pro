@@ -4452,8 +4452,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             // Show merged audit log: job entries + source quote history
-            const _jobEntries = (job.auditLog || []).map(e => ({ ...e, _src: 'job' }));
-            const _quoteEntries = (job.sourceQuoteHistory || []).map(e => ({ ...e, _src: 'quote' }));
+            const _jobEntries = (job && job.auditLog || []).map(e => ({ ...e, _src: 'job' }));
+            const _quoteEntries = (job && job.sourceQuoteHistory || []).map(e => ({ ...e, _src: 'quote' }));
             const _allEntries = [..._jobEntries, ..._quoteEntries]
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
