@@ -2545,9 +2545,10 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
         { $set: { surveyToken: token, surveyTokenSentAt: new Date() } }
     );
     const clientName = client.contactName || client.name || 'there';
+    const subject = `How did we do? — ${companyName}`;
     await emailService.sendEmail({
         to: client.email,
-        subject: `How did we do? — ${companyName}`,
+        subject,
         html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;color:#1a202c;">
             <div style="text-align:center;margin-bottom:1.5rem;">
                 <div style="font-size:2.5rem;">🐾</div>
@@ -2563,6 +2564,18 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
             <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">${companyName} · South Jersey</p>
         </div>`
+    });
+    await db.collection('email_logs').insertOne({
+        type: 'survey',
+        to: client.email,
+        toName: client.name || clientName,
+        subject,
+        trigger: `Survey request for job "${jobTitle}"`,
+        relatedId: new ObjectId(jobId.toString()),
+        relatedTitle: jobTitle,
+        sentBy: 'system',
+        sentAt: new Date(),
+        status: 'sent'
     });
 }
 
