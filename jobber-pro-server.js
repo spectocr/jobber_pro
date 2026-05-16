@@ -4164,8 +4164,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 var doc = _soBuildDoc();
                 var imgData = doc.toDataURL('image/jpeg', 0.82);
                 window._saveSignoffToJob(_soJobId, imgData, signer, function(ok, err) {
-                    if (ok) { closeSignoffModal(); }
-                    else { alert('Error: '+(err||'Save failed')); btn.textContent = '💾 Save to Job'; btn.disabled = false; }
+                    if (ok) {
+                        closeSignoffModal();
+                        // Update in-memory job so button flips to "View Sign-Off" without reload
+                        const jobInMem = jobs.find(j => (j._id || j.id) == _soJobId);
+                        if (jobInMem) jobInMem.signoff = { signedAt: new Date().toISOString(), signerName: signer };
+                        const signoffBtn = document.getElementById('jobSignoffBtn');
+                        if (signoffBtn) signoffBtn.innerHTML = '✅ View Sign-Off';
+                    } else {
+                        alert('Error: '+(err||'Save failed')); btn.textContent = '💾 Save to Job'; btn.disabled = false;
+                    }
                 });
             } catch(e) {
                 alert('Build failed: '+e.message);
