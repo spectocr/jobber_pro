@@ -1808,6 +1808,7 @@ app.get('/', (req, res) => {
     if (!req.session || !req.session.userId) {
         return res.redirect('/login');
     }
+    res.setHeader('Cache-Control', 'no-store');
     res.send(HTML_TEMPLATE);
 });
 
