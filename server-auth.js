@@ -2543,7 +2543,7 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
 // ── Survey system ─────────────────────────────────────────────────────────────
 
 async function sendJobSurvey(jobId, client, jobTitle, companyName) {
-    if (!client || !client.email) return; // no email, skip
+    if (!client || !client.email) throw new Error('Client has no email address on file — survey not sent.');
     const token = crypto.randomBytes(24).toString('hex');
     const appUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
     const surveyUrl = `${appUrl}/survey/${token}`;

@@ -9441,6 +9441,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
                 btn.innerHTML = '✅ Sent!';
+                loadEmailLogs(); // refresh email history in background
                 setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 3000);
             } catch (e) {
                 alert('Could not resend survey: ' + e.message);
