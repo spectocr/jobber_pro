@@ -4006,54 +4006,64 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (_soModalHeading) _soModalHeading.textContent = job.signoff ? 'Client Sign-Off' : 'Work Completion Sign-Off';
 
             const isViewMode = !!job.signoff;
-            const padWrap   = document.getElementById('soPad').parentElement;
-            const sigControls = document.getElementById('soSigControls');
-            const sigImg    = document.getElementById('soSigImg');
-            const saveBtn   = document.getElementById('soSaveBtn');
+
+            // Helper — null-safe show/hide
+            function _soEl(id) { return document.getElementById(id); }
+            function _soShow(id, v) { const e = _soEl(id); if (e) e.style.display = v !== undefined ? v : ''; }
+            function _soHideEl(id) { const e = _soEl(id); if (e) e.style.display = 'none'; }
+
+            const soBody = _soEl('soBody');
+            const sigImg = _soEl('soSigImg');
+            const padWrap = _soEl('soPad') ? _soEl('soPad').parentElement : null;
             const disclaimer = document.querySelector('#signoffModal [style*="fffef7"]');
 
             if (isViewMode) {
-                // View-only: compact layout — hide everything except sig image + signed-by row
-                padWrap.style.display = 'none';
-                sigControls.style.display = 'none';
+                // Lock body — no scroll at all in view mode
+                if (soBody) soBody.style.overflow = 'hidden';
+                // Hide everything except sig + signed-by
+                if (padWrap) padWrap.style.display = 'none';
                 if (disclaimer) disclaimer.style.display = 'none';
-                saveBtn.style.display = 'none';
-                document.getElementById('soMetaGrid').style.display = 'none';
-                document.getElementById('soWorkSection').style.display = 'none';
-                document.getElementById('soSigLabel').style.display = 'none';
-                document.getElementById('soNameWrap').style.display = 'none';
-                document.getElementById('soTitleDateGrid').style.display = 'none';
-                document.getElementById('soHint').style.display = 'none';
-                // Signed-by compact row
-                const signedByRow = document.getElementById('soSignedByRow');
-                signedByRow.style.display = 'block';
-                document.getElementById('soSignedByName').textContent = job.signoff.signerName || signerName || '—';
-                document.getElementById('soSignedByDate').textContent = new Date(job.signoff.signedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+                _soHideEl('soSigControls');
+                _soHideEl('soSaveBtn');
+                _soHideEl('soMetaGrid');
+                _soHideEl('soWorkSection');
+                _soHideEl('soSigLabel');
+                _soHideEl('soNameWrap');
+                _soHideEl('soTitleDateGrid');
+                _soHideEl('soHint');
+                // Signed-by row
+                _soShow('soSignedByRow', 'block');
+                const nameEl = _soEl('soSignedByName');
+                const dateEl = _soEl('soSignedByDate');
+                if (nameEl) nameEl.textContent = job.signoff.signerName || signerName || '—';
+                if (dateEl) dateEl.textContent = new Date(job.signoff.signedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
                 // Signature image
                 const sigAtt = (attachments||[]).slice().reverse().find(a => a.name === 'Business Sign-Off');
-                if (sigAtt) {
-                    sigImg.style.cssText = 'display:block;max-width:100%;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:1rem;';
+                if (sigAtt && sigImg) {
+                    sigImg.style.cssText = 'display:block;max-width:100%;max-height:35vh;object-fit:contain;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.75rem;';
                     if (sigAtt.s3Key) {
                         fetch(\`/api/file/\${sigAtt.s3Key}\`).then(r=>r.json()).then(d=>{ if(d.url) sigImg.src=d.url; });
-                    } else {
+                    } else if (sigImg) {
                         sigImg.src = sigAtt.data || '';
                     }
-                } else {
+                } else if (sigImg) {
                     sigImg.style.display = 'none';
                 }
             } else {
-                // Edit mode: show everything, hide view-only elements
-                padWrap.style.display = '';
-                sigControls.style.display = '';
+                // Edit mode — restore all elements
+                if (soBody) soBody.style.overflow = 'auto';
+                if (padWrap) padWrap.style.display = '';
                 if (disclaimer) disclaimer.style.display = '';
-                saveBtn.style.display = '';
-                document.getElementById('soMetaGrid').style.display = '';
-                document.getElementById('soWorkSection').style.display = '';
-                document.getElementById('soSigLabel').style.display = '';
-                document.getElementById('soNameWrap').style.display = '';
-                document.getElementById('soTitleDateGrid').style.display = 'grid';
-                document.getElementById('soSignedByRow').style.display = 'none';
-                sigImg.style.display = 'none';
+                if (sigImg) sigImg.style.display = 'none';
+                _soShow('soSigControls');
+                _soShow('soSaveBtn');
+                _soShow('soMetaGrid');
+                _soShow('soWorkSection');
+                _soShow('soSigLabel');
+                _soShow('soNameWrap');
+                _soShow('soTitleDateGrid', 'grid');
+                _soHideEl('soSignedByRow');
+                _soHideEl('soSigImg');
                 // Init canvas
                 _soCanvas = document.getElementById('soPad');
                 _soCtx = _soCanvas.getContext('2d');
@@ -4061,7 +4071,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 _soCtx.lineWidth = 2.5; _soCtx.lineCap = 'round'; _soCtx.lineJoin = 'round'; _soCtx.strokeStyle = '#1a1a1a';
                 _soCtx.clearRect(0, 0, _soCanvas.width, _soCanvas.height);
                 _soHasSig = false; _soDrawing = false;
-                document.getElementById('soHint').style.display = '';
+                _soShow('soHint');
             }
 
             document.getElementById('signoffModal').style.display = 'flex';
@@ -13061,7 +13071,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       <button onclick="closeSignoffModal()" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:1.5rem;cursor:pointer;line-height:1;padding:0 0.25rem;">×</button>
     </div>
     <!-- Scrollable body -->
-    <div style="overflow-y:auto;flex:1;padding:0.9rem 1rem;">
+    <div id="soBody" style="overflow-y:auto;flex:1;padding:0.9rem 1rem;">
       <!-- Meta -->
       <div id="soMetaGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem 2rem;margin-bottom:1rem;font-size:0.85rem;">
         <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Client</div><div id="soClient" style="font-weight:600;color:#1a1a1a;"></div></div>
