@@ -2736,6 +2736,18 @@ app.post('/api/jobs/:id/signoff-attachment', isAuthenticated, async (req, res) =
     }
 });
 
+app.delete('/api/jobs/:id/signoff', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('jobs').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $unset: { signoff: '' }, $set: { updatedAt: new Date() } }
+        );
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/api/quotes/:id/photos', isAuthenticated, async (req, res) => {
     try {
         const quote = await db.collection('quotes').findOne({ _id: new ObjectId(req.params.id) });

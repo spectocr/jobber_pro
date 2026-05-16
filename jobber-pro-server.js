@@ -4980,6 +4980,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 attachments = attachments.filter(att => att.id != id);
                 renderAttachments();
                 markFormDirty();
+
+                // If this was the sign-off attachment, clear signoff from job
+                if (attachment.name === 'Business Sign-Off' && currentEditingJobId) {
+                    fetch(\`/api/jobs/\${currentEditingJobId}/signoff\`, { method: 'DELETE' }).catch(() => {});
+                    const jobInMem = jobs.find(j => (j._id || j.id) == currentEditingJobId);
+                    if (jobInMem) delete jobInMem.signoff;
+                    const btn = document.getElementById('jobSignoffBtn');
+                    if (btn) btn.innerHTML = '✍️ Sign-Off';
+                }
             }
         }
 
