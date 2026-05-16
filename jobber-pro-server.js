@@ -592,6 +592,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             display: flex;
         }
 
+        /* Desktop: no tabs — show all content, hide tab nav */
+        .job-tab-nav { display: none; }
+        .job-tab-content { display: block !important; }
+
         .modal-content {
             background: white;
             border-radius: 12px;
@@ -924,10 +928,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 width: auto;
             }
 
-            /* Job modal tabs */
-            .job-tab-nav { display:flex; border-bottom:2px solid #e2e8f0; background:white; flex-shrink:0; }
-            .job-tab-btn { flex:1; padding:0.65rem 0.25rem; background:none; border:none; border-bottom:3px solid transparent; margin-bottom:-2px; font-size:0.8rem; font-weight:700; color:#a0aec0; cursor:pointer; transition:color 0.15s,border-color 0.15s; }
-            .job-tab-btn.active { color:#553c9a; border-bottom-color:#553c9a; }
+            /* Job modal tabs — mobile only */
+            .job-tab-nav { display:flex; }
+            .job-tab-content { display:none !important; }
+            .job-tab-content.active-tab { display:block !important; }
 
             /* Modals - Full screen on mobile */
             .modal {
@@ -3098,7 +3102,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <!-- ── TAB: BILLING ── -->
-                    <div id="jobTabBilling" class="job-tab-content" style="display:none;">
+                    <div id="jobTabBilling" class="job-tab-content">
                         <div style="margin-top: 0.5rem;">
                             <h3 style="margin-bottom: 1rem;">Labor</h3>
                             <div id="laborItems"></div>
@@ -3131,7 +3135,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <!-- ── TAB: FILES ── -->
-                    <div id="jobTabFiles" class="job-tab-content" style="display:none;">
+                    <div id="jobTabFiles" class="job-tab-content">
                         <div style="margin-top: 0.5rem;">
                             <h3 style="margin-bottom: 1rem;">Attachments</h3>
                             <div id="attachmentsList" style="margin-bottom: 1rem;"></div>
@@ -4596,13 +4600,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function showJobTab(name) {
-            document.querySelectorAll('.job-tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.job-tab-content').forEach(el => el.classList.remove('active-tab'));
             document.querySelectorAll('.job-tab-btn').forEach(el => el.classList.remove('active'));
             const tab = document.getElementById('jobTab' + name);
-            if (tab) tab.style.display = '';
+            if (tab) tab.classList.add('active-tab');
             const btn = document.querySelector('.job-tab-btn[onclick*="' + name + '"]');
             if (btn) btn.classList.add('active');
-            // Scroll body back to top when switching tabs
             const body = document.querySelector('#jobModal .modal-body');
             if (body) body.scrollTop = 0;
         }
