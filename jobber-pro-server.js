@@ -4953,16 +4953,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     imageUrl = attachment.data;
                 }
 
-                // Open image in a new window
-                const win = window.open('', '_blank');
-                win.document.write(\`
-                    <html>
-                        <head><title>\${attachment.name}</title></head>
-                        <body style="margin: 0; display: flex; justify-content: center; align-items: center; background: #000;">
-                            <img src="\${imageUrl}" style="max-width: 100%; max-height: 100vh;" />
-                        </body>
-                    </html>
-                \`);
+                // Show inline lightbox
+                let lb = document.getElementById('attLightbox');
+                if (!lb) {
+                    lb = document.createElement('div');
+                    lb.id = 'attLightbox';
+                    lb.style.cssText = 'display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out;';
+                    lb.innerHTML = '<span style="position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer;line-height:1;">×</span><img style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:6px;">';
+                    lb.addEventListener('click', () => { lb.style.display = 'none'; document.body.style.overflow = ''; });
+                    document.body.appendChild(lb);
+                }
+                lb.querySelector('img').src = imageUrl;
+                lb.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
             } catch (error) {
                 console.error('View attachment error:', error);
                 alert('Failed to view attachment');
