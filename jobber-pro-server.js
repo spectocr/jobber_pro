@@ -1229,6 +1229,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 height: auto;
             }
         }
+
+        /* ── Landscape signing-pad mode ── */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #signoffModal { padding: 0 !important; }
+            /* Full-bleed card */
+            #signoffModal > div {
+                border-radius: 0 !important;
+                max-width: 100% !important;
+                max-height: 100vh !important;
+                height: 100vh !important;
+            }
+            /* Compact header */
+            #signoffModal > div > div:first-child {
+                padding: 0.35rem 1rem !important;
+            }
+            /* Body: no padding, let canvas breathe */
+            #soBody {
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+            /* Hide everything except the canvas pad */
+            #soMetaGrid, #soWorkSection, #soSigLabel,
+            #soSigControls, #soNameWrap, #soTitleDateGrid,
+            #soSignedByRow, #soSigImg { display: none !important; }
+            /* Canvas container: fill all available body height */
+            #soPad {
+                height: calc(100vh - 88px) !important;
+                cursor: crosshair;
+            }
+            #soHint { font-size: 1.4rem !important; }
+            /* Compact footer: horizontal row */
+            #signoffModal > div > div:last-child {
+                padding: 0.35rem 0.75rem !important;
+                flex-direction: row !important;
+                gap: 0.5rem !important;
+            }
+            #signoffModal > div > div:last-child .btn {
+                width: auto !important;
+                padding: 0.45rem 1rem !important;
+                font-size: 0.8rem !important;
+            }
+        }
     </style>
 </head>
 <body>
