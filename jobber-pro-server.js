@@ -4013,15 +4013,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const disclaimer = document.querySelector('#signoffModal [style*="fffef7"]');
 
             if (isViewMode) {
-                // View-only: show saved signature image, hide canvas
+                // View-only: compact layout — hide everything except sig image + signed-by row
                 padWrap.style.display = 'none';
                 sigControls.style.display = 'none';
                 if (disclaimer) disclaimer.style.display = 'none';
                 saveBtn.style.display = 'none';
-                // Find the signoff attachment and display it
+                document.getElementById('soWorkSection').style.display = 'none';
+                document.getElementById('soSigLabel').style.display = 'none';
+                document.getElementById('soNameWrap').style.display = 'none';
+                document.getElementById('soTitleDateGrid').style.display = 'none';
+                document.getElementById('soHint').style.display = 'none';
+                // Signed-by compact row
+                const signedByRow = document.getElementById('soSignedByRow');
+                signedByRow.style.display = 'block';
+                document.getElementById('soSignedByName').textContent = job.signoff.signerName || signerName || '—';
+                document.getElementById('soSignedByDate').textContent = new Date(job.signoff.signedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+                // Signature image
                 const sigAtt = (attachments||[]).slice().reverse().find(a => a.name === 'Business Sign-Off');
                 if (sigAtt) {
-                    sigImg.style.display = 'block';
                     sigImg.style.cssText = 'display:block;max-width:100%;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:1rem;';
                     if (sigAtt.s3Key) {
                         fetch(\`/api/file/\${sigAtt.s3Key}\`).then(r=>r.json()).then(d=>{ if(d.url) sigImg.src=d.url; });
@@ -4031,24 +4040,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 } else {
                     sigImg.style.display = 'none';
                 }
-                // Lock name/title fields
-                const nameIn = document.getElementById('soSignerInput');
-                const titleIn = document.getElementById('soTitleInput');
-                nameIn.value = job.signoff.signerName || signerName;
-                nameIn.readOnly = true;
-                titleIn.readOnly = true;
-                document.getElementById('soHint').style.display = 'none';
             } else {
-                // Edit mode: show canvas, hide sig image
+                // Edit mode: show everything, hide view-only elements
                 padWrap.style.display = '';
                 sigControls.style.display = '';
                 if (disclaimer) disclaimer.style.display = '';
                 saveBtn.style.display = '';
+                document.getElementById('soWorkSection').style.display = '';
+                document.getElementById('soSigLabel').style.display = '';
+                document.getElementById('soNameWrap').style.display = '';
+                document.getElementById('soTitleDateGrid').style.display = 'grid';
+                document.getElementById('soSignedByRow').style.display = 'none';
                 sigImg.style.display = 'none';
-                const nameIn = document.getElementById('soSignerInput');
-                const titleIn = document.getElementById('soTitleInput');
-                nameIn.readOnly = false;
-                titleIn.readOnly = false;
                 // Init canvas
                 _soCanvas = document.getElementById('soPad');
                 _soCtx = _soCanvas.getContext('2d');
@@ -13064,11 +13067,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Date of Service</div><div id="soSchedDate" style="font-weight:600;color:#1a1a1a;"></div></div>
       </div>
       <!-- Work Performed -->
-      <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Work Performed</div>
-      <div id="soDesc" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:0.75rem 1rem;font-size:0.85rem;line-height:1.65;color:#333;white-space:pre-wrap;margin-bottom:1.25rem;"></div>
+      <div id="soWorkSection">
+        <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Work Performed</div>
+        <div id="soDesc" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:0.75rem 1rem;font-size:0.85rem;line-height:1.65;color:#333;white-space:pre-wrap;margin-bottom:1.25rem;"></div>
+      </div>
       <div style="font-size:0.82rem;color:#555;line-height:1.6;margin-bottom:1.25rem;padding:0.75rem 1rem;background:#fffef7;border:1px solid #fde68a;border-radius:6px;">By signing below, I confirm the work described above has been completed satisfactorily and to my approval.</div>
       <!-- Signature pad -->
-      <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Signature *</div>
+      <div id="soSigLabel" style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Signature *</div>
       <div style="position:relative;border:2px dashed #cbd5e0;border-radius:8px;background:#fafafa;overflow:hidden;margin-bottom:0.5rem;">
         <canvas id="soPad" width="620" height="160" style="display:block;width:100%;height:auto;cursor:crosshair;touch-action:none;"></canvas>
         <div id="soHint" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:0.9rem;pointer-events:none;user-select:none;">✏️ Sign here</div>
@@ -13077,12 +13082,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <button onclick="_soClear()" style="background:none;border:1.5px solid #d1d5db;padding:0.3rem 0.9rem;border-radius:5px;cursor:pointer;font-size:0.78rem;color:#888;">Clear</button>
       </div>
       <img id="soSigImg" style="display:none;" alt="Signature">
-      <!-- Name / title -->
-      <div style="margin-bottom:1rem;">
+      <!-- Compact signed-by row shown in view mode only -->
+      <div id="soSignedByRow" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:none;">
+        <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#16a34a;margin-bottom:0.35rem;">✅ Signed By</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;">
+          <div id="soSignedByName" style="font-weight:700;font-size:0.95rem;color:#1a1a1a;"></div>
+          <div id="soSignedByDate" style="font-size:0.8rem;color:#555;white-space:nowrap;"></div>
+        </div>
+      </div>
+      <!-- Name / title (edit mode) -->
+      <div id="soNameWrap" style="margin-bottom:1rem;">
         <label style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;display:block;margin-bottom:0.3rem;">Print Full Name *</label>
         <input id="soSignerInput" type="text" placeholder="Type full name here" style="width:100%;border:none;border-bottom:2px solid #222;background:none;font-size:1rem;padding:0.3rem 0;outline:none;color:#1a1a1a;font-family:inherit;">
       </div>
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0 1.5rem;margin-bottom:1.25rem;">
+      <div id="soTitleDateGrid" style="display:grid;grid-template-columns:2fr 1fr;gap:0 1.5rem;margin-bottom:1.25rem;">
         <div>
           <input id="soTitleInput" type="text" placeholder="Title / Role" style="width:100%;border:none;border-bottom:1.5px solid #222;background:none;font-size:0.875rem;padding:0.2rem 0;outline:none;color:#333;font-family:inherit;">
           <div style="font-size:0.58rem;text-transform:uppercase;letter-spacing:0.07em;color:#bbb;margin-top:0.2rem;">Title / Role</div>
