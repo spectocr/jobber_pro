@@ -3179,6 +3179,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('jobModal')">Cancel</button>
                 <button class="btn btn-secondary" id="jobSignoffBtn" style="display:none;" onclick="openSignoffForm(document.querySelector('#jobForm [name=id]').value)">✍️ Sign-Off</button>
+                <button class="btn btn-secondary" id="jobResendSurveyBtn" style="display:none;" onclick="resendSurvey()">📋 Resend Survey</button>
                 <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
             </div>
         </div>
@@ -4435,6 +4436,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Workflow stepper + sign-off button visibility
             const _stepperEl = document.getElementById('jobWorkflowStepper');
             const _signoffBtn = document.getElementById('jobSignoffBtn');
+            const _resendSurveyBtn = document.getElementById('jobResendSurveyBtn');
             if (job && (job._id || job.id)) {
                 _stepperEl.style.display = 'block';
                 _stepperEl.innerHTML = buildWorkflowStepper(buildJobStages(job));
@@ -4442,9 +4444,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     _signoffBtn.style.display = '';
                     _signoffBtn.innerHTML = job.signoff ? '✅ View Sign-Off' : '✍️ Sign-Off';
                 }
+                if (_resendSurveyBtn) {
+                    _resendSurveyBtn.style.display = job.status === 'completed' ? '' : 'none';
+                }
             } else {
                 _stepperEl.style.display = 'none';
                 if (_signoffBtn) _signoffBtn.style.display = 'none';
+                if (_resendSurveyBtn) _resendSurveyBtn.style.display = 'none';
             }
 
             // Load job photos (carried over from quote submission)
@@ -9290,6 +9296,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 container.innerHTML = \`<div style="font-size:0.8rem;color:#a0aec0;margin-bottom:0.5rem;">\${filtered.length} events</div>\` + rows;
             } catch (e) {
                 container.innerHTML = \`<div style="color:#e53e3e;padding:1rem;">Failed to load: \${e.message}</div>\`;
+            }
+        }
+
+        async function resendSurvey() {
+            if (!currentEditingJobId) return;
+            const btn = document.getElementById('jobResendSurveyBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = 'Sending...';
+            try {
+                const res = await fetch(\`/api/jobs/\${currentEditingJobId}/resend-survey\`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                btn.innerHTML = '✅ Sent!';
+                setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 3000);
+            } catch (e) {
+                alert('Could not resend survey: ' + e.message);
+                btn.innerHTML = orig;
+                btn.disabled = false;
             }
         }
 
