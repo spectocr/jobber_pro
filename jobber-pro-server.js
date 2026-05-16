@@ -924,6 +924,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 width: auto;
             }
 
+            /* Job modal tabs */
+            .job-tab-nav { display:flex; border-bottom:2px solid #e2e8f0; background:white; flex-shrink:0; }
+            .job-tab-btn { flex:1; padding:0.65rem 0.25rem; background:none; border:none; border-bottom:3px solid transparent; margin-bottom:-2px; font-size:0.8rem; font-weight:700; color:#a0aec0; cursor:pointer; transition:color 0.15s,border-color 0.15s; }
+            .job-tab-btn.active { color:#553c9a; border-bottom-color:#553c9a; }
+
             /* Modals - Full screen on mobile */
             .modal {
                 padding: 0;
@@ -2970,155 +2975,138 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <h2 id="jobModalTitle">Create Job</h2>
                 <button class="close-btn" onclick="closeModal('jobModal')">&times;</button>
             </div>
+            <!-- Tab nav -->
+            <div class="job-tab-nav">
+                <button class="job-tab-btn active" onclick="showJobTab('Details')">📋 Details</button>
+                <button class="job-tab-btn" onclick="showJobTab('Billing')">💰 Billing</button>
+                <button class="job-tab-btn" onclick="showJobTab('Files')">📎 Files</button>
+            </div>
             <div class="modal-body">
-                <div id="jobWorkflowStepper" style="display:none;background:#f8f9ff;border:1.5px solid #e2e8f0;border-radius:10px;padding:0.75rem 1rem 0.5rem;margin-bottom:1.25rem;"></div>
                 <form id="jobForm">
                     <input type="hidden" name="id">
-                    <div class="form-group">
-                        <label>Client *</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
-                            <div style="position: relative; flex: 1; min-width: 200px;">
-                                <input type="text" id="jobClientInput" placeholder="Type to search clients..." autocomplete="off" oninput="filterClientTypeahead()" onfocus="filterClientTypeahead()" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
-                                <input type="hidden" name="clientId" id="jobClientSelect">
-                                <div id="clientTypeaheadDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:2px solid #667eea; border-top:none; border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
-                            </div>
-                            <button type="button" class="btn btn-secondary" onclick="openClientModalFromJob()" style="white-space: nowrap;">+ Add Client</button>
-                        </div>
-                    </div>
-                    <div class="form-group" id="serviceLocationGroup" style="display: none;">
-                        <label>Service Location</label>
-                        <select name="serviceLocationId" id="jobServiceLocationSelect" onchange="updateLocationDisplay()">
-                            <option value="">Select a location...</option>
-                        </select>
-                        <div id="locationInfoDisplay" style="display:none; margin-top:0.5rem; padding:0.6rem 0.85rem; background:#f0f4ff; border-left:3px solid #667eea; border-radius:0 6px 6px 0; font-size:0.875rem; color:#4a5568; line-height:1.5;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Job Title *</label>
-                        <input type="text" name="title" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea name="description"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Scheduled Date *</label>
-                        <input type="date" name="scheduledDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Scheduled Time</label>
-                        <input type="time" name="scheduledTime">
-                    </div>
-                    <div class="form-group">
-                        <label>Assigned To</label>
-                        <div id="jobTeamCheckboxes" style="background:#f8f9fa; border:2px solid #e2e8f0; border-radius:8px; padding:0.75rem; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Status *</label>
-                        <select name="status" required>
-                            <option value="prospecting">Prospecting</option>
-                            <option value="to_be_scheduled">To Be Scheduled</option>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="invoiced">Invoiced</option>
-                            <option value="bid_lost">Bid Lost</option>
-                        </select>
-                    </div>
 
-                    <div class="form-group" style="margin-top: 1rem;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="taxWaived" id="taxWaivedCheckbox" onchange="updateJobTotal()" style="width: auto; cursor: pointer;">
-                            <span>Tax Exempt / Waive Tax</span>
-                        </label>
-                    </div>
-
-                    <div style="margin-top: 2rem;">
-                        <h3 style="margin-bottom: 1rem;">Labor</h3>
-                        <div id="laborItems"></div>
-                        <button type="button" class="btn btn-secondary" onclick="addLaborItem()" style="margin-top: 0.5rem;">+ Add Labor</button>
-                    </div>
-
-                    <div style="margin-top: 2rem;">
-                        <h3 style="margin-bottom: 1rem;">Materials</h3>
-                        <div id="materialItems"></div>
-                        <button type="button" class="btn btn-secondary" onclick="addMaterialItem()" style="margin-top: 0.5rem;">+ Add Material</button>
-                    </div>
-
-                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
-                        <h3>Total Billed: $<span id="jobTotalDisplay">0.00</span></h3>
-                    </div>
-
-                    <div style="margin-top: 2rem;">
-                        <h3 style="margin-bottom: 1rem;">Payments Received</h3>
-                        <div id="paymentItems"></div>
-                        <button type="button" class="btn btn-secondary" onclick="addPaymentItem()" style="margin-top: 0.5rem;">+ Add Payment</button>
-
-                        <div style="margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-radius: 8px;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                <span>Subtotal:</span>
-                                <span>$<span id="subtotalSummary">0.00</span></span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                <span>Tax:</span>
-                                <span>$<span id="taxSummary">0.00</span></span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;">
-                                <strong>Total Billed:</strong>
-                                <strong>$<span id="totalBilledSummary">0.00</span></strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                <strong>Total Paid:</strong>
-                                <span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;">
-                                <strong>Balance Owed:</strong>
-                                <strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong>
+                    <!-- ── TAB: DETAILS ── -->
+                    <div id="jobTabDetails" class="job-tab-content">
+                        <div id="jobWorkflowStepper" style="display:none;background:#f8f9ff;border:1.5px solid #e2e8f0;border-radius:10px;padding:0.75rem 1rem 0.5rem;margin-bottom:1.25rem;"></div>
+                        <div class="form-group">
+                            <label>Client *</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
+                                <div style="position: relative; flex: 1; min-width: 200px;">
+                                    <input type="text" id="jobClientInput" placeholder="Type to search clients..." autocomplete="off" oninput="filterClientTypeahead()" onfocus="filterClientTypeahead()" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
+                                    <input type="hidden" name="clientId" id="jobClientSelect">
+                                    <div id="clientTypeaheadDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:2px solid #667eea; border-top:none; border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
+                                </div>
+                                <button type="button" class="btn btn-secondary" onclick="openClientModalFromJob()" style="white-space: nowrap;">+ Add Client</button>
                             </div>
                         </div>
-                    </div>
-
-                    <div id="laborActualsSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
-                        <h3 style="margin-bottom: 1rem;">💰 Labor Actuals (Payouts to Workers)</h3>
-                        <div id="laborActualsList" style="background: #f7fafc; padding: 1rem; border-radius: 8px;">
-                            <!-- Labor actuals will be rendered here -->
+                        <div class="form-group" id="serviceLocationGroup" style="display: none;">
+                            <label>Service Location</label>
+                            <select name="serviceLocationId" id="jobServiceLocationSelect" onchange="updateLocationDisplay()">
+                                <option value="">Select a location...</option>
+                            </select>
+                            <div id="locationInfoDisplay" style="display:none; margin-top:0.5rem; padding:0.6rem 0.85rem; background:#f0f4ff; border-left:3px solid #667eea; border-radius:0 6px 6px 0; font-size:0.875rem; color:#4a5568; line-height:1.5;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Job Title *</label>
+                            <input type="text" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea name="description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Scheduled Date *</label>
+                            <input type="date" name="scheduledDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Scheduled Time</label>
+                            <input type="time" name="scheduledTime">
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned To</label>
+                            <div id="jobTeamCheckboxes" style="background:#f8f9fa; border:2px solid #e2e8f0; border-radius:8px; padding:0.75rem; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Status *</label>
+                            <select name="status" required>
+                                <option value="prospecting">Prospecting</option>
+                                <option value="to_be_scheduled">To Be Scheduled</option>
+                                <option value="scheduled">Scheduled</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="invoiced">Invoiced</option>
+                                <option value="bid_lost">Bid Lost</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="taxWaived" id="taxWaivedCheckbox" onchange="updateJobTotal()" style="width: auto; cursor: pointer;">
+                                <span>Tax Exempt / Waive Tax</span>
+                            </label>
                         </div>
                     </div>
 
-                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
-                        <h3 style="margin-bottom: 1rem;">Attachments</h3>
-                        <div id="attachmentsList" style="margin-bottom: 1rem;">
-                            <!-- Attachments will be rendered here -->
+                    <!-- ── TAB: BILLING ── -->
+                    <div id="jobTabBilling" class="job-tab-content" style="display:none;">
+                        <div style="margin-top: 0.5rem;">
+                            <h3 style="margin-bottom: 1rem;">Labor</h3>
+                            <div id="laborItems"></div>
+                            <button type="button" class="btn btn-secondary" onclick="addLaborItem()" style="margin-top: 0.5rem;">+ Add Labor</button>
                         </div>
-                        <div style="margin-bottom: 1rem;">
-                            <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx,.txt" multiple style="display: none;" onchange="handleFileSelect(event)">
-                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
-                                📎 Add Photos/Documents
-                            </button>
-                            <span style="margin-left: 1rem; color: #718096; font-size: 0.9rem;">Photos, PDFs, or documents</span>
+                        <div style="margin-top: 2rem;">
+                            <h3 style="margin-bottom: 1rem;">Materials</h3>
+                            <div id="materialItems"></div>
+                            <button type="button" class="btn btn-secondary" onclick="addMaterialItem()" style="margin-top: 0.5rem;">+ Add Material</button>
+                        </div>
+                        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                            <h3>Total Billed: $<span id="jobTotalDisplay">0.00</span></h3>
+                        </div>
+                        <div style="margin-top: 2rem;">
+                            <h3 style="margin-bottom: 1rem;">Payments Received</h3>
+                            <div id="paymentItems"></div>
+                            <button type="button" class="btn btn-secondary" onclick="addPaymentItem()" style="margin-top: 0.5rem;">+ Add Payment</button>
+                            <div style="margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><span>Subtotal:</span><span>$<span id="subtotalSummary">0.00</span></span></div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><span>Tax:</span><span>$<span id="taxSummary">0.00</span></span></div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Total Billed:</strong><strong>$<span id="totalBilledSummary">0.00</span></strong></div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><strong>Total Paid:</strong><span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span></div>
+                                <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Balance Owed:</strong><strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong></div>
+                            </div>
+                        </div>
+                        <div id="laborActualsSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                            <h3 style="margin-bottom: 1rem;">💰 Labor Actuals (Payouts to Workers)</h3>
+                            <div id="laborActualsList" style="background: #f7fafc; padding: 1rem; border-radius: 8px;"></div>
                         </div>
                     </div>
 
-                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
-                        <h3 style="margin-bottom: 1rem;">Touch Points</h3>
-                        <div id="touchPointsList" style="margin-bottom: 1rem;">
-                            <!-- Touch points will be rendered here -->
+                    <!-- ── TAB: FILES ── -->
+                    <div id="jobTabFiles" class="job-tab-content" style="display:none;">
+                        <div style="margin-top: 0.5rem;">
+                            <h3 style="margin-bottom: 1rem;">Attachments</h3>
+                            <div id="attachmentsList" style="margin-bottom: 1rem;"></div>
+                            <div style="margin-bottom: 1rem;">
+                                <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx,.txt" multiple style="display: none;" onchange="handleFileSelect(event)">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📎 Add Photos/Documents</button>
+                            </div>
                         </div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <input type="text" id="newTouchPoint" placeholder="Add a note..." style="flex: 1; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px;">
-                            <button type="button" class="btn btn-primary" onclick="addTouchPoint()">Add Note</button>
+                        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #ddd;">
+                            <h3 style="margin-bottom: 1rem;">Touch Points</h3>
+                            <div id="touchPointsList" style="margin-bottom: 1rem;"></div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="newTouchPoint" placeholder="Add a note..." style="flex: 1; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px;">
+                                <button type="button" class="btn btn-primary" onclick="addTouchPoint()">Add Note</button>
+                            </div>
+                        </div>
+                        <div id="jobPhotosSection" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                            <h3 style="margin-bottom: 0.75rem;">📷 Photos</h3>
+                            <div id="jobPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                        </div>
+                        <div id="jobAuditLogSection" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                            <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
+                            <div id="jobAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
                         </div>
                     </div>
 
-                    <!-- Audit Log -->
-                    <div id="jobPhotosSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
-                        <h3 style="margin-bottom: 0.75rem;">📷 Photos</h3>
-                        <div id="jobPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-                    </div>
-
-                    <div id="jobAuditLogSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
-                        <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
-                        <div id="jobAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
-                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -4446,6 +4434,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('jobAuditLogSection').style.display = 'none';
             }
 
+            showJobTab('Details');
             document.getElementById('jobModal').classList.add('active');
         }
 
@@ -4553,6 +4542,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             document.getElementById('teamModal').classList.add('active');
+        }
+
+        function showJobTab(name) {
+            document.querySelectorAll('.job-tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.job-tab-btn').forEach(el => el.classList.remove('active'));
+            const tab = document.getElementById('jobTab' + name);
+            if (tab) tab.style.display = '';
+            const btn = document.querySelector('.job-tab-btn[onclick*="' + name + '"]');
+            if (btn) btn.classList.add('active');
+            // Scroll body back to top when switching tabs
+            const body = document.querySelector('#jobModal .modal-body');
+            if (body) body.scrollTop = 0;
         }
 
         function closeModal(modalId) {
