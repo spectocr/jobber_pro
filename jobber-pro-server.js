@@ -1251,16 +1251,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 padding: 0 !important;
                 overflow: hidden !important;
             }
-            /* Hide everything except the canvas pad */
-            #soMetaGrid, #soWorkSection, #soSigLabel,
+            /* Hide everything except the canvas */
+            #soMetaGrid, #soWorkSection, #soSigLabel, #soDisclaimer,
             #soSigControls, #soNameWrap, #soTitleDateGrid,
             #soSignedByRow, #soSigImg { display: none !important; }
+            /* Strip canvas wrapper chrome — just raw canvas */
+            #soPadWrap {
+                border: none !important;
+                border-radius: 0 !important;
+                background: white !important;
+                margin: 0 !important;
+            }
             /* Canvas fills body: header ~44px + banner ~28px + footer ~44px = 116px */
             #soPad {
                 height: calc(100vh - 116px) !important;
                 cursor: crosshair;
             }
-            #soHint { font-size: 1.4rem !important; }
+            #soHint { font-size: 1.6rem !important; }
             /* Compact footer: horizontal row */
             #signoffModal > div > div:last-child {
                 padding: 0.35rem 0.75rem !important;
@@ -4047,7 +4054,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const soBody = _soEl('soBody');
             const sigImg = _soEl('soSigImg');
             const padWrap = _soEl('soPad') ? _soEl('soPad').parentElement : null;
-            const disclaimer = document.querySelector('#signoffModal [style*="fffef7"]');
+            const disclaimer = document.getElementById('soDisclaimer');
 
             if (isViewMode) {
                 // Lock body — no scroll at all in view mode
@@ -13130,10 +13137,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Work Performed</div>
         <div id="soDesc" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:0.75rem 1rem;font-size:0.85rem;line-height:1.65;color:#333;white-space:pre-wrap;margin-bottom:1.25rem;max-height:120px;overflow-y:auto;"></div>
       </div>
-      <div style="font-size:0.82rem;color:#555;line-height:1.6;margin-bottom:1.25rem;padding:0.75rem 1rem;background:#fffef7;border:1px solid #fde68a;border-radius:6px;">By signing below, I confirm the work described above has been completed satisfactorily and to my approval.</div>
+      <div id="soDisclaimer" style="font-size:0.82rem;color:#555;line-height:1.6;margin-bottom:1.25rem;padding:0.75rem 1rem;background:#fffef7;border:1px solid #fde68a;border-radius:6px;">By signing below, I confirm the work described above has been completed satisfactorily and to my approval.</div>
       <!-- Signature pad -->
       <div id="soSigLabel" style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Signature *</div>
-      <div style="position:relative;border:2px dashed #cbd5e0;border-radius:8px;background:#fafafa;overflow:hidden;margin-bottom:0.5rem;">
+      <div id="soPadWrap" style="position:relative;border:2px dashed #cbd5e0;border-radius:8px;background:#fafafa;overflow:hidden;margin-bottom:0.5rem;">
         <canvas id="soPad" width="620" height="160" style="display:block;width:100%;height:auto;cursor:crosshair;touch-action:none;"></canvas>
         <div id="soHint" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:0.9rem;pointer-events:none;user-select:none;">✏️ Sign here</div>
       </div>
