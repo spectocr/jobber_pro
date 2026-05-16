@@ -4018,6 +4018,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 sigControls.style.display = 'none';
                 if (disclaimer) disclaimer.style.display = 'none';
                 saveBtn.style.display = 'none';
+                document.getElementById('soMetaGrid').style.display = 'none';
                 document.getElementById('soWorkSection').style.display = 'none';
                 document.getElementById('soSigLabel').style.display = 'none';
                 document.getElementById('soNameWrap').style.display = 'none';
@@ -4046,6 +4047,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 sigControls.style.display = '';
                 if (disclaimer) disclaimer.style.display = '';
                 saveBtn.style.display = '';
+                document.getElementById('soMetaGrid').style.display = '';
                 document.getElementById('soWorkSection').style.display = '';
                 document.getElementById('soSigLabel').style.display = '';
                 document.getElementById('soNameWrap').style.display = '';
@@ -13048,8 +13050,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 <!-- Sign-Off Modal -->
-<div id="signoffModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:1rem;">
-  <div style="background:#fff;border-radius:12px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
+<div id="signoffModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:0.5rem;">
+  <div style="background:#fff;border-radius:12px;width:100%;max-width:680px;max-height:96vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
     <!-- Header -->
     <div style="background:#0f1c2e;color:#fff;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
       <div>
@@ -13059,9 +13061,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       <button onclick="closeSignoffModal()" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:1.5rem;cursor:pointer;line-height:1;padding:0 0.25rem;">×</button>
     </div>
     <!-- Scrollable body -->
-    <div style="overflow-y:auto;flex:1;padding:1.25rem;">
+    <div style="overflow-y:auto;flex:1;padding:0.9rem 1rem;">
       <!-- Meta -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem 2rem;margin-bottom:1rem;font-size:0.85rem;">
+      <div id="soMetaGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem 2rem;margin-bottom:1rem;font-size:0.85rem;">
         <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Client</div><div id="soClient" style="font-weight:600;color:#1a1a1a;"></div></div>
         <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Service Location</div><div id="soLoc" style="font-weight:600;color:#1a1a1a;"></div></div>
         <div><div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;">Date of Service</div><div id="soSchedDate" style="font-weight:600;color:#1a1a1a;"></div></div>
@@ -13069,7 +13071,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       <!-- Work Performed -->
       <div id="soWorkSection">
         <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa;margin-bottom:0.4rem;">Work Performed</div>
-        <div id="soDesc" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:0.75rem 1rem;font-size:0.85rem;line-height:1.65;color:#333;white-space:pre-wrap;margin-bottom:1.25rem;"></div>
+        <div id="soDesc" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:0.75rem 1rem;font-size:0.85rem;line-height:1.65;color:#333;white-space:pre-wrap;margin-bottom:1.25rem;max-height:120px;overflow-y:auto;"></div>
       </div>
       <div style="font-size:0.82rem;color:#555;line-height:1.6;margin-bottom:1.25rem;padding:0.75rem 1rem;background:#fffef7;border:1px solid #fde68a;border-radius:6px;">By signing below, I confirm the work described above has been completed satisfactorily and to my approval.</div>
       <!-- Signature pad -->
@@ -13081,7 +13083,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       <div id="soSigControls" style="margin-bottom:1.25rem;">
         <button onclick="_soClear()" style="background:none;border:1.5px solid #d1d5db;padding:0.3rem 0.9rem;border-radius:5px;cursor:pointer;font-size:0.78rem;color:#888;">Clear</button>
       </div>
-      <img id="soSigImg" style="display:none;" alt="Signature">
+      <img id="soSigImg" style="display:none;max-height:30vh;object-fit:contain;" alt="Signature">
       <!-- Compact signed-by row shown in view mode only -->
       <div id="soSignedByRow" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:none;">
         <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#16a34a;margin-bottom:0.35rem;">✅ Signed By</div>
@@ -13107,7 +13109,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
       </div>
     </div>
     <!-- Footer buttons -->
-    <div style="padding:1rem 1.25rem;border-top:1px solid #e5e7eb;display:flex;gap:0.6rem;flex-shrink:0;background:#fff;">
+    <div style="padding:0.75rem 1rem;border-top:1px solid #e5e7eb;display:flex;gap:0.6rem;flex-shrink:0;background:#fff;">
       <button onclick="soPrint()" style="background:#0f1c2e;color:#fff;border:none;padding:0.65rem 1.25rem;border-radius:6px;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ Print</button>
       <button id="soSaveBtn" onclick="soSave()" style="background:#48bb78;color:#fff;border:none;padding:0.65rem 1.5rem;border-radius:6px;font-size:0.88rem;font-weight:700;cursor:pointer;flex:1;">💾 Save to Job</button>
       <button onclick="closeSignoffModal()" style="background:none;border:1.5px solid #d1d5db;padding:0.65rem 1.25rem;border-radius:6px;cursor:pointer;font-size:0.88rem;color:#555;">Cancel</button>
