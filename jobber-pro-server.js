@@ -4005,6 +4005,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Init canvas
             _soCanvas = document.getElementById('soPad');
             _soCtx = _soCanvas.getContext('2d');
+            _soAttachEvents();
             _soCtx.lineWidth = 2.5; _soCtx.lineCap = 'round'; _soCtx.lineJoin = 'round'; _soCtx.strokeStyle = '#1a1a1a';
             _soCtx.clearRect(0, 0, _soCanvas.width, _soCanvas.height);
             _soHasSig = false; _soDrawing = false;
@@ -4124,8 +4125,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        // Wire up canvas events after DOM ready (called once)
-        function _initSignoffModal() {
+        let _soEventsAttached = false;
+        function _soAttachEvents() {
+            if (_soEventsAttached) return;
+            _soEventsAttached = true;
             var c = document.getElementById('soPad');
             if (!c) return;
             c.addEventListener('mousedown', _soStart);
@@ -12985,10 +12988,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
   </div>
 </div>
-
-<script>
-  document.addEventListener('DOMContentLoaded', _initSignoffModal);
-<\/script>
 
 </body>
 </html>`;
