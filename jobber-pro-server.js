@@ -13430,7 +13430,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 </div>
 
 <!-- Mobile Quick-Add Job FAB -->
-<button id="quickAddFab" onclick="openQuickAdd()" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;z-index:5000;width:56px;height:56px;border-radius:50%;background:#667eea;color:#fff;border:none;font-size:1.75rem;box-shadow:0 4px 16px rgba(102,126,234,0.5);cursor:pointer;align-items:center;justify-content:center;">+</button>
+<button id="quickAddFab" onclick="openQuickAdd()" style="display:none;position:fixed;bottom:1.5rem;left:1.5rem;z-index:5000;width:56px;height:56px;border-radius:50%;background:#667eea;color:#fff;border:none;font-size:1.75rem;box-shadow:0 4px 16px rgba(102,126,234,0.5);cursor:pointer;align-items:center;justify-content:center;">+</button>
 
 <!-- Quick-Add Modal -->
 <div id="quickAddModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.55);align-items:flex-end;justify-content:center;">
