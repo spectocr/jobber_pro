@@ -107,7 +107,7 @@ class DataManager {
             bidLost: jobs.filter(j => j.status === 'bid_lost').length,
 
             revenueThisMonth: jobs
-                .filter(j => (j.status === 'invoiced' || j.status === 'completed') && j.scheduledDate && j.scheduledDate.startsWith(thisMonth))
+                .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt).toISOString().slice(0, 7) === thisMonth)
                 .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0),
 
             // Accounts Receivable - all unpaid balances
