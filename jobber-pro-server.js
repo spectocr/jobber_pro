@@ -4541,7 +4541,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     _signoffBtn.innerHTML = job.signoff ? '✅ View Sign-Off' : '✍️ Sign-Off';
                 }
                 if (_resendSurveyBtn) {
-                    _resendSurveyBtn.style.display = job.status === 'completed' ? '' : 'none';
+                    _resendSurveyBtn.style.display = ['completed','invoiced'].includes(job.status) ? '' : 'none';
                 }
             } else {
                 _stepperEl.style.display = 'none';
