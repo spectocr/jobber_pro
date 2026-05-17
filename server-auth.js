@@ -2523,8 +2523,8 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             }
         }
 
-        // Survey — send on completion regardless of phone, only requires email
-        if (client && isUpdate && oldJob && oldJob.status !== job.status && job.status === 'completed') {
+        // Survey — send on completion, skip PM clients
+        if (client && !client.isPropertyManagement && isUpdate && oldJob && oldJob.status !== job.status && job.status === 'completed') {
             sendJobSurvey(job._id || new ObjectId(_id), client, job.title, companyName).catch(e => console.error('Survey send error:', e));
         }
     } catch (smsError) {
