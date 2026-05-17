@@ -4541,7 +4541,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     _signoffBtn.innerHTML = job.signoff ? '✅ View Sign-Off' : '✍️ Sign-Off';
                 }
                 if (_resendSurveyBtn) {
-                    const _isPM = client && client.isPropertyManagement;
+                    const _jobClient = (clients||[]).find(c => c.id == job.clientId || c._id == job.clientId);
+                    const _isPM = _jobClient && _jobClient.isPropertyManagement;
                     _resendSurveyBtn.style.display = (!_isPM && job.status === 'completed') ? '' : 'none';
                 }
             } else {
