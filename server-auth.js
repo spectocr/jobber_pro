@@ -2523,9 +2523,9 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             }
         }
 
-        // Survey — send on completion, skip PM clients
+        // Survey — auto-send on completion for residential clients only
         if (client && !client.isPropertyManagement && isUpdate && oldJob && oldJob.status !== job.status && job.status === 'completed') {
-            sendJobSurvey(job._id || new ObjectId(_id), client, job.title, companyName).catch(e => console.error('Survey send error:', e));
+            sendJobSurvey(job._id || new ObjectId(_id), client, job.title, companyName, client.email).catch(e => console.error('Survey send error:', e));
         }
     } catch (smsError) {
         console.error('SMS notification error:', smsError);
@@ -2542,8 +2542,9 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
 
 // ── Survey system ─────────────────────────────────────────────────────────────
 
-async function sendJobSurvey(jobId, client, jobTitle, companyName) {
-    if (!client || !client.email) throw new Error('Client has no email address on file — survey not sent.');
+async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = null) {
+    const surveyEmail = toEmail || client?.email;
+    if (!surveyEmail) throw new Error('Client has no email address on file — survey not sent.');
     const token = crypto.randomBytes(24).toString('hex');
     const appUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
     const surveyUrl = `${appUrl}/survey/${token}`;
@@ -2556,7 +2557,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
     const _surveyLogId = new ObjectId();
     const _surveyTrackUrl = `${appUrl}/api/email-track/${_surveyLogId}`;
     await emailService.sendEmail({
-        to: client.email,
+        to: surveyEmail,
         subject,
         html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;color:#1a202c;">
             <div style="text-align:center;margin-bottom:1.5rem;">
@@ -2578,7 +2579,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName) {
     await db.collection('email_logs').insertOne({
         _id: _surveyLogId,
         type: 'survey',
-        to: client.email,
+        to: surveyEmail,
         toName: client.name || clientName,
         subject,
         trigger: `Survey request for job "${jobTitle}"`,
@@ -2748,9 +2749,15 @@ app.post('/api/jobs/:id/resend-survey', isAuthenticated, async (req, res) => {
         const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
         const settings = await db.collection('settings').findOne({});
         const companyName = settings?.companyName || 'GSD Handyman Service';
+        // Resolve email — use location contactEmail if set (same logic as invoices)
+        let toEmail = client?.email;
+        if (job.serviceLocationId && client?.serviceLocations) {
+            const loc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId));
+            if (loc?.contactEmail) toEmail = loc.contactEmail;
+        }
         // Reset token so it can be re-submitted
         await db.collection('jobs').updateOne({ _id: job._id }, { $unset: { surveyToken: '', surveyTokenSentAt: '', surveySubmittedAt: '', surveyRating: '' } });
-        await sendJobSurvey(job._id, client, job.title, companyName);
+        await sendJobSurvey(job._id, client, job.title, companyName, toEmail);
         res.json({ ok: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
