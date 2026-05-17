@@ -12807,6 +12807,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function applyPermissions() {
             if (!isAdmin) {
+                // Hide Maddox for non-admins
+                const _cw = document.getElementById('clippyWrap');
+                if (_cw) _cw.style.display = 'none';
+
                 // Hide all admin-only navigation tabs
                 document.querySelectorAll('[data-admin-only]').forEach(btn => {
                     btn.style.display = 'none';
