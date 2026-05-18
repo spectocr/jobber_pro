@@ -588,6 +588,19 @@ app.use((req, res, next) => {
 // ─── Portfolio: module-level S3 client + page generators ─────────────────────
 
 const CLOUDFRONT_URL = process.env.CLOUDFRONT_URL || 'https://d2ludoxusetr9v.cloudfront.net';
+
+function portfolioPhotoUrl(s3Key) {
+    if (!s3Key) return '';
+    if (s3Key.startsWith('http')) return s3Key;
+    return `${CLOUDFRONT_URL}/${s3Key}`;
+}
+
+function _pfParseType(key) {
+    const name = key.split('/').pop();
+    if (name.startsWith('before-')) return 'before';
+    if (name.startsWith('after-'))  return 'after';
+    return 'other';
+}
 const PUBLIC_S3_BUCKET = process.env.PUBLIC_S3_BUCKET;
 
 let publicS3Client = null;
@@ -2239,23 +2252,9 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
 });
 
 // ─── Portfolio routes ─────────────────────────────────────────────────────────
-
-function portfolioPhotoUrl(s3Key) {
-    if (!s3Key) return '';
-    if (s3Key.startsWith('http')) return s3Key;
-    return `${CLOUDFRONT_URL}/${s3Key}`;
-}
-
 // Public — no auth required
 // S3 key: portfolio/{entryId}/{type}-{timestamp}-{random}.{ext}
 // Type is encoded in the filename prefix — no photo data stored in MongoDB.
-
-function _pfParseType(key) {
-    const name = key.split('/').pop();
-    if (name.startsWith('before-')) return 'before';
-    if (name.startsWith('after-'))  return 'after';
-    return 'other';
-}
 
 async function _pfListS3(entryId) {
     const client = publicS3Client || s3Client;
