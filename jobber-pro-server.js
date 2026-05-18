@@ -1415,6 +1415,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
             </div>
 
+            <!-- Follow-up Done Modal -->
+            <div id="followUpDoneModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:3000;align-items:center;justify-content:center;">
+                <div style="background:white;border-radius:12px;padding:1.5rem;width:100%;max-width:400px;margin:1rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                    <h3 style="margin:0 0 0.25rem;font-size:1.1rem;">✅ Complete Follow-up</h3>
+                    <p style="margin:0 0 1rem;font-size:0.85rem;color:#718096;">Add an optional note about the outcome.</p>
+                    <textarea id="followUpDoneComment" rows="3" placeholder="e.g. Left voicemail, scheduled estimate for Friday..." style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;resize:vertical;box-sizing:border-box;"></textarea>
+                    <div style="display:flex;gap:0.75rem;margin-top:1rem;justify-content:flex-end;">
+                        <button onclick="closeFuDoneModal()" style="padding:0.5rem 1rem;border:2px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:0.9rem;">Cancel</button>
+                        <button onclick="confirmDismissFollowUp()" style="padding:0.5rem 1.25rem;background:#48bb78;color:white;border:none;border-radius:8px;cursor:pointer;font-size:0.9rem;font-weight:600;">Mark Done</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Follow-up Reminders -->
             <div id="followUpRemindersCard" style="display:none; margin-bottom:1.5rem;">
                 <div class="card" style="margin-bottom:0;">
@@ -9540,11 +9553,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        async function dismissFollowUp(jobId) {
+        function dismissFollowUp(jobId) {
+            window._pendingDismissJobId = jobId;
+            document.getElementById('followUpDoneComment').value = '';
+            const modal = document.getElementById('followUpDoneModal');
+            modal.style.display = 'flex';
+            setTimeout(() => document.getElementById('followUpDoneComment').focus(), 50);
+        }
+
+        function closeFuDoneModal() {
+            document.getElementById('followUpDoneModal').style.display = 'none';
+            window._pendingDismissJobId = null;
+        }
+
+        async function confirmDismissFollowUp() {
+            const jobId = window._pendingDismissJobId;
+            if (!jobId) return;
+            const comment = document.getElementById('followUpDoneComment').value.trim();
+            closeFuDoneModal();
             try {
-                await fetch(\`/api/jobs/\${jobId}/dismiss-followup\`, { method: 'POST' });
+                await fetch(\`/api/jobs/\${jobId}/dismiss-followup\`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comment })
+                });
                 loadDashboard();
-            } catch (e) { alert('Could not dismiss follow-up: ' + e.message); }
+            } catch (e) { alert('Could not complete follow-up: ' + e.message); }
         }
 
         async function resendSurvey() {

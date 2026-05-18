@@ -2756,16 +2756,26 @@ app.post('/api/jobs/:id/dismiss-followup', isAuthenticated, async (req, res) => 
     try {
         const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
         if (!job) return res.status(404).json({ error: 'Job not found' });
+        const now = new Date();
+        const comment = (req.body && req.body.comment) ? req.body.comment.trim() : '';
+        const completedStr = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        let noteText = `✅ Follow-up completed ${completedStr}`;
+        if (job.followUpDate) noteText += ` (was due ${job.followUpDate})`;
+        if (job.followUpNote) noteText += ` — ${job.followUpNote}`;
+        if (comment) noteText += `\nOutcome: ${comment}`;
         const touchPoint = {
-            id: Date.now(),
-            note: `✅ Follow-up completed${job.followUpDate ? ` (was due ${job.followUpDate})` : ''}${job.followUpNote ? ` — ${job.followUpNote}` : ''}`,
-            timestamp: new Date().toISOString(),
+            id: now.getTime(),
+            note: noteText,
+            timestamp: now.toISOString(),
             user: req.session.userName || 'Admin',
             type: 'follow_up_done'
         };
         await db.collection('jobs').updateOne(
             { _id: new ObjectId(req.params.id) },
-            { $set: { followUpDone: true, updatedAt: new Date() }, $push: { touchPoints: touchPoint } }
+            {
+                $set: { followUpDone: true, followUpCompletedAt: now, updatedAt: now },
+                $push: { touchPoints: touchPoint }
+            }
         );
         res.json({ success: true });
     } catch (e) {
