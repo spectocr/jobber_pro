@@ -585,6 +585,23 @@ app.use((req, res, next) => {
     express.urlencoded({ extended: true, limit })(req, res, next);
 });
 
+// ─── Portfolio: module-level S3 client + page generators ─────────────────────
+
+const CLOUDFRONT_URL = process.env.CLOUDFRONT_URL || 'https://d2ludoxusetr9v.cloudfront.net';
+const PUBLIC_S3_BUCKET = process.env.PUBLIC_S3_BUCKET;
+
+let publicS3Client = null;
+if (process.env.PUBLIC_S3_KEY && process.env.PUBLIC_S3_SECRET && PUBLIC_S3_BUCKET) {
+    publicS3Client = new S3Client({
+        region: 'us-east-1',
+        credentials: {
+            accessKeyId: process.env.PUBLIC_S3_KEY,
+            secretAccessKey: process.env.PUBLIC_S3_SECRET
+        }
+    });
+    console.log('✅ Public S3 client enabled - Bucket:', PUBLIC_S3_BUCKET);
+}
+
 // Function to setup routes (called after session middleware is ready)
 function setupRoutes() {
 // Routes
@@ -2221,22 +2238,7 @@ app.get('/api/jobs', isAuthenticated, async (req, res) => {
     res.json(jobsWithId);
 });
 
-// ─── Portfolio ───────────────────────────────────────────────────────────────
-
-const CLOUDFRONT_URL = process.env.CLOUDFRONT_URL || 'https://d2ludoxusetr9v.cloudfront.net';
-const PUBLIC_S3_BUCKET = process.env.PUBLIC_S3_BUCKET;
-
-let publicS3Client = null;
-if (process.env.PUBLIC_S3_KEY && process.env.PUBLIC_S3_SECRET && PUBLIC_S3_BUCKET) {
-    publicS3Client = new S3Client({
-        region: 'us-east-1',
-        credentials: {
-            accessKeyId: process.env.PUBLIC_S3_KEY,
-            secretAccessKey: process.env.PUBLIC_S3_SECRET
-        }
-    });
-    console.log('✅ Public S3 client enabled - Bucket:', PUBLIC_S3_BUCKET);
-}
+// ─── Portfolio routes ─────────────────────────────────────────────────────────
 
 function portfolioPhotoUrl(s3Key) {
     if (!s3Key) return '';
@@ -2415,307 +2417,6 @@ app.delete('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     }
 });
 
-// ─── Static portfolio page generator ────────────────────────────────────────
-
-const CAT_LABEL = { bathroom:'Bathroom', kitchen:'Kitchen', deck:'Deck / Patio', flooring:'Flooring',
-    painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
-    exterior:'Exterior', general:'General' };
-
-function _pfUrl(raw) {
-    if (!raw) return '';
-    if (raw.startsWith('http')) return raw;
-    return `${CLOUDFRONT_URL}/${raw}`;
-}
-
-function _pfEsc(s) { return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
-function _pfHe(s)  { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function generatePortfolioHtml(rawItems) {
-    const CAT_ORDER = ['bathroom','kitchen','deck','flooring','painting','carpentry','electrical','plumbing','exterior','general'];
-
-    const items = rawItems.map(item => {
-        const photos = (item.photos || []).map(p => ({ url: _pfUrl(p.s3Key || p.url), type: p.type || 'other' }));
-        if (!photos.length && item.s3Key) photos.push({ url: _pfUrl(item.s3Key), type: 'after' });
-        const cover = photos.find(p => p.type === 'after') || photos[0];
-        const bCt = photos.filter(p => p.type === 'before').length;
-        const aCt = photos.filter(p => p.type === 'after').length;
-        const oCt = photos.filter(p => p.type === 'other').length;
-        const badge = [bCt && bCt+'B', aCt && aCt+'A', oCt && oCt+'O'].filter(Boolean).join(' · ');
-        const catName = CAT_LABEL[item.category] || item.category || '';
-        return { id: item._id.toString(), title: item.title || '', caption: item.caption || '',
-            category: item.category || '', commercial: !!item.commercial, catName, cover, photos, badge };
-    });
-
-    // Filter buttons — only categories that have items
-    const usedCats = new Set(items.map(i => i.category).filter(Boolean));
-    const hasCommercial = items.some(i => i.commercial);
-    let filterBtns = '';
-    if (hasCommercial) filterBtns += `<button class="filter-btn" data-filter="commercial" onclick="setFilter('commercial')">🏢 Commercial</button>`;
-    CAT_ORDER.filter(c => usedCats.has(c)).forEach(c => {
-        filterBtns += `<button class="filter-btn" data-filter="${c}" onclick="setFilter('${c}')">${CAT_LABEL[c]}</button>`;
-    });
-
-    // Cards — show photo grid (up to 4 photos), Before first then After then Other
-    const cardsHtml = items.map(item => {
-        const baseAlt = _pfHe([item.catName, item.title, 'GSD Home Improvement South Jersey'].filter(Boolean).join(' — '));
-        const catBadge = item.commercial
-            ? `<span class="card-cat" style="background:#dbeafe;color:#1d4ed8;">🏢 Commercial</span>`
-            : (item.catName ? `<span class="card-cat">${_pfHe(item.catName)}</span>` : '');
-        const body = (catBadge || item.title || item.caption) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${item.caption ? `<div class="card-caption">${_pfHe(item.caption)}</div>` : ''}</div>` : '';
-
-        const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
-        const show = sorted.slice(0, 4);
-        const cols = show.length === 1 ? 1 : 2;
-        let gridHtml;
-        if (!show.length) {
-            gridHtml = '';
-        } else if (show.length === 1) {
-            const typeLabel = show[0].type === 'before' ? 'Before — ' : show[0].type === 'after' ? 'After — ' : '';
-            gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`;
-        } else {
-            const cells = show.map(p => {
-                const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
-                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`;
-            }).join('');
-            gridHtml = `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px;">${cells}</div>`;
-        }
-
-        return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${gridHtml}</div>${body}\n</article>`;
-    }).join('\n');
-
-    // JSON payload for lightbox (UX only — SEO comes from the <img> tags above)
-    const projectJson = JSON.stringify(items.map(i => ({
-        id: i.id, title: i.title, caption: i.caption, catName: i.catName,
-        photos: i.photos.map(p => ({ url: p.url, type: p.type }))
-    })));
-
-    // schema.org ItemList
-    const schemaItems = items.map((item, idx) => ({
-        '@type': 'ListItem', position: idx + 1,
-        item: { '@type': 'CreativeWork',
-            name: item.title || 'GSD Home Improvement Project',
-            description: item.caption,
-            image: item.cover?.url || '' }
-    }));
-    const schema = JSON.stringify({ '@context': 'https://schema.org', '@type': 'ItemList',
-        name: 'GSD Home Improvement Portfolio', itemListElement: schemaItems });
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Our Work | GSD Home Improvement &amp; Property Services — Mount Laurel NJ</title>
-<meta name="description" content="Browse completed projects by GSD Home Improvement &amp; Property Services. Bathrooms, kitchens, decks, flooring, painting, carpentry and more in Mount Laurel, NJ.">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="https://gsdhandymanservice.com/portfolio.html">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://gsdhandymanservice.com/portfolio.html">
-<meta property="og:title" content="Our Work | GSD Home Improvement">
-<meta property="og:description" content="Real jobs, real results. Browse completed projects by GSD Home Improvement in South Jersey.">
-<meta property="og:image" content="https://gsdhandymanservice.com/images/logo.png">
-<script type="application/ld+json">${schema}</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--navy:#0f1c2e;--navy-mid:#1a2f4a;--blue:#1d6fa4}
-body{font-family:'Inter',sans-serif;background:#f8fafc;color:#1f2937}
-nav{position:sticky;top:0;z-index:100;background:var(--navy);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px}
-.nav-logo{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:white;font-weight:800;font-size:1.05rem}
-.nav-logo img{height:32px;filter:brightness(0) invert(1)}
-.nav-links{display:flex;align-items:center;gap:1.5rem}
-.nav-links a{color:rgba(255,255,255,.8);text-decoration:none;font-size:.9rem;font-weight:500;transition:color .2s}
-.nav-links a:hover,.nav-links a.active{color:white}
-.nav-phone{color:white;text-decoration:none;font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:.4rem}
-@media(max-width:640px){.nav-links{display:none}}
-.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 60%,#1a3a5c 100%);color:white;text-align:center;padding:4rem 1.5rem 3.5rem}
-.hero h1{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;margin-bottom:.75rem}
-.hero p{font-size:1.1rem;opacity:.85;max-width:520px;margin:0 auto}
-.filters{background:white;border-bottom:1px solid #e5e7eb;padding:1rem 1.5rem;display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center}
-.filter-btn{padding:.45rem 1.1rem;border-radius:999px;border:2px solid #e5e7eb;background:white;color:#4b5563;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
-.filter-btn:hover{border-color:var(--navy);color:var(--navy)}
-.filter-btn.active{background:var(--navy);color:white;border-color:var(--navy)}
-.gallery-wrap{max-width:1280px;margin:0 auto;padding:2.5rem 1.5rem 4rem}
-.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem}
-.card{background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.07);overflow:hidden;transition:transform .2s,box-shadow .2s;cursor:pointer}
-.card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
-.card.hidden{display:none}
-.card-img{position:relative;padding-top:66.6%;overflow:hidden;background:#e5e7eb}
-.card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
-.card:hover .card-img img{transform:scale(1.03)}
-.photo-badge{position:absolute;bottom:.5rem;right:.5rem;background:rgba(0,0,0,.58);color:#fff;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:6px}
-.card-body{padding:.9rem 1.1rem 1.1rem}
-.card-cat{display:inline-block;margin-bottom:.4rem;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
-.card-title{font-size:1rem;font-weight:700;color:#1f2937}
-.card-caption{margin-top:.3rem;font-size:.875rem;color:#6b7280;line-height:1.5}
-#proj-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;overflow-y:auto;padding:2rem 1rem}
-#proj-modal.open{display:block}
-#proj-panel{background:white;border-radius:16px;max-width:720px;margin:0 auto;overflow:hidden}
-#proj-head{padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb}
-#proj-head h2{font-size:1.15rem;font-weight:700}
-#proj-close{background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1}
-#proj-body{padding:1.5rem}
-.proj-cap{color:#6b7280;font-size:.9rem;margin-bottom:1.25rem}
-.sec-label{font-weight:700;font-size:.85rem;margin-bottom:.5rem}
-.photo-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem;margin-bottom:1.25rem}
-.photo-row img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in}
-#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center}
-#lightbox.open{display:flex}
-#lightbox img{max-width:92vw;max-height:88vh;object-fit:contain;border-radius:8px}
-#lb-close{position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer}
-footer{background:var(--navy);color:rgba(255,255,255,.7);text-align:center;padding:2rem 1rem;font-size:.9rem}
-footer a{color:rgba(255,255,255,.85);text-decoration:none}
-footer a:hover{color:white}
-</style>
-</head>
-<body>
-<nav>
-  <a class="nav-logo" href="/"><img src="/images/logo.png" alt="GSD logo" onerror="this.style.display='none'">GSD Home Improvement</a>
-  <div class="nav-links">
-    <a href="/">Home</a><a href="/#services">Services</a>
-    <a href="/portfolio.html" class="active">Our Work</a>
-    <a href="/#quote">Get a Quote</a><a href="/#portal">Client Portal</a>
-  </div>
-  <a class="nav-phone" href="tel:+18568724636">
-    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
-    856-872-4636
-  </a>
-</nav>
-<div class="hero">
-  <h1>Our Work</h1>
-  <p>Real jobs completed for homeowners, landlords, and commercial properties across South Jersey.</p>
-</div>
-<div class="filters">
-  <button class="filter-btn active" data-filter="" onclick="setFilter('')">All</button>
-  ${filterBtns}
-</div>
-<div class="gallery-wrap">
-  <div class="gallery" id="gallery">
-    ${cardsHtml || '<div style="text-align:center;padding:5rem 1rem;color:#9ca3af;grid-column:1/-1"><h3>No portfolio items yet.</h3></div>'}
-  </div>
-</div>
-<div id="proj-modal" onclick="if(event.target===this)closeProject()">
-  <div id="proj-panel">
-    <div id="proj-head"><h2 id="proj-title"></h2><button id="proj-close" onclick="closeProject()">×</button></div>
-    <div id="proj-body"><p class="proj-cap" id="proj-cap"></p><div id="proj-photos"></div></div>
-  </div>
-</div>
-<div id="lightbox" onclick="closeLb()"><span id="lb-close" onclick="closeLb()">×</span><img id="lb-img" src="" alt=""></div>
-<footer>
-  <p style="margin-bottom:.5rem;"><strong style="color:white;">GSD Home Improvement &amp; Property Services</strong><br>Mount Laurel, NJ · Serving South Jersey</p>
-  <p><a href="tel:+18568724636">856-872-4636</a> &nbsp;·&nbsp; <a href="/">Home</a> &nbsp;·&nbsp; <a href="/#quote">Get a Quote</a></p>
-  <p style="margin-top:.75rem;font-size:.8rem;opacity:.6;">© 2025 GSD Home Improvement &amp; Property Services. All rights reserved.</p>
-</footer>
-<script>
-const PF=${projectJson};
-function setFilter(cat){
-  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.filter===cat));
-  document.querySelectorAll('.card').forEach(c=>{
-    if(!cat){c.classList.remove('hidden');return;}
-    if(cat==='commercial'){c.classList.toggle('hidden',c.dataset.commercial!=='true');return;}
-    c.classList.toggle('hidden',c.dataset.cat!==cat);
-  });
-}
-function openProject(id){
-  const p=PF.find(x=>x.id===id); if(!p) return;
-  document.getElementById('proj-title').textContent=p.title||'Project Details';
-  const cap=document.getElementById('proj-cap');
-  cap.textContent=p.caption||''; cap.style.display=p.caption?'':'none';
-  const secs=[{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
-  let h='';
-  secs.forEach(s=>{
-    const ph=p.photos.filter(x=>x.type===s.k); if(!ph.length) return;
-    h+='<div class="sec-label" style="color:'+s.c+'"><span style="background:'+s.bg+';border:1.5px solid '+s.br+';border-radius:6px;padding:2px 12px;">'+s.l+'</span></div>';
-    h+='<div class="photo-row">';
-    ph.forEach(x=>{const alt=(s.k==='before'?'Before':s.k==='after'?'After':'')+(p.catName?' — '+p.catName:'')+(p.title?' — '+p.title:'');h+='<img src="'+x.url+'" alt="'+alt+'" loading="lazy" onclick="openLb(\''+x.url.replace(/'/g,"\\'")+'\')">';});
-    h+='</div>';
-  });
-  document.getElementById('proj-photos').innerHTML=h||'<p style="color:#9ca3af">No photos.</p>';
-  document.getElementById('proj-modal').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeProject(){document.getElementById('proj-modal').classList.remove('open');document.body.style.overflow='';}
-function openLb(src){document.getElementById('lb-img').src=src;document.getElementById('lightbox').classList.add('open');}
-function closeLb(){document.getElementById('lightbox').classList.remove('open');}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLb();closeProject();}});
-</script>
-</body>
-</html>`;
-}
-
-const PM_GALLERY_OLD = `(async function loadCommercialPortfolio()`;
-const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
-    try {
-        const res = await fetch('https://app.gsdhandymanservice.com/api/portfolio');
-        const items = await res.json();
-        const commercial = items.filter(i => i.commercial);
-        if (!commercial.length) return;
-        document.getElementById('commercial-portfolio').style.display = '';
-        document.getElementById('commercial-gallery').innerHTML = commercial.map(item => {
-            const photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
-            const sorted = [...photos.filter(p=>p.type==='before'),...photos.filter(p=>p.type==='after'),...photos.filter(p=>p.type==='other')];
-            const show = sorted.slice(0,4);
-            let grid;
-            if (!show.length) { grid = ''; }
-            else if (show.length === 1) {
-                grid = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">';
-            } else {
-                grid = '<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(2,1fr);gap:2px;">'+
-                    show.map(p=>'<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;">').join('')+
-                    '</div>';
-            }
-            const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
-            const caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
-            return '<div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);">'+
-                '<div style="position:relative;padding-top:66%;overflow:hidden;background:#e5e7eb;">'+grid+'</div>'+
-                '<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'+
-                title+caption+'</div></div>';
-        }).join('');
-    } catch(e) {}
-})();`;
-
-async function rebuildPropertyManagementPage() {
-    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
-    try {
-        // Fetch via HTTP to avoid needing GetObject IAM permission on the public bucket
-        const res = await fetch('https://gsdhandymanservice.com/property-management.html');
-        if (!res.ok) throw new Error(`HTTP ${res.status} fetching property-management.html`);
-        let html = await res.text();
-        const idx = html.indexOf(PM_GALLERY_OLD);
-        if (idx === -1) { console.warn('⚠️  property-management.html: commercial gallery marker not found, skipping'); return; }
-        // Find the closing })(); of the IIFE and replace the entire block
-        const end = html.indexOf('})();', idx);
-        if (end === -1) { console.warn('⚠️  property-management.html: IIFE closing not found, skipping'); return; }
-        html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
-        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=60' }));
-        console.log('✅ property-management.html commercial gallery updated');
-    } catch (err) {
-        console.error('❌ property-management.html rebuild failed:', err.message);
-    }
-}
-
-async function rebuildPublicPortfolio() {
-    if (!publicS3Client || !PUBLIC_S3_BUCKET) {
-        console.warn('⚠️  Public S3 not configured — skipping portfolio.html rebuild');
-        return;
-    }
-    try {
-        const items = await db.collection('portfolio').find({}).sort({ createdAt: -1 }).toArray();
-        const html = generatePortfolioHtml(items);
-        await publicS3Client.send(new PutObjectCommand({
-            Bucket: PUBLIC_S3_BUCKET,
-            Key: 'portfolio.html',
-            Body: html,
-            ContentType: 'text/html; charset=utf-8',
-            CacheControl: 'public, max-age=60'
-        }));
-        console.log(`✅ portfolio.html rebuilt (${items.length} items, ${html.length} bytes)`);
-        rebuildPropertyManagementPage().catch(() => {});
-    } catch (err) {
-        console.error('❌ portfolio.html rebuild failed:', err.message);
-    }
-}
 
 // File upload endpoint - receives base64 data, uploads to S3, returns S3 key
 app.post('/api/upload', isAuthenticated, async (req, res) => {
@@ -7681,6 +7382,310 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
 });
 
 } // End setupRoutes
+
+// ─── Static portfolio page generator ────────────────────────────────────────
+
+const CAT_LABEL = { bathroom:'Bathroom', kitchen:'Kitchen', deck:'Deck / Patio', flooring:'Flooring',
+    painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
+    exterior:'Exterior', general:'General' };
+
+function _pfUrl(raw) {
+    if (!raw) return '';
+    if (raw.startsWith('http')) return raw;
+    return `${CLOUDFRONT_URL}/${raw}`;
+}
+
+function _pfEsc(s) { return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function _pfHe(s)  { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function generatePortfolioHtml(rawItems) {
+    const CAT_ORDER = ['bathroom','kitchen','deck','flooring','painting','carpentry','electrical','plumbing','exterior','general'];
+
+    const items = rawItems.map(item => {
+        const photos = (item.photos || []).map(p => ({ url: _pfUrl(p.s3Key || p.url), type: p.type || 'other' }));
+        if (!photos.length && item.s3Key) photos.push({ url: _pfUrl(item.s3Key), type: 'after' });
+        const cover = photos.find(p => p.type === 'after') || photos[0];
+        const bCt = photos.filter(p => p.type === 'before').length;
+        const aCt = photos.filter(p => p.type === 'after').length;
+        const oCt = photos.filter(p => p.type === 'other').length;
+        const badge = [bCt && bCt+'B', aCt && aCt+'A', oCt && oCt+'O'].filter(Boolean).join(' · ');
+        const catName = CAT_LABEL[item.category] || item.category || '';
+        return { id: item._id.toString(), title: item.title || '', caption: item.caption || '',
+            category: item.category || '', commercial: !!item.commercial, catName, cover, photos, badge };
+    });
+
+    // Filter buttons — only categories that have items
+    const usedCats = new Set(items.map(i => i.category).filter(Boolean));
+    const hasCommercial = items.some(i => i.commercial);
+    let filterBtns = '';
+    if (hasCommercial) filterBtns += `<button class="filter-btn" data-filter="commercial" onclick="setFilter('commercial')">🏢 Commercial</button>`;
+    CAT_ORDER.filter(c => usedCats.has(c)).forEach(c => {
+        filterBtns += `<button class="filter-btn" data-filter="${c}" onclick="setFilter('${c}')">${CAT_LABEL[c]}</button>`;
+    });
+
+    // Cards — show photo grid (up to 4 photos), Before first then After then Other
+    const cardsHtml = items.map(item => {
+        const baseAlt = _pfHe([item.catName, item.title, 'GSD Home Improvement South Jersey'].filter(Boolean).join(' — '));
+        const catBadge = item.commercial
+            ? `<span class="card-cat" style="background:#dbeafe;color:#1d4ed8;">🏢 Commercial</span>`
+            : (item.catName ? `<span class="card-cat">${_pfHe(item.catName)}</span>` : '');
+        const body = (catBadge || item.title || item.caption) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${item.caption ? `<div class="card-caption">${_pfHe(item.caption)}</div>` : ''}</div>` : '';
+
+        const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
+        const show = sorted.slice(0, 4);
+        const cols = show.length === 1 ? 1 : 2;
+        let gridHtml;
+        if (!show.length) {
+            gridHtml = '';
+        } else if (show.length === 1) {
+            const typeLabel = show[0].type === 'before' ? 'Before — ' : show[0].type === 'after' ? 'After — ' : '';
+            gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`;
+        } else {
+            const cells = show.map(p => {
+                const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
+                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`;
+            }).join('');
+            gridHtml = `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px;">${cells}</div>`;
+        }
+
+        return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${gridHtml}</div>${body}\n</article>`;
+    }).join('\n');
+
+    // JSON payload for lightbox (UX only — SEO comes from the <img> tags above)
+    const projectJson = JSON.stringify(items.map(i => ({
+        id: i.id, title: i.title, caption: i.caption, catName: i.catName,
+        photos: i.photos.map(p => ({ url: p.url, type: p.type }))
+    })));
+
+    // schema.org ItemList
+    const schemaItems = items.map((item, idx) => ({
+        '@type': 'ListItem', position: idx + 1,
+        item: { '@type': 'CreativeWork',
+            name: item.title || 'GSD Home Improvement Project',
+            description: item.caption,
+            image: item.cover?.url || '' }
+    }));
+    const schema = JSON.stringify({ '@context': 'https://schema.org', '@type': 'ItemList',
+        name: 'GSD Home Improvement Portfolio', itemListElement: schemaItems });
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Our Work | GSD Home Improvement &amp; Property Services — Mount Laurel NJ</title>
+<meta name="description" content="Browse completed projects by GSD Home Improvement &amp; Property Services. Bathrooms, kitchens, decks, flooring, painting, carpentry and more in Mount Laurel, NJ.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://gsdhandymanservice.com/portfolio.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gsdhandymanservice.com/portfolio.html">
+<meta property="og:title" content="Our Work | GSD Home Improvement">
+<meta property="og:description" content="Real jobs, real results. Browse completed projects by GSD Home Improvement in South Jersey.">
+<meta property="og:image" content="https://gsdhandymanservice.com/images/logo.png">
+<script type="application/ld+json">${schema}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#0f1c2e;--navy-mid:#1a2f4a;--blue:#1d6fa4}
+body{font-family:'Inter',sans-serif;background:#f8fafc;color:#1f2937}
+nav{position:sticky;top:0;z-index:100;background:var(--navy);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px}
+.nav-logo{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:white;font-weight:800;font-size:1.05rem}
+.nav-logo img{height:32px;filter:brightness(0) invert(1)}
+.nav-links{display:flex;align-items:center;gap:1.5rem}
+.nav-links a{color:rgba(255,255,255,.8);text-decoration:none;font-size:.9rem;font-weight:500;transition:color .2s}
+.nav-links a:hover,.nav-links a.active{color:white}
+.nav-phone{color:white;text-decoration:none;font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:.4rem}
+@media(max-width:640px){.nav-links{display:none}}
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 60%,#1a3a5c 100%);color:white;text-align:center;padding:4rem 1.5rem 3.5rem}
+.hero h1{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;margin-bottom:.75rem}
+.hero p{font-size:1.1rem;opacity:.85;max-width:520px;margin:0 auto}
+.filters{background:white;border-bottom:1px solid #e5e7eb;padding:1rem 1.5rem;display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center}
+.filter-btn{padding:.45rem 1.1rem;border-radius:999px;border:2px solid #e5e7eb;background:white;color:#4b5563;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
+.filter-btn:hover{border-color:var(--navy);color:var(--navy)}
+.filter-btn.active{background:var(--navy);color:white;border-color:var(--navy)}
+.gallery-wrap{max-width:1280px;margin:0 auto;padding:2.5rem 1.5rem 4rem}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem}
+.card{background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.07);overflow:hidden;transition:transform .2s,box-shadow .2s;cursor:pointer}
+.card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.card.hidden{display:none}
+.card-img{position:relative;padding-top:66.6%;overflow:hidden;background:#e5e7eb}
+.card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.card:hover .card-img img{transform:scale(1.03)}
+.photo-badge{position:absolute;bottom:.5rem;right:.5rem;background:rgba(0,0,0,.58);color:#fff;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.card-body{padding:.9rem 1.1rem 1.1rem}
+.card-cat{display:inline-block;margin-bottom:.4rem;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.card-title{font-size:1rem;font-weight:700;color:#1f2937}
+.card-caption{margin-top:.3rem;font-size:.875rem;color:#6b7280;line-height:1.5}
+#proj-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;overflow-y:auto;padding:2rem 1rem}
+#proj-modal.open{display:block}
+#proj-panel{background:white;border-radius:16px;max-width:720px;margin:0 auto;overflow:hidden}
+#proj-head{padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb}
+#proj-head h2{font-size:1.15rem;font-weight:700}
+#proj-close{background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1}
+#proj-body{padding:1.5rem}
+.proj-cap{color:#6b7280;font-size:.9rem;margin-bottom:1.25rem}
+.sec-label{font-weight:700;font-size:.85rem;margin-bottom:.5rem}
+.photo-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem;margin-bottom:1.25rem}
+.photo-row img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in}
+#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center}
+#lightbox.open{display:flex}
+#lightbox img{max-width:92vw;max-height:88vh;object-fit:contain;border-radius:8px}
+#lb-close{position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer}
+footer{background:var(--navy);color:rgba(255,255,255,.7);text-align:center;padding:2rem 1rem;font-size:.9rem}
+footer a{color:rgba(255,255,255,.85);text-decoration:none}
+footer a:hover{color:white}
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="/"><img src="/images/logo.png" alt="GSD logo" onerror="this.style.display='none'">GSD Home Improvement</a>
+  <div class="nav-links">
+    <a href="/">Home</a><a href="/#services">Services</a>
+    <a href="/portfolio.html" class="active">Our Work</a>
+    <a href="/#quote">Get a Quote</a><a href="/#portal">Client Portal</a>
+  </div>
+  <a class="nav-phone" href="tel:+18568724636">
+    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+    856-872-4636
+  </a>
+</nav>
+<div class="hero">
+  <h1>Our Work</h1>
+  <p>Real jobs completed for homeowners, landlords, and commercial properties across South Jersey.</p>
+</div>
+<div class="filters">
+  <button class="filter-btn active" data-filter="" onclick="setFilter('')">All</button>
+  ${filterBtns}
+</div>
+<div class="gallery-wrap">
+  <div class="gallery" id="gallery">
+    ${cardsHtml || '<div style="text-align:center;padding:5rem 1rem;color:#9ca3af;grid-column:1/-1"><h3>No portfolio items yet.</h3></div>'}
+  </div>
+</div>
+<div id="proj-modal" onclick="if(event.target===this)closeProject()">
+  <div id="proj-panel">
+    <div id="proj-head"><h2 id="proj-title"></h2><button id="proj-close" onclick="closeProject()">×</button></div>
+    <div id="proj-body"><p class="proj-cap" id="proj-cap"></p><div id="proj-photos"></div></div>
+  </div>
+</div>
+<div id="lightbox" onclick="closeLb()"><span id="lb-close" onclick="closeLb()">×</span><img id="lb-img" src="" alt=""></div>
+<footer>
+  <p style="margin-bottom:.5rem;"><strong style="color:white;">GSD Home Improvement &amp; Property Services</strong><br>Mount Laurel, NJ · Serving South Jersey</p>
+  <p><a href="tel:+18568724636">856-872-4636</a> &nbsp;·&nbsp; <a href="/">Home</a> &nbsp;·&nbsp; <a href="/#quote">Get a Quote</a></p>
+  <p style="margin-top:.75rem;font-size:.8rem;opacity:.6;">© 2025 GSD Home Improvement &amp; Property Services. All rights reserved.</p>
+</footer>
+<script>
+const PF=${projectJson};
+function setFilter(cat){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.filter===cat));
+  document.querySelectorAll('.card').forEach(c=>{
+    if(!cat){c.classList.remove('hidden');return;}
+    if(cat==='commercial'){c.classList.toggle('hidden',c.dataset.commercial!=='true');return;}
+    c.classList.toggle('hidden',c.dataset.cat!==cat);
+  });
+}
+function openProject(id){
+  const p=PF.find(x=>x.id===id); if(!p) return;
+  document.getElementById('proj-title').textContent=p.title||'Project Details';
+  const cap=document.getElementById('proj-cap');
+  cap.textContent=p.caption||''; cap.style.display=p.caption?'':'none';
+  const secs=[{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
+  let h='';
+  secs.forEach(s=>{
+    const ph=p.photos.filter(x=>x.type===s.k); if(!ph.length) return;
+    h+='<div class="sec-label" style="color:'+s.c+'"><span style="background:'+s.bg+';border:1.5px solid '+s.br+';border-radius:6px;padding:2px 12px;">'+s.l+'</span></div>';
+    h+='<div class="photo-row">';
+    ph.forEach(x=>{const alt=(s.k==='before'?'Before':s.k==='after'?'After':'')+(p.catName?' — '+p.catName:'')+(p.title?' — '+p.title:'');h+='<img src="'+x.url+'" alt="'+alt+'" loading="lazy" onclick="openLb(\''+x.url.replace(/'/g,"\\'")+'\')">';});
+    h+='</div>';
+  });
+  document.getElementById('proj-photos').innerHTML=h||'<p style="color:#9ca3af">No photos.</p>';
+  document.getElementById('proj-modal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeProject(){document.getElementById('proj-modal').classList.remove('open');document.body.style.overflow='';}
+function openLb(src){document.getElementById('lb-img').src=src;document.getElementById('lightbox').classList.add('open');}
+function closeLb(){document.getElementById('lightbox').classList.remove('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLb();closeProject();}});
+</script>
+</body>
+</html>`;
+}
+
+const PM_GALLERY_OLD = `(async function loadCommercialPortfolio()`;
+const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
+    try {
+        const res = await fetch('https://app.gsdhandymanservice.com/api/portfolio');
+        const items = await res.json();
+        const commercial = items.filter(i => i.commercial);
+        if (!commercial.length) return;
+        document.getElementById('commercial-portfolio').style.display = '';
+        document.getElementById('commercial-gallery').innerHTML = commercial.map(item => {
+            const photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
+            const sorted = [...photos.filter(p=>p.type==='before'),...photos.filter(p=>p.type==='after'),...photos.filter(p=>p.type==='other')];
+            const show = sorted.slice(0,4);
+            let grid;
+            if (!show.length) { grid = ''; }
+            else if (show.length === 1) {
+                grid = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">';
+            } else {
+                grid = '<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(2,1fr);gap:2px;">'+
+                    show.map(p=>'<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;">').join('')+
+                    '</div>';
+            }
+            const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
+            const caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
+            return '<div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);">'+
+                '<div style="position:relative;padding-top:66%;overflow:hidden;background:#e5e7eb;">'+grid+'</div>'+
+                '<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'+
+                title+caption+'</div></div>';
+        }).join('');
+    } catch(e) {}
+})();`;
+
+async function rebuildPropertyManagementPage() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
+    try {
+        // Fetch via HTTP to avoid needing GetObject IAM permission on the public bucket
+        const res = await fetch('https://gsdhandymanservice.com/property-management.html');
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching property-management.html`);
+        let html = await res.text();
+        const idx = html.indexOf(PM_GALLERY_OLD);
+        if (idx === -1) { console.warn('⚠️  property-management.html: commercial gallery marker not found, skipping'); return; }
+        // Find the closing })(); of the IIFE and replace the entire block
+        const end = html.indexOf('})();', idx);
+        if (end === -1) { console.warn('⚠️  property-management.html: IIFE closing not found, skipping'); return; }
+        html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
+        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=60' }));
+        console.log('✅ property-management.html commercial gallery updated');
+    } catch (err) {
+        console.error('❌ property-management.html rebuild failed:', err.message);
+    }
+}
+
+async function rebuildPublicPortfolio() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) {
+        console.warn('⚠️  Public S3 not configured — skipping portfolio.html rebuild');
+        return;
+    }
+    try {
+        const items = await db.collection('portfolio').find({}).sort({ createdAt: -1 }).toArray();
+        const html = generatePortfolioHtml(items);
+        await publicS3Client.send(new PutObjectCommand({
+            Bucket: PUBLIC_S3_BUCKET,
+            Key: 'portfolio.html',
+            Body: html,
+            ContentType: 'text/html; charset=utf-8',
+            CacheControl: 'public, max-age=60'
+        }));
+        console.log(`✅ portfolio.html rebuilt (${items.length} items, ${html.length} bytes)`);
+        rebuildPropertyManagementPage().catch(() => {});
+    } catch (err) {
+        console.error('❌ portfolio.html rebuild failed:', err.message);
+    }
+}
+
+
 
 // Start server
 connectDB().then(async () => {
