@@ -2455,16 +2455,32 @@ function generatePortfolioHtml(rawItems) {
         filterBtns += `<button class="filter-btn" data-filter="${c}" onclick="setFilter('${c}')">${CAT_LABEL[c]}</button>`;
     });
 
-    // Cards
+    // Cards — show photo grid (up to 4 photos), Before first then After then Other
     const cardsHtml = items.map(item => {
-        const coverAlt = _pfHe([item.catName, item.title, 'GSD Home Improvement South Jersey'].filter(Boolean).join(' — '));
+        const baseAlt = _pfHe([item.catName, item.title, 'GSD Home Improvement South Jersey'].filter(Boolean).join(' — '));
         const catBadge = item.commercial
             ? `<span class="card-cat" style="background:#dbeafe;color:#1d4ed8;">🏢 Commercial</span>`
             : (item.catName ? `<span class="card-cat">${_pfHe(item.catName)}</span>` : '');
         const body = (catBadge || item.title || item.caption) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${item.caption ? `<div class="card-caption">${_pfHe(item.caption)}</div>` : ''}</div>` : '';
-        const badgeHtml = item.badge ? `<div class="photo-badge">${item.badge}</div>` : '';
-        const imgHtml = item.cover ? `<img src="${_pfHe(item.cover.url)}" alt="${coverAlt}" loading="lazy">` : '';
-        return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${imgHtml}${badgeHtml}</div>${body}\n</article>`;
+
+        const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
+        const show = sorted.slice(0, 4);
+        const cols = show.length === 1 ? 1 : 2;
+        let gridHtml;
+        if (!show.length) {
+            gridHtml = '';
+        } else if (show.length === 1) {
+            const typeLabel = show[0].type === 'before' ? 'Before — ' : show[0].type === 'after' ? 'After — ' : '';
+            gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`;
+        } else {
+            const cells = show.map(p => {
+                const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
+                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`;
+            }).join('');
+            gridHtml = `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px;">${cells}</div>`;
+        }
+
+        return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${gridHtml}</div>${body}\n</article>`;
     }).join('\n');
 
     // JSON payload for lightbox (UX only — SEO comes from the <img> tags above)
@@ -2628,6 +2644,55 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLb();closeProj
 </html>`;
 }
 
+const PM_GALLERY_OLD = `(async function loadCommercialPortfolio()`;
+const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
+    try {
+        const res = await fetch('https://app.gsdhandymanservice.com/api/portfolio');
+        const items = await res.json();
+        const commercial = items.filter(i => i.commercial);
+        if (!commercial.length) return;
+        document.getElementById('commercial-portfolio').style.display = '';
+        document.getElementById('commercial-gallery').innerHTML = commercial.map(item => {
+            const photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
+            const sorted = [...photos.filter(p=>p.type==='before'),...photos.filter(p=>p.type==='after'),...photos.filter(p=>p.type==='other')];
+            const show = sorted.slice(0,4);
+            let grid;
+            if (!show.length) { grid = ''; }
+            else if (show.length === 1) {
+                grid = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">';
+            } else {
+                grid = '<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(2,1fr);gap:2px;">'+
+                    show.map(p=>'<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;">').join('')+
+                    '</div>';
+            }
+            const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
+            const caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
+            return '<div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);">'+
+                '<div style="position:relative;padding-top:66%;overflow:hidden;background:#e5e7eb;">'+grid+'</div>'+
+                '<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'+
+                title+caption+'</div></div>';
+        }).join('');
+    } catch(e) {}
+})`;
+
+async function rebuildPropertyManagementPage() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
+    try {
+        const get = await publicS3Client.send(new GetObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html' }));
+        let html = await get.Body.transformToString('utf-8');
+        const idx = html.indexOf(PM_GALLERY_OLD);
+        if (idx === -1) { console.warn('⚠️  property-management.html: commercial gallery marker not found, skipping'); return; }
+        // Find the closing })(); of the IIFE
+        const end = html.indexOf('})();', idx);
+        if (end === -1) return;
+        html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
+        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=60' }));
+        console.log('✅ property-management.html commercial gallery updated');
+    } catch (err) {
+        console.error('❌ property-management.html rebuild failed:', err.message);
+    }
+}
+
 async function rebuildPublicPortfolio() {
     if (!publicS3Client || !PUBLIC_S3_BUCKET) {
         console.warn('⚠️  Public S3 not configured — skipping portfolio.html rebuild');
@@ -2644,6 +2709,7 @@ async function rebuildPublicPortfolio() {
             CacheControl: 'public, max-age=60'
         }));
         console.log(`✅ portfolio.html rebuilt (${items.length} items, ${html.length} bytes)`);
+        rebuildPropertyManagementPage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
     }
@@ -7664,6 +7730,10 @@ connectDB().then(async () => {
         console.log('');
         console.log('💡 Press Ctrl+C to stop');
         console.log('='.repeat(60));
+        // Rebuild public pages on startup to pick up any pending changes
+        setTimeout(() => {
+            rebuildPublicPortfolio().catch(() => {});
+        }, 3000);
     });
 
     process.on('SIGINT', async () => {
