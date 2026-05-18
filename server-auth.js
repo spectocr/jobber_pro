@@ -15,7 +15,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const twilio = require('twilio');
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const emailService = require('./email-service');
 const calendarService = require('./calendar-service');
@@ -2245,56 +2245,73 @@ function portfolioPhotoUrl(s3Key) {
 }
 
 // Public — no auth required
+// S3 key: portfolio/{entryId}/{type}-{timestamp}-{random}.{ext}
+// Type is encoded in the filename prefix — no photo data stored in MongoDB.
+
+function _pfParseType(key) {
+    const name = key.split('/').pop();
+    if (name.startsWith('before-')) return 'before';
+    if (name.startsWith('after-'))  return 'after';
+    return 'other';
+}
+
+async function _pfListS3(entryId) {
+    const client = publicS3Client || s3Client;
+    const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+    if (!client) return [];
+    const prefix = entryId ? `portfolio/${entryId}/` : 'portfolio/';
+    const result = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }));
+    return (result.Contents || []).filter(o => o.Key.split('/').length === 3);
+}
+
 app.get('/api/portfolio', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     try {
-        const items = await db.collection('portfolio')
-            .find({})
-            .sort({ createdAt: -1 })
-            .toArray();
-        res.json(items.map(item => ({
-            id: item._id.toString(),
-            title: item.title || '',
-            caption: item.caption || '',
-            category: item.category || '',
-            commercial: item.commercial || false,
-            photos: (item.photos || []).map(p => ({ id: p.id, s3Key: p.s3Key, url: portfolioPhotoUrl(p.s3Key || p.url), type: p.type || 'other' })),
-            photoUrl: portfolioPhotoUrl(item.s3Key),
-            s3Key: item.s3Key || '',
-            createdAt: item.createdAt
-        })));
+        const items = await db.collection('portfolio').find({}).sort({ createdAt: -1 }).toArray();
+
+        // One S3 list call for all new-style photos
+        const client = publicS3Client || s3Client;
+        const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+        let s3ByEntry = {};
+        if (client) {
+            try {
+                const listed = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'portfolio/', MaxKeys: 1000 }));
+                (listed.Contents || []).forEach(obj => {
+                    const parts = obj.Key.split('/');
+                    if (parts.length !== 3) return; // skip root-level legacy keys
+                    const entryId = parts[1];
+                    if (!s3ByEntry[entryId]) s3ByEntry[entryId] = [];
+                    s3ByEntry[entryId].push({ s3Key: obj.Key, url: portfolioPhotoUrl(obj.Key), type: _pfParseType(obj.Key) });
+                });
+            } catch (e) { console.warn('S3 list error:', e.message); }
+        }
+
+        res.json(items.map(item => {
+            const id = item._id.toString();
+            // New-style: photos from S3 key structure
+            let photos = s3ByEntry[id] || [];
+            // Legacy compat: MongoDB photos array (old entries before this fix)
+            if (!photos.length && item.photos && item.photos.length) {
+                photos = item.photos.map(p => ({ s3Key: p.s3Key, url: portfolioPhotoUrl(p.s3Key || p.url), type: p.type || 'other' }));
+            }
+            // Legacy compat: old single-photo entries
+            if (!photos.length && item.s3Key) {
+                photos = [{ s3Key: item.s3Key, url: portfolioPhotoUrl(item.s3Key), type: 'after' }];
+            }
+            return { id, title: item.title || '', caption: item.caption || '', category: item.category || '', commercial: item.commercial || false, photos, createdAt: item.createdAt };
+        }));
     } catch (err) {
         console.error('Portfolio GET error:', err);
         res.status(500).json({ error: 'Failed to load portfolio' });
     }
 });
 
-// Helper: upload one portfolio photo to S3, return { s3Key, url }
-async function uploadPortfolioPhoto(fileData, fileType) {
-    const uploadClient = publicS3Client || s3Client;
-    const uploadBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
-    if (!uploadClient) throw new Error('S3 not configured');
-    const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
-    const fileBuffer = Buffer.from(base64Data, 'base64');
-    const ext = fileType.split('/')[1] || 'jpg';
-    const key = `portfolio/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    await uploadClient.send(new PutObjectCommand({ Bucket: uploadBucket, Key: key, Body: fileBuffer, ContentType: fileType }));
-    return { s3Key: key, url: portfolioPhotoUrl(key) };
-}
-
-// Create a portfolio entry (no photos yet)
+// Create entry — metadata only in MongoDB, no photo data
 app.post('/api/portfolio', isAuthenticated, async (req, res) => {
     try {
         const { title, caption, category, commercial } = req.body;
-        const doc = {
-            title: title || '',
-            caption: caption || '',
-            category: category || '',
-            commercial: commercial === true || commercial === 'true',
-            photos: [],
-            createdAt: new Date()
-        };
+        const doc = { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true', createdAt: new Date() };
         const result = await db.collection('portfolio').insertOne(doc);
         res.json({ success: true, id: result.insertedId.toString() });
         rebuildPublicPortfolio().catch(() => {});
@@ -2304,17 +2321,20 @@ app.post('/api/portfolio', isAuthenticated, async (req, res) => {
     }
 });
 
-// Add a photo to an existing portfolio entry
+// Upload photo to S3 — key encodes type; nothing written to MongoDB
 app.post('/api/portfolio/:id/photo', isAuthenticated, async (req, res) => {
     try {
         const { fileData, fileType, type } = req.body;
         if (!fileData || !fileType) return res.status(400).json({ error: 'Missing file data' });
-        const { s3Key, url } = await uploadPortfolioPhoto(fileData, fileType);
-        const photo = { id: Date.now(), s3Key, url, type: type || 'other' };
-        await db.collection('portfolio').updateOne(
-            { _id: new ObjectId(req.params.id) },
-            { $push: { photos: photo } }
-        );
+        const client = publicS3Client || s3Client;
+        const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+        if (!client) return res.status(500).json({ error: 'S3 not configured' });
+        const photoType = ['before', 'after', 'other'].includes(type) ? type : 'other';
+        const ext = fileType.split('/')[1] || 'jpg';
+        const key = `portfolio/${req.params.id}/${photoType}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const buf = Buffer.from(fileData.replace(/^data:[^;]+;base64,/, ''), 'base64');
+        await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buf, ContentType: fileType }));
+        const photo = { s3Key: key, url: portfolioPhotoUrl(key), type: photoType };
         res.json({ success: true, photo });
         rebuildPublicPortfolio().catch(() => {});
     } catch (err) {
@@ -2323,22 +2343,16 @@ app.post('/api/portfolio/:id/photo', isAuthenticated, async (req, res) => {
     }
 });
 
-// Remove a specific photo from an entry
-app.delete('/api/portfolio/:id/photo/:photoId', isAuthenticated, async (req, res) => {
+// Delete a specific photo — identified by s3Key in request body
+app.delete('/api/portfolio/:id/photo', isAuthenticated, async (req, res) => {
     try {
-        const item = await db.collection('portfolio').findOne({ _id: new ObjectId(req.params.id) });
-        if (!item) return res.status(404).json({ error: 'Not found' });
-        const photoId = parseInt(req.params.photoId);
-        const photo = (item.photos || []).find(p => p.id === photoId);
-        if (photo?.s3Key) {
-            const delClient = publicS3Client || s3Client;
-            const delBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
-            if (delClient) await delClient.send(new DeleteObjectCommand({ Bucket: delBucket, Key: photo.s3Key })).catch(() => {});
-        }
-        await db.collection('portfolio').updateOne(
-            { _id: new ObjectId(req.params.id) },
-            { $pull: { photos: { id: photoId } } }
-        );
+        const { s3Key } = req.body;
+        if (!s3Key) return res.status(400).json({ error: 'Missing s3Key' });
+        const client = publicS3Client || s3Client;
+        const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+        if (client) await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: s3Key })).catch(() => {});
+        // Also remove from legacy MongoDB photos array if present
+        await db.collection('portfolio').updateOne({ _id: new ObjectId(req.params.id) }, { $pull: { photos: { s3Key } } }).catch(() => {});
         res.json({ success: true });
         rebuildPublicPortfolio().catch(() => {});
     } catch (err) {
@@ -2346,13 +2360,30 @@ app.delete('/api/portfolio/:id/photo/:photoId', isAuthenticated, async (req, res
     }
 });
 
+// Update metadata only + handle type changes via S3 copy+delete
 app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
         const { title, caption, category, commercial, photos } = req.body;
-        const update = { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' };
-        // photos array passed to update types only (no file data)
-        if (Array.isArray(photos)) update.photos = photos;
-        await db.collection('portfolio').updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
+        // Metadata update — no photos in MongoDB
+        await db.collection('portfolio').updateOne({ _id: new ObjectId(req.params.id) },
+            { $set: { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' }, $unset: { photos: '' } });
+
+        // Handle type changes: if photo's type doesn't match its key prefix, rename via copy+delete
+        if (Array.isArray(photos)) {
+            const client = publicS3Client || s3Client;
+            const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+            if (client) {
+                await Promise.all(photos.map(async p => {
+                    if (!p.s3Key || !p.s3Key.startsWith(`portfolio/${req.params.id}/`)) return;
+                    const currentType = _pfParseType(p.s3Key);
+                    if (p.type === currentType) return;
+                    const newKey = p.s3Key.replace(/\/(before|after|other)-/, `/${p.type}-`);
+                    await client.send(new CopyObjectCommand({ Bucket: bucket, CopySource: `${bucket}/${p.s3Key}`, Key: newKey }));
+                    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: p.s3Key })).catch(() => {});
+                }));
+            }
+        }
+
         res.json({ success: true });
         rebuildPublicPortfolio().catch(() => {});
     } catch (err) {
@@ -2361,16 +2392,18 @@ app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     }
 });
 
+// Delete entry — list and delete all S3 photos, then remove MongoDB doc
 app.delete('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
         const item = await db.collection('portfolio').findOne({ _id: new ObjectId(req.params.id) });
-        const delClient = publicS3Client || s3Client;
-        const delBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
-        if (delClient && item) {
-            // Delete all photos (new multi-photo format + old single-photo format)
-            const keys = (item.photos || []).map(p => p.s3Key).filter(Boolean);
-            if (item.s3Key) keys.push(item.s3Key);
-            await Promise.all(keys.map(k => delClient.send(new DeleteObjectCommand({ Bucket: delBucket, Key: k })).catch(() => {})));
+        const client = publicS3Client || s3Client;
+        const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+        if (client) {
+            const s3Photos = await _pfListS3(req.params.id);
+            const legacyKeys = ((item && item.photos) || []).map(p => p.s3Key).filter(Boolean);
+            if (item && item.s3Key) legacyKeys.push(item.s3Key);
+            const allKeys = [...new Set([...s3Photos.map(p => p.Key), ...legacyKeys])];
+            await Promise.all(allKeys.map(k => client.send(new DeleteObjectCommand({ Bucket: bucket, Key: k })).catch(() => {})));
         }
         await db.collection('portfolio').deleteOne({ _id: new ObjectId(req.params.id) });
         res.json({ success: true });

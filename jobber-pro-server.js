@@ -8039,7 +8039,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // ── Portfolio ─────────────────────────────────────────────────────────────
 
         let allPortfolioItems = [];
-        let _portfolioState = { editId: null, existingPhotos: [], stagedPhotos: [], removedIds: [] };
+        let _portfolioState = { editId: null, existingPhotos: [], stagedPhotos: [], removedKeys: [] };
 
         const _pfCatLabel = { bathroom:'Bathroom', kitchen:'Kitchen', deck:'Deck / Patio', flooring:'Flooring',
             painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
@@ -8142,7 +8142,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function openPortfolioModal(id) {
-            _portfolioState = { editId: id || null, existingPhotos: [], stagedPhotos: [], removedIds: [] };
+            _portfolioState = { editId: id || null, existingPhotos: [], stagedPhotos: [], removedKeys: [] };
             document.getElementById('portfolioEditId').value = id || '';
             document.getElementById('portfolioModalTitle').textContent = id ? 'Edit Work' : 'Add Work';
             document.getElementById('portfolioTitle').value = '';
@@ -8189,7 +8189,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <select onchange="_portfolioState.existingPhotos[\${idx}].type=this.value" style="flex:1;padding:0.3rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">
                         \${_pfTypeOptions(p.type)}
                     </select>
-                    <button onclick="removeExistingPfPhoto(\${p.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
+                    <button onclick="removeExistingPfPhoto('\${p.s3Key.replace(/'/g, \"\\\\'\")}'')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
                 </div>\`;
             });
             stagedPhotos.forEach((p, idx) => {
@@ -8204,9 +8204,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             container.innerHTML = html;
         }
 
-        function removeExistingPfPhoto(photoId) {
-            _portfolioState.removedIds.push(photoId);
-            _portfolioState.existingPhotos = _portfolioState.existingPhotos.filter(p => p.id !== photoId);
+        function removeExistingPfPhoto(s3Key) {
+            _portfolioState.removedKeys.push(s3Key);
+            _portfolioState.existingPhotos = _portfolioState.existingPhotos.filter(p => p.s3Key !== s3Key);
             _renderPortfolioPhotoList();
         }
 
@@ -8270,7 +8270,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function savePortfolioItem() {
-            const { editId, existingPhotos, stagedPhotos, removedIds } = _portfolioState;
+            const { editId, existingPhotos, stagedPhotos, removedKeys } = _portfolioState;
             const title = document.getElementById('portfolioTitle').value.trim();
             const category = document.getElementById('portfolioCategory').value;
             const caption = document.getElementById('portfolioCaption').value.trim();
@@ -8293,8 +8293,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const res = await fetch('/api/portfolio/' + editId, { method: 'PUT', headers: {'Content-Type':'application/json'},
                         body: JSON.stringify({ title, caption, category, commercial, photos: existingPhotos.map(p => ({ id: p.id, s3Key: p.s3Key, url: p.url, type: p.type })) }) });
                     if (!res.ok) throw new Error('Failed to update entry');
-                    for (const photoId of removedIds) {
-                        if (photoId !== 0) await fetch(\`/api/portfolio/\${editId}/photo/\${photoId}\`, { method: 'DELETE' });
+                    for (const s3Key of removedKeys) {
+                        await fetch(\`/api/portfolio/\${editId}/photo\`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ s3Key }) });
                     }
                 }
 
