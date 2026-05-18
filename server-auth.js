@@ -7656,7 +7656,7 @@ async function rebuildPropertyManagementPage() {
         const end = html.indexOf('})();', idx);
         if (end === -1) { console.warn('⚠️  property-management.html: IIFE closing not found, skipping'); return; }
         html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
-        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=60' }));
+        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
         console.log('✅ property-management.html commercial gallery updated');
         // Invalidate CloudFront so the new content is served immediately
         const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
