@@ -5869,6 +5869,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             job.balanceOwed = job.total - paymentTotal;
 
             console.log('Saving job with attachments:', job.attachments);
+            console.log('[saveJob] followUp fields:', { followUp: job.followUp, followUpDate: job.followUpDate, followUpTime: job.followUpTime, followUpNote: job.followUpNote });
 
             try {
                 const response = await fetch('/api/jobs', {

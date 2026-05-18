@@ -2426,6 +2426,7 @@ app.delete('/api/file/:s3Key(*)', isAuthenticated, async (req, res) => {
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
     let isUpdate = !!job._id;
+    console.log(`[job save] id=${job._id || 'NEW'} followUp=${job.followUp} followUpDate=${job.followUpDate} followUpDone=${job.followUpDone}`);
     let oldJob = null;
 
     // Get old job data if updating (for status change detection)
