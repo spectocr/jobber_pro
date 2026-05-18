@@ -6200,6 +6200,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             (function() {
                 const needsAction = stats.followUpsNeedAction || [];
                 const upcoming   = stats.followUpsUpcoming   || [];
+                console.log('[followUps] needsAction:', needsAction.length, 'upcoming:', upcoming.length, needsAction.concat(upcoming).map(j => ({id: j.id, followUp: j.followUp, followUpDate: j.followUpDate, followUpDone: j.followUpDone})));
                 const card = document.getElementById('followUpRemindersCard');
                 if (!card) return;
                 card.style.display = (needsAction.length + upcoming.length) > 0 ? '' : 'none';

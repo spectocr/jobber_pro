@@ -2046,6 +2046,13 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
             .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate))
     };
 
+    // Debug: log follow-up job count
+    const fuAll = jobsMapped.filter(j => j.followUp);
+    console.log(`[dashboard] followUp jobs in DB: ${fuAll.length} — needsAction: ${stats.followUpsNeedAction.length}, upcoming: ${stats.followUpsUpcoming.length}`);
+    if (fuAll.length > 0) {
+        fuAll.forEach(j => console.log(`  job "${j.title}" followUp=${j.followUp} followUpDate=${j.followUpDate} followUpDone=${j.followUpDone}`));
+    }
+
     res.json(stats);
 });
 
