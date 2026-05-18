@@ -2673,18 +2673,20 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
                 title+caption+'</div></div>';
         }).join('');
     } catch(e) {}
-})`;
+})();`;
 
 async function rebuildPropertyManagementPage() {
     if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
     try {
-        const get = await publicS3Client.send(new GetObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html' }));
-        let html = await get.Body.transformToString('utf-8');
+        // Fetch via HTTP to avoid needing GetObject IAM permission on the public bucket
+        const res = await fetch('https://gsdhandymanservice.com/property-management.html');
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching property-management.html`);
+        let html = await res.text();
         const idx = html.indexOf(PM_GALLERY_OLD);
         if (idx === -1) { console.warn('⚠️  property-management.html: commercial gallery marker not found, skipping'); return; }
-        // Find the closing })(); of the IIFE
+        // Find the closing })(); of the IIFE and replace the entire block
         const end = html.indexOf('})();', idx);
-        if (end === -1) return;
+        if (end === -1) { console.warn('⚠️  property-management.html: IIFE closing not found, skipping'); return; }
         html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
         await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=60' }));
         console.log('✅ property-management.html commercial gallery updated');
