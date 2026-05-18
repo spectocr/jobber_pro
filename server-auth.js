@@ -17,6 +17,7 @@ const path = require('path');
 const twilio = require('twilio');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { CloudFrontClient, CreateInvalidationCommand } = require('@aws-sdk/client-cloudfront');
 const emailService = require('./email-service');
 const calendarService = require('./calendar-service');
 const helmet = require('helmet');
@@ -7657,6 +7658,13 @@ async function rebuildPropertyManagementPage() {
         html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
         await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=60' }));
         console.log('✅ property-management.html commercial gallery updated');
+        // Invalidate CloudFront so the new content is served immediately
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 1, Items: ['/property-management.html'] } } }));
+            console.log('✅ CloudFront cache invalidated for /property-management.html');
+        }
     } catch (err) {
         console.error('❌ property-management.html rebuild failed:', err.message);
     }
