@@ -7444,7 +7444,7 @@ function generatePortfolioHtml(rawItems) {
                 const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
                 return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`;
             }).join('');
-            gridHtml = `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px;">${cells}</div>`;
+            gridHtml = `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);grid-auto-rows:1fr;gap:2px;">${cells}</div>`;
         }
 
         return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${gridHtml}</div>${body}\n</article>`;
@@ -7628,7 +7628,7 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             else if (show.length === 1) {
                 grid = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">';
             } else {
-                grid = '<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(2,1fr);gap:2px;">'+
+                grid = '<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr;gap:2px;">'+
                     show.map(p=>'<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;">').join('')+
                     '</div>';
             }
