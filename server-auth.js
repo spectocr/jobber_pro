@@ -1919,6 +1919,10 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     const settings = await db.collection('settings').findOne() || {};
     const allExpenses = await db.collection('expenses').find().toArray();
 
+    // Direct follow-up diagnostic query
+    const directFollowUpJobs = await db.collection('jobs').find({ followUp: { $exists: true } }).project({ title: 1, followUp: 1, followUpDate: 1, followUpDone: 1 }).toArray();
+    console.log(`[dashboard diag] jobs with followUp field: ${directFollowUpJobs.length}`, JSON.stringify(directFollowUpJobs.map(j => ({ title: j.title, followUp: j.followUp, followUpDate: j.followUpDate, followUpDone: j.followUpDone }))));
+
     // Map _id to id for frontend compatibility
     const jobsWithId = jobs.map(j => ({ ...j, id: j._id.toString() }));
     const clientsWithId = clients.map(c => ({ ...c, id: c._id.toString() }));
@@ -2487,10 +2491,13 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             updateData.status = 'completed';
         }
 
-        await db.collection('jobs').updateOne(
+        const updateResult = await db.collection('jobs').updateOne(
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
         );
+        console.log(`[job save result] matchedCount=${updateResult.matchedCount} modifiedCount=${updateResult.modifiedCount}`);
+        const postSave = await db.collection('jobs').findOne({ _id: new ObjectId(_id) }, { projection: { followUp: 1, followUpDate: 1, followUpDone: 1 } });
+        console.log(`[job save verify] followUp=${postSave?.followUp} followUpDate=${postSave?.followUpDate} followUpDone=${postSave?.followUpDone}`);
     } else {
         job.createdAt = new Date();
 
