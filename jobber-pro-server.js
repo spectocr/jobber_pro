@@ -9180,7 +9180,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             filteredJobs.forEach(j => {
                 if (j.status === 'completed' || j.status === 'invoiced') {
-                    const d = j.completedAt || j.invoicedAt || j.scheduledDate;
+                    const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
                     if (!d) return;
                     const month = new Date(d).toISOString().substring(0, 7);
                     if (!monthlyRevenue[month]) monthlyRevenue[month] = 0;
