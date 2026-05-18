@@ -7028,6 +7028,43 @@ app.post('/api/deposit/pay', async (req, res) => {
             } catch (e) { console.error('Failed to save cloverCustomerId to client (deposit):', e); }
         }
 
+        // Notify owner that deposit was received
+        try {
+            const settings = await db.collection('settings').findOne({});
+            const companyName = settings?.companyName || 'GSD Handyman Service';
+            const notifyEmail = settings?.companyEmail || process.env.SES_FROM_EMAIL;
+            const notifyPhone = settings?.companyPhone;
+            const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+            const clientName = client?.name || 'Client';
+            const appUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
+            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
+            const paidAt = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+            if (notifyEmail && emailService.initialized) {
+                await emailService.sendEmail({
+                    to: notifyEmail,
+                    subject: `💳 Deposit received — ${job.title} — $${amount.toFixed(2)}`,
+                    html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:520px;margin:0 auto;padding:20px;">
+                        <h2 style="color:#667eea;margin-bottom:0.25rem;">💳 Deposit Received</h2>
+                        <p style="color:#718096;margin-top:0.25rem;">${paidAt}</p>
+                        <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                            <tr><td style="padding:0.4rem 0;color:#718096;">Client</td><td style="padding:0.4rem 0;font-weight:600;">${clientName}</td></tr>
+                            <tr><td style="padding:0.4rem 0;color:#718096;">Job</td><td style="padding:0.4rem 0;font-weight:600;">${job.title}</td></tr>
+                            <tr><td style="padding:0.4rem 0;color:#718096;">Amount</td><td style="padding:0.4rem 0;font-weight:700;font-size:1.1rem;color:#276749;">$${amount.toFixed(2)}${cardDesc}</td></tr>
+                        </table>
+                        <p><a href="${appUrl}" style="background:#667eea;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">View in ${companyName}</a></p>
+                    </body></html>`,
+                    text: `Deposit received\nClient: ${clientName}\nJob: ${job.title}\nAmount: $${amount.toFixed(2)}${cardDesc}\n${paidAt}`
+                });
+            }
+
+            if (notifyPhone) {
+                await sendSMS(notifyPhone, `${companyName}: Deposit of $${amount.toFixed(2)} received from ${clientName} for "${job.title}"${cardDesc}.`).catch(() => {});
+            }
+        } catch (notifyErr) {
+            console.error('Deposit notify error:', notifyErr.message);
+        }
+
         res.json({ success: true, cardSaved: !!cloverCustomerId });
     } catch (e) {
         console.error('Deposit pay error:', e);
