@@ -5842,6 +5842,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Handle checkboxes - won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
             job.followUp = document.getElementById('followUpCheckbox').checked;
+            // Saving from the form always reactivates the follow-up (done state is set only via dashboard)
+            if (job.followUp) job.followUpDone = false;
 
             // Stamp a touchpoint when a follow-up is newly set or its date changes
             if (job.followUp && job.followUpDate && job.followUpDate !== window._origFollowUpDate) {
@@ -5869,7 +5871,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             job.balanceOwed = job.total - paymentTotal;
 
             console.log('Saving job with attachments:', job.attachments);
-            console.log('[saveJob] followUp fields:', { followUp: job.followUp, followUpDate: job.followUpDate, followUpTime: job.followUpTime, followUpNote: job.followUpNote });
 
             try {
                 const response = await fetch('/api/jobs', {
@@ -6201,7 +6202,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             (function() {
                 const needsAction = stats.followUpsNeedAction || [];
                 const upcoming   = stats.followUpsUpcoming   || [];
-                console.log('[followUps] needsAction:', needsAction.length, 'upcoming:', upcoming.length, needsAction.concat(upcoming).map(j => ({id: j.id, followUp: j.followUp, followUpDate: j.followUpDate, followUpDone: j.followUpDone})));
                 const card = document.getElementById('followUpRemindersCard');
                 if (!card) return;
                 card.style.display = (needsAction.length + upcoming.length) > 0 ? '' : 'none';
