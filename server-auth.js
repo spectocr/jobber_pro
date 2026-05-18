@@ -1938,7 +1938,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     // job.total is already stored WITH tax included (or without if taxWaived)
     // Use updatedAt so revenue is counted in the month the job was completed/invoiced, not when it was scheduled
     const completedJobsThisMonth = jobsMapped
-        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt).toISOString().slice(0, 7) === thisMonth);
+        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt || 0).toISOString().slice(0, 7) === thisMonth);
 
     const totalRevenue = completedJobsThisMonth.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
 
@@ -2003,7 +2003,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         lastMonthRevenue: (() => {
             const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
             const lm = d.toISOString().slice(0, 7);
-            return jobsMapped.filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt).toISOString().slice(0, 7) === lm)
+            return jobsMapped.filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt || 0).toISOString().slice(0, 7) === lm)
                 .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
         })(),
         lastMonthJobs: (() => {
@@ -2018,7 +2018,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
                 const key = d.toISOString().slice(0, 7);
                 const label = d.toLocaleString('default', { month: 'short' });
                 const revenue = jobsMapped
-                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt).toISOString().slice(0, 7) === key)
+                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.updatedAt || j.createdAt || 0).toISOString().slice(0, 7) === key)
                     .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
                 months.push({ key, label, revenue });
             }

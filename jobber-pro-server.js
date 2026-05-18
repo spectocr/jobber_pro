@@ -1411,7 +1411,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h2>📈 Revenue — Last 6 Months</h2>
                 </div>
                 <div style="padding:1rem 1.5rem 0.75rem;">
-                    <svg id="revenueTrendSvg" width="100%" height="160" viewBox="0 0 600 160" preserveAspectRatio="xMidYMid meet" style="display:block;"></svg>
+                    <svg id="revenueTrendSvg" viewBox="0 0 600 160" style="display:block; width:100%; height:auto; overflow:visible;"></svg>
                 </div>
             </div>
 
@@ -9180,7 +9180,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             filteredJobs.forEach(j => {
                 if (j.status === 'completed' || j.status === 'invoiced') {
-                    const month = j.scheduledDate.substring(0, 7); // YYYY-MM
+                    const d = j.updatedAt || j.createdAt || j.scheduledDate;
+                    if (!d) return;
+                    const month = new Date(d).toISOString().substring(0, 7);
                     if (!monthlyRevenue[month]) monthlyRevenue[month] = 0;
                     monthlyRevenue[month] += parseFloat(j.total) || 0;
                 }
