@@ -7433,22 +7433,27 @@ function generatePortfolioHtml(rawItems) {
 
         const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
         const show = sorted.slice(0, 4);
+        const _pfBadge = (type) => {
+            const t = type === 'before' ? 'Before' : type === 'after' ? 'After' : type === 'other' ? 'Other' : '';
+            return t ? `<span class="photo-badge">${t}</span>` : '';
+        };
         let gridHtml;
         if (!show.length) {
             gridHtml = '';
         } else if (show.length === 1) {
             const typeLabel = show[0].type === 'before' ? 'Before — ' : show[0].type === 'after' ? 'After — ' : '';
-            gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`;
+            gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">${_pfBadge(show[0].type)}`;
         } else {
             const wrapStyle = show.length === 2
                 ? 'position:absolute;inset:0;display:flex;gap:2px;'
                 : 'position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
+            const cellStyle = show.length === 2 ? 'flex:1;min-width:0;position:relative;overflow:hidden;' : 'position:relative;overflow:hidden;';
             const imgStyle = show.length === 2
-                ? 'flex:1;min-width:0;height:100%;object-fit:cover;display:block;'
+                ? 'width:100%;height:100%;object-fit:cover;display:block;'
                 : 'width:100%;height:100%;object-fit:cover;display:block;';
             const cells = show.map((p) => {
                 const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
-                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="${imgStyle}">`;
+                return `<div style="${cellStyle}"><img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="${imgStyle}">${_pfBadge(p.type)}</div>`;
             }).join('');
             gridHtml = `<div style="${wrapStyle}">${cells}</div>`;
         }
@@ -7517,7 +7522,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--navy);padding:0 2rem;disp
 .card-img{position:relative;padding-top:66.6%;overflow:hidden;background:#e5e7eb}
 .card-img > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
 .card:hover .card-img img{transform:scale(1.03)}
-.photo-badge{position:absolute;bottom:.5rem;right:.5rem;background:rgba(0,0,0,.58);color:#fff;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.photo-badge{position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.55);color:#fff;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none}
 .card-body{padding:.9rem 1.1rem 1.1rem}
 .card-cat{display:inline-block;margin-bottom:.4rem;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
 .card-title{font-size:1rem;font-weight:700;color:#1f2937}
@@ -7629,21 +7634,21 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             const photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
             const sorted = [...photos.filter(p=>p.type==='before'),...photos.filter(p=>p.type==='after'),...photos.filter(p=>p.type==='other')];
             const show = sorted.slice(0,4);
-            var imgStyle = 'width:100%;height:100%;object-fit:cover;display:block;';
+            var badge = function(type){var t=type==='before'?'Before':type==='after'?'After':type==='other'?'Other':'';return t?'<span style="position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.55);color:#fff;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;">'+t+'</span>':'';};
             var containerStyle;
             var inner;
             if (!show.length) {
                 containerStyle = 'height:200px;background:#e5e7eb;';
                 inner = '';
             } else if (show.length === 1) {
-                containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;';
-                inner = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="'+imgStyle+'">';
+                containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;position:relative;';
+                inner = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(show[0].type);
             } else if (show.length === 2) {
                 containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:flex;gap:2px;';
-                inner = show.map(function(p){return '<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="flex:1;min-width:0;height:200px;object-fit:cover;display:block;">';}).join('');
+                inner = show.map(function(p){return '<div style="flex:1;min-width:0;position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:200px;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('');
             } else {
                 containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
-                inner = show.map(function(p){return '<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">';}).join('');
+                inner = show.map(function(p){return '<div style="position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('');
             }
             const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
             const caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
