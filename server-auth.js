@@ -7433,7 +7433,6 @@ function generatePortfolioHtml(rawItems) {
 
         const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
         const show = sorted.slice(0, 4);
-        const cols = show.length === 1 ? 1 : 2;
         let gridHtml;
         if (!show.length) {
             gridHtml = '';
@@ -7441,11 +7440,19 @@ function generatePortfolioHtml(rawItems) {
             const typeLabel = show[0].type === 'before' ? 'Before — ' : show[0].type === 'after' ? 'After — ' : '';
             gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`;
         } else {
-            const cells = show.map(p => {
+            // Absolutely position each photo — 2 side by side, or 2×2 for 3-4
+            const h = show.length <= 2 ? '100%' : 'calc(50% - 1px)';
+            const positions = [
+                `top:0;left:0;width:calc(50% - 1px);height:${h};`,
+                `top:0;right:0;width:calc(50% - 1px);height:${h};`,
+                `bottom:0;left:0;width:calc(50% - 1px);height:calc(50% - 1px);`,
+                `bottom:0;right:0;width:calc(50% - 1px);height:calc(50% - 1px);`
+            ];
+            const cells = show.map((p, i) => {
                 const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
-                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`;
+                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;${positions[i]}object-fit:cover;">`;
             }).join('');
-            gridHtml = `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},1fr);grid-auto-rows:1fr;gap:2px;">${cells}</div>`;
+            gridHtml = `<div style="position:absolute;inset:0;">${cells}</div>`;
         }
 
         return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${gridHtml}</div>${body}\n</article>`;
@@ -7629,8 +7636,10 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             else if (show.length === 1) {
                 grid = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">';
             } else {
-                grid = '<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr;gap:2px;">'+
-                    show.map(p=>'<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;">').join('')+
+                var h = show.length <= 2 ? '100%' : 'calc(50% - 1px)';
+                var pos = ['top:0;left:0;width:calc(50% - 1px);height:'+h+';','top:0;right:0;width:calc(50% - 1px);height:'+h+';','bottom:0;left:0;width:calc(50% - 1px);height:calc(50% - 1px);','bottom:0;right:0;width:calc(50% - 1px);height:calc(50% - 1px);'];
+                grid = '<div style="position:absolute;inset:0;">'+
+                    show.map(function(p,i){return '<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;'+pos[i]+'object-fit:cover;">';}).join('')+
                     '</div>';
             }
             const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
