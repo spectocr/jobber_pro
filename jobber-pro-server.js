@@ -8189,7 +8189,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <select onchange="_portfolioState.existingPhotos[\${idx}].type=this.value" style="flex:1;padding:0.3rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">
                         \${_pfTypeOptions(p.type)}
                     </select>
-                    <button onclick="removeExistingPfPhoto('\${p.s3Key.replace(/'/g, \"\\\\'\")}'')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
+                    <button onclick="removeExistingPfPhoto('\${p.s3Key}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
                 </div>\`;
             });
             stagedPhotos.forEach((p, idx) => {

@@ -2364,9 +2364,9 @@ app.delete('/api/portfolio/:id/photo', isAuthenticated, async (req, res) => {
 app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
         const { title, caption, category, commercial, photos } = req.body;
-        // Metadata update — no photos in MongoDB
+        // Metadata update only — leave photos array untouched (legacy compat)
         await db.collection('portfolio').updateOne({ _id: new ObjectId(req.params.id) },
-            { $set: { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' }, $unset: { photos: '' } });
+            { $set: { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' } });
 
         // Handle type changes: if photo's type doesn't match its key prefix, rename via copy+delete
         if (Array.isArray(photos)) {
