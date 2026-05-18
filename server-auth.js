@@ -2037,7 +2037,13 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
                 const bDate = b.completedDate || b.scheduledDate || '';
                 return bDate.localeCompare(aDate);
             })
-            .slice(0, 20)
+            .slice(0, 20),
+        followUpsNeedAction: jobsMapped
+            .filter(j => j.followUp && !j.followUpDone && j.followUpDate && j.followUpDate <= today)
+            .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate)),
+        followUpsUpcoming: jobsMapped
+            .filter(j => j.followUp && !j.followUpDone && j.followUpDate && j.followUpDate > today)
+            .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate))
     };
 
     res.json(stats);
@@ -2746,6 +2752,18 @@ app.get('/api/surveys', isAuthenticated, async (req, res) => {
 });
 
 // Admin: resend survey for a job
+app.post('/api/jobs/:id/dismiss-followup', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('jobs').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { followUpDone: true, updatedAt: new Date() } }
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/api/jobs/:id/resend-survey', isAuthenticated, async (req, res) => {
     try {
         const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });

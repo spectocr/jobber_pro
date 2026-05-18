@@ -1415,6 +1415,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
             </div>
 
+            <!-- Follow-up Reminders -->
+            <div id="followUpRemindersCard" style="display:none; margin-bottom:1.5rem;">
+                <div class="card" style="margin-bottom:0;">
+                    <div class="card-header" style="padding-bottom:0.5rem;">
+                        <h2>🔔 Follow-ups</h2>
+                    </div>
+                    <div id="followUpNeedsAction" style="margin-bottom:0.5rem;"></div>
+                    <div id="followUpUpcoming"></div>
+                </div>
+            </div>
+
             <!-- Job Status Tiles -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
                 <!-- Upcoming Jobs Tile -->
@@ -3137,6 +3148,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <span>Tax Exempt / Waive Tax</span>
                             </label>
                         </div>
+                        <div class="form-group" style="margin-top: 0.75rem; padding: 1rem; background: #f8f9ff; border: 2px solid #e2e8f0; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0;">
+                                <input type="checkbox" name="followUp" id="followUpCheckbox" onchange="toggleFollowUpFields()" style="width: auto; cursor: pointer;">
+                                <span style="font-weight: 600;">🔔 Schedule Follow-up</span>
+                            </label>
+                            <div id="followUpFields" style="display: none; margin-top: 0.75rem;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <div>
+                                        <label style="font-size: 0.8rem; color: #718096; display: block; margin-bottom: 0.25rem;">Date *</label>
+                                        <input type="date" name="followUpDate" id="followUpDate" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.8rem; color: #718096; display: block; margin-bottom: 0.25rem;">Time (optional)</label>
+                                        <input type="time" name="followUpTime" style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #718096; display: block; margin-bottom: 0.25rem;">Note (optional)</label>
+                                    <input type="text" name="followUpNote" placeholder="What to follow up on..." style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ── TAB: BILLING ── -->
@@ -4509,6 +4542,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.querySelectorAll('.job-team-cb').forEach(cb => {
                     cb.checked = assignedIds.includes(cb.value);
                 });
+
+                // Show follow-up fields if follow-up is set
+                toggleFollowUpFields();
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
@@ -5588,6 +5624,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        function toggleFollowUpFields() {
+            const checked = document.getElementById('followUpCheckbox').checked;
+            document.getElementById('followUpFields').style.display = checked ? 'block' : 'none';
+        }
+
         function updateJobTotal() {
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
@@ -5777,8 +5818,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return att; // Keep full data for MongoDB fallback
             });
 
-            // Handle checkbox - it won't be in formData if unchecked
+            // Handle checkboxes - won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
+            job.followUp = document.getElementById('followUpCheckbox').checked;
 
             // Calculate totals
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
@@ -6119,6 +6161,49 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-invoiced').textContent = stats.invoiced;
             document.getElementById('stat-bid-lost').textContent = stats.bidLost;
             document.getElementById('stat-ar').textContent = formatMoney(stats.totalAccountsReceivable || 0);
+
+            // Follow-up reminders
+            (function() {
+                const needsAction = stats.followUpsNeedAction || [];
+                const upcoming   = stats.followUpsUpcoming   || [];
+                const card = document.getElementById('followUpRemindersCard');
+                if (!card) return;
+                card.style.display = (needsAction.length + upcoming.length) > 0 ? '' : 'none';
+
+                function fuRow(j, urgent) {
+                    const client = findClient(j.clientId);
+                    const clientName = maskName(client ? client.name : (j.clientName || 'Unknown'));
+                    const timeStr = j.followUpTime ? ' · ' + j.followUpTime : '';
+                    const note = j.followUpNote ? \`<div style="font-size:0.78rem;color:#718096;margin-top:0.15rem;">\${j.followUpNote}</div>\` : '';
+                    const bg = urgent ? '#fff5f5' : '#f8f9ff';
+                    const border = urgent ? '#fed7d7' : '#e2e8f0';
+                    const dateColor = urgent ? '#e53e3e' : '#667eea';
+                    return \`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:0.65rem 0.85rem;background:\${bg};border:1px solid \${border};border-radius:8px;margin-bottom:0.4rem;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:0.9rem;">\${j.title}</div>
+                            <div style="font-size:0.8rem;color:#718096;">\${clientName}</div>
+                            \${note}
+                        </div>
+                        <div style="text-align:right;white-space:nowrap;">
+                            <div style="font-size:0.8rem;font-weight:600;color:\${dateColor};">\${j.followUpDate}\${timeStr}</div>
+                            <button onclick="dismissFollowUp('\${j.id || j._id}')" style="margin-top:0.35rem;font-size:0.72rem;padding:0.2rem 0.55rem;background:#48bb78;color:white;border:none;border-radius:4px;cursor:pointer;">✓ Done</button>
+                        </div>
+                    </div>\`;
+                }
+
+                const naEl = document.getElementById('followUpNeedsAction');
+                const upEl = document.getElementById('followUpUpcoming');
+
+                if (needsAction.length > 0) {
+                    naEl.innerHTML = \`<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#e53e3e;letter-spacing:0.05em;margin-bottom:0.4rem;">⚠️ Needs Action</div>\`
+                        + needsAction.map(j => fuRow(j, true)).join('');
+                } else { naEl.innerHTML = ''; }
+
+                if (upcoming.length > 0) {
+                    upEl.innerHTML = \`<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#667eea;letter-spacing:0.05em;margin:\${needsAction.length > 0 ? '0.75rem' : '0'} 0 0.4rem;">\${needsAction.length > 0 ? '📋 Scheduled' : '📋 Upcoming Follow-ups'}</div>\`
+                        + upcoming.map(j => fuRow(j, false)).join('');
+                } else { upEl.innerHTML = ''; }
+            })();
 
             // Render job list helper function
             const renderJobList = (jobs, emptyMessage) => {
@@ -9432,6 +9517,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (e) {
                 container.innerHTML = \`<div style="color:#e53e3e;padding:1rem;">Failed to load: \${e.message}</div>\`;
             }
+        }
+
+        async function dismissFollowUp(jobId) {
+            try {
+                await fetch(\`/api/jobs/\${jobId}/dismiss-followup\`, { method: 'POST' });
+                loadDashboard();
+            } catch (e) { alert('Could not dismiss follow-up: ' + e.message); }
         }
 
         async function resendSurvey() {
