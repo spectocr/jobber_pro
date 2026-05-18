@@ -10718,6 +10718,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         subjectBadge = \`<span style="background:#667eea;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">📋 \${msg.reference}</span>\`;
                     } else if (msg.subject === 'job' && msg.reference) {
                         subjectBadge = \`<span style="background:#48bb78;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">🔨 Job</span>\`;
+                    } else if (msg.subject === 'deposit') {
+                        subjectBadge = \`<span style="background:#d97706;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">💳 Deposit</span>\`;
                     }
                     const id = msg.id || msg._id;
                     return \`<div style="background:\${isUnread ? '#fffacd' : 'white'};border:2px solid \${isUnread ? '#f59e0b' : '#e2e8f0'};border-radius:8px;padding:1.5rem;margin-bottom:1rem;">

@@ -7018,6 +7018,22 @@ app.post('/api/deposit/pay', async (req, res) => {
             { $push: { payments: newPayment }, $set: depositSetFields }
         );
 
+        // Drop a message in the inbox
+        try {
+            const depositClient = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
+            await db.collection('client_messages').insertOne({
+                clientId: job.clientId || null,
+                clientName: depositClient?.name || 'Client',
+                clientEmail: depositClient?.email || '',
+                message: `Deposit of $${amount.toFixed(2)} received for "${job.title}"${cardDesc}.`,
+                subject: 'deposit',
+                reference: job.title,
+                createdAt: new Date(),
+                read: false
+            });
+        } catch (e) { console.error('Deposit inbox message error:', e.message); }
+
         // Persist saved card info to client record
         if (cloverCustomerId && savedClientId) {
             try {
