@@ -1836,6 +1836,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="">All Types</option>
                             <option value="invoice">Invoices</option>
                             <option value="quote">Quotes</option>
+                            <option value="deposit">Deposits</option>
                             <option value="credentials">Credentials</option>
                             <option value="portal_access">Portal Access</option>
                             <option value="test">Test Emails</option>
@@ -10650,6 +10651,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 credentials:  { icon: '🔑', label: 'Credentials',  color: '#d69e2e', bg: '#fffff0' },
                 portal_access:{ icon: '🏠', label: 'Portal Access',color: '#805ad5', bg: '#faf5ff' },
                 survey:       { icon: '⭐', label: 'Survey',       color: '#c05621', bg: '#fffaf0' },
+                deposit:      { icon: '💳', label: 'Deposit',      color: '#d97706', bg: '#fffbeb' },
                 test:         { icon: '🧪', label: 'Test',         color: '#718096', bg: '#f7fafc' }
             };
 

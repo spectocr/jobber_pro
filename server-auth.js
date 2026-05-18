@@ -6797,6 +6797,9 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
             { $set: { deposit: { token: depositToken, amount: depositAmount, status: 'pending', sentAt: new Date() }, updatedAt: new Date() } }
         );
 
+        const _depLogId = new ObjectId();
+        const _depTrackUrl = `${process.env.APP_URL}/api/email-track/${_depLogId}`;
+
         await emailService.sendEmail({
             to: toEmail,
             subject: `Deposit Request — ${job.title} — ${companyName}`,
@@ -6813,8 +6816,24 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
                 </div>
                 <p style="color:#718096;font-size:0.85rem;">This secures your spot on our schedule. Thank you!</p>
                 <p style="color:#718096;font-size:0.85rem;">${companyName}</p>
+                <img src="${_depTrackUrl}" width="1" height="1" style="display:none" alt="">
             </div>`,
             text: `Deposit request for "${job.title}"\nAmount: $${depositAmount.toFixed(2)}\nPay here: ${depositUrl}`
+        });
+
+        await db.collection('email_logs').insertOne({
+            _id: _depLogId,
+            type: 'deposit',
+            to: toEmail,
+            toName: client?.name || '',
+            subject: `Deposit Request — ${job.title} — ${companyName}`,
+            trigger: `Deposit of $${depositAmount.toFixed(2)} requested for "${job.title}"`,
+            relatedId: job._id,
+            relatedTitle: job.title,
+            sentBy: req.session.userName || 'admin',
+            sentAt: new Date(),
+            status: 'sent',
+            opened: false
         });
 
         res.json({ success: true, depositUrl });
