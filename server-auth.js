@@ -7669,7 +7669,32 @@ async function rebuildPublicPortfolio() {
         return;
     }
     try {
-        const items = await db.collection('portfolio').find({}).sort({ createdAt: -1 }).toArray();
+        const rawItems = await db.collection('portfolio').find({}).sort({ createdAt: -1 }).toArray();
+
+        // Populate photos from S3 listing (same as GET /api/portfolio)
+        let s3ByEntry = {};
+        try {
+            const listed = await publicS3Client.send(new ListObjectsV2Command({ Bucket: PUBLIC_S3_BUCKET, Prefix: 'portfolio/', MaxKeys: 1000 }));
+            (listed.Contents || []).forEach(obj => {
+                const parts = obj.Key.split('/');
+                if (parts.length !== 3) return;
+                const entryId = parts[1];
+                if (!s3ByEntry[entryId]) s3ByEntry[entryId] = [];
+                s3ByEntry[entryId].push({ s3Key: obj.Key, url: portfolioPhotoUrl(obj.Key), type: _pfParseType(obj.Key) });
+            });
+        } catch (e) { console.warn('S3 listing for portfolio.html failed:', e.message); }
+
+        // Merge S3 photos into each item (same fallback chain as API)
+        const items = rawItems.map(item => {
+            const id = item._id.toString();
+            let photos = s3ByEntry[id] || [];
+            if (!photos.length && item.photos && item.photos.length)
+                photos = item.photos.map(p => ({ s3Key: p.s3Key, url: portfolioPhotoUrl(p.s3Key || p.url), type: p.type || 'other' }));
+            if (!photos.length && item.s3Key)
+                photos = [{ s3Key: item.s3Key, url: portfolioPhotoUrl(item.s3Key), type: 'after' }];
+            return { ...item, photos };
+        });
+
         const html = generatePortfolioHtml(items);
         await publicS3Client.send(new PutObjectCommand({
             Bucket: PUBLIC_S3_BUCKET,
