@@ -2299,7 +2299,8 @@ app.get('/api/portfolio', async (req, res) => {
             if (!photos.length && item.s3Key) {
                 photos = [{ s3Key: item.s3Key, url: portfolioPhotoUrl(item.s3Key), type: 'after' }];
             }
-            return { id, title: item.title || '', caption: item.caption || '', category: item.category || '', commercial: item.commercial || false, photos, createdAt: item.createdAt };
+            const coverPhoto = photos.find(p => p.type === 'after') || photos[0];
+            return { id, title: item.title || '', caption: item.caption || '', category: item.category || '', commercial: item.commercial || false, photos, photoUrl: coverPhoto?.url || portfolioPhotoUrl(item.s3Key) || '', createdAt: item.createdAt };
         }));
     } catch (err) {
         console.error('Portfolio GET error:', err);
