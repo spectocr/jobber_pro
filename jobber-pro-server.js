@@ -1992,6 +1992,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="text" id="portfolioTitle" placeholder="e.g. Master Bath Remodel" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;">
                     </div>
                     <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Photo Type</label>
+                        <select id="portfolioPhotoType" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <option value="before">📷 Before</option>
+                            <option value="after">✅ After</option>
+                            <option value="other">📌 Other</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:1rem;">
                         <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Category</label>
                         <select id="portfolioCategory" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
                             <option value="">Select category...</option>
@@ -8053,16 +8061,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
                 exterior:'Exterior', general:'General' };
 
-            grid.innerHTML = items.map(item => \`
-                <div style="background:white;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+            const sections = [
+                { key: 'before', label: '📷 Before', color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
+                { key: 'after',  label: '✅ After',  color: '#166534', bg: '#f0fdf4', border: '#86efac' },
+                { key: 'other',  label: '📌 Other',  color: '#1e40af', bg: '#eff6ff', border: '#93c5fd' }
+            ];
+
+            const renderCard = (item) => {
+                const catName = catLabel[item.category] || item.category || '';
+                const typeLabel = item.photoType === 'before' ? 'Before' : item.photoType === 'after' ? 'After' : '';
+                const altText = [typeLabel, catName, item.title].filter(Boolean).join(' — ') || 'Portfolio photo';
+                return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
                     <div style="position:relative;padding-top:66%;background:#f1f5f9;overflow:hidden;">
-                        <img src="\${item.photoUrl}" alt="\${item.title}" loading="lazy"
+                        <img src="\${item.photoUrl}" alt="\${altText}" loading="lazy"
                             style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;cursor:pointer;"
                             onclick="openLightbox(this.src)">
                     </div>
                     <div style="padding:0.9rem 1rem;">
                         <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.35rem;">
-                            \${item.category ? \`<span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">\${catLabel[item.category] || item.category}</span>\` : ''}
+                            \${catName ? \`<span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">\${catName}</span>\` : ''}
                             \${item.commercial ? \`<span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>\` : ''}
                         </div>
                         \${item.title ? \`<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;font-size:1rem;">\${item.title}</div>\` : ''}
@@ -8072,8 +8089,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button onclick="deletePortfolioItem('\${item.id}')" style="padding:0.35rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.82rem;cursor:pointer;">🗑</button>
                         </div>
                     </div>
-                </div>
-            \`).join('');
+                </div>\`;
+            };
+
+            let html = '';
+            sections.forEach(sec => {
+                const secItems = items.filter(i => (i.photoType || 'other') === sec.key);
+                if (secItems.length === 0) return;
+                html += \`<div style="grid-column:1/-1;display:flex;align-items:center;gap:0.75rem;margin-top:1.25rem;margin-bottom:0.25rem;">
+                    <div style="font-size:1rem;font-weight:700;color:\${sec.color};background:\${sec.bg};border:1.5px solid \${sec.border};border-radius:8px;padding:0.35rem 1rem;">\${sec.label} <span style="font-weight:400;font-size:0.85rem;opacity:0.8;">(\${secItems.length})</span></div>
+                    <div style="flex:1;height:2px;background:\${sec.border};border-radius:2px;"></div>
+                </div>\`;
+                html += secItems.map(renderCard).join('');
+            });
+            grid.innerHTML = html;
         }
 
         function openPortfolioModal(id) {
@@ -8087,6 +8116,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const item = allPortfolioItems.find(i => i.id === id);
                 if (item) {
                     document.getElementById('portfolioTitle').value = item.title;
+                    document.getElementById('portfolioPhotoType').value = item.photoType || 'other';
                     document.getElementById('portfolioCategory').value = item.category;
                     document.getElementById('portfolioCaption').value = item.caption;
                     document.getElementById('portfolioCommercial').checked = !!item.commercial;
@@ -8098,6 +8128,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
             } else {
                 document.getElementById('portfolioTitle').value = '';
+                document.getElementById('portfolioPhotoType').value = 'after';
                 document.getElementById('portfolioCategory').value = '';
                 document.getElementById('portfolioCaption').value = '';
                 document.getElementById('portfolioCommercial').checked = false;
@@ -8171,6 +8202,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         async function savePortfolioItem() {
             const id = document.getElementById('portfolioEditId').value;
             const title = document.getElementById('portfolioTitle').value.trim();
+            const photoType = document.getElementById('portfolioPhotoType').value;
             const category = document.getElementById('portfolioCategory').value;
             const caption = document.getElementById('portfolioCaption').value.trim();
             const commercial = document.getElementById('portfolioCommercial').checked;
@@ -8183,7 +8215,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             try {
                 if (id) {
-                    const body = { title, category, caption, commercial };
+                    const body = { title, photoType, category, caption, commercial };
                     if (_portfolioPhotoData) {
                         body.fileData = _portfolioPhotoData.dataUrl;
                         body.fileName = _portfolioPhotoData.name;
@@ -8198,7 +8230,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         if (!res.ok) throw new Error('Save failed');
                     }
                 } else {
-                    const body = { title, category, caption, commercial, fileData: _portfolioPhotoData.dataUrl, fileName: _portfolioPhotoData.name, fileType: _portfolioPhotoData.type };
+                    const body = { title, photoType, category, caption, commercial, fileData: _portfolioPhotoData.dataUrl, fileName: _portfolioPhotoData.name, fileType: _portfolioPhotoData.type };
                     const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
                     if (!res.ok) throw new Error('Save failed');
                 }

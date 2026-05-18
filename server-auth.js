@@ -2271,7 +2271,7 @@ app.get('/api/portfolio', async (req, res) => {
 
 app.post('/api/portfolio', isAuthenticated, async (req, res) => {
     try {
-        const { title, caption, category, commercial, fileData, fileName, fileType } = req.body;
+        const { title, caption, category, commercial, photoType, fileData, fileName, fileType } = req.body;
         if (!fileData || !fileName || !fileType) {
             return res.status(400).json({ error: 'Photo is required' });
         }
@@ -2299,6 +2299,7 @@ app.post('/api/portfolio', isAuthenticated, async (req, res) => {
             title: title || '',
             caption: caption || '',
             category: category || '',
+            photoType: photoType || 'other',
             commercial: commercial === true || commercial === 'true',
             s3Key,
             createdAt: new Date()
@@ -2313,10 +2314,10 @@ app.post('/api/portfolio', isAuthenticated, async (req, res) => {
 
 app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
-        const { title, caption, category, commercial } = req.body;
+        const { title, caption, category, commercial, photoType } = req.body;
         await db.collection('portfolio').updateOne(
             { _id: new ObjectId(req.params.id) },
-            { $set: { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' } }
+            { $set: { title: title || '', caption: caption || '', category: category || '', photoType: photoType || 'other', commercial: commercial === true || commercial === 'true' } }
         );
         res.json({ success: true });
     } catch (err) {
