@@ -7440,19 +7440,17 @@ function generatePortfolioHtml(rawItems) {
             const typeLabel = show[0].type === 'before' ? 'Before — ' : show[0].type === 'after' ? 'After — ' : '';
             gridHtml = `<img src="${_pfHe(show[0].url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`;
         } else {
-            // Absolutely position each photo — 2 side by side, or 2×2 for 3-4
-            const h = show.length <= 2 ? '100%' : 'calc(50% - 1px)';
-            const positions = [
-                `top:0;left:0;width:calc(50% - 1px);height:${h};`,
-                `top:0;right:0;width:calc(50% - 1px);height:${h};`,
-                `bottom:0;left:0;width:calc(50% - 1px);height:calc(50% - 1px);`,
-                `bottom:0;right:0;width:calc(50% - 1px);height:calc(50% - 1px);`
-            ];
-            const cells = show.map((p, i) => {
+            const wrapStyle = show.length === 2
+                ? 'position:absolute;inset:0;display:flex;gap:2px;'
+                : 'position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
+            const imgStyle = show.length === 2
+                ? 'flex:1;min-width:0;height:100%;object-fit:cover;display:block;'
+                : 'width:100%;height:100%;object-fit:cover;display:block;';
+            const cells = show.map((p) => {
                 const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
-                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="position:absolute;${positions[i]}object-fit:cover;">`;
+                return `<img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="${imgStyle}">`;
             }).join('');
-            gridHtml = `<div style="position:absolute;inset:0;">${cells}</div>`;
+            gridHtml = `<div style="${wrapStyle}">${cells}</div>`;
         }
 
         return `<article class="card" data-cat="${_pfHe(item.category)}" data-commercial="${item.commercial}" onclick="openProject('${_pfEsc(item.id)}')">\n  <div class="card-img">${gridHtml}</div>${body}\n</article>`;
@@ -7517,7 +7515,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--navy);padding:0 2rem;disp
 .card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
 .card.hidden{display:none}
 .card-img{position:relative;padding-top:66.6%;overflow:hidden;background:#e5e7eb}
-.card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.card-img > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
 .card:hover .card-img img{transform:scale(1.03)}
 .photo-badge{position:absolute;bottom:.5rem;right:.5rem;background:rgba(0,0,0,.58);color:#fff;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:6px}
 .card-body{padding:.9rem 1.1rem 1.1rem}
@@ -7631,21 +7629,26 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             const photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
             const sorted = [...photos.filter(p=>p.type==='before'),...photos.filter(p=>p.type==='after'),...photos.filter(p=>p.type==='other')];
             const show = sorted.slice(0,4);
-            let grid;
-            if (!show.length) { grid = ''; }
-            else if (show.length === 1) {
-                grid = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">';
+            var imgStyle = 'width:100%;height:100%;object-fit:cover;display:block;';
+            var containerStyle;
+            var inner;
+            if (!show.length) {
+                containerStyle = 'height:200px;background:#e5e7eb;';
+                inner = '';
+            } else if (show.length === 1) {
+                containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;';
+                inner = '<img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="'+imgStyle+'">';
+            } else if (show.length === 2) {
+                containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:flex;gap:2px;';
+                inner = show.map(function(p){return '<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="flex:1;min-width:0;height:200px;object-fit:cover;display:block;">';}).join('');
             } else {
-                var h = show.length <= 2 ? '100%' : 'calc(50% - 1px)';
-                var pos = ['top:0;left:0;width:calc(50% - 1px);height:'+h+';','top:0;right:0;width:calc(50% - 1px);height:'+h+';','bottom:0;left:0;width:calc(50% - 1px);height:calc(50% - 1px);','bottom:0;right:0;width:calc(50% - 1px);height:calc(50% - 1px);'];
-                grid = '<div style="position:absolute;inset:0;">'+
-                    show.map(function(p,i){return '<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="position:absolute;'+pos[i]+'object-fit:cover;">';}).join('')+
-                    '</div>';
+                containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
+                inner = show.map(function(p){return '<img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">';}).join('');
             }
             const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
             const caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
             return '<div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);">'+
-                '<div style="position:relative;padding-top:66%;overflow:hidden;background:#e5e7eb;">'+grid+'</div>'+
+                '<div style="'+containerStyle+'">'+inner+'</div>'+
                 '<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'+
                 title+caption+'</div></div>';
         }).join('');
