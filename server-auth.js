@@ -2259,6 +2259,7 @@ app.get('/api/portfolio', async (req, res) => {
             caption: item.caption || '',
             category: item.category || '',
             commercial: item.commercial || false,
+            photos: (item.photos || []).map(p => ({ id: p.id, s3Key: p.s3Key, url: portfolioPhotoUrl(p.s3Key || p.url), type: p.type || 'other' })),
             photoUrl: portfolioPhotoUrl(item.s3Key),
             s3Key: item.s3Key || '',
             createdAt: item.createdAt
@@ -2269,56 +2270,86 @@ app.get('/api/portfolio', async (req, res) => {
     }
 });
 
+// Helper: upload one portfolio photo to S3, return { s3Key, url }
+async function uploadPortfolioPhoto(fileData, fileType) {
+    const uploadClient = publicS3Client || s3Client;
+    const uploadBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+    if (!uploadClient) throw new Error('S3 not configured');
+    const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+    const fileBuffer = Buffer.from(base64Data, 'base64');
+    const ext = fileType.split('/')[1] || 'jpg';
+    const key = `portfolio/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    await uploadClient.send(new PutObjectCommand({ Bucket: uploadBucket, Key: key, Body: fileBuffer, ContentType: fileType }));
+    return { s3Key: key, url: portfolioPhotoUrl(key) };
+}
+
+// Create a portfolio entry (no photos yet)
 app.post('/api/portfolio', isAuthenticated, async (req, res) => {
     try {
-        const { title, caption, category, commercial, photoType, fileData, fileName, fileType } = req.body;
-        if (!fileData || !fileName || !fileType) {
-            return res.status(400).json({ error: 'Photo is required' });
-        }
-
-        let s3Key = '';
-        const uploadClient = publicS3Client || s3Client;
-        const uploadBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
-        if (uploadClient) {
-            const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
-            const fileBuffer = Buffer.from(base64Data, 'base64');
-            const ext = fileType.split('/')[1] || 'jpg';
-            const key = `portfolio/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-            await uploadClient.send(new PutObjectCommand({
-                Bucket: uploadBucket,
-                Key: key,
-                Body: fileBuffer,
-                ContentType: fileType
-            }));
-            s3Key = key;
-        } else {
-            return res.status(500).json({ error: 'S3 not configured' });
-        }
-
+        const { title, caption, category, commercial } = req.body;
         const doc = {
             title: title || '',
             caption: caption || '',
             category: category || '',
-            photoType: photoType || 'other',
             commercial: commercial === true || commercial === 'true',
-            s3Key,
+            photos: [],
             createdAt: new Date()
         };
         const result = await db.collection('portfolio').insertOne(doc);
-        res.json({ success: true, id: result.insertedId.toString(), photoUrl: portfolioPhotoUrl(s3Key) });
+        res.json({ success: true, id: result.insertedId.toString() });
     } catch (err) {
         console.error('Portfolio POST error:', err);
-        res.status(500).json({ error: 'Failed to save portfolio item' });
+        res.status(500).json({ error: 'Failed to create portfolio entry' });
+    }
+});
+
+// Add a photo to an existing portfolio entry
+app.post('/api/portfolio/:id/photo', isAuthenticated, async (req, res) => {
+    try {
+        const { fileData, fileType, type } = req.body;
+        if (!fileData || !fileType) return res.status(400).json({ error: 'Missing file data' });
+        const { s3Key, url } = await uploadPortfolioPhoto(fileData, fileType);
+        const photo = { id: Date.now(), s3Key, url, type: type || 'other' };
+        await db.collection('portfolio').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $push: { photos: photo } }
+        );
+        res.json({ success: true, photo });
+    } catch (err) {
+        console.error('Portfolio add-photo error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Remove a specific photo from an entry
+app.delete('/api/portfolio/:id/photo/:photoId', isAuthenticated, async (req, res) => {
+    try {
+        const item = await db.collection('portfolio').findOne({ _id: new ObjectId(req.params.id) });
+        if (!item) return res.status(404).json({ error: 'Not found' });
+        const photoId = parseInt(req.params.photoId);
+        const photo = (item.photos || []).find(p => p.id === photoId);
+        if (photo?.s3Key) {
+            const delClient = publicS3Client || s3Client;
+            const delBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+            if (delClient) await delClient.send(new DeleteObjectCommand({ Bucket: delBucket, Key: photo.s3Key })).catch(() => {});
+        }
+        await db.collection('portfolio').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $pull: { photos: { id: photoId } } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
 app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
-        const { title, caption, category, commercial, photoType } = req.body;
-        await db.collection('portfolio').updateOne(
-            { _id: new ObjectId(req.params.id) },
-            { $set: { title: title || '', caption: caption || '', category: category || '', photoType: photoType || 'other', commercial: commercial === true || commercial === 'true' } }
-        );
+        const { title, caption, category, commercial, photos } = req.body;
+        const update = { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' };
+        // photos array passed to update types only (no file data)
+        if (Array.isArray(photos)) update.photos = photos;
+        await db.collection('portfolio').updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
         res.json({ success: true });
     } catch (err) {
         console.error('Portfolio PUT error:', err);
@@ -2329,10 +2360,13 @@ app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
 app.delete('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
         const item = await db.collection('portfolio').findOne({ _id: new ObjectId(req.params.id) });
-        if (item?.s3Key) {
-            const delClient = publicS3Client || s3Client;
-            const delBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
-            if (delClient) await delClient.send(new DeleteObjectCommand({ Bucket: delBucket, Key: item.s3Key })).catch(() => {});
+        const delClient = publicS3Client || s3Client;
+        const delBucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
+        if (delClient && item) {
+            // Delete all photos (new multi-photo format + old single-photo format)
+            const keys = (item.photos || []).map(p => p.s3Key).filter(Boolean);
+            if (item.s3Key) keys.push(item.s3Key);
+            await Promise.all(keys.map(k => delClient.send(new DeleteObjectCommand({ Bucket: delBucket, Key: k })).catch(() => {})));
         }
         await db.collection('portfolio').deleteOne({ _id: new ObjectId(req.params.id) });
         res.json({ success: true });

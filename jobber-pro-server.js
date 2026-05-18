@@ -1966,9 +1966,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
         </div>
 
-        <!-- Portfolio Modal -->
+        <!-- Portfolio Edit Modal -->
         <div id="portfolioModal" class="modal">
-            <div class="modal-content" style="max-width:540px;">
+            <div class="modal-content" style="max-width:560px;">
                 <div class="modal-header">
                     <h2 id="portfolioModalTitle">Add Work</h2>
                     <button onclick="closePortfolioModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#718096;">×</button>
@@ -1976,28 +1976,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="modal-body">
                     <input type="hidden" id="portfolioEditId">
                     <div style="margin-bottom:1rem;">
-                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Photo *</label>
-                        <div id="portfolio-upload-zone" style="border:2px dashed #cbd5e0;border-radius:8px;padding:2rem;text-align:center;cursor:pointer;position:relative;background:#f8fafc;" onclick="document.getElementById('portfolioFileInput').click()">
-                            <div id="portfolio-upload-preview" style="display:none;"><img id="portfolio-preview-img" style="max-height:200px;max-width:100%;border-radius:6px;"></div>
-                            <div id="portfolio-upload-prompt">
-                                <div style="font-size:2rem;">📷</div>
-                                <div style="color:#4a5568;font-weight:600;">Click to upload photo</div>
-                                <div style="color:#9ca3af;font-size:0.8rem;margin-top:0.25rem;">Any size — auto compressed</div>
-                            </div>
-                            <input type="file" id="portfolioFileInput" accept="image/*" style="display:none;" onchange="handlePortfolioPhoto(this)">
-                        </div>
-                    </div>
-                    <div style="margin-bottom:1rem;">
-                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Title</label>
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Project Title</label>
                         <input type="text" id="portfolioTitle" placeholder="e.g. Master Bath Remodel" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;">
-                    </div>
-                    <div style="margin-bottom:1rem;">
-                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Photo Type</label>
-                        <select id="portfolioPhotoType" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
-                            <option value="before">📷 Before</option>
-                            <option value="after">✅ After</option>
-                            <option value="other">📌 Other</option>
-                        </select>
                     </div>
                     <div style="margin-bottom:1rem;">
                         <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Category</label>
@@ -2015,20 +1995,46 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="general">General</option>
                         </select>
                     </div>
-                    <div style="margin-bottom:1.5rem;">
+                    <div style="margin-bottom:1rem;">
                         <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Caption</label>
-                        <textarea id="portfolioCaption" rows="3" placeholder="Brief description of the work done..." style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
+                        <textarea id="portfolioCaption" rows="2" placeholder="Brief description of the work done..." style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
                     </div>
-                    <div style="margin-bottom:1.5rem;">
+                    <div style="margin-bottom:1.25rem;">
                         <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-weight:600;">
                             <input type="checkbox" id="portfolioCommercial" style="width:1.1rem;height:1.1rem;accent-color:#1d6fa4;">
                             Commercial job
                         </label>
                         <div style="font-size:0.78rem;color:#6b7280;margin-top:0.25rem;margin-left:1.7rem;">Shows in the commercial portfolio section on the property management page.</div>
                     </div>
-                    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <div style="margin-bottom:0.5rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                            <label style="font-weight:600;">Photos</label>
+                            <button onclick="document.getElementById('portfolioFileInput').click()" style="background:#667eea;color:#fff;border:none;border-radius:7px;padding:0.3rem 0.85rem;font-size:0.82rem;cursor:pointer;font-weight:600;">+ Add Photo</button>
+                        </div>
+                        <input type="file" id="portfolioFileInput" accept="image/*" style="display:none;" onchange="handlePortfolioPhotoAdd(this)">
+                        <div id="portfolio-photo-list" style="max-height:260px;overflow-y:auto;"></div>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.25rem;">
                         <button class="btn btn-secondary" onclick="closePortfolioModal()">Cancel</button>
                         <button class="btn btn-primary" onclick="savePortfolioItem()">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Detail Modal -->
+        <div id="portfolioDetailModal" class="modal">
+            <div class="modal-content" style="max-width:680px;">
+                <div class="modal-header">
+                    <h2 id="portfolioDetailTitle" style="font-size:1.15rem;"></h2>
+                    <button onclick="closeModal('portfolioDetailModal')" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#718096;">×</button>
+                </div>
+                <div class="modal-body">
+                    <p id="portfolioDetailCaption" style="color:#6b7280;margin-top:0;margin-bottom:1rem;font-size:0.9rem;"></p>
+                    <div id="portfolioDetailPhotos"></div>
+                    <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.25rem;">
+                        <button id="portfolioDetailDeleteBtn" style="background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:8px;padding:0.4rem 1rem;cursor:pointer;font-weight:600;">🗑 Delete</button>
+                        <button id="portfolioDetailEditBtn" class="btn btn-primary">Edit</button>
                     </div>
                 </div>
             </div>
@@ -8033,7 +8039,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // ── Portfolio ─────────────────────────────────────────────────────────────
 
         let allPortfolioItems = [];
-        let _portfolioPhotoData = null;
+        let _portfolioState = { editId: null, existingPhotos: [], stagedPhotos: [], removedIds: [] };
+
+        const _pfCatLabel = { bathroom:'Bathroom', kitchen:'Kitchen', deck:'Deck / Patio', flooring:'Flooring',
+            painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
+            exterior:'Exterior', general:'General' };
+
+        function _pfPhotos(item) {
+            if (item.photos && item.photos.length) return item.photos;
+            if (item.photoUrl) return [{ id: 0, url: item.photoUrl, type: 'after', s3Key: item.s3Key }];
+            return [];
+        }
 
         async function loadPortfolio() {
             const res = await fetch('/api/portfolio');
@@ -8052,91 +8068,152 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (search) items = items.filter(i => (i.title + i.caption + i.category).toLowerCase().includes(search));
             if (cat) items = items.filter(i => i.category === cat);
 
-            if (items.length === 0) {
+            if (!items.length) {
                 grid.innerHTML = '<p style="color:#718096;grid-column:1/-1;padding:1rem 0;">No portfolio items yet. Click "+ Add Work" to add your first.</p>';
                 return;
             }
 
-            const catLabel = { bathroom:'Bathroom', kitchen:'Kitchen', deck:'Deck / Patio', flooring:'Flooring',
-                painting:'Painting', carpentry:'Carpentry', electrical:'Electrical', plumbing:'Plumbing',
-                exterior:'Exterior', general:'General' };
-
-            const sections = [
-                { key: 'before', label: '📷 Before', color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
-                { key: 'after',  label: '✅ After',  color: '#166534', bg: '#f0fdf4', border: '#86efac' },
-                { key: 'other',  label: '📌 Other',  color: '#1e40af', bg: '#eff6ff', border: '#93c5fd' }
-            ];
-
-            const renderCard = (item) => {
-                const catName = catLabel[item.category] || item.category || '';
-                const typeLabel = item.photoType === 'before' ? 'Before' : item.photoType === 'after' ? 'After' : '';
-                const altText = [typeLabel, catName, item.title].filter(Boolean).join(' — ') || 'Portfolio photo';
+            grid.innerHTML = items.map(item => {
+                const photos = _pfPhotos(item);
+                const cover = photos.find(p => p.type === 'after') || photos[0];
+                const catName = _pfCatLabel[item.category] || item.category || '';
+                const bCt = photos.filter(p => p.type === 'before').length;
+                const aCt = photos.filter(p => p.type === 'after').length;
+                const oCt = photos.filter(p => p.type === 'other').length;
+                const badge = [bCt && (bCt + 'B'), aCt && (aCt + 'A'), oCt && (oCt + 'O')].filter(Boolean).join(' · ') || '0 photos';
+                const coverAlt = ['Portfolio', catName, item.title].filter(Boolean).join(' — ');
                 return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-                    <div style="position:relative;padding-top:66%;background:#f1f5f9;overflow:hidden;">
-                        <img src="\${item.photoUrl}" alt="\${altText}" loading="lazy"
-                            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;cursor:pointer;"
-                            onclick="openLightbox(this.src)">
+                    <div style="position:relative;padding-top:66%;background:#f1f5f9;overflow:hidden;cursor:pointer;" onclick="openPortfolioDetail('\${item.id}')">
+                        \${cover ? \`<img src="\${cover.url}" alt="\${coverAlt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">\` : \`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:2rem;">📷</div>\`}
+                        <div style="position:absolute;bottom:0.5rem;right:0.5rem;background:rgba(0,0,0,0.58);color:#fff;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:6px;">\${badge}</div>
                     </div>
                     <div style="padding:0.9rem 1rem;">
                         <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.35rem;">
                             \${catName ? \`<span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">\${catName}</span>\` : ''}
                             \${item.commercial ? \`<span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>\` : ''}
                         </div>
-                        \${item.title ? \`<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;font-size:1rem;">\${item.title}</div>\` : ''}
-                        \${item.caption ? \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.4;">\${item.caption}</div>\` : ''}
+                        \${item.title ? \`<div style="font-weight:700;color:#1f2937;margin-top:0.4rem;font-size:1rem;">\${item.title}</div>\` : ''}
+                        \${item.caption ? \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.2rem;line-height:1.4;">\${item.caption}</div>\` : ''}
                         <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
-                            <button onclick="openPortfolioModal('\${item.id}')" style="padding:0.35rem 0.8rem;background:#ede9fe;color:#6d28d9;border:none;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Edit</button>
-                            <button onclick="deletePortfolioItem('\${item.id}')" style="padding:0.35rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.82rem;cursor:pointer;">🗑</button>
+                            <button onclick="event.stopPropagation();openPortfolioModal('\${item.id}')" style="padding:0.35rem 0.8rem;background:#ede9fe;color:#6d28d9;border:none;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Edit</button>
+                            <button onclick="event.stopPropagation();deletePortfolioItem('\${item.id}')" style="padding:0.35rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.82rem;cursor:pointer;">🗑</button>
                         </div>
                     </div>
                 </div>\`;
-            };
+            }).join('');
+        }
 
+        function openPortfolioDetail(id) {
+            const item = allPortfolioItems.find(i => i.id === id);
+            if (!item) return;
+            const photos = _pfPhotos(item);
+            const catName = _pfCatLabel[item.category] || item.category || '';
+
+            document.getElementById('portfolioDetailTitle').textContent = item.title || 'Untitled Project';
+            const capEl = document.getElementById('portfolioDetailCaption');
+            capEl.textContent = item.caption || '';
+            capEl.style.display = item.caption ? '' : 'none';
+
+            const secs = [
+                { key: 'before', label: '📷 Before', color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
+                { key: 'after',  label: '✅ After',  color: '#166534', bg: '#f0fdf4', border: '#86efac' },
+                { key: 'other',  label: '📌 Other',  color: '#1e40af', bg: '#eff6ff', border: '#93c5fd' }
+            ];
             let html = '';
-            sections.forEach(sec => {
-                const secItems = items.filter(i => (i.photoType || 'other') === sec.key);
-                if (secItems.length === 0) return;
-                html += \`<div style="grid-column:1/-1;display:flex;align-items:center;gap:0.75rem;margin-top:1.25rem;margin-bottom:0.25rem;">
-                    <div style="font-size:1rem;font-weight:700;color:\${sec.color};background:\${sec.bg};border:1.5px solid \${sec.border};border-radius:8px;padding:0.35rem 1rem;">\${sec.label} <span style="font-weight:400;font-size:0.85rem;opacity:0.8;">(\${secItems.length})</span></div>
-                    <div style="flex:1;height:2px;background:\${sec.border};border-radius:2px;"></div>
-                </div>\`;
-                html += secItems.map(renderCard).join('');
+            secs.forEach(sec => {
+                const sp = photos.filter(p => p.type === sec.key);
+                if (!sp.length) return;
+                html += \`<div style="margin-bottom:1.25rem;">
+                    <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.5rem;">
+                        <span style="background:\${sec.bg};color:\${sec.color};border:1.5px solid \${sec.border};border-radius:6px;padding:2px 12px;">\${sec.label}</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0.5rem;">\`;
+                sp.forEach(p => {
+                    const alt = [sec.key === 'before' ? 'Before' : sec.key === 'after' ? 'After' : 'Other', catName, item.title].filter(Boolean).join(' — ');
+                    html += \`<img src="\${p.url}" alt="\${alt}" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="openLightbox(this.src)">\`;
+                });
+                html += '</div></div>';
             });
-            grid.innerHTML = html;
+            document.getElementById('portfolioDetailPhotos').innerHTML = html || '<p style="color:#9ca3af;font-size:0.9rem;">No photos yet.</p>';
+
+            document.getElementById('portfolioDetailEditBtn').onclick = () => { closeModal('portfolioDetailModal'); openPortfolioModal(id); };
+            document.getElementById('portfolioDetailDeleteBtn').onclick = () => { closeModal('portfolioDetailModal'); deletePortfolioItem(id); };
+            openModal('portfolioDetailModal');
         }
 
         function openPortfolioModal(id) {
-            _portfolioPhotoData = null;
+            _portfolioState = { editId: id || null, existingPhotos: [], stagedPhotos: [], removedIds: [] };
             document.getElementById('portfolioEditId').value = id || '';
-            document.getElementById('portfolioModalTitle').textContent = id ? 'Edit Item' : 'Add Work';
-            document.getElementById('portfolio-upload-preview').style.display = 'none';
-            document.getElementById('portfolio-upload-prompt').style.display = '';
+            document.getElementById('portfolioModalTitle').textContent = id ? 'Edit Work' : 'Add Work';
+            document.getElementById('portfolioTitle').value = '';
+            document.getElementById('portfolioCategory').value = '';
+            document.getElementById('portfolioCaption').value = '';
+            document.getElementById('portfolioCommercial').checked = false;
 
             if (id) {
                 const item = allPortfolioItems.find(i => i.id === id);
                 if (item) {
                     document.getElementById('portfolioTitle').value = item.title;
-                    document.getElementById('portfolioPhotoType').value = item.photoType || 'other';
                     document.getElementById('portfolioCategory').value = item.category;
                     document.getElementById('portfolioCaption').value = item.caption;
                     document.getElementById('portfolioCommercial').checked = !!item.commercial;
-                    if (item.photoUrl) {
-                        document.getElementById('portfolio-preview-img').src = item.photoUrl;
-                        document.getElementById('portfolio-upload-preview').style.display = '';
-                        document.getElementById('portfolio-upload-prompt').style.display = 'none';
-                    }
+                    _portfolioState.existingPhotos = _pfPhotos(item).map(p => ({ ...p }));
                 }
-            } else {
-                document.getElementById('portfolioTitle').value = '';
-                document.getElementById('portfolioPhotoType').value = 'after';
-                document.getElementById('portfolioCategory').value = '';
-                document.getElementById('portfolioCaption').value = '';
-                document.getElementById('portfolioCommercial').checked = false;
             }
+
+            _renderPortfolioPhotoList();
             openModal('portfolioModal');
         }
 
         function closePortfolioModal() { closeModal('portfolioModal'); }
+
+        function _pfTypeOptions(selected) {
+            return [['before','📷 Before'],['after','✅ After'],['other','📌 Other']].map(([v,l]) =>
+                \`<option value="\${v}"\${selected === v ? ' selected' : ''}>\${l}</option>\`).join('');
+        }
+
+        function _renderPortfolioPhotoList() {
+            const container = document.getElementById('portfolio-photo-list');
+            const { existingPhotos, stagedPhotos } = _portfolioState;
+            const total = existingPhotos.length + stagedPhotos.length;
+
+            if (!total) {
+                container.innerHTML = '<div style="text-align:center;padding:1.25rem;color:#9ca3af;font-size:0.88rem;border:2px dashed #e2e8f0;border-radius:8px;">No photos yet — click "+ Add Photo" above.</div>';
+                return;
+            }
+
+            let html = '';
+            existingPhotos.forEach((p, idx) => {
+                html += \`<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:#f8fafc;border-radius:8px;margin-bottom:0.4rem;">
+                    <img src="\${p.url}" alt="" style="width:58px;height:44px;object-fit:cover;border-radius:5px;flex-shrink:0;">
+                    <select onchange="_portfolioState.existingPhotos[\${idx}].type=this.value" style="flex:1;padding:0.3rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">
+                        \${_pfTypeOptions(p.type)}
+                    </select>
+                    <button onclick="removeExistingPfPhoto(\${p.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
+                </div>\`;
+            });
+            stagedPhotos.forEach((p, idx) => {
+                html += \`<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;margin-bottom:0.4rem;">
+                    <img src="\${p.dataUrl}" alt="" style="width:58px;height:44px;object-fit:cover;border-radius:5px;flex-shrink:0;">
+                    <select onchange="_portfolioState.stagedPhotos[\${idx}].type=this.value" style="flex:1;padding:0.3rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">
+                        \${_pfTypeOptions(p.type)}
+                    </select>
+                    <button onclick="removeStagedPfPhoto(\${idx})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
+                </div>\`;
+            });
+            container.innerHTML = html;
+        }
+
+        function removeExistingPfPhoto(photoId) {
+            _portfolioState.removedIds.push(photoId);
+            _portfolioState.existingPhotos = _portfolioState.existingPhotos.filter(p => p.id !== photoId);
+            _renderPortfolioPhotoList();
+        }
+
+        function removeStagedPfPhoto(idx) {
+            _portfolioState.stagedPhotos.splice(idx, 1);
+            _renderPortfolioPhotoList();
+        }
 
         async function compressPortfolioImage(file) {
             return new Promise((resolve, reject) => {
@@ -8144,7 +8221,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const img = new Image();
                 img.onload = () => {
                     URL.revokeObjectURL(url);
-                    // Scale down more aggressively for large files
                     const MAX = file.size > 5 * 1024 * 1024 ? 900 : 1200;
                     let w = img.width, h = img.height;
                     if (w > MAX || h > MAX) {
@@ -8154,17 +8230,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const canvas = document.createElement('canvas');
                     canvas.width = w; canvas.height = h;
                     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-                    // Step quality down until under 800KB
                     const tryQuality = (q) => {
                         canvas.toBlob((blob) => {
                             if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
-                            if (blob.size > 800 * 1024 && q > 0.4) {
-                                tryQuality(Math.round((q - 0.1) * 10) / 10);
-                            } else {
-                                const name = file.name.replace(/\.[^.]+$/, '.jpg');
-                                resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
-                            }
+                            if (blob.size > 800 * 1024 && q > 0.4) tryQuality(Math.round((q - 0.1) * 10) / 10);
+                            else resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg', lastModified: Date.now() }));
                         }, 'image/jpeg', q);
                     };
                     tryQuality(0.82);
@@ -8174,66 +8244,67 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
         }
 
-        async function handlePortfolioPhoto(input) {
+        async function handlePortfolioPhotoAdd(input) {
             const file = input.files[0];
             if (!file) return;
-            const zone = document.getElementById('portfolio-upload-zone');
-            const prompt = document.getElementById('portfolio-upload-prompt');
-            zone.style.opacity = '0.6';
-            prompt.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;">⏳ Compressing...</div>';
+            input.value = '';
+            const btn = document.querySelector('#portfolioModal button[onclick*="portfolioFileInput"]');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Processing...'; }
             try {
                 const compressed = await compressPortfolioImage(file);
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    _portfolioPhotoData = { dataUrl: e.target.result, name: compressed.name, type: compressed.type };
-                    document.getElementById('portfolio-preview-img').src = e.target.result;
-                    document.getElementById('portfolio-upload-preview').style.display = '';
-                    prompt.style.display = 'none';
-                };
-                reader.readAsDataURL(compressed);
+                await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        _portfolioState.stagedPhotos.push({ dataUrl: e.target.result, type: 'after', fileType: compressed.type, name: compressed.name });
+                        _renderPortfolioPhotoList();
+                        resolve();
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(compressed);
+                });
             } catch (err) {
-                console.error('Compression failed:', err);
-                prompt.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;">⚠️ Could not process image. Try a different file.</div>';
+                alert('Could not process image: ' + err.message);
             } finally {
-                zone.style.opacity = '1';
+                if (btn) { btn.disabled = false; btn.textContent = '+ Add Photo'; }
             }
         }
 
         async function savePortfolioItem() {
-            const id = document.getElementById('portfolioEditId').value;
+            const { editId, existingPhotos, stagedPhotos, removedIds } = _portfolioState;
             const title = document.getElementById('portfolioTitle').value.trim();
-            const photoType = document.getElementById('portfolioPhotoType').value;
             const category = document.getElementById('portfolioCategory').value;
             const caption = document.getElementById('portfolioCaption').value.trim();
             const commercial = document.getElementById('portfolioCommercial').checked;
 
-            if (!id && !_portfolioPhotoData) { alert('Please select a photo.'); return; }
+            if (!editId && !stagedPhotos.length) { alert('Please add at least one photo.'); return; }
 
             const saveBtn = document.querySelector('#portfolioModal .btn-primary');
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving...';
 
             try {
-                if (id) {
-                    const body = { title, photoType, category, caption, commercial };
-                    if (_portfolioPhotoData) {
-                        body.fileData = _portfolioPhotoData.dataUrl;
-                        body.fileName = _portfolioPhotoData.name;
-                        body.fileType = _portfolioPhotoData.type;
-                    }
-                    if (_portfolioPhotoData) {
-                        await fetch('/api/portfolio/' + id, { method: 'DELETE' });
-                        const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...body }) });
-                        if (!res.ok) throw new Error('Save failed');
-                    } else {
-                        const res = await fetch('/api/portfolio/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-                        if (!res.ok) throw new Error('Save failed');
-                    }
+                let entryId = editId;
+
+                if (!editId) {
+                    const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, caption, category, commercial }) });
+                    if (!res.ok) throw new Error('Failed to create entry');
+                    entryId = (await res.json()).id;
                 } else {
-                    const body = { title, photoType, category, caption, commercial, fileData: _portfolioPhotoData.dataUrl, fileName: _portfolioPhotoData.name, fileType: _portfolioPhotoData.type };
-                    const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-                    if (!res.ok) throw new Error('Save failed');
+                    const res = await fetch('/api/portfolio/' + editId, { method: 'PUT', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ title, caption, category, commercial, photos: existingPhotos.map(p => ({ id: p.id, s3Key: p.s3Key, url: p.url, type: p.type })) }) });
+                    if (!res.ok) throw new Error('Failed to update entry');
+                    for (const photoId of removedIds) {
+                        if (photoId !== 0) await fetch(\`/api/portfolio/\${editId}/photo/\${photoId}\`, { method: 'DELETE' });
+                    }
                 }
+
+                for (let i = 0; i < stagedPhotos.length; i++) {
+                    saveBtn.textContent = \`Uploading \${i + 1}/\${stagedPhotos.length}...\`;
+                    const sp = stagedPhotos[i];
+                    await fetch(\`/api/portfolio/\${entryId}/photo\`, { method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ fileData: sp.dataUrl, fileType: sp.fileType, type: sp.type }) });
+                }
+
                 closePortfolioModal();
                 loadPortfolio();
             } catch (err) {
@@ -8245,7 +8316,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function deletePortfolioItem(id) {
-            if (!confirm('Remove this item from your portfolio?')) return;
+            if (!confirm('Delete this portfolio project and all its photos?')) return;
             await fetch('/api/portfolio/' + id, { method: 'DELETE' });
             loadPortfolio();
         }
