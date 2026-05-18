@@ -4545,6 +4545,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 // Show follow-up fields if follow-up is set
                 toggleFollowUpFields();
+                window._origFollowUpDate = job.followUpDate || null;
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
@@ -4552,6 +4553,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('clientTypeaheadDropdown').style.display = 'none';
                 document.getElementById('serviceLocationGroup').style.display = 'none';
                 document.querySelectorAll('.job-team-cb').forEach(cb => cb.checked = false);
+                window._origFollowUpDate = null;
             }
 
             renderLineItems();
@@ -5761,11 +5763,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             container.innerHTML = touchPoints.slice().reverse().map(tp => {
                 const date = new Date(tp.timestamp);
                 const formattedDate = date.toLocaleString();
-                const borderColor = tp.fromQuote ? '#9f7aea' : '#667eea';
-                const srcBadge = tp.fromQuote
+                const borderColor = tp.type === 'follow_up' ? '#ed8936'
+                    : tp.type === 'follow_up_done' ? '#48bb78'
+                    : tp.fromQuote ? '#9f7aea' : '#667eea';
+                const srcBadge = tp.type === 'follow_up'
+                    ? \`<span style="background:#ed8936;color:white;font-size:0.68rem;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;">FOLLOW-UP</span>\`
+                    : tp.type === 'follow_up_done'
+                    ? \`<span style="background:#48bb78;color:white;font-size:0.68rem;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;">DONE</span>\`
+                    : tp.fromQuote
                     ? \`<span style="background:#9f7aea;color:white;font-size:0.68rem;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;">QUOTE</span>\`
                     : '';
-                const deleteBtn = tp.fromQuote
+                const deleteBtn = (tp.fromQuote || tp.type === 'follow_up_done')
                     ? ''
                     : \`<button type="button" onclick="removeTouchPoint(\${tp.id})" style="background:transparent;border:none;color:#e53e3e;cursor:pointer;padding:0;font-size:1.2rem;line-height:1;">&times;</button>\`;
 
@@ -5821,6 +5829,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Handle checkboxes - won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
             job.followUp = document.getElementById('followUpCheckbox').checked;
+
+            // Stamp a touchpoint when a follow-up is newly set or its date changes
+            if (job.followUp && job.followUpDate && job.followUpDate !== window._origFollowUpDate) {
+                const timeStr = job.followUpTime ? ` at ${job.followUpTime}` : '';
+                const noteStr = job.followUpNote ? ` — ${job.followUpNote}` : '';
+                touchPoints.push({
+                    id: Date.now(),
+                    note: `🔔 Follow-up scheduled for ${job.followUpDate}${timeStr}${noteStr}`,
+                    timestamp: new Date().toISOString(),
+                    user: document.getElementById('currentUserName')?.textContent || 'Admin',
+                    type: 'follow_up'
+                });
+            }
 
             // Calculate totals
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);

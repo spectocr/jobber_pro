@@ -2754,9 +2754,18 @@ app.get('/api/surveys', isAuthenticated, async (req, res) => {
 // Admin: resend survey for a job
 app.post('/api/jobs/:id/dismiss-followup', isAuthenticated, async (req, res) => {
     try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const touchPoint = {
+            id: Date.now(),
+            note: `✅ Follow-up completed${job.followUpDate ? ` (was due ${job.followUpDate})` : ''}${job.followUpNote ? ` — ${job.followUpNote}` : ''}`,
+            timestamp: new Date().toISOString(),
+            user: req.session.userName || 'Admin',
+            type: 'follow_up_done'
+        };
         await db.collection('jobs').updateOne(
             { _id: new ObjectId(req.params.id) },
-            { $set: { followUpDone: true, updatedAt: new Date() } }
+            { $set: { followUpDone: true, updatedAt: new Date() }, $push: { touchPoints: touchPoint } }
         );
         res.json({ success: true });
     } catch (e) {
