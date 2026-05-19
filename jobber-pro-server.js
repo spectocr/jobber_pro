@@ -6179,7 +6179,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return false;
                 }
                 if (periodStart) {
-                    const d = j.scheduledDate || '';
+                    // Use same date resolution as the revenue chart
+                    const raw = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
+                    const d = raw ? new Date(raw).toISOString().slice(0, 10) : '';
                     if (!d || d < periodStart || d >= periodEnd) return false;
                 }
                 if (clientFilter) {
@@ -7940,7 +7942,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const grp = document.getElementById('filter-period-months');
             if (!grp) return;
             const months = new Set();
-            jobs.forEach(j => { if (j.scheduledDate) months.add(j.scheduledDate.slice(0, 7)); });
+            jobs.forEach(j => {
+                const raw = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
+                if (raw) months.add(new Date(raw).toISOString().slice(0, 7));
+            });
             const sorted = Array.from(months).sort().reverse();
             const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             grp.innerHTML = sorted.map(key => {
