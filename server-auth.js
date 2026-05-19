@@ -7661,6 +7661,9 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             while (tmp.firstChild) document.body.appendChild(tmp.firstChild);
             document.getElementById('pm-lightbox').style.display = 'none';
             document.addEventListener('keydown', function(e){ if(e.key==='Escape'){pmCloseLb();pmCloseProject();} });
+            var st = document.createElement('style');
+            st.textContent = '.pm-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;}';
+            document.head.appendChild(st);
         }
 
         window._pmData = commercial;
@@ -7713,7 +7716,7 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             }
             var title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
             var caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
-            return '<div onclick="pmOpenProject('+idx+')" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;transition:transform .2s,box-shadow .2s;" onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.12)\'" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.07)\'">'
+            return '<div onclick="pmOpenProject('+idx+')" class="pm-card" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;transition:transform .2s,box-shadow .2s;">'
                 +'<div style="'+containerStyle+'">'+inner+'</div>'
                 +'<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'
                 +title+caption+'</div></div>';
@@ -7830,6 +7833,9 @@ const HOME_PORTFOLIO_NEW = `(function(){
                     +'<img id="hp-lb-img" src="" alt="" style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:8px;"></div>';
                 while (el.firstChild) document.body.appendChild(el.firstChild);
                 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){hpCloseLb();hpCloseProject();} });
+                var st = document.createElement('style');
+                st.textContent = '.hp-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;}';
+                document.head.appendChild(st);
             }
 
             window._hpData = show;
@@ -7880,7 +7886,7 @@ const HOME_PORTFOLIO_NEW = `(function(){
                         +sp.map(function(p){return '<div style="position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('')
                         +'</div>';
                 }
-                return '<div onclick="hpOpenProject('+idx+')" style="border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);background:white;cursor:pointer;transition:transform .2s,box-shadow .2s;" onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.12)\'" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.08)\'">'+inner
+                return '<div onclick="hpOpenProject('+idx+')" class="hp-card" style="border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);background:white;cursor:pointer;transition:transform .2s,box-shadow .2s;">'+inner
                     +(item.title||item.category ? '<div style="padding:0.65rem 0.85rem;font-weight:600;color:#1f2937;font-size:0.9rem;">'+(item.title||item.category)+'</div>' : '')
                     +'</div>';
             }).join('');
