@@ -2062,7 +2062,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
                     .filter(e => { const dt = typeof e.date === 'string' ? e.date : (e.date instanceof Date ? e.date.toISOString() : String(e.date || '')); return dt.startsWith(key); })
                     .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
                 const profit = revenue - materialCosts - monthExpenses;
-                months.push({ key, label, revenue, profit });
+                months.push({ key, label, revenue, profit, materialCosts, monthExpenses });
             }
             return months;
         })(),

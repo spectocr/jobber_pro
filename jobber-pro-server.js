@@ -6234,6 +6234,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const months = stats.revenueByMonth;
                 const svg = document.getElementById('revenueTrendSvg');
                 if (!svg || !months || months.length === 0) return;
+                console.log('Revenue by month:', months.map(m => ({ month: m.key, revenue: m.revenue, materialCosts: m.materialCosts, expenses: m.monthExpenses, profit: m.profit })));
                 const maxVal = Math.max(...months.map(m => m.revenue), 1);
                 const W = 600, chartH = 115, barAreaW = W / months.length;
                 const pairW = barAreaW * 0.58;
@@ -6249,18 +6250,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const revFill = isCurrent ? '#667eea' : '#c4cafe';
 
                     const profit = m.profit || 0;
-                    const profH = profit > 0 ? Math.max(4, (profit / maxVal) * chartH) : 0;
+                    const profAbs = Math.abs(profit);
+                    const profH = profAbs > 0 ? Math.max(4, (profAbs / maxVal) * chartH) : 0;
                     const profY = chartH - profH;
-                    const profFill = isCurrent ? '#48bb78' : '#9ae6b4';
+                    const isNegProfit = profit < 0;
+                    const profFill = isNegProfit ? (isCurrent ? '#ed8936' : '#fbd38d') : (isCurrent ? '#48bb78' : '#9ae6b4');
 
                     const fmt = v => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${Math.round(v)}`;
                     const revLabel = m.revenue > 0 ? fmt(m.revenue) : '';
                     const revLabelY = revY < 18 ? revY + 14 : Math.max(11, revY - 4);
                     const revLabelFill = revY < 18 ? 'white' : (isCurrent ? '#667eea' : '#a0aec0');
 
-                    const profLabel = profit > 0 ? fmt(profit) : '';
+                    const profLabel = profH > 0 ? (isNegProfit ? `-${fmt(profAbs)}` : fmt(profit)) : '';
                     const profLabelY = profH > 0 ? (profY < 18 ? profY + 14 : Math.max(11, profY - 4)) : 0;
-                    const profLabelFill = profY < 18 ? 'white' : (isCurrent ? '#38a169' : '#68d391');
+                    const profLabelFill = isNegProfit ? (isCurrent ? '#c05621' : '#dd6b20') : (profY < 18 ? 'white' : (isCurrent ? '#38a169' : '#68d391'));
 
                     const centerX = (rx + singleW / 2 + px + singleW / 2) / 2;
 
