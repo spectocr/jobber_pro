@@ -13856,12 +13856,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '</div>';
             };
 
-            const adminToggle = (field, done, label) =>
-                check(done, label,
-                    '<div style="margin-top:0.35rem;">' +
-                    '<label style="font-size:0.82rem;color:#718096;cursor:pointer;">' +
-                    '<input type="checkbox" ' + (done ? 'checked' : '') + ' style="accent-color:#48bb78;margin-right:4px;" onchange="toggleAdminOnboarding(\'' + id + '\',\'' + field + '\',this.checked)"> Mark as completed (in-person)</label>' +
-                    '</div>');
+            const i9Done = !!ob.i9Section2?.completedAt;
+            const i9Row = check(i9Done, 'I-9 Section 2 — verify identity documents in person',
+                '<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' +
+                '<a href="https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;">📄 Download I-9 Form</a>' +
+                '<a href="https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;">📋 Acceptable Documents</a>' +
+                '</div>' +
+                '<div style="margin-top:0.4rem;"><label style="font-size:0.82rem;color:#718096;cursor:pointer;">' +
+                '<input type="checkbox" ' + (i9Done ? 'checked' : '') + ' style="accent-color:#48bb78;margin-right:4px;" onchange="toggleAdminOnboarding(\'' + id + '\',\'i9Section2\',this.checked)"> Mark as completed (verified in person)</label></div>');
+
+            const jdDone = !!ob.jobDescription?.completedAt;
+            const jdText = ob.jobDescription?.text || '';
+            const jdRow = check(jdDone, 'Job description provided to employee',
+                '<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' +
+                '<button onclick="openJobDescModal(\'' + id + '\')" style="font-size:0.82rem;background:#faf5ff;color:#6b46c1;border:1px solid #d6bcfa;padding:3px 10px;border-radius:6px;cursor:pointer;font-weight:600;">' + (jdText ? '📝 View / Edit Description' : '📝 Write Description') + '</button>' +
+                '</div>' +
+                (jdText ? '<div style="margin-top:0.4rem;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.82rem;color:#4a5568;max-height:60px;overflow:hidden;position:relative;">' + jdText.slice(0, 120).replace(/\n/g, ' ') + (jdText.length > 120 ? '...' : '') + '</div>' : '') +
+                '<div style="margin-top:0.4rem;"><label style="font-size:0.82rem;color:#718096;cursor:pointer;">' +
+                '<input type="checkbox" ' + (jdDone ? 'checked' : '') + ' style="accent-color:#48bb78;margin-right:4px;" onchange="toggleAdminOnboarding(\'' + id + '\',\'jobDescription\',this.checked)"> Mark as provided to employee</label></div>');
 
             const inviteLabel = ob.inviteSentAt
                 ? 'Invite sent ' + new Date(ob.inviteSentAt).toLocaleDateString() + (ob.completedAt ? ' · <strong style="color:#276749;">Employee completed ' + new Date(ob.completedAt).toLocaleDateString() + '</strong>' : ' · <em style="color:#718096;">Awaiting employee</em>')
@@ -13871,9 +13883,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 check(!!ob.inviteSentAt, inviteLabel) +
                 check(!!ob.w4?.completedAt, 'W-4 withholding preferences' + (ob.w4?.filingStatus ? ' · ' + ob.w4.filingStatus : '')) +
                 check(!!ob.i9Section1?.completedAt, 'I-9 Section 1 (employee self-certification)') +
-                adminToggle('i9Section2', !!ob.i9Section2?.completedAt, 'I-9 Section 2 (verify ID documents in person)') +
+                i9Row +
                 check(!!ob.policyAck?.completedAt, 'Policy acknowledgments (no cash, safety, tools, OT)') +
-                adminToggle('jobDescription', !!ob.jobDescription?.completedAt, 'Job description provided to employee') +
+                jdRow +
                 check(!!(member.hourlyRate > 0), 'Pay rate defined' + (member.hourlyRate ? ' · $' + member.hourlyRate + '/hr' : ' · <em style="color:#e53e3e;">Not set — edit team member</em>')) +
                 '</div>';
 
@@ -13884,6 +13896,51 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 btn.textContent = ob.inviteSentAt ? '📧 Re-send Invite' : '📧 Send Invite';
                 btn.disabled = !hasEmail;
                 if (!hasEmail) btn.title = 'Add an email address to this team member first';
+            }
+        }
+
+        function openJobDescModal(memberId) {
+            const member = team.find(t => t.id === memberId);
+            const existing = member?.onboarding?.jobDescription?.text || '';
+            let modal = document.getElementById('jobDescModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'jobDescModal';
+                modal.className = 'modal';
+                modal.innerHTML =
+                    '<div class="modal-content" style="max-width:640px;">' +
+                    '<div class="modal-header"><h3>Job Description</h3><button class="modal-close" onclick="closeModal(\'jobDescModal\')">&times;</button></div>' +
+                    '<div style="padding:1.5rem;">' +
+                    '<p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Write a simple job description for this employee. Saving will mark this item as completed on their checklist.</p>' +
+                    '<textarea id="jobDescText" style="width:100%;height:260px;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.93rem;resize:vertical;font-family:inherit;line-height:1.6;" placeholder="Position: Field Technician&#10;&#10;Responsibilities:&#10;- Perform general handyman and property maintenance tasks&#10;- ..."></textarea>' +
+                    '<div style="display:flex;gap:0.75rem;margin-top:1rem;">' +
+                    '<button class="btn btn-primary" onclick="saveJobDescription()">💾 Save & Mark Provided</button>' +
+                    '<button class="btn btn-secondary" onclick="closeModal(\'jobDescModal\')">Cancel</button>' +
+                    '</div></div></div>';
+                document.body.appendChild(modal);
+            }
+            modal.dataset.memberId = memberId;
+            document.getElementById('jobDescText').value = existing;
+            openModal('jobDescModal');
+        }
+
+        async function saveJobDescription() {
+            const modal = document.getElementById('jobDescModal');
+            const memberId = modal.dataset.memberId;
+            const text = document.getElementById('jobDescText').value.trim();
+            if (!text) { alert('Please enter a job description.'); return; }
+            const r = await fetch('/api/team/' + memberId + '/job-description', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            if (r.ok) {
+                closeModal('jobDescModal');
+                await loadTeam();
+                const member = team.find(t => t.id === memberId);
+                if (member) renderOnboardingChecklist(member);
+            } else {
+                alert('Error saving. Please try again.');
             }
         }
 

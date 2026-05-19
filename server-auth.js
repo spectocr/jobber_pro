@@ -3831,6 +3831,18 @@ app.post('/api/onboarding/:token', async (req, res) => {
     res.json({ success: true });
 });
 
+// Save job description text for a team member
+app.post('/api/team/:id/job-description', isAdmin, async (req, res) => {
+    const { text } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: 'Job description text required' });
+    const now = new Date();
+    await db.collection('team').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { 'onboarding.jobDescription': { text: text.trim(), completedAt: now, completedBy: req.session.userName, updatedAt: now } } }
+    );
+    res.json({ success: true });
+});
+
 // Business-level compliance settings
 app.get('/api/settings/compliance', isAdmin, async (req, res) => {
     const s = await db.collection('settings').findOne({}, { projection: { compliance: 1 } });
