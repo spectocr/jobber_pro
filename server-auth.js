@@ -1404,6 +1404,7 @@ app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
 // Google Reviews proxy — keeps API key server-side, caches 1hr
 let reviewsCache = null;
 let reviewsCachedAt = 0;
+// bump this when the fetch logic changes to force a cache miss on next request
 
 app.get('/api/public/reviews', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', 'https://gsdhandymanservice.com');
@@ -1423,7 +1424,7 @@ app.get('/api/public/reviews', async (req, res) => {
 
     try {
         const https = require('https');
-        const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,reviews&key=${apiKey}&languageCode=en`;
+        const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,reviews&key=${apiKey}&languageCode=en&reviewSort=newestFirst`;
 
         const data = await new Promise((resolve, reject) => {
             https.get(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } }, (r) => {
@@ -1442,6 +1443,7 @@ app.get('/api/public/reviews', async (req, res) => {
 
         const reviews = (data.reviews || [])
             .filter(r => r.rating >= 4)
+            .sort((a, b) => new Date(b.publishTime || 0) - new Date(a.publishTime || 0))
             .map(r => ({
                 author: r.authorAttribution?.displayName || 'Anonymous',
                 rating: r.rating,
