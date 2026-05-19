@@ -6234,7 +6234,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const months = stats.revenueByMonth;
                 const svg = document.getElementById('revenueTrendSvg');
                 if (!svg || !months || months.length === 0) return;
-                console.log('Revenue by month:', months.map(m => ({ month: m.key, revenue: m.revenue, materialCosts: m.materialCosts, expenses: m.monthExpenses, profit: m.profit })));
                 const maxVal = Math.max(...months.map(m => m.revenue), 1);
                 const W = 600, chartH = 115, barAreaW = W / months.length;
                 const pairW = barAreaW * 0.58;
