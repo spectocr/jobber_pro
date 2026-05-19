@@ -547,6 +547,173 @@ const RESET_PASSWORD_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+function buildOnboardingHtml(member, token, settings) {
+    const appName = settings?.companyName || settings?.appName || 'GSD Property Services';
+    const nameParts = (member.name || '').split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(-1)[0] || '';
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Employee Onboarding — ${appName}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f4f8;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;}
+.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);max-width:580px;width:100%;padding:2rem;}
+.logo{text-align:center;margin-bottom:1.5rem;}
+.logo h1{color:#667eea;font-size:1.4rem;}
+.logo p{color:#718096;margin-top:0.25rem;font-size:0.95rem;}
+.steps{display:flex;margin-bottom:2rem;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;}
+.step-tab{flex:1;padding:0.6rem 0.25rem;text-align:center;font-size:0.78rem;font-weight:600;color:#718096;background:#f7fafc;border-right:1px solid #e2e8f0;}
+.step-tab:last-child{border-right:none;}
+.step-tab.active{background:#667eea;color:white;}
+.step-tab.done{background:#c6f6d5;color:#276749;}
+h3{color:#2d3748;margin-bottom:1.25rem;font-size:1.05rem;}
+label{display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.3rem;margin-top:0.9rem;}
+label:first-of-type{margin-top:0;}
+input[type=text],input[type=date],input[type=number],select{width:100%;padding:0.6rem 0.8rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.95rem;color:#2d3748;background:white;}
+input:focus,select:focus{outline:none;border-color:#667eea;}
+.two-col{display:grid;grid-template-columns:1fr 56px;gap:0.75rem;align-items:end;}
+.note{background:#ebf8ff;border-left:3px solid #63b3ed;padding:0.7rem 1rem;border-radius:4px;font-size:0.83rem;color:#2c5282;margin-top:1rem;line-height:1.5;}
+.warn{background:#fffbea;border-left:3px solid #f6e05e;padding:0.7rem 1rem;border-radius:4px;font-size:0.83rem;color:#744210;margin-top:1rem;line-height:1.5;}
+.policy-item{display:flex;gap:0.75rem;align-items:flex-start;padding:0.9rem 1rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.65rem;cursor:pointer;}
+.policy-item:hover{border-color:#667eea;background:#f7f8ff;}
+.policy-item.checked{border-color:#48bb78;background:#f0fff4;}
+.policy-item input[type=checkbox]{margin-top:3px;flex-shrink:0;width:17px;height:17px;cursor:pointer;accent-color:#48bb78;}
+.policy-item p{color:#2d3748;font-size:0.88rem;line-height:1.55;margin:0;pointer-events:none;}
+.policy-item strong{display:block;margin-bottom:0.2rem;}
+.btn-row{display:flex;gap:0.75rem;margin-top:1.75rem;}
+.btn{padding:0.7rem 1.4rem;border-radius:8px;border:none;font-size:0.95rem;font-weight:600;cursor:pointer;}
+.btn-primary{background:#667eea;color:white;flex:1;}
+.btn-secondary{background:#e2e8f0;color:#4a5568;}
+.err{color:#e53e3e;font-size:0.83rem;margin-top:0.5rem;display:none;}
+.step-content{display:none;}
+.step-content.active{display:block;}
+.success-wrap{text-align:center;padding:1.5rem 0;}
+.success-wrap .icon{font-size:3rem;margin-bottom:1rem;}
+.success-wrap h3{color:#276749;font-size:1.25rem;margin-bottom:0.75rem;}
+.success-wrap p{color:#4a5568;line-height:1.6;margin-bottom:0.5rem;}
+.success-wrap ul{text-align:left;display:inline-block;color:#4a5568;line-height:2;margin-top:0.5rem;padding-left:1.25rem;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>${appName}</h1>
+    <p>Welcome, <strong>${member.name}</strong> — please complete your employment paperwork below.</p>
+  </div>
+  <div class="steps" id="stepTabs">
+    <div class="step-tab active" data-step="1">1. Tax Info</div>
+    <div class="step-tab" data-step="2">2. Eligibility</div>
+    <div class="step-tab" data-step="3">3. Policies</div>
+  </div>
+  <div class="step-content active" id="step-1">
+    <h3>W-4 Withholding Preferences</h3>
+    <label for="filingStatus">Filing Status</label>
+    <select id="filingStatus">
+      <option value="single">Single or Married Filing Separately</option>
+      <option value="married">Married Filing Jointly (or Qualifying Widow(er))</option>
+      <option value="head">Head of Household</option>
+    </select>
+    <label for="dependentsAmt">Dependent Tax Credit Amount (annual $, optional)</label>
+    <input type="number" id="dependentsAmt" placeholder="e.g. 2000 per child under 17" min="0" step="500">
+    <label for="extraWithholding">Extra Withholding Per Pay Period (optional)</label>
+    <input type="number" id="extraWithholding" placeholder="0" min="0" step="1">
+    <div class="note">A paper W-4 will also be required on your first day. This helps your employer configure withholding in the payroll system.</div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="nextStep()">Next: Eligibility →</button></div>
+  </div>
+  <div class="step-content" id="step-2">
+    <h3>Employment Eligibility (I-9)</h3>
+    <div class="two-col">
+      <div><label for="i9First">First Name</label><input type="text" id="i9First" placeholder="First name" value="${firstName}"></div>
+      <div><label for="i9MI">MI</label><input type="text" id="i9MI" maxlength="1" placeholder="M"></div>
+    </div>
+    <label for="i9Last">Last Name</label>
+    <input type="text" id="i9Last" placeholder="Last name" value="${lastName}">
+    <label for="i9DOB">Date of Birth</label>
+    <input type="date" id="i9DOB">
+    <label for="citizenStatus">Citizenship / Immigration Status</label>
+    <select id="citizenStatus">
+      <option value="citizen">U.S. Citizen or U.S. National</option>
+      <option value="permanent_resident">Lawful Permanent Resident</option>
+      <option value="authorized">Alien Authorized to Work</option>
+    </select>
+    <div class="warn">You must present <strong>original identity documents</strong> on your first day — e.g., a U.S. Passport, or Driver's License + Social Security card. Photocopies are not accepted.</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Next: Policies →</button>
+    </div>
+  </div>
+  <div class="step-content" id="step-3">
+    <h3>Policy Acknowledgments</h3>
+    <p style="color:#718096;font-size:0.88rem;margin-bottom:1.1rem;">Read and check each item to confirm you understand.</p>
+    <div class="policy-item" onclick="togglePolicy('pol1')">
+      <input type="checkbox" id="pol1">
+      <p><strong>No Cash Payroll</strong>All wages are paid by check or direct deposit only. No cash payments will be made.</p>
+    </div>
+    <div class="policy-item" onclick="togglePolicy('pol2')">
+      <input type="checkbox" id="pol2">
+      <p><strong>Safety Expectations</strong>I agree to follow all safety requirements, use appropriate PPE, report hazards immediately, and follow safe work practices on all job sites.</p>
+    </div>
+    <div class="policy-item" onclick="togglePolicy('pol3')">
+      <input type="checkbox" id="pol3">
+      <p><strong>Tool Policy</strong>${appName} provides power tools and major equipment. Employees supply basic hand tools. Personal tools on job sites are the employee's own responsibility.</p>
+    </div>
+    <div class="policy-item" onclick="togglePolicy('pol4')">
+      <input type="checkbox" id="pol4">
+      <p><strong>Overtime</strong>Overtime (over 40 hrs/week) is paid at 1.5\xd7 my regular rate per NJ law and must be pre-approved.</p>
+    </div>
+    <div class="err" id="polErr">Please acknowledge all four policies before submitting.</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="submitOnboarding()">✓ Submit Onboarding</button>
+    </div>
+  </div>
+  <div class="step-content" id="step-success">
+    <div class="success-wrap">
+      <div class="icon">✅</div>
+      <h3>You're all set, ${firstName}!</h3>
+      <p>Your onboarding information has been submitted. Your employer will follow up with next steps.</p>
+      <p style="margin-top:1rem;font-weight:600;color:#2d3748;">Please bring on your first day:</p>
+      <ul>
+        <li>Original ID documents (U.S. Passport, or Driver's License + SS card)</li>
+        <li>Voided check if setting up direct deposit</li>
+        <li>Paper W-4 (your employer will have one ready)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<script>
+var cur=1,tok='${token}';
+function nextStep(){
+  if(cur===2){if(!document.getElementById('i9First').value.trim()||!document.getElementById('i9Last').value.trim()||!document.getElementById('i9DOB').value){alert('Please complete your name and date of birth.');return;}}
+  if(cur<3){setTab(cur,'done');cur++;document.getElementById('step-'+cur).classList.add('active');setTab(cur,'active');document.getElementById('step-'+(cur-1)).classList.remove('active');}
+}
+function prevStep(){
+  if(cur>1){setTab(cur,'');cur--;document.getElementById('step-'+cur).classList.add('active');setTab(cur,'active');document.getElementById('step-'+(cur+1)).classList.remove('active');}
+}
+function setTab(n,s){var t=document.querySelector('[data-step="'+n+'"]');t.className='step-tab'+(s?' '+s:'');}
+function togglePolicy(id){var c=document.getElementById(id);c.checked=!c.checked;c.closest('.policy-item').classList.toggle('checked',c.checked);}
+async function submitOnboarding(){
+  var all=['pol1','pol2','pol3','pol4'].every(function(id){return document.getElementById(id).checked;});
+  if(!all){document.getElementById('polErr').style.display='block';return;}
+  document.getElementById('polErr').style.display='none';
+  var body={w4:{filingStatus:document.getElementById('filingStatus').value,dependentsAmt:parseFloat(document.getElementById('dependentsAmt').value)||0,extraWithholding:parseFloat(document.getElementById('extraWithholding').value)||0},i9:{firstName:document.getElementById('i9First').value.trim(),middleInitial:document.getElementById('i9MI').value.trim(),lastName:document.getElementById('i9Last').value.trim(),dob:document.getElementById('i9DOB').value,citizenStatus:document.getElementById('citizenStatus').value},policies:{acknowledged:true}};
+  try{
+    var r=await fetch('/api/onboarding/'+tok,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error();
+    document.getElementById('step-3').classList.remove('active');
+    document.getElementById('stepTabs').style.display='none';
+    document.getElementById('step-success').classList.add('active');
+  }catch(e){alert('Error submitting. Please try again or contact your employer.');}
+}
+</script>
+</body>
+</html>`;
+}
+
 // Start Express app
 const app = express();
 
@@ -3588,6 +3755,138 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
 app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
     await db.collection('team').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
+});
+
+// Send onboarding invite email with one-time token
+app.post('/api/team/:id/send-onboarding', isAdmin, async (req, res) => {
+    const member = await db.collection('team').findOne({ _id: new ObjectId(req.params.id) });
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+    if (!member.email) return res.status(400).json({ error: 'Team member has no email address' });
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await db.collection('team').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { 'onboarding.inviteToken': token, 'onboarding.inviteTokenExpiry': expiry, 'onboarding.inviteSentAt': new Date() } }
+    );
+    const settings = await db.collection('settings').findOne({});
+    const appName = settings?.companyName || settings?.appName || 'GSD Property Services';
+    const url = `${process.env.APP_URL}/onboarding/${token}`;
+    await emailService.sendEmail({
+        to: member.email,
+        subject: `${appName} — Complete Your Employee Onboarding`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;">
+            <h2 style="color:#667eea;">Welcome to ${appName}, ${member.name.split(' ')[0]}!</h2>
+            <p style="color:#4a5568;">Please complete your employment onboarding paperwork by clicking the button below. The link expires in 7 days.</p>
+            <div style="text-align:center;margin:2rem 0;">
+                <a href="${url}" style="display:inline-block;background:#667eea;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">Complete Onboarding →</a>
+            </div>
+            <p style="color:#718096;font-size:0.85rem;">Or copy this link: <a href="${url}" style="color:#667eea;">${url}</a></p>
+            <p style="color:#718096;font-size:0.85rem;margin-top:1rem;">Questions? Reply to this email or contact your employer directly.</p>
+        </div>`,
+        text: `Complete your onboarding at: ${url}\n\nLink expires in 7 days.`
+    });
+    res.json({ success: true });
+});
+
+// Admin marks per-employee onboarding items (i9Section2, jobDescription)
+app.post('/api/team/:id/onboarding', isAdmin, async (req, res) => {
+    const { field, value } = req.body;
+    const allowed = ['i9Section2', 'jobDescription'];
+    if (!allowed.includes(field)) return res.status(400).json({ error: 'Invalid field' });
+    const now = new Date();
+    const update = {};
+    update[`onboarding.${field}`] = value ? { completedAt: now, completedBy: req.session.userName } : null;
+    await db.collection('team').updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
+    res.json({ success: true });
+});
+
+// Public onboarding form (no auth — token-gated)
+app.get('/onboarding/:token', async (req, res) => {
+    const member = await db.collection('team').findOne({
+        'onboarding.inviteToken': req.params.token,
+        'onboarding.inviteTokenExpiry': { $gt: new Date() }
+    });
+    if (!member) return res.status(400).send('<div style="font-family:sans-serif;padding:3rem;text-align:center;"><h2>This onboarding link is invalid or has expired.</h2><p>Contact your employer for a new link.</p></div>');
+    const settings = await db.collection('settings').findOne({});
+    res.send(buildOnboardingHtml(member, req.params.token, settings));
+});
+
+// Employee submits onboarding form
+app.post('/api/onboarding/:token', async (req, res) => {
+    const member = await db.collection('team').findOne({
+        'onboarding.inviteToken': req.params.token,
+        'onboarding.inviteTokenExpiry': { $gt: new Date() }
+    });
+    if (!member) return res.status(400).json({ error: 'Invalid or expired token' });
+    const { w4, i9, policies } = req.body;
+    const now = new Date();
+    await db.collection('team').updateOne({ _id: member._id }, {
+        $set: {
+            'onboarding.w4': { ...w4, completedAt: now },
+            'onboarding.i9Section1': { ...i9, completedAt: now },
+            'onboarding.policyAck': { acknowledged: true, completedAt: now },
+            'onboarding.completedAt': now,
+        }
+    });
+    res.json({ success: true });
+});
+
+// Business-level compliance settings
+app.get('/api/settings/compliance', isAdmin, async (req, res) => {
+    const s = await db.collection('settings').findOne({}, { projection: { compliance: 1 } });
+    res.json(s?.compliance || {});
+});
+app.post('/api/settings/compliance', isAdmin, async (req, res) => {
+    await db.collection('settings').updateOne({}, { $set: { compliance: req.body, updatedAt: new Date() } }, { upsert: true });
+    res.json({ success: true });
+});
+
+// Payroll summary — approved time entries for a date range with NJ tax estimates
+app.get('/api/payroll/summary', isAdmin, async (req, res) => {
+    const { start, end } = req.query;
+    if (!start || !end) return res.status(400).json({ error: 'start and end required' });
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate   = new Date(end   + 'T23:59:59');
+
+    const [entries, teamDocs, settings] = await Promise.all([
+        db.collection('timeentries').find({ status: 'approved', clockIn: { $gte: startDate, $lte: endDate } }).toArray(),
+        db.collection('team').find({}).toArray(),
+        db.collection('settings').findOne({})
+    ]);
+
+    const rates = settings?.payrollRates || { fica: 0.0765, sui: 0.028, wfd: 0.000425, empSDI: 0.0009, empFLI: 0.0009 };
+
+    const rateMap = {};
+    teamDocs.forEach(m => {
+        if (m.userId) rateMap[String(m.userId)] = m.hourlyRate;
+        if (m.name)   rateMap[m.name] = m.hourlyRate;
+    });
+
+    const byEmp = {};
+    for (const e of entries) {
+        const key = e.userId || e.userName;
+        const rate = e.hourlyRate ?? rateMap[String(e.userId)] ?? rateMap[e.userName] ?? 0;
+        const hrs = (e.duration || 0) / 3600;
+        if (!byEmp[key]) byEmp[key] = { name: e.userName, hourlyRate: rate, hours: 0, gross: 0, paymentTotal: 0, entryCount: 0 };
+        byEmp[key].hours += hrs;
+        byEmp[key].gross += hrs * rate;
+        byEmp[key].paymentTotal += parseFloat(e.paymentAmount) || 0;
+        byEmp[key].entryCount++;
+    }
+
+    const employees = Object.values(byEmp).map(emp => {
+        const g = emp.gross;
+        const empFICA = g * rates.fica;
+        const empSUI  = g * rates.sui;
+        const empWFD  = g * rates.wfd;
+        const totalCost = g + empFICA + empSUI + empWFD;
+        const eeSSMed = g * 0.0765;
+        const eeSDI   = Math.min(g * rates.empSDI, 150000 * rates.empSDI);
+        const eeFLI   = Math.min(g * rates.empFLI, 150000 * rates.empFLI);
+        return { ...emp, taxes: { empFICA, empSUI, empWFD, totalCost, eeSSMed, eeSDI, eeFLI, estNetPay: Math.max(0, g - eeSSMed - eeSDI - eeFLI) } };
+    });
+
+    res.json({ employees, rates, period: { start, end }, entryCount: entries.length });
 });
 
 // Public branding-only endpoint for client-facing pages (login, portal)

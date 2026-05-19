@@ -1332,6 +1332,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <button class="nav-btn" id="admin-menu-btn" onclick="toggleAdminMenu(event)">⚙️ Admin ▾</button>
             <div id="admin-dropdown" class="admin-dropdown" style="display:none;">
                 <button class="nav-btn admin-item" onclick="showView('team')">👷 Team</button>
+                <button class="nav-btn admin-item" onclick="showView('payroll')">💼 Payroll</button>
                 <button class="nav-btn admin-item" onclick="showView('timeclock')">⏱️ Time Clock</button>
                 <button class="nav-btn admin-item" onclick="showView('expenses')">💰 Expenses</button>
                 <button class="nav-btn admin-item" onclick="showView('vendors')">🏪 Vendors</button>
@@ -1783,6 +1784,56 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
 
         <!-- Team View -->
+        <!-- Payroll View -->
+        <div id="payroll" class="view">
+            <!-- Business Compliance Card -->
+            <div class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header" style="cursor:pointer;" onclick="toggleCompliancePanel()">
+                    <h2>🏢 Business Compliance Checklist</h2>
+                    <span id="complianceToggleIcon" style="color:#718096;font-size:1.2rem;">▼</span>
+                </div>
+                <div id="compliancePanel">
+                    <p style="color:#718096;font-size:0.9rem;margin-bottom:1.25rem;">These are one-time business requirements you manage outside the app. Check off each item as completed.</p>
+                    <div id="complianceChecklist" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0.75rem;"></div>
+                    <button class="btn btn-primary" onclick="saveCompliance()" style="margin-top:1.25rem;">Save Compliance Status</button>
+                </div>
+            </div>
+
+            <!-- Payroll Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>💵 Payroll Summary</h2>
+                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
+                        <select id="payrollPreset" onchange="applyPayrollPreset()" style="padding:0.6rem 0.8rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <option value="this_week">This Week</option>
+                            <option value="last_week">Last Week</option>
+                            <option value="this_month" selected>This Month</option>
+                            <option value="last_month">Last Month</option>
+                            <option value="ytd">Year to Date</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                        <div id="customDateRange" style="display:none;gap:0.5rem;align-items:center;">
+                            <input type="date" id="payrollStart" style="padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <span style="color:#718096;">to</span>
+                            <input type="date" id="payrollEnd" style="padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                        </div>
+                        <button class="btn btn-primary" onclick="loadPayroll()">Calculate</button>
+                    </div>
+                </div>
+
+                <!-- NJ Rate info bar -->
+                <div style="background:#f0f4f8;border-radius:8px;padding:0.875rem 1.25rem;margin-bottom:1.25rem;display:flex;flex-wrap:wrap;gap:1.5rem;align-items:center;">
+                    <span style="font-weight:600;color:#4a5568;font-size:0.9rem;">NJ Employer Rates:</span>
+                    <span style="font-size:0.88rem;color:#4a5568;">FICA <strong>7.65%</strong></span>
+                    <span style="font-size:0.88rem;color:#4a5568;">SUI <strong id="suiRateLabel">2.80%</strong> <span style="color:#718096;font-size:0.8rem;">(new employer rate)</span></span>
+                    <span style="font-size:0.88rem;color:#4a5568;">WFD <strong>0.04%</strong></span>
+                    <span style="font-size:0.88rem;color:#ed8936;font-weight:600;">Total overhead: ~10.49%</span>
+                </div>
+
+                <div id="payrollContent"><div class="empty-state"><p>Select a period and click Calculate</p></div></div>
+            </div>
+        </div>
+
         <div id="team" class="view">
             <div class="card">
                 <div class="card-header">
@@ -1812,6 +1863,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <h3 style="margin-bottom: 1rem; color: #667eea;">Assigned Jobs</h3>
                         <div id="team-detail-jobs"></div>
                     </div>
+                </div>
+
+                <!-- Onboarding Checklist -->
+                <div style="margin-top: 2rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                        <h3 style="color:#667eea;">Onboarding Checklist</h3>
+                        <button class="btn btn-secondary btn-small" id="sendOnboardingBtn" onclick="sendOnboardingInvite(currentTeamMemberId)">📧 Send Invite</button>
+                    </div>
+                    <div id="team-onboarding-checklist"></div>
                 </div>
 
                 <!-- Pay Summary Stats -->
@@ -3933,7 +3993,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             document.getElementById(viewName).classList.add('active');
 
-            const adminViews = ['team', 'timeclock', 'expenses', 'vendors', 'portfolio', 'reports', 'analytics', 'settings'];
+            const adminViews = ['team', 'timeclock', 'expenses', 'vendors', 'portfolio', 'reports', 'analytics', 'settings', 'payroll'];
             if (adminViews.includes(viewName)) {
                 const adminBtn = document.getElementById('admin-menu-btn');
                 if (adminBtn) adminBtn.classList.add('active');
@@ -3952,6 +4012,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'mypay') loadMyPay();
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
+            if (viewName === 'payroll') { loadPayrollCompliance(); applyPayrollPreset(); }
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -8764,10 +8825,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (isMobile) {
                 container.innerHTML = sorted.map(t => {
                     const cityState = [t.city, t.state].filter(x => x).join(', ');
+                    const obPct = onboardingPercent(t);
+                    const obBadge = obPct === 100 ? '<span style="background:#c6f6d5;color:#276749;font-size:0.72rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;">✓ Onboarded</span>'
+                        : obPct > 0 ? '<span style="background:#fefcbf;color:#744210;font-size:0.72rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;">'+obPct+'% Done</span>'
+                        : '<span style="background:#fed7d7;color:#742a2a;font-size:0.72rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;">Not Started</span>';
                     return \`<div class="team-card" data-search="\${t.name.toLowerCase()} \${(t.role||'').toLowerCase()} \${(t.email||'').toLowerCase()}" style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;" onclick="viewTeamDetail('\${t.id}')">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">
                             <div>
-                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${t.name}</div>
+                                <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${t.name}\${obBadge}</div>
                                 <div style="color:#4a5568;font-size:0.9rem;margin-top:0.1rem;">\${t.role || ''}</div>
                             </div>
                             <span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}" style="white-space:nowrap;margin-left:0.5rem;">\${t.active ? 'Active' : 'Inactive'}</span>
@@ -8782,15 +8847,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
                 }).join('');
             } else {
-                container.innerHTML = '<table><thead><tr>' + sth('team','name','Name') + sth('team','role','Role') + sth('team','phone','Phone') + sth('team','email','Email') + sth('team','city','City, State') + sth('team','status','Status') + '<th>Actions</th></tr></thead><tbody>' +
+                container.innerHTML = '<table><thead><tr>' + sth('team','name','Name') + sth('team','role','Role') + sth('team','phone','Phone') + sth('team','email','Email') + sth('team','city','City, State') + '<th>Onboarding</th>' + sth('team','status','Status') + '<th>Actions</th></tr></thead><tbody>' +
                 sorted.map(t => {
                     const cityState = [t.city, t.state].filter(x => x).join(', ') || '-';
+                    const obPct = onboardingPercent(t);
+                    const obCell = obPct === 100 ? '<span style="background:#c6f6d5;color:#276749;font-size:0.78rem;font-weight:700;padding:2px 8px;border-radius:10px;">✓ Done</span>'
+                        : obPct > 0 ? '<span style="background:#fefcbf;color:#744210;font-size:0.78rem;font-weight:700;padding:2px 8px;border-radius:10px;">'+obPct+'%</span>'
+                        : '<span style="background:#fed7d7;color:#742a2a;font-size:0.78rem;font-weight:700;padding:2px 8px;border-radius:10px;">—</span>';
                     return \`<tr style="cursor: pointer;" onclick="viewTeamDetail('\${t.id}')">
                         <td><strong>\${t.name}</strong></td>
                         <td>\${t.role}</td>
                         <td>\${formatPhoneNumber(t.phone) || '-'}</td>
                         <td>\${t.email || '-'}</td>
                         <td>\${cityState}</td>
+                        <td>\${obCell}</td>
                         <td><span class="status-badge \${t.active ? 'status-completed' : 'status-scheduled'}">\${t.active ? 'Active' : 'Inactive'}</span></td>
                         <td onclick="event.stopPropagation()">
                             <button class="btn btn-secondary btn-small" onclick="editTeamMember('\${t.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Edit</button>
@@ -8840,6 +8910,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById('team-detail').classList.add('active');
 
+            // Track current member for onboarding actions
+            currentTeamMemberId = member.id;
+
             // Update member info
             document.getElementById('team-detail-name').textContent = member.name;
             document.getElementById('team-detail-info').innerHTML = \`
@@ -8848,6 +8921,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${member.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Status:</strong> <span class="status-badge \${member.active ? 'status-completed' : 'status-scheduled'}">\${member.active ? 'Active' : 'Inactive'}</span></p>
             \`;
+
+            renderOnboardingChecklist(member);
 
             // Load member's jobs
             const memberJobs = jobs.filter(j => isAssignedTo(j, member.id));
@@ -12204,6 +12279,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Time Clock Functions
         let currentClockEntry = null;
+        let currentTeamMemberId = null;
         let timerInterval = null;
 
         async function loadTimeClock() {
@@ -13603,6 +13679,238 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const eyes = document.querySelectorAll('.clippy-eye');
             eyes.forEach(e => { e.style.transform = 'scaleY(0.1)'; setTimeout(() => e.style.transform = '', 120); });
         }, 3000 + Math.random() * 3000);
+
+        // ─── Payroll & Onboarding ────────────────────────────────────────────
+
+        const COMPLIANCE_ITEMS = [
+            { key: 'ein',          label: 'EIN registered with IRS' },
+            { key: 'njReg',        label: 'NJ employer registration (NJ-REG filed)' },
+            { key: 'workersComp',  label: "Workers' comp policy active" },
+            { key: 'payrollSys',   label: 'Payroll system set up (Gusto / ADP / QB)' },
+            { key: 'noCash',       label: 'Written no-cash-payroll rule in place' },
+            { key: 'safety',       label: 'Safety expectations documented' },
+            { key: 'toolPolicy',   label: 'Tool policy documented' },
+        ];
+
+        async function loadPayrollCompliance() {
+            const data = await fetch('/api/settings/compliance').then(r => r.json());
+            const grid = document.getElementById('complianceChecklist');
+            if (!grid) return;
+            grid.innerHTML = COMPLIANCE_ITEMS.map(item => {
+                const checked = data[item.key] ? 'checked' : '';
+                const borderColor = data[item.key] ? '#48bb78' : '#e2e8f0';
+                const bg = data[item.key] ? '#f0fff4' : 'white';
+                return '<label style="display:flex;gap:0.75rem;align-items:center;padding:0.8rem 1rem;border:2px solid ' + borderColor + ';border-radius:8px;background:' + bg + ';cursor:pointer;">' +
+                    '<input type="checkbox" data-key="' + item.key + '" ' + checked + ' style="width:17px;height:17px;accent-color:#48bb78;flex-shrink:0;">' +
+                    '<span style="font-size:0.9rem;color:#2d3748;">' + item.label + '</span></label>';
+            }).join('');
+        }
+
+        async function saveCompliance() {
+            const checkboxes = document.querySelectorAll('#complianceChecklist input[type=checkbox]');
+            const data = {};
+            checkboxes.forEach(cb => { data[cb.dataset.key] = cb.checked; });
+            await fetch('/api/settings/compliance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            loadPayrollCompliance();
+        }
+
+        function toggleCompliancePanel() {
+            const panel = document.getElementById('compliancePanel');
+            const icon = document.getElementById('complianceToggleIcon');
+            const hidden = panel.style.display === 'none';
+            panel.style.display = hidden ? '' : 'none';
+            icon.textContent = hidden ? '▼' : '▶';
+        }
+
+        function applyPayrollPreset() {
+            const preset = document.getElementById('payrollPreset').value;
+            const customDiv = document.getElementById('customDateRange');
+            customDiv.style.display = preset === 'custom' ? 'flex' : 'none';
+            if (preset === 'custom') return;
+            const now = new Date();
+            const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+            const dow = now.getDay(); // 0=Sun
+            let start, end;
+            const pad = n => String(n).padStart(2, '0');
+            const fmt = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+            if (preset === 'this_week') {
+                const mon = new Date(now); mon.setDate(d - ((dow + 6) % 7));
+                const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                start = fmt(mon); end = fmt(sun);
+            } else if (preset === 'last_week') {
+                const mon = new Date(now); mon.setDate(d - ((dow + 6) % 7) - 7);
+                const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                start = fmt(mon); end = fmt(sun);
+            } else if (preset === 'this_month') {
+                start = y + '-' + pad(m + 1) + '-01';
+                end = fmt(new Date(y, m + 1, 0));
+            } else if (preset === 'last_month') {
+                const lm = new Date(y, m, 0);
+                start = lm.getFullYear() + '-' + pad(lm.getMonth() + 1) + '-01';
+                end = fmt(lm);
+            } else if (preset === 'ytd') {
+                start = y + '-01-01'; end = fmt(now);
+            }
+            document.getElementById('payrollStart').value = start || '';
+            document.getElementById('payrollEnd').value = end || '';
+        }
+
+        async function loadPayroll() {
+            const start = document.getElementById('payrollStart').value;
+            const end   = document.getElementById('payrollEnd').value;
+            if (!start || !end) { alert('Please select a date range.'); return; }
+            const data = await fetch('/api/payroll/summary?start=' + start + '&end=' + end).then(r => r.json());
+            renderPayrollSummary(data, start, end);
+        }
+
+        function renderPayrollSummary(data, start, end) {
+            const el = document.getElementById('payrollContent');
+            if (!data.employees || data.employees.length === 0) {
+                el.innerHTML = '<div class="empty-state"><p>No approved time entries in this period.</p></div>';
+                return;
+            }
+            const totalGross = data.employees.reduce((s, e) => s + e.gross, 0);
+            const totalCost  = data.employees.reduce((s, e) => s + e.taxes.totalCost, 0);
+            const totalBurden = totalCost - totalGross;
+            const totalHours = data.employees.reduce((s, e) => s + e.hours, 0);
+
+            const rows = data.employees.map(emp => {
+                const t = emp.taxes;
+                return '<tr>' +
+                    '<td><strong>' + emp.name + '</strong><div style="font-size:0.8rem;color:#718096;">$' + (emp.hourlyRate||0).toFixed(2) + '/hr</div></td>' +
+                    '<td style="text-align:right;">' + emp.hours.toFixed(2) + 'h</td>' +
+                    '<td style="text-align:right;font-weight:600;">' + formatMoney(emp.gross) + '</td>' +
+                    '<td style="text-align:right;color:#ed8936;">+' + formatMoney(t.empFICA + t.empSUI + t.empWFD) + '</td>' +
+                    '<td style="text-align:right;font-weight:700;color:#c53030;">' + formatMoney(t.totalCost) + '</td>' +
+                    '<td style="text-align:right;font-size:0.8rem;color:#718096;">' +
+                        '<div>SS/Med: ' + formatMoney(t.eeSSMed) + '</div>' +
+                        '<div>SDI+FLI: ' + formatMoney(t.eeSDI + t.eeFLI) + '</div>' +
+                        '<div style="color:#2d3748;font-weight:600;">Net: ~' + formatMoney(t.estNetPay) + '</div>' +
+                    '</td>' +
+                    '</tr>';
+            }).join('');
+
+            const copyText = [
+                'PAYROLL SUMMARY — ' + start + ' to ' + end,
+                '─'.repeat(48),
+                ...data.employees.map(e => e.name.padEnd(20) + e.hours.toFixed(2).padStart(7) + 'h  ' + formatMoney(e.gross).padStart(10) + ' gross'),
+                '─'.repeat(48),
+                'TOTALS'.padEnd(20) + totalHours.toFixed(2).padStart(7) + 'h  ' + formatMoney(totalGross).padStart(10) + ' gross',
+                'Employer tax burden: +' + formatMoney(totalBurden),
+                'Total cash out: ' + formatMoney(totalCost),
+            ].join('\n');
+
+            el.innerHTML =
+                '<div style="overflow-x:auto;">' +
+                '<table style="min-width:700px;"><thead><tr>' +
+                '<th>Employee</th><th style="text-align:right;">Hours</th><th style="text-align:right;">Gross</th>' +
+                '<th style="text-align:right;">Employer Burden</th><th style="text-align:right;">Total Cost</th>' +
+                '<th style="text-align:right;">Employee Deductions (ref)</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody>' +
+                '<tfoot style="border-top:3px solid #2d3748;"><tr>' +
+                '<td><strong>TOTALS</strong></td>' +
+                '<td style="text-align:right;font-weight:700;">' + totalHours.toFixed(2) + 'h</td>' +
+                '<td style="text-align:right;font-weight:700;">' + formatMoney(totalGross) + '</td>' +
+                '<td style="text-align:right;font-weight:700;color:#ed8936;">+' + formatMoney(totalBurden) + '</td>' +
+                '<td style="text-align:right;font-weight:700;color:#c53030;">' + formatMoney(totalCost) + '</td>' +
+                '<td></td></tr></tfoot></table></div>' +
+                '<div style="margin-top:1.25rem;display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">' +
+                '<div style="background:#f0fff4;border:2px solid #9ae6b4;border-radius:8px;padding:0.75rem 1.25rem;flex:1;">' +
+                '<div style="font-size:0.8rem;color:#276749;font-weight:600;">TOTAL EMPLOYER CASH OUT</div>' +
+                '<div style="font-size:1.75rem;font-weight:700;color:#276749;">' + formatMoney(totalCost) + '</div>' +
+                '<div style="font-size:0.8rem;color:#4a5568;">(' + formatMoney(totalGross) + ' gross + ' + formatMoney(totalBurden) + ' taxes)</div>' +
+                '</div>' +
+                '<button class="btn btn-secondary" onclick="copyPayrollSummary(' + JSON.stringify(copyText.replace(/'/g, "\'")) + ')">📋 Copy for Gusto</button>' +
+                '</div>';
+        }
+
+        function copyPayrollSummary(text) {
+            navigator.clipboard.writeText(text).then(() => alert('Payroll summary copied to clipboard.')).catch(() => alert(text));
+        }
+
+        function onboardingPercent(member) {
+            const ob = member.onboarding || {};
+            const items = [
+                !!ob.inviteSentAt,
+                !!ob.w4?.completedAt,
+                !!ob.i9Section1?.completedAt,
+                !!ob.i9Section2?.completedAt,
+                !!ob.policyAck?.completedAt,
+                !!ob.jobDescription?.completedAt,
+                !!(member.hourlyRate > 0),
+            ];
+            const done = items.filter(Boolean).length;
+            return Math.round((done / items.length) * 100);
+        }
+
+        function renderOnboardingChecklist(member) {
+            const ob = member.onboarding || {};
+            const id = member.id;
+            const hasEmail = !!member.email;
+
+            const check = (done, label, extra) => {
+                const icon = done ? '<span style="color:#48bb78;font-weight:700;">✓</span>' : '<span style="color:#cbd5e0;font-weight:700;">○</span>';
+                return '<div style="display:flex;gap:0.75rem;align-items:flex-start;padding:0.65rem 0;border-bottom:1px solid #f0f0f0;">' +
+                    '<div style="width:22px;flex-shrink:0;margin-top:1px;">' + icon + '</div>' +
+                    '<div style="flex:1;font-size:0.9rem;color:#2d3748;">' + label + (extra || '') + '</div>' +
+                    '</div>';
+            };
+
+            const adminToggle = (field, done, label) =>
+                check(done, label,
+                    '<div style="margin-top:0.35rem;">' +
+                    '<label style="font-size:0.82rem;color:#718096;cursor:pointer;">' +
+                    '<input type="checkbox" ' + (done ? 'checked' : '') + ' style="accent-color:#48bb78;margin-right:4px;" onchange="toggleAdminOnboarding(\'' + id + '\',\'' + field + '\',this.checked)"> Mark as completed (in-person)</label>' +
+                    '</div>');
+
+            const inviteLabel = ob.inviteSentAt
+                ? 'Invite sent ' + new Date(ob.inviteSentAt).toLocaleDateString() + (ob.completedAt ? ' · <strong style="color:#276749;">Employee completed ' + new Date(ob.completedAt).toLocaleDateString() + '</strong>' : ' · <em style="color:#718096;">Awaiting employee</em>')
+                : 'Onboarding invite not yet sent';
+
+            const html = '<div style="background:#f8f9fa;border-radius:8px;padding:1rem;">' +
+                check(!!ob.inviteSentAt, inviteLabel) +
+                check(!!ob.w4?.completedAt, 'W-4 withholding preferences' + (ob.w4?.filingStatus ? ' · ' + ob.w4.filingStatus : '')) +
+                check(!!ob.i9Section1?.completedAt, 'I-9 Section 1 (employee self-certification)') +
+                adminToggle('i9Section2', !!ob.i9Section2?.completedAt, 'I-9 Section 2 (verify ID documents in person)') +
+                check(!!ob.policyAck?.completedAt, 'Policy acknowledgments (no cash, safety, tools, OT)') +
+                adminToggle('jobDescription', !!ob.jobDescription?.completedAt, 'Job description provided to employee') +
+                check(!!(member.hourlyRate > 0), 'Pay rate defined' + (member.hourlyRate ? ' · $' + member.hourlyRate + '/hr' : ' · <em style="color:#e53e3e;">Not set — edit team member</em>')) +
+                '</div>';
+
+            document.getElementById('team-onboarding-checklist').innerHTML = html;
+
+            const btn = document.getElementById('sendOnboardingBtn');
+            if (btn) {
+                btn.textContent = ob.inviteSentAt ? '📧 Re-send Invite' : '📧 Send Invite';
+                btn.disabled = !hasEmail;
+                if (!hasEmail) btn.title = 'Add an email address to this team member first';
+            }
+        }
+
+        async function sendOnboardingInvite(memberId) {
+            if (!memberId) return;
+            if (!confirm('Send onboarding invite email to this team member?')) return;
+            try {
+                const r = await fetch('/api/team/' + memberId + '/send-onboarding', { method: 'POST' });
+                const data = await r.json();
+                if (!r.ok) { alert(data.error || 'Failed to send invite'); return; }
+                alert('Invite sent!');
+                await loadTeam();
+                const member = team.find(t => t.id === memberId);
+                if (member) renderOnboardingChecklist(member);
+            } catch(e) { alert('Error sending invite'); }
+        }
+
+        async function toggleAdminOnboarding(memberId, field, value) {
+            await fetch('/api/team/' + memberId + '/onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field, value })
+            });
+            await loadTeam();
+            const member = team.find(t => t.id === memberId);
+            if (member) renderOnboardingChecklist(member);
+        }
     </script>
 
     <!-- Rex -->
