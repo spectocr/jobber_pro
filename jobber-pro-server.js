@@ -14134,7 +14134,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        let _taxData = null;
+
         function renderTaxSummary(data) {
+            _taxData = data;
             const box   = document.getElementById('taxContent');
             const today = new Date();
             const fm    = n => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14206,6 +14209,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     (isPaid
                       ? '<button onclick="clearQuarterPaid(' + data.year + ',' + q.q + ')" style="padding:0.4rem 0.85rem;background:#fed7d7;color:#c53030;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">↩ Remove Payment</button>'
                       : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
+                    '<button onclick="showTaxDetail(' + q.q + ')" style="padding:0.4rem 0.85rem;background:#edf2f7;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">📋 Source Data</button>' +
                   '</div>' +
                 '</div>';
             });
@@ -14268,6 +14272,97 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!confirm('Remove payment record for Q' + quarter + ' ' + year + '?')) return;
             await fetch('/api/taxes/payments/' + year + '/' + quarter, { method: 'DELETE' });
             loadTaxes();
+        }
+
+        function showTaxDetail(qNum) {
+            if (!_taxData) return;
+            const q   = _taxData.quarters.find(x => x.q === qNum);
+            if (!q) return;
+            const fm  = n => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const fmDate = iso => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+            const jobRows = q.items.jobs.length
+                ? q.items.jobs.map(j =>
+                    '<tr>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + fmDate(j.date) + '<br><span style="font-size:0.72rem;color:#a0aec0;">' + j.dateField + '</span></td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + (j.client || '—') + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + j.title + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;text-align:right;">' + fm(j.amount) + '</td>' +
+                    '</tr>').join('')
+                : '<tr><td colspan="4" style="padding:0.75rem;color:#718096;text-align:center;">No jobs in this quarter</td></tr>';
+
+            const expRows = q.items.expenses.length
+                ? q.items.expenses.map(e =>
+                    '<tr>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + fmDate(e.date) + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + e.category + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + e.description + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;text-align:right;">– ' + fm(e.amount) + '</td>' +
+                    '</tr>').join('')
+                : '<tr><td colspan="4" style="padding:0.75rem;color:#718096;text-align:center;">No expenses in this quarter</td></tr>';
+
+            const csvJobs = ['Date,Client,Title,Amount', ...q.items.jobs.map(j =>
+                [fmDate(j.date), j.client, j.title, j.amount.toFixed(2)].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')
+            )].join('\n');
+            const csvExp = ['Date,Category,Description,Amount', ...q.items.expenses.map(e =>
+                [fmDate(e.date), e.category, e.description, (-e.amount).toFixed(2)].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')
+            )].join('\n');
+            const csvFull = 'Q' + q.q + ' ' + q.label + ' ' + _taxData.year + '\n\nJOBS\n' + csvJobs + '\n\nEXPENSES\n' + csvExp +
+                '\n\nSUMMARY\nRevenue,' + q.revenue.toFixed(2) + '\nExpenses,' + q.expTotal.toFixed(2) + '\nNet Income,' + q.netIncome.toFixed(2) +
+                '\nSE Tax,' + q.seTax.toFixed(2) + '\nFederal Income Tax,' + q.fedQ.toFixed(2) + '\nNJ Income Tax,' + q.njQ.toFixed(2) + '\nTotal Due,' + q.totalDue.toFixed(2);
+
+            const tableStyle = 'width:100%;border-collapse:collapse;font-size:0.82rem;';
+            const thStyle    = 'padding:0.4rem 0.6rem;background:#f7fafc;font-weight:600;color:#4a5568;text-align:left;border-bottom:2px solid #e2e8f0;';
+
+            const content =
+                '<div style="margin-bottom:1.25rem;">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">' +
+                    '<h3 style="margin:0;color:#2d3748;">Jobs (' + q.items.jobs.length + ') — ' + fm(q.revenue) + '</h3>' +
+                  '</div>' +
+                  '<table style="' + tableStyle + '">' +
+                    '<thead><tr><th style="' + thStyle + '">Date</th><th style="' + thStyle + '">Client</th><th style="' + thStyle + '">Title</th><th style="' + thStyle + 'text-align:right;">Amount</th></tr></thead>' +
+                    '<tbody>' + jobRows + '</tbody>' +
+                  '</table>' +
+                '</div>' +
+                '<div>' +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">' +
+                    '<h3 style="margin:0;color:#2d3748;">Expenses (' + q.items.expenses.length + ') — – ' + fm(q.expTotal) + '</h3>' +
+                  '</div>' +
+                  '<table style="' + tableStyle + '">' +
+                    '<thead><tr><th style="' + thStyle + '">Date</th><th style="' + thStyle + '">Category</th><th style="' + thStyle + '">Description</th><th style="' + thStyle + 'text-align:right;">Amount</th></tr></thead>' +
+                    '<tbody>' + expRows + '</tbody>' +
+                  '</table>' +
+                '</div>';
+
+            let overlay = document.getElementById('taxDetailOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'taxDetailOverlay';
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+                overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+                document.body.appendChild(overlay);
+            }
+            overlay.innerHTML =
+                '<div style="background:#fff;border-radius:12px;width:100%;max-width:780px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:2px solid #e2e8f0;">' +
+                    '<div>' +
+                      '<div style="font-size:1.1rem;font-weight:700;color:#2d3748;">Q' + q.q + ' ' + q.label + ' ' + _taxData.year + ' — Source Data</div>' +
+                      '<div style="font-size:0.8rem;color:#718096;">Net ' + fm(q.netIncome) + ' → Est. ' + fm(q.totalDue) + ' due</div>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:0.5rem;">' +
+                      '<button onclick="copyTaxDetailCSV()" style="padding:0.4rem 0.85rem;background:#edf2f7;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">📋 Copy CSV</button>' +
+                      '<button onclick="document.getElementById(\'taxDetailOverlay\').remove()" style="padding:0.4rem 0.85rem;background:#edf2f7;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">✕ Close</button>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div style="overflow-y:auto;padding:1.25rem;">' + content + '</div>' +
+                '</div>';
+            overlay.dataset.csv = csvFull;
+            overlay.style.display = 'flex';
+        }
+
+        function copyTaxDetailCSV() {
+            const csv = document.getElementById('taxDetailOverlay')?.dataset.csv || '';
+            navigator.clipboard.writeText(csv).then(() => alert('Copied to clipboard — paste into Excel or Google Sheets.'));
         }
     </script>
 

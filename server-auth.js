@@ -3922,13 +3922,27 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         const totalDue = seTax + fedQ + njQ;
 
         const payment = payments.find(p => p.quarter === q);
+        const jobItems = qJobs.map(j => ({
+            date: (j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate || ''),
+            title: j.title || j.description || '(untitled)',
+            client: j.clientName || j.client?.name || '',
+            amount: parseFloat(j.totalWithTax || j.total) || 0,
+            dateField: j.completedAt ? 'completedAt' : j.invoicedAt ? 'invoicedAt' : j.updatedAt ? 'updatedAt' : 'scheduledDate'
+        }));
+        const expItems = qExp.map(e => ({
+            date: e.date || '',
+            description: e.description || e.vendor || e.category || '(no description)',
+            category: e.category || '',
+            amount: parseFloat(e.amount) || 0
+        }));
         return {
             q, label, due: due.toISOString(), months,
             revenue, expTotal, netIncome,
             seTax, fedQ, njQ, totalDue,
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
-            remaining: Math.max(0, totalDue - (payment?.amount || 0))
+            remaining: Math.max(0, totalDue - (payment?.amount || 0)),
+            items: { jobs: jobItems, expenses: expItems }
         };
     });
 
