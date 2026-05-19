@@ -1610,6 +1610,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="hidden" id="filter-status" value="ACTIVE_WORK">
                         <div id="job-status-pills" style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;"></div>
                         <input type="text" id="filter-client" placeholder="🔍 Search client..." oninput="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
+                        <select id="filter-period" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 160px;">
+                            <option value="">All Time</option>
+                            <option value="this_month">This Month</option>
+                            <option value="last_month">Last Month</option>
+                            <option value="last_3_months">Last 3 Months</option>
+                            <option value="last_6_months">Last 6 Months</option>
+                            <option value="this_year">This Year</option>
+                            <option value="last_year">Last Year</option>
+                        </select>
                         <select id="filter-assigned" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                             <option value="">All Team Members</option>
                         </select>
@@ -6126,6 +6135,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const weekStartStr = weekStart.toISOString().slice(0, 10);
             const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
+            // Period filter date range
+            const periodEl = document.getElementById('filter-period');
+            const period = periodEl ? periodEl.value : '';
+            let periodStart = '', periodEnd = '';
+            if (period) {
+                const now = new Date();
+                const y = now.getFullYear(), m = now.getMonth();
+                if (period === 'this_month') {
+                    periodStart = new Date(y, m, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(y, m + 1, 1).toISOString().slice(0, 10);
+                } else if (period === 'last_month') {
+                    periodStart = new Date(y, m - 1, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(y, m, 1).toISOString().slice(0, 10);
+                } else if (period === 'last_3_months') {
+                    periodStart = new Date(y, m - 2, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(y, m + 1, 1).toISOString().slice(0, 10);
+                } else if (period === 'last_6_months') {
+                    periodStart = new Date(y, m - 5, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(y, m + 1, 1).toISOString().slice(0, 10);
+                } else if (period === 'this_year') {
+                    periodStart = new Date(y, 0, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(y + 1, 0, 1).toISOString().slice(0, 10);
+                } else if (period === 'last_year') {
+                    periodStart = new Date(y - 1, 0, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(y, 0, 1).toISOString().slice(0, 10);
+                }
+            }
+
             return jobs.filter(j => {
                 if (statusFilter === 'ACTIVE_WORK') {
                     if (j.status === 'completed' || j.status === 'invoiced' || j.status === 'bid_lost') return false;
@@ -6134,6 +6171,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     if (!j.scheduledDate || j.scheduledDate < weekStartStr || j.scheduledDate >= weekEndStr) return false;
                 } else if (statusFilter && j.status !== statusFilter) {
                     return false;
+                }
+                if (periodStart) {
+                    const d = j.scheduledDate || '';
+                    if (!d || d < periodStart || d >= periodEnd) return false;
                 }
                 if (clientFilter) {
                     const jClient = findClient(j.clientId);
@@ -7891,6 +7932,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function clearJobFilters() {
             document.getElementById('filter-status').value = 'ACTIVE_WORK';
             document.getElementById('filter-client').value = '';
+            document.getElementById('filter-period').value = '';
             document.getElementById('filter-assigned').value = '';
             filterJobs();
         }
