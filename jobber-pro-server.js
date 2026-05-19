@@ -14206,7 +14206,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                       '5. Tax Period: <strong>' + data.year + '</strong><br>' +
                       '6. Enter amount: <strong>' + fm(q.seTax + q.fedQ) + '</strong> (SE tax + federal income tax)<br><br>' +
                       '<strong>New Jersey — pay ' + fm(q.njQ) + '</strong><br>' +
-                      '1. Go to <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndividualRegistrationJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a><br>' +
+                      '1. Go to <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndTaxLoginJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a><br>' +
                       '2. Select <strong>Gross Income Tax — Estimated</strong><br>' +
                       '3. Tax Period: <strong>' + data.year + '</strong><br>' +
                       '4. Enter amount: <strong>' + fm(q.njQ) + '</strong>' +
