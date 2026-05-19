@@ -1860,11 +1860,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="team-detail-info" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;"></div>
                     </div>
                     <div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;cursor:pointer;" onclick="toggleTeamJobs()">
-                            <h3 style="color:#667eea;margin:0;">Assigned Jobs</h3>
-                            <span id="teamJobsIcon" style="color:#718096;font-size:1rem;">▶</span>
-                        </div>
-                        <div id="team-detail-jobs" style="display:none;"></div>
+                        <h3 style="color:#667eea;margin-bottom:1rem;">Assigned Jobs</h3>
+                        <div id="team-detail-jobs"></div>
                     </div>
                 </div>
 
@@ -9017,7 +9014,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </tr>\`;
                     }).join('') + '</tbody></table>';
 
-                jobsContainer.innerHTML = statsGrid + jobsHtml;
+                jobsContainer.innerHTML = statsGrid +
+                    '<div id="teamJobsTable" style="display:none;">' + jobsHtml + '</div>' +
+                    '<button onclick="toggleTeamJobsTable()" id="teamJobsTableBtn" style="margin-top:0.5rem;font-size:0.85rem;background:none;border:none;color:#667eea;cursor:pointer;padding:0;font-weight:600;">▶ Show job list</button>';
             }
 
             // Get all time entries for this member
@@ -12939,12 +12938,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        function toggleTeamJobs() {
-            const panel = document.getElementById('team-detail-jobs');
-            const icon = document.getElementById('teamJobsIcon');
+        function toggleTeamJobsTable() {
+            const panel = document.getElementById('teamJobsTable');
+            const btn = document.getElementById('teamJobsTableBtn');
+            if (!panel) return;
             const open = panel.style.display === 'none';
             panel.style.display = open ? 'block' : 'none';
-            icon.textContent = open ? '▼' : '▶';
+            btn.textContent = open ? '▲ Hide job list' : '▶ Show job list';
         }
 
         function toggleJobSummary() {
