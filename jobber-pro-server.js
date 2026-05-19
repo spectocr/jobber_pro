@@ -14180,8 +14180,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                   '<div style="margin-bottom:0.7rem;">' +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>SE Tax (15.3%)</span><span>' + fm(q.seTax) + '</span></div>' +
-                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Federal Income Tax</span><span>' + fm(q.fedQ) + '</span></div>' +
-                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;"><span>NJ Income Tax</span><span>' + fm(q.njQ) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Federal Income Tax<br><span style="font-size:0.72rem;color:#a0aec0;">' + (data.taxSettings.otherIncome > 0 ? 'incremental — above W-2 bracket' : 'on business income') + '</span></span><span>' + fm(q.fedQ) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;"><span>NJ Income Tax<br><span style="font-size:0.72rem;color:#a0aec0;">' + (data.taxSettings.otherIncome > 0 ? 'incremental — above W-2 bracket' : 'on business income') + '</span></span><span>' + fm(q.njQ) + '</span></div>' +
                   '</div>' +
 
                   '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem;color:#2d3748;border-top:2px solid #e2e8f0;padding-top:0.55rem;margin-bottom:0.7rem;">' +

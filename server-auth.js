@@ -3913,14 +3913,19 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         const seTax = netIncome * 0.9235 * 0.153;
         const seDeduction = seTax / 2;
 
-        // Annual projection for bracket calc (net * 4 + other income - std deduction - SE deduction)
-        const stdDed = ts.filingStatus === 'married' ? 30000 : 15000;
-        const annualNet = netIncome * 4;
-        const annualOther = parseFloat(ts.otherIncome) || 0;
-        const annualAGI = annualNet + annualOther - (seTax * 4 / 2);
-        const annualTaxable = Math.max(0, annualAGI - (ts.standardDeduction !== false ? stdDed : 0));
-        const fedAnnual = federalIncomeTax(annualTaxable, ts.filingStatus);
-        const njAnnual  = calcNJTax(annualTaxable);
+        // Income tax: only the incremental tax business income adds on top of W-2
+        // W-2 withholding already covers the tax on other income — don't double-pay
+        const stdDed     = ts.filingStatus === 'married' ? 30000 : 15000;
+        const useStd     = ts.standardDeduction !== false;
+        const annualBiz  = netIncome * 4;
+        const annualOther= parseFloat(ts.otherIncome) || 0;
+        const annualSEDed= (seTax * 4) / 2;
+
+        const combinedTaxable = Math.max(0, annualBiz + annualOther - annualSEDed - (useStd ? stdDed : 0));
+        const w2OnlyTaxable   = Math.max(0, annualOther - (useStd ? stdDed : 0));
+
+        const fedAnnual = Math.max(0, federalIncomeTax(combinedTaxable, ts.filingStatus) - federalIncomeTax(w2OnlyTaxable, ts.filingStatus));
+        const njAnnual  = Math.max(0, calcNJTax(combinedTaxable) - calcNJTax(w2OnlyTaxable));
         const fedQ = fedAnnual / 4;
         const njQ  = njAnnual  / 4;
         const totalDue = seTax + fedQ + njQ;
