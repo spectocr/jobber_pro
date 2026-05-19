@@ -637,6 +637,7 @@ app.get('/login', async (req, res) => {
 });
 
 app.get('/register', (req, res) => res.redirect('/login'));
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 app.get('/forgot-password', (req, res) => res.send(FORGOT_PASSWORD_HTML));
 app.get('/reset-password', (req, res) => res.send(RESET_PASSWORD_HTML));
