@@ -6203,16 +6203,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const profY = chartH - profH;
                     const profFill = isCurrent ? '#48bb78' : '#9ae6b4';
 
-                    const revLabel = m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}k` : m.revenue > 0 ? `$${Math.round(m.revenue)}` : '';
+                    const fmt = v => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${Math.round(v)}`;
+                    const revLabel = m.revenue > 0 ? fmt(m.revenue) : '';
                     const revLabelY = revY < 18 ? revY + 14 : Math.max(11, revY - 4);
                     const revLabelFill = revY < 18 ? 'white' : (isCurrent ? '#667eea' : '#a0aec0');
+
+                    const profLabel = profit > 0 ? fmt(profit) : '';
+                    const profLabelY = profH > 0 ? (profY < 18 ? profY + 14 : Math.max(11, profY - 4)) : 0;
+                    const profLabelFill = profY < 18 ? 'white' : (isCurrent ? '#38a169' : '#68d391');
 
                     const centerX = (rx + singleW / 2 + px + singleW / 2) / 2;
 
                     return `<rect x="${rx.toFixed(1)}" y="${revY.toFixed(1)}" width="${singleW.toFixed(1)}" height="${revH.toFixed(1)}" rx="3" fill="${revFill}"/>` +
                         (profH > 0 ? `<rect x="${px.toFixed(1)}" y="${profY.toFixed(1)}" width="${singleW.toFixed(1)}" height="${profH.toFixed(1)}" rx="3" fill="${profFill}"/>` : '') +
                         `<text x="${centerX.toFixed(1)}" y="135" text-anchor="middle" font-size="11" fill="#718096" font-family="sans-serif">${m.label}</text>` +
-                        (revLabel ? `<text x="${(rx+singleW/2).toFixed(1)}" y="${revLabelY.toFixed(1)}" text-anchor="middle" font-size="10" fill="${revLabelFill}" font-weight="600" font-family="sans-serif">${revLabel}</text>` : '');
+                        (revLabel ? `<text x="${(rx+singleW/2).toFixed(1)}" y="${revLabelY.toFixed(1)}" text-anchor="middle" font-size="10" fill="${revLabelFill}" font-weight="600" font-family="sans-serif">${revLabel}</text>` : '') +
+                        (profLabel ? `<text x="${(px+singleW/2).toFixed(1)}" y="${profLabelY.toFixed(1)}" text-anchor="middle" font-size="10" fill="${profLabelFill}" font-weight="600" font-family="sans-serif">${profLabel}</text>` : '');
                 }).join('') +
                 `<rect x="190" y="150" width="11" height="11" rx="2" fill="#667eea"/>` +
                 `<text x="205" y="160" font-size="11" fill="#718096" font-family="sans-serif">Revenue</text>` +
