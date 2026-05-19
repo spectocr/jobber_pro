@@ -4521,6 +4521,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             laborItems = [];
             materialItems = [];
             paymentItems = [];
+            _unlockedPaymentIds = new Set();
             touchPoints = [];
             attachments = [];
             currentEditingJobId = null;
@@ -5069,6 +5070,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let laborItems = [];
         let materialItems = [];
         let paymentItems = [];
+        let _unlockedPaymentIds = new Set();
         let touchPoints = [];
         let attachments = [];
 
@@ -5556,8 +5558,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             initLineItemDrag(laborContainer, laborItems);
             initLineItemDrag(materialContainer, materialItems);
 
-            paymentContainer.innerHTML = paymentItems.map(item => \`
-                <div class="line-item" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr 2fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;">
+            paymentContainer.innerHTML = paymentItems.map(item => {
+                const isCardCharge = item.last4 != null || item.cardBrand != null;
+                const isLocked = isCardCharge && !_unlockedPaymentIds.has(item.id);
+                const methodLabel = { cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' }[item.method] || item.method;
+                if (isLocked) {
+                    return \`<div class="line-item" style="display:grid;grid-template-columns:1fr 1fr 1.5fr 2fr auto;gap:0.5rem;margin-bottom:0.5rem;align-items:center;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:0.5rem 0.75rem;">
+                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Date</div><div style="font-size:0.9rem;">\${item.date || '—'}</div></div>
+                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Amount</div><div style="font-size:0.9rem;font-weight:700;color:#15803d;">\$\${parseFloat(item.amount || 0).toFixed(2)}</div></div>
+                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Method</div><div style="font-size:0.9rem;">\${methodLabel}\${item.last4 ? \` ••••\${item.last4}\` : ''}</div></div>
+                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Notes</div><div style="font-size:0.85rem;color:#4b5563;">\${item.notes || '—'}</div></div>
+                        <button type="button" onclick="unlockPaymentItem(\${item.id})" style="background:#e2e8f0;color:#374151;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">🔒 Edit</button>
+                    </div>\`;
+                }
+                return \`<div class="line-item" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr 2fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;\${isCardCharge ? 'border:1.5px solid #fbd38d;border-radius:8px;padding:0.5rem;background:#fffbeb;' : ''}">
+                    \${isCardCharge ? \`<div style="grid-column:1/-1;font-size:0.75rem;color:#d97706;font-weight:600;margin-bottom:0.25rem;">⚠️ Card payment unlocked for editing</div>\` : ''}
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.85rem;">Date</label>
                         <input type="date" value="\${item.date}" onchange="updatePaymentItem(\${item.id}, 'date', this.value)">
@@ -5581,8 +5596,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="text" value="\${item.notes || ''}" onchange="updatePaymentItem(\${item.id}, 'notes', this.value)" placeholder="\${item.method === 'other' ? 'Required for Other' : 'Optional notes'}">
                     </div>
                     <button type="button" onclick="removePaymentItem(\${item.id})" style="background: #dc3545; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; height: 38px;">×</button>
-                </div>
-            \`).join('');
+                </div>\`;
+            }).join('');
 
             updateJobTotal();
         }
@@ -5662,6 +5677,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 renderLineItems();
                 markFormDirty();
             }
+        }
+
+        function unlockPaymentItem(id) {
+            if (!confirm('This payment was processed via credit card. Unlock it for editing?')) return;
+            _unlockedPaymentIds.add(id);
+            renderLineItems();
+            markFormDirty();
         }
 
         function toggleFollowUpFields() {
