@@ -14197,11 +14197,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                   '<details style="margin-bottom:0.7rem;">' +
                     '<summary style="cursor:pointer;font-size:0.81rem;color:#667eea;font-weight:600;">How to Pay</summary>' +
-                    '<div style="font-size:0.79rem;color:#4a5568;padding:0.5rem 0;line-height:1.65;">' +
-                      '<strong>Federal (SE + Income Tax):</strong><br>' +
-                      '• <a href="https://directpay.irs.gov" target="_blank" rel="noopener" style="color:#667eea;">IRS Direct Pay</a> ⭐ recommended — select "Estimated Tax" → "1040-ES"<br><br>' +
-                      '<strong>New Jersey:</strong><br>' +
-                      '• <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndividualRegistrationJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a> — pay via "Gross Income Tax — Estimated" (NJ-1040-ES)' +
+                    '<div style="font-size:0.79rem;color:#4a5568;padding:0.5rem 0;line-height:1.8;">' +
+                      '<strong>Federal — pay ' + fm(q.seTax + q.fedQ) + '</strong><br>' +
+                      '1. Go to <a href="https://directpay.irs.gov" target="_blank" rel="noopener" style="color:#667eea;">IRS Direct Pay</a><br>' +
+                      '2. Click <strong>Pay individual tax</strong><br>' +
+                      '3. Tax Form: <strong>1040</strong><br>' +
+                      '4. Tax Type: <strong>Estimated Tax</strong><br>' +
+                      '5. Tax Period: <strong>' + data.year + '</strong><br>' +
+                      '6. Enter amount: <strong>' + fm(q.seTax + q.fedQ) + '</strong> (SE tax + federal income tax)<br><br>' +
+                      '<strong>New Jersey — pay ' + fm(q.njQ) + '</strong><br>' +
+                      '1. Go to <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndividualRegistrationJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a><br>' +
+                      '2. Select <strong>Gross Income Tax — Estimated</strong><br>' +
+                      '3. Tax Period: <strong>' + data.year + '</strong><br>' +
+                      '4. Enter amount: <strong>' + fm(q.njQ) + '</strong>' +
                     '</div>' +
                   '</details>' +
 
