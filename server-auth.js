@@ -3844,6 +3844,121 @@ app.post('/api/onboarding/:token', async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Quarterly Tax Estimates ──────────────────────────────────────────────────
+
+function calcNJTax(annualIncome) {
+    if (annualIncome <= 0) return 0;
+    const brackets = [[20000,0.014],[15000,0.0175],[5000,0.035],[35000,0.05525],[425000,0.0637],[500000,0.0897],[Infinity,0.1075]];
+    let tax = 0, rem = annualIncome;
+    for (const [size, rate] of brackets) {
+        if (rem <= 0) break;
+        tax += Math.min(rem, size) * rate;
+        rem -= size;
+    }
+    return tax;
+}
+
+function federalIncomeTax(annualIncome, filingStatus) {
+    if (annualIncome <= 0) return 0;
+    const single   = [[11925,0.10],[36550,0.12],[54875,0.22],[93900,0.24],[208900,0.32],[125300,0.35],[Infinity,0.37]];
+    const married  = [[23850,0.10],[73100,0.12],[109750,0.22],[187800,0.24],[209350,0.32],[250500,0.35],[Infinity,0.37]];
+    const brackets = filingStatus === 'married' ? married : single;
+    let tax = 0, rem = annualIncome;
+    for (const [size, rate] of brackets) {
+        if (rem <= 0) break;
+        tax += Math.min(rem, size) * rate;
+        rem -= size;
+    }
+    return tax;
+}
+
+app.get('/api/taxes/summary', isAdmin, async (req, res) => {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const [jobs, expenses, payments, settings] = await Promise.all([
+        db.collection('jobs').find({ status: { $in: ['invoiced', 'completed'] } }).toArray(),
+        db.collection('expenses').find({}).toArray(),
+        db.collection('taxpayments').find({ year }).toArray(),
+        db.collection('settings').findOne({})
+    ]);
+    const ts = settings?.taxSettings || { filingStatus: 'single', otherIncome: 0, standardDeduction: true };
+
+    const quarters = [
+        { q: 1, label: 'Jan – Mar', months: [0,1,2], due: new Date(year, 3, 15) },
+        { q: 2, label: 'Apr – May', months: [3,4],   due: new Date(year, 5, 15) },
+        { q: 3, label: 'Jun – Aug', months: [5,6,7], due: new Date(year, 8, 15) },
+        { q: 4, label: 'Sep – Dec', months: [8,9,10,11], due: new Date(year + 1, 0, 15) },
+    ];
+
+    const result = quarters.map(({ q, label, months, due }) => {
+        const inQ = dateStr => {
+            const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+            return d && !isNaN(d) && d.getFullYear() === year && months.includes(d.getMonth());
+        };
+
+        const qJobs = jobs.filter(j => {
+            const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
+            return inQ(d);
+        });
+        const revenue = qJobs.reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
+
+        const qExp = expenses.filter(e => inQ(e.date));
+        const expTotal = qExp.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+
+        const netIncome = Math.max(0, revenue - expTotal);
+        // SE tax: 15.3% on 92.35% of net (mirrors IRS Schedule SE)
+        const seTax = netIncome * 0.9235 * 0.153;
+        const seDeduction = seTax / 2;
+
+        // Annual projection for bracket calc (net * 4 + other income - std deduction - SE deduction)
+        const stdDed = ts.filingStatus === 'married' ? 30000 : 15000;
+        const annualNet = netIncome * 4;
+        const annualOther = parseFloat(ts.otherIncome) || 0;
+        const annualAGI = annualNet + annualOther - (seTax * 4 / 2);
+        const annualTaxable = Math.max(0, annualAGI - (ts.standardDeduction !== false ? stdDed : 0));
+        const fedAnnual = federalIncomeTax(annualTaxable, ts.filingStatus);
+        const njAnnual  = calcNJTax(annualTaxable);
+        const fedQ = fedAnnual / 4;
+        const njQ  = njAnnual  / 4;
+        const totalDue = seTax + fedQ + njQ;
+
+        const payment = payments.find(p => p.quarter === q);
+        return {
+            q, label, due: due.toISOString(), months,
+            revenue, expTotal, netIncome,
+            seTax, fedQ, njQ, totalDue,
+            paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
+            paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
+            remaining: Math.max(0, totalDue - (payment?.amount || 0))
+        };
+    });
+
+    res.json({ quarters: result, taxSettings: ts, year });
+});
+
+app.get('/api/settings/taxes', isAdmin, async (req, res) => {
+    const s = await db.collection('settings').findOne({}, { projection: { taxSettings: 1 } });
+    res.json(s?.taxSettings || {});
+});
+app.post('/api/settings/taxes', isAdmin, async (req, res) => {
+    await db.collection('settings').updateOne({}, { $set: { taxSettings: req.body } }, { upsert: true });
+    res.json({ success: true });
+});
+
+app.post('/api/taxes/payments', isAdmin, async (req, res) => {
+    const { year, quarter, amount, method, notes } = req.body;
+    await db.collection('taxpayments').updateOne(
+        { year: parseInt(year), quarter: parseInt(quarter) },
+        { $set: { year: parseInt(year), quarter: parseInt(quarter), amount: parseFloat(amount), method, notes, paidAt: new Date() } },
+        { upsert: true }
+    );
+    res.json({ success: true });
+});
+
+app.delete('/api/taxes/payments/:year/:quarter', isAdmin, async (req, res) => {
+    await db.collection('taxpayments').deleteOne({ year: parseInt(req.params.year), quarter: parseInt(req.params.quarter) });
+    res.json({ success: true });
+});
+
 // Save job description text for a team member
 app.post('/api/team/:id/job-description', isAdmin, async (req, res) => {
     const { text } = req.body;

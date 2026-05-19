@@ -1333,6 +1333,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div id="admin-dropdown" class="admin-dropdown" style="display:none;">
                 <button class="nav-btn admin-item" onclick="showView('team')">👷 Team</button>
                 <button class="nav-btn admin-item" onclick="showView('payroll')">💼 Payroll</button>
+                <button class="nav-btn admin-item" onclick="showView('taxes')">🧾 Taxes</button>
                 <button class="nav-btn admin-item" onclick="showView('timeclock')">⏱️ Time Clock</button>
                 <button class="nav-btn admin-item" onclick="showView('expenses')">💰 Expenses</button>
                 <button class="nav-btn admin-item" onclick="showView('vendors')">🏪 Vendors</button>
@@ -1831,6 +1832,56 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
 
                 <div id="payrollContent"><div class="empty-state"><p>Select a period and click Calculate</p></div></div>
+            </div>
+        </div>
+
+        <!-- Taxes View -->
+        <div id="taxes" class="view">
+            <div class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header" style="cursor:pointer;" onclick="toggleTaxSettings()">
+                    <h2>⚙️ Tax Settings</h2>
+                    <span id="taxSettingsIcon" style="color:#718096;">▶</span>
+                </div>
+                <div id="taxSettingsPanel" style="display:none;padding-top:0.5rem;">
+                    <p style="color:#718096;font-size:0.88rem;margin-bottom:1.25rem;">These settings are used to estimate your income tax. SE tax (15.3%) is calculated automatically from your app data.</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem;">
+                        <div>
+                            <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Filing Status</label>
+                            <select id="taxFilingStatus" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                                <option value="single">Single / MFS</option>
+                                <option value="married">Married Filing Jointly</option>
+                                <option value="head">Head of Household</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Other Annual Income (W-2, spouse, etc.)</label>
+                            <input type="number" id="taxOtherIncome" placeholder="0" min="0" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Standard Deduction</label>
+                            <select id="taxStdDed" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                                <option value="true">Yes — take standard deduction</option>
+                                <option value="false">No — I itemize</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Tax Year</label>
+                            <select id="taxYear" onchange="loadTaxes()" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;"></select>
+                        </div>
+                    </div>
+                    <div style="background:#ebf8ff;border-left:3px solid #63b3ed;padding:0.75rem 1rem;border-radius:4px;font-size:0.83rem;color:#2c5282;margin-bottom:1rem;">
+                        <strong>Safe harbor tip:</strong> To avoid underpayment penalties, pay at least 100% of last year's total tax liability spread across 4 quarters (110% if your prior-year AGI was over $150,000).
+                    </div>
+                    <button class="btn btn-primary" onclick="saveTaxSettings()">Save Settings</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>🧾 Quarterly Estimated Taxes</h2>
+                    <button class="btn btn-secondary" onclick="loadTaxes()">🔄 Recalculate</button>
+                </div>
+                <div id="taxContent"><div class="empty-state"><p>Loading...</p></div></div>
             </div>
         </div>
 
@@ -3998,7 +4049,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             document.getElementById(viewName).classList.add('active');
 
-            const adminViews = ['team', 'timeclock', 'expenses', 'vendors', 'portfolio', 'reports', 'analytics', 'settings', 'payroll'];
+            const adminViews = ['team', 'timeclock', 'expenses', 'vendors', 'portfolio', 'reports', 'analytics', 'settings', 'payroll', 'taxes'];
             if (adminViews.includes(viewName)) {
                 const adminBtn = document.getElementById('admin-menu-btn');
                 if (adminBtn) adminBtn.classList.add('active');
@@ -4018,6 +4069,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
             if (viewName === 'payroll') { loadPayrollCompliance(); applyPayrollPreset(); }
+            if (viewName === 'taxes') { populateTaxYears(); loadTaxes(); }
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -14047,6 +14099,175 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             await loadTeam();
             const member = team.find(t => t.id === memberId);
             if (member) renderOnboardingChecklist(member);
+        }
+
+        // ── Quarterly Estimated Taxes ──────────────────────────────────────
+
+        function populateTaxYears() {
+            const sel = document.getElementById('taxYear');
+            if (!sel || sel.options.length > 0) return;
+            const cur = new Date().getFullYear();
+            for (let y = cur; y >= cur - 3; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                if (y === cur) opt.selected = true;
+                sel.appendChild(opt);
+            }
+        }
+
+        async function loadTaxes() {
+            try {
+                const s = await (await fetch('/api/settings/taxes')).json();
+                if (s.filingStatus) document.getElementById('taxFilingStatus').value = s.filingStatus;
+                if (s.otherIncome !== undefined) document.getElementById('taxOtherIncome').value = s.otherIncome;
+                if (s.standardDeduction !== undefined) document.getElementById('taxStdDed').value = String(s.standardDeduction);
+            } catch(e) {}
+
+            const year = document.getElementById('taxYear')?.value || new Date().getFullYear();
+            const box  = document.getElementById('taxContent');
+            box.innerHTML = '<div class="empty-state"><p>Calculating…</p></div>';
+            try {
+                const data = await (await fetch('/api/taxes/summary?year=' + year)).json();
+                renderTaxSummary(data);
+            } catch(e) {
+                box.innerHTML = '<div class="empty-state"><p>Error loading tax data.</p></div>';
+            }
+        }
+
+        function renderTaxSummary(data) {
+            const box   = document.getElementById('taxContent');
+            const today = new Date();
+            const fm    = n => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const daysUntil = iso => Math.round((new Date(iso) - today) / 86400000);
+
+            let cards = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem;">';
+
+            data.quarters.forEach(q => {
+                const days    = daysUntil(q.due);
+                const dueDate = new Date(q.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const isPaid  = q.paidAmount >= q.totalDue * 0.99;
+                const isOver  = !isPaid && days < 0;
+                const isUrgent= !isPaid && days >= 0 && days <= 14;
+
+                const badge  = isPaid ? '✅ PAID' : isOver ? '🔴 OVERDUE' : isUrgent ? '⚠️ DUE SOON' : '📅 UPCOMING';
+                const bColor = isPaid ? '#48bb78' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#667eea';
+                const border = isPaid ? '#48bb78' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#e2e8f0';
+
+                const dueLabel = isPaid ? 'Due ' + dueDate
+                    : isOver  ? (days * -1) + ' days overdue (was ' + dueDate + ')'
+                    : days === 0 ? 'Due today!'
+                    : 'Due in ' + days + ' days — ' + dueDate;
+
+                cards +=
+                '<div style="border:2px solid ' + border + ';border-radius:12px;padding:1.25rem;background:#fff;">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">' +
+                    '<div>' +
+                      '<div style="font-size:1.05rem;font-weight:700;color:#2d3748;">Q' + q.q + ' — ' + q.label + '</div>' +
+                      '<div style="font-size:0.78rem;color:#718096;">' + dueLabel + '</div>' +
+                    '</div>' +
+                    '<span style="background:' + bColor + ';color:#fff;padding:0.2rem 0.6rem;border-radius:20px;font-size:0.73rem;font-weight:700;white-space:nowrap;">' + badge + '</span>' +
+                  '</div>' +
+
+                  '<div style="background:#f7fafc;border-radius:8px;padding:0.7rem 0.85rem;margin-bottom:0.7rem;">' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Revenue</span><span>' + fm(q.revenue) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700;color:#2d3748;border-top:1px solid #e2e8f0;padding-top:0.25rem;"><span>Net Income</span><span>' + fm(q.netIncome) + '</span></div>' +
+                  '</div>' +
+
+                  '<div style="margin-bottom:0.7rem;">' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>SE Tax (15.3%)</span><span>' + fm(q.seTax) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Federal Income Tax</span><span>' + fm(q.fedQ) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;"><span>NJ Income Tax</span><span>' + fm(q.njQ) + '</span></div>' +
+                  '</div>' +
+
+                  '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem;color:#2d3748;border-top:2px solid #e2e8f0;padding-top:0.55rem;margin-bottom:0.7rem;">' +
+                    '<span>Total Est. Due</span><span style="color:' + (isOver ? '#e53e3e' : '#667eea') + ';">' + fm(q.totalDue) + '</span>' +
+                  '</div>' +
+
+                  (q.paidAmount > 0 ?
+                    '<div style="background:#f0fff4;border-radius:6px;padding:0.55rem 0.75rem;margin-bottom:0.7rem;font-size:0.82rem;">' +
+                      '<div style="color:#276749;font-weight:600;">Paid: ' + fm(q.paidAmount) + (q.paidMethod ? ' via ' + q.paidMethod : '') + '</div>' +
+                      (q.paidNotes ? '<div style="color:#4a5568;">' + q.paidNotes + '</div>' : '') +
+                      (q.remaining > 0.5 ? '<div style="color:#c05621;font-weight:600;">Still owed: ' + fm(q.remaining) + '</div>' : '') +
+                    '</div>' : '') +
+
+                  '<details style="margin-bottom:0.7rem;">' +
+                    '<summary style="cursor:pointer;font-size:0.81rem;color:#667eea;font-weight:600;">How to Pay</summary>' +
+                    '<div style="font-size:0.79rem;color:#4a5568;padding:0.5rem 0;line-height:1.65;">' +
+                      '<strong>Federal (SE + Income Tax):</strong><br>' +
+                      '• <a href="https://directpay.irs.gov" target="_blank" rel="noopener" style="color:#667eea;">IRS Direct Pay</a> — select "Estimated Tax" → "1040-ES"<br>' +
+                      '• <a href="https://eftps.gov" target="_blank" rel="noopener" style="color:#667eea;">EFTPS</a> — Electronic Federal Tax Payment System<br><br>' +
+                      '<strong>New Jersey:</strong><br>' +
+                      '• <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndividualRegistrationJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a> — pay via "Gross Income Tax — Estimated" (NJ-1040-ES)' +
+                    '</div>' +
+                  '</details>' +
+
+                  '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+                    (isPaid
+                      ? '<button onclick="clearQuarterPaid(' + data.year + ',' + q.q + ')" style="padding:0.4rem 0.85rem;background:#fed7d7;color:#c53030;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">↩ Remove Payment</button>'
+                      : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
+                  '</div>' +
+                '</div>';
+            });
+
+            cards += '</div>';
+
+            const totalDue  = data.quarters.reduce((s, q) => s + q.totalDue,   0);
+            const totalPaid = data.quarters.reduce((s, q) => s + q.paidAmount, 0);
+            const remaining = Math.max(0, totalDue - totalPaid);
+
+            const summary =
+                '<div style="display:flex;justify-content:space-between;align-items:center;background:#ebf4ff;border-radius:10px;padding:0.85rem 1.25rem;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem;">' +
+                  '<div style="font-weight:700;color:#2c5282;">' + data.year + ' — Full Year</div>' +
+                  '<div style="display:flex;gap:1.5rem;font-size:0.88rem;flex-wrap:wrap;">' +
+                    '<span style="color:#4a5568;">Est. Due: <strong style="color:#2d3748;">' + fm(totalDue) + '</strong></span>' +
+                    '<span style="color:#4a5568;">Paid: <strong style="color:#276749;">' + fm(totalPaid) + '</strong></span>' +
+                    '<span style="color:#4a5568;">Remaining: <strong style="color:' + (remaining > 0 ? '#c05621' : '#276749') + ';">' + fm(remaining) + '</strong></span>' +
+                  '</div>' +
+                '</div>';
+
+            box.innerHTML = summary + cards;
+        }
+
+        function toggleTaxSettings() {
+            const panel = document.getElementById('taxSettingsPanel');
+            const icon  = document.getElementById('taxSettingsIcon');
+            const open  = panel.style.display === 'none';
+            panel.style.display = open ? 'block' : 'none';
+            icon.textContent = open ? '▼' : '▶';
+        }
+
+        async function saveTaxSettings() {
+            const body = {
+                filingStatus:      document.getElementById('taxFilingStatus').value,
+                otherIncome:       parseFloat(document.getElementById('taxOtherIncome').value) || 0,
+                standardDeduction: document.getElementById('taxStdDed').value === 'true'
+            };
+            await fetch('/api/settings/taxes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            loadTaxes();
+        }
+
+        function openMarkPaid(year, quarter, suggested) {
+            const amount = prompt('Amount paid for Q' + quarter + ' ' + year + ':', suggested.toFixed(2));
+            if (!amount || isNaN(parseFloat(amount))) return;
+            const method = prompt('Payment method (e.g. IRS Direct Pay, EFTPS, NJ Portal):', '') || '';
+            const notes  = prompt('Notes (optional):', '') || '';
+            markQuarterPaid(year, quarter, parseFloat(amount), method, notes);
+        }
+
+        async function markQuarterPaid(year, quarter, amount, method, notes) {
+            await fetch('/api/taxes/payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ year, quarter, amount, method, notes })
+            });
+            loadTaxes();
+        }
+
+        async function clearQuarterPaid(year, quarter) {
+            if (!confirm('Remove payment record for Q' + quarter + ' ' + year + '?')) return;
+            await fetch('/api/taxes/payments/' + year + '/' + quarter, { method: 'DELETE' });
+            loadTaxes();
         }
     </script>
 
