@@ -2048,10 +2048,19 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
                 const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
                 const key = d.toISOString().slice(0, 7);
                 const label = d.toLocaleString('default', { month: 'short' });
-                const revenue = jobsMapped
-                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate || 0).toISOString().slice(0, 7) === key)
-                    .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
-                months.push({ key, label, revenue });
+                const monthJobs = jobsMapped
+                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate || 0).toISOString().slice(0, 7) === key);
+                const revenue = monthJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
+                const materialCosts = monthJobs.reduce((sum, j) => {
+                    if (j.materialItems && Array.isArray(j.materialItems))
+                        return sum + j.materialItems.reduce((s, item) => s + ((item.quantity || 0) * (item.price || 0)), 0);
+                    return sum;
+                }, 0);
+                const monthExpenses = allExpenses
+                    .filter(e => { const dt = typeof e.date === 'string' ? e.date : (e.date instanceof Date ? e.date.toISOString() : String(e.date || '')); return dt.startsWith(key); })
+                    .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+                const profit = revenue - materialCosts - monthExpenses;
+                months.push({ key, label, revenue, profit });
             }
             return months;
         })(),

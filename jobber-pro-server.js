@@ -1408,10 +1408,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <!-- Revenue Trend Chart -->
             <div class="card" style="margin-bottom:1.5rem;">
                 <div class="card-header" style="padding-bottom:0;">
-                    <h2>📈 Revenue — Last 6 Months</h2>
+                    <h2>📈 Revenue &amp; Profit — Last 6 Months</h2>
                 </div>
                 <div style="padding:1rem 1.5rem 0.75rem;">
-                    <svg id="revenueTrendSvg" viewBox="0 0 600 160" style="display:block; width:100%; height:auto; overflow:visible;"></svg>
+                    <svg id="revenueTrendSvg" viewBox="0 0 600 172" style="display:block; width:100%; height:auto; overflow:visible;"></svg>
                 </div>
             </div>
 
@@ -6179,29 +6179,45 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (jd) jd.innerHTML = deltaHtml(stats.jobsThisMonth || 0, stats.lastMonthJobs || 0);
             })();
 
-            // Revenue trend bar chart
+            // Revenue & Profit trend bar chart
             (function() {
                 const months = stats.revenueByMonth;
                 const svg = document.getElementById('revenueTrendSvg');
                 if (!svg || !months || months.length === 0) return;
-                const maxRev = Math.max(...months.map(m => m.revenue), 1);
+                const maxVal = Math.max(...months.map(m => m.revenue), 1);
                 const W = 600, chartH = 115, barAreaW = W / months.length;
-                const barW = barAreaW * 0.52;
+                const pairW = barAreaW * 0.58;
+                const singleW = (pairW - 2) / 2;
                 svg.innerHTML = months.map((m, i) => {
-                    const barH = Math.max(4, (m.revenue / maxRev) * chartH);
-                    const x = i * barAreaW + (barAreaW - barW) / 2;
-                    const y = chartH - barH;
                     const isCurrent = i === months.length - 1;
-                    const fill = isCurrent ? '#667eea' : '#e2e8f0';
-                    const textFill = isCurrent ? '#667eea' : '#a0aec0';
-                    const valLabel = m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}k` : m.revenue > 0 ? `$${Math.round(m.revenue)}` : '';
-                    const insideBar = y < 18;
-                    const labelY = insideBar ? y + 15 : Math.max(11, y - 5);
-                    const labelFill = insideBar ? 'white' : textFill;
-                    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="4" fill="${fill}"/>` +
-                        `<text x="${(x+barW/2).toFixed(1)}" y="135" text-anchor="middle" font-size="11" fill="#718096" font-family="sans-serif">${m.label}</text>` +
-                        (valLabel ? `<text x="${(x+barW/2).toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="10" fill="${labelFill}" font-weight="600" font-family="sans-serif">${valLabel}</text>` : '');
-                }).join('');
+                    const pairX = i * barAreaW + (barAreaW - pairW) / 2;
+                    const rx = pairX;
+                    const px = pairX + singleW + 2;
+
+                    const revH = Math.max(4, (m.revenue / maxVal) * chartH);
+                    const revY = chartH - revH;
+                    const revFill = isCurrent ? '#667eea' : '#c4cafe';
+
+                    const profit = m.profit || 0;
+                    const profH = profit > 0 ? Math.max(4, (profit / maxVal) * chartH) : 0;
+                    const profY = chartH - profH;
+                    const profFill = isCurrent ? '#48bb78' : '#9ae6b4';
+
+                    const revLabel = m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}k` : m.revenue > 0 ? `$${Math.round(m.revenue)}` : '';
+                    const revLabelY = revY < 18 ? revY + 14 : Math.max(11, revY - 4);
+                    const revLabelFill = revY < 18 ? 'white' : (isCurrent ? '#667eea' : '#a0aec0');
+
+                    const centerX = (rx + singleW / 2 + px + singleW / 2) / 2;
+
+                    return `<rect x="${rx.toFixed(1)}" y="${revY.toFixed(1)}" width="${singleW.toFixed(1)}" height="${revH.toFixed(1)}" rx="3" fill="${revFill}"/>` +
+                        (profH > 0 ? `<rect x="${px.toFixed(1)}" y="${profY.toFixed(1)}" width="${singleW.toFixed(1)}" height="${profH.toFixed(1)}" rx="3" fill="${profFill}"/>` : '') +
+                        `<text x="${centerX.toFixed(1)}" y="135" text-anchor="middle" font-size="11" fill="#718096" font-family="sans-serif">${m.label}</text>` +
+                        (revLabel ? `<text x="${(rx+singleW/2).toFixed(1)}" y="${revLabelY.toFixed(1)}" text-anchor="middle" font-size="10" fill="${revLabelFill}" font-weight="600" font-family="sans-serif">${revLabel}</text>` : '');
+                }).join('') +
+                `<rect x="190" y="150" width="11" height="11" rx="2" fill="#667eea"/>` +
+                `<text x="205" y="160" font-size="11" fill="#718096" font-family="sans-serif">Revenue</text>` +
+                `<rect x="290" y="150" width="11" height="11" rx="2" fill="#48bb78"/>` +
+                `<text x="305" y="160" font-size="11" fill="#718096" font-family="sans-serif">Profit</text>`;
             })();
 
             document.getElementById('stat-prospecting').textContent = stats.prospecting;
