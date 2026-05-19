@@ -1651,12 +1651,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <div id="clockedInView" style="display: none;">
-                        <div style="background: white; padding: 2rem; border-radius: 12px; border: 3px solid #48bb78;">
+                        <!-- Working state -->
+                        <div id="workingView" style="background: white; padding: 2rem; border-radius: 12px; border: 3px solid #48bb78;">
                             <h3 style="color: #48bb78; margin-bottom: 0.5rem;">⏱️ Currently Working</h3>
                             <h2 style="color: #1a202c; margin-bottom: 1rem;" id="currentJobTitle">Job Name</h2>
                             <div style="font-size: 3rem; font-weight: 700; color: #667eea; margin: 1.5rem 0;" id="timerDisplay">0:00:00</div>
                             <p style="color: #718096; margin-bottom: 1.5rem;">Started at <span id="clockInTime">--:--</span></p>
-                            <button class="btn btn-danger" onclick="openClockOutSurvey()" style="font-size: 1.25rem; padding: 1rem 2rem;">🕐 Clock Out</button>
+                            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                                <button class="btn" onclick="startLunch()" style="font-size: 1.1rem; padding: 0.875rem 1.75rem; background: #ed8936; color: white; border: none; border-radius: 8px; cursor: pointer;">🍽️ Lunch Break</button>
+                                <button class="btn btn-danger" onclick="openClockOutSurvey()" style="font-size: 1.1rem; padding: 0.875rem 1.75rem;">🕐 Clock Out</button>
+                            </div>
+                        </div>
+                        <!-- On lunch state -->
+                        <div id="onLunchView" style="display: none; background: white; padding: 2rem; border-radius: 12px; border: 3px solid #ed8936;">
+                            <h3 style="color: #ed8936; margin-bottom: 0.5rem;">🍽️ On Lunch Break</h3>
+                            <h2 style="color: #1a202c; margin-bottom: 1rem;" id="lunchJobTitle">Job Name</h2>
+                            <div style="font-size: 2.5rem; font-weight: 700; color: #ed8936; margin: 1.5rem 0;" id="lunchTimerDisplay">0:00</div>
+                            <p style="color: #718096; margin-bottom: 1.5rem;">Break started at <span id="lunchStartTime">--:--</span></p>
+                            <button class="btn" onclick="endLunch()" style="font-size: 1.25rem; padding: 1rem 2rem; background: #48bb78; color: white; border: none; border-radius: 8px; cursor: pointer;">✅ Back from Lunch</button>
                         </div>
                     </div>
                 </div>
@@ -12242,7 +12254,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const entriesResponse = await fetch('/api/timeentries');
             const entries = await entriesResponse.json();
-            const activeEntry = entries.find(e => e.status === 'active' && e.userId === currentUserId);
+            const activeEntry = entries.find(e => (e.status === 'active' || e.status === 'on_break') && e.userId === currentUserId);
 
             if (activeEntry) {
                 currentClockEntry = activeEntry;
@@ -12350,13 +12362,51 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        async function startLunch() {
+            if (!currentClockEntry) return;
+            const response = await fetch('/api/timeentries/breakstart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entryId: currentClockEntry.id })
+            });
+            currentClockEntry = await response.json();
+            showClockedIn();
+            loadTodayTimeEntries();
+        }
+
+        async function endLunch() {
+            if (!currentClockEntry) return;
+            const response = await fetch('/api/timeentries/breakend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entryId: currentClockEntry.id })
+            });
+            currentClockEntry = await response.json();
+            showClockedIn();
+            loadTodayTimeEntries();
+        }
+
         function showClockedIn() {
             document.getElementById('clockedOutView').style.display = 'none';
             document.getElementById('clockedInView').style.display = 'block';
+
+            const onBreak = currentClockEntry.status === 'on_break';
+            document.getElementById('workingView').style.display = onBreak ? 'none' : 'block';
+            document.getElementById('onLunchView').style.display = onBreak ? 'block' : 'none';
+
             document.getElementById('currentJobTitle').textContent = currentClockEntry.jobName;
+            document.getElementById('lunchJobTitle').textContent = currentClockEntry.jobName;
 
             const clockInTime = new Date(currentClockEntry.clockIn);
             document.getElementById('clockInTime').textContent = clockInTime.toLocaleTimeString();
+
+            if (onBreak) {
+                const breaks = currentClockEntry.breaks || [];
+                const lastBreak = breaks[breaks.length - 1];
+                if (lastBreak) {
+                    document.getElementById('lunchStartTime').textContent = new Date(lastBreak.start).toLocaleTimeString();
+                }
+            }
         }
 
         function showClockedOut(showConfirmation) {
@@ -12382,14 +12432,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             function updateTimer() {
                 const clockInTime = new Date(currentClockEntry.clockIn);
                 const now = new Date();
-                const elapsed = Math.floor((now - clockInTime) / 1000);
+                const breaks = currentClockEntry.breaks || [];
 
+                let breakSecs = 0;
+                let openBreakStart = null;
+                for (const b of breaks) {
+                    if (b.start && b.end) {
+                        breakSecs += Math.round((new Date(b.end) - new Date(b.start)) / 1000);
+                    } else if (b.start && !b.end) {
+                        openBreakStart = new Date(b.start);
+                        breakSecs += Math.round((now - openBreakStart) / 1000);
+                    }
+                }
+
+                const elapsed = Math.max(0, Math.floor((now - clockInTime) / 1000) - breakSecs);
                 const hours = Math.floor(elapsed / 3600);
                 const minutes = Math.floor((elapsed % 3600) / 60);
                 const seconds = elapsed % 60;
-
                 document.getElementById('timerDisplay').textContent =
                     hours + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+
+                // Lunch break counter — how long they've been on break
+                const lunchEl = document.getElementById('lunchTimerDisplay');
+                if (lunchEl && openBreakStart) {
+                    const lunchSecs = Math.floor((now - openBreakStart) / 1000);
+                    const lm = Math.floor(lunchSecs / 60);
+                    const ls = lunchSecs % 60;
+                    lunchEl.textContent = lm + ':' + String(ls).padStart(2, '0');
+                }
             }
 
             updateTimer();
@@ -12430,11 +12500,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const duration = entry.duration ? formatDuration(entry.duration) : 'In Progress';
                 const clockOutText = clockOut ? '| Out: ' + clockOut.toLocaleTimeString() : '';
 
-                // Status colors: active=green, pending=yellow, approved=green, rejected=red
-                let borderColor = '#667eea'; // default blue
+                // Status colors
+                let borderColor = '#667eea';
                 let statusBadge = '';
                 if (entry.status === 'active') {
                     borderColor = '#48bb78';
+                } else if (entry.status === 'on_break') {
+                    borderColor = '#ed8936';
+                    statusBadge = '<span style="background: #ed8936; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">🍽️ On Lunch</span>';
                 } else if (entry.status === 'pending') {
                     borderColor = '#ffc107';
                     statusBadge = '<span style="background: #ffc107; color: #000; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">⏳ Pending</span>';
@@ -12451,6 +12524,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<button class="btn-icon" onclick="deleteTimeEntry(\'' + entry.id + '\')" title="Delete">🗑️</button>' +
                     '</div>' : '';
 
+                // Lunch break summary line
+                const entryBreaks = entry.breaks || [];
+                let lunchLine = '';
+                if (entryBreaks.length > 0) {
+                    const parts = entryBreaks.map(b => {
+                        if (!b.start) return '';
+                        const bs = new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        if (b.end) {
+                            const be = new Date(b.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const mins = Math.round((new Date(b.end) - new Date(b.start)) / 60000);
+                            return bs + ' – ' + be + ' (' + mins + 'm)';
+                        }
+                        return bs + ' – ongoing';
+                    }).filter(Boolean);
+                    if (parts.length) lunchLine = '<div>🍽️ Lunch: ' + parts.join(', ') + '</div>';
+                }
+
                 return '<div class="time-entry-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ' + borderColor + ';">' +
                     '<div style="display: flex; justify-content: space-between; align-items: start;">' +
                     '<div style="flex: 1;">' +
@@ -12460,6 +12550,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '</div>' +
                     '<div style="color: #718096; font-size: 0.9rem;">' +
                     '<div>⏰ In: ' + clockIn.toLocaleTimeString() + ' ' + clockOutText + '</div>' +
+                    lunchLine +
                     '<div>⏱️ Duration: ' + duration + '</div>' +
                     '</div></div>' +
                     adminButtons +
@@ -12820,6 +12911,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     ? '<div style="color:#276749;font-size:0.85rem;margin-top:0.25rem;">💰 Planned: $' + plannedPayout + ' (' + hours.toFixed(2) + 'hr × $' + rate.toFixed(2) + '/hr)</div>'
                     : '';
 
+                // Lunch break summary for admin queue
+                const qBreaks = entry.breaks || [];
+                let qLunchLine = '';
+                if (qBreaks.length > 0) {
+                    const qParts = qBreaks.map(b => {
+                        if (!b.start || !b.end) return '';
+                        const bs = new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const be = new Date(b.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const mins = Math.round((new Date(b.end) - new Date(b.start)) / 60000);
+                        return bs + ' – ' + be + ' (' + mins + 'm deducted)';
+                    }).filter(Boolean);
+                    if (qParts.length) qLunchLine = '<div>🍽️ Lunch: ' + qParts.join(', ') + '</div>';
+                }
+
                 return '<div class="time-entry-card" style="background: #fffbea; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #ffc107;">' +
                     '<div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">' +
                     '<div style="flex: 1;">' +
@@ -12829,6 +12934,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '</div>' +
                     '<div style="color: #718096; font-size: 0.9rem;">' +
                     '<div>📅 ' + date + ' | ⏰ ' + clockIn.toLocaleTimeString() + ' - ' + clockOut.toLocaleTimeString() + '</div>' +
+                    qLunchLine +
                     '<div>⏱️ Duration: ' + duration + '</div>' +
                     '</div>' +
                     plannedLabel +

@@ -4066,18 +4066,34 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
     const { entryId, survey } = req.body;
     const entry = await db.collection('timeentries').findOne({
         _id: new ObjectId(entryId),
-        status: 'active'
+        status: { $in: ['active', 'on_break'] }
     });
 
     if (entry) {
         const clockOut = new Date();
-        const duration = Math.round((clockOut - entry.clockIn) / 1000); // seconds
+        const breaks = entry.breaks || [];
+        let breakSeconds = 0;
+        const finalBreaks = breaks.map(b => {
+            if (b.start && b.end) {
+                breakSeconds += Math.round((new Date(b.end) - new Date(b.start)) / 1000);
+                return b;
+            } else if (b.start && !b.end) {
+                // Auto-close any open break at clock-out
+                const end = clockOut;
+                breakSeconds += Math.round((end - new Date(b.start)) / 1000);
+                return { start: b.start, end };
+            }
+            return b;
+        });
+        const rawDuration = Math.round((clockOut - entry.clockIn) / 1000);
+        const duration = Math.max(0, rawDuration - breakSeconds);
 
         const updates = {
             clockOut,
             status: 'pending',
             approvalStatus: 'pending',
             duration,
+            breaks: finalBreaks,
             updatedAt: new Date()
         };
         if (survey?.rating) updates.survey = { rating: parseInt(survey.rating), comment: (survey.comment || '').trim(), submittedAt: new Date() };
@@ -4092,6 +4108,41 @@ app.post('/api/timeentries/clockout', isAuthenticated, async (req, res) => {
     } else {
         res.status(404).json({ error: 'Active time entry not found' });
     }
+});
+
+app.post('/api/timeentries/breakstart', isAuthenticated, async (req, res) => {
+    const { entryId } = req.body;
+    const entry = await db.collection('timeentries').findOne({
+        _id: new ObjectId(entryId),
+        status: 'active'
+    });
+    if (!entry) return res.status(404).json({ error: 'Active time entry not found' });
+    const now = new Date();
+    await db.collection('timeentries').updateOne(
+        { _id: new ObjectId(entryId) },
+        { $set: { status: 'on_break', updatedAt: now }, $push: { breaks: { start: now, end: null } } }
+    );
+    const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(entryId) });
+    res.json({ ...updated, id: updated._id.toString() });
+});
+
+app.post('/api/timeentries/breakend', isAuthenticated, async (req, res) => {
+    const { entryId } = req.body;
+    const entry = await db.collection('timeentries').findOne({
+        _id: new ObjectId(entryId),
+        status: 'on_break'
+    });
+    if (!entry) return res.status(404).json({ error: 'On-break time entry not found' });
+    const now = new Date();
+    const updatedBreaks = (entry.breaks || []).map((b, i, arr) =>
+        i === arr.length - 1 && !b.end ? { start: b.start, end: now } : b
+    );
+    await db.collection('timeentries').updateOne(
+        { _id: new ObjectId(entryId) },
+        { $set: { status: 'active', breaks: updatedBreaks, updatedAt: now } }
+    );
+    const updated = await db.collection('timeentries').findOne({ _id: new ObjectId(entryId) });
+    res.json({ ...updated, id: updated._id.toString() });
 });
 
 // Edit time entry (admin only)
