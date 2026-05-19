@@ -7798,12 +7798,118 @@ async function rebuildPublicPortfolio() {
             } catch (e) { console.warn('CloudFront invalidation for portfolio.html failed:', e.message); }
         }
         rebuildPropertyManagementPage().catch(() => {});
+        rebuildHomePage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
     }
 }
 
+const HOME_PORTFOLIO_OLD = `(function(){\n    fetch('https://app.gsdhandymanservice.com/api/portfolio')`;
+const HOME_PORTFOLIO_NEW = `(function(){
+    fetch('https://app.gsdhandymanservice.com/api/portfolio')
+        .then(function(r){return r.json();})
+        .then(function(items){
+            var grid = document.getElementById('homepage-portfolio');
+            if (!items || !items.length) { grid.closest('section').style.display='none'; return; }
+            var isMobile = window.innerWidth < 768;
+            var show = items.slice(0, isMobile ? 6 : 8);
 
+            // Inject modal + lightbox once
+            if (!document.getElementById('hp-proj-modal')) {
+                var el = document.createElement('div');
+                el.innerHTML = '<div id="hp-proj-modal" onclick="if(event.target===this)hpCloseProject()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;overflow-y:auto;padding:2rem 1rem;">'
+                    +'<div style="background:white;border-radius:16px;max-width:720px;margin:0 auto;overflow:hidden;">'
+                    +'<div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">'
+                    +'<h2 id="hp-proj-title" style="font-size:1.15rem;font-weight:700;font-family:inherit;"></h2>'
+                    +'<button onclick="hpCloseProject()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1;">&times;</button></div>'
+                    +'<div style="padding:1.5rem;"><p id="hp-proj-cap" style="color:#6b7280;font-size:.9rem;margin-bottom:1.25rem;"></p><div id="hp-proj-photos"></div>'
+                    +'<div style="text-align:center;margin-top:1.5rem;"><a href="/portfolio.html" style="display:inline-block;padding:0.65rem 1.75rem;background:#0f1c2e;color:white;border-radius:8px;font-weight:700;font-size:0.9rem;text-decoration:none;">View All Work &rarr;</a></div>'
+                    +'</div></div></div>'
+                    +'<div id="hp-lightbox" onclick="hpCloseLb()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center;">'
+                    +'<span onclick="hpCloseLb()" style="position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer;">&times;</span>'
+                    +'<img id="hp-lb-img" src="" alt="" style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:8px;"></div>';
+                while (el.firstChild) document.body.appendChild(el.firstChild);
+                document.addEventListener('keydown', function(e){ if(e.key==='Escape'){hpCloseLb();hpCloseProject();} });
+            }
+
+            window._hpData = show;
+            window.hpOpenProject = function(idx){
+                var item = window._hpData[idx]; if (!item) return;
+                document.getElementById('hp-proj-title').textContent = item.title || 'Project Details';
+                var cap = document.getElementById('hp-proj-cap');
+                cap.textContent = item.caption || ''; cap.style.display = item.caption ? '' : 'none';
+                var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
+                var secs = [{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
+                var h = '';
+                secs.forEach(function(s){
+                    var ph = photos.filter(function(x){return x.type===s.k;}); if (!ph.length) return;
+                    h += '<div style="font-weight:700;font-size:.85rem;margin-bottom:.5rem;color:'+s.c+'"><span style="background:'+s.bg+';border:1.5px solid '+s.br+';border-radius:6px;padding:2px 12px;">'+s.l+'</span></div>';
+                    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem;margin-bottom:1.25rem;">';
+                    ph.forEach(function(x){
+                        h += '<img src="'+x.url+'" alt="'+(s.k==='before'?'Before':s.k==='after'?'After':'')+(item.title?' — '+item.title:'')+'" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;" onclick="hpOpenLb(this.src)">';
+                    });
+                    h += '</div>';
+                });
+                document.getElementById('hp-proj-photos').innerHTML = h || '<p style="color:#9ca3af">No photos.</p>';
+                document.getElementById('hp-proj-modal').style.display = 'block';
+                document.body.style.overflow = 'hidden';
+            };
+            window.hpCloseProject = function(){ document.getElementById('hp-proj-modal').style.display='none'; document.body.style.overflow=''; };
+            window.hpOpenLb = function(src){ document.getElementById('hp-lb-img').src=src; document.getElementById('hp-lightbox').style.display='flex'; };
+            window.hpCloseLb = function(){ document.getElementById('hp-lightbox').style.display='none'; };
+
+            function badge(type){var t=type==='before'?'Before':type==='after'?'After':type==='other'?'Other':'';return t?'<span style="position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.55);color:#fff;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;">'+t+'</span>':'';}
+
+            grid.innerHTML = show.map(function(item, idx){
+                var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
+                var sorted = [].concat(photos.filter(function(p){return p.type==='before';}),photos.filter(function(p){return p.type==='after';}),photos.filter(function(p){return p.type==='other';}));
+                var sp = sorted.slice(0,4);
+                var inner;
+                if (!sp.length) {
+                    inner = '<div style="aspect-ratio:4/3;background:#e5e7eb;"></div>';
+                } else if (sp.length === 1) {
+                    inner = '<div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;position:relative;">'
+                        +'<img src="'+sp[0].url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'
+                        +badge(sp[0].type)+'</div>';
+                } else if (sp.length === 2) {
+                    inner = '<div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;display:flex;gap:2px;">'
+                        +sp.map(function(p){return '<div style="flex:1;min-width:0;position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('')
+                        +'</div>';
+                } else {
+                    inner = '<div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;">'
+                        +sp.map(function(p){return '<div style="position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('')
+                        +'</div>';
+                }
+                return '<div onclick="hpOpenProject('+idx+')" style="border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);background:white;cursor:pointer;transition:transform .2s,box-shadow .2s;" onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.12)\'" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.08)\'">'+inner
+                    +(item.title||item.category ? '<div style="padding:0.65rem 0.85rem;font-weight:600;color:#1f2937;font-size:0.9rem;">'+(item.title||item.category)+'</div>' : '')
+                    +'</div>';
+            }).join('');
+        })
+        .catch(function(){ var s=document.getElementById('homepage-portfolio'); if(s)s.closest('section').style.display='none'; })`;
+
+async function rebuildHomePage() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
+    try {
+        const res = await fetch('https://gsdhandymanservice.com/');
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching index.html`);
+        let html = await res.text();
+        const idx = html.indexOf(HOME_PORTFOLIO_OLD);
+        if (idx === -1) { console.warn('⚠️  index.html: homepage portfolio marker not found, skipping'); return; }
+        const end = html.indexOf('})();', idx);
+        if (end === -1) { console.warn('⚠️  index.html: portfolio IIFE closing not found, skipping'); return; }
+        html = html.slice(0, idx) + HOME_PORTFOLIO_NEW + html.slice(end);
+        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'index.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
+        console.log('✅ index.html homepage portfolio updated');
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 2, Items: ['/index.html', '/'] } } }));
+            console.log('✅ CloudFront cache invalidated for /index.html');
+        }
+    } catch (err) {
+        console.error('❌ index.html rebuild failed:', err.message);
+    }
+}
 
 // Start server
 connectDB().then(async () => {
