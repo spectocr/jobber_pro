@@ -7474,7 +7474,7 @@ function generatePortfolioHtml(rawItems) {
     const projectJson = JSON.stringify(items.map(i => ({
         id: i.id, title: i.title, caption: i.caption, catName: i.catName,
         photos: i.photos.map(p => ({ url: p.url, type: p.type }))
-    })));
+    }))).replace(/<\/script>/gi, '<\\/script>');
 
     // schema.org ItemList
     const schemaItems = items.map((item, idx) => ({
@@ -7737,6 +7737,14 @@ async function rebuildPublicPortfolio() {
             CacheControl: 'public, max-age=60'
         }));
         console.log(`✅ portfolio.html rebuilt (${items.length} items, ${html.length} bytes)`);
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            try {
+                const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+                await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 1, Items: ['/portfolio.html'] } } }));
+                console.log('✅ CloudFront cache invalidated for /portfolio.html');
+            } catch (e) { console.warn('CloudFront invalidation for portfolio.html failed:', e.message); }
+        }
         rebuildPropertyManagementPage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
