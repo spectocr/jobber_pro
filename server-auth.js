@@ -3790,12 +3790,25 @@ app.post('/api/team/:id/send-onboarding', isAdmin, async (req, res) => {
 
 // Admin marks per-employee onboarding items (i9Section2, jobDescription)
 app.post('/api/team/:id/onboarding', isAdmin, async (req, res) => {
-    const { field, value } = req.body;
+    const { field, value, hireDate } = req.body;
     const allowed = ['i9Section2', 'jobDescription'];
     if (!allowed.includes(field)) return res.status(400).json({ error: 'Invalid field' });
     const now = new Date();
     const update = {};
-    update[`onboarding.${field}`] = value ? { completedAt: now, completedBy: req.session.userName } : null;
+    if (value) {
+        const entry = { completedAt: now, completedBy: req.session.userName };
+        if (field === 'i9Section2' && hireDate) {
+            entry.hireDate = hireDate;
+            // Retention deadline: 3 years from hire date
+            const retain = new Date(hireDate);
+            retain.setFullYear(retain.getFullYear() + 3);
+            entry.retainUntil = retain;
+            update['hireDate'] = hireDate; // top-level for easy access
+        }
+        update[`onboarding.${field}`] = entry;
+    } else {
+        update[`onboarding.${field}`] = null;
+    }
     await db.collection('team').updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
     res.json({ success: true });
 });

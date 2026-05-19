@@ -13857,13 +13857,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             };
 
             const i9Done = !!ob.i9Section2?.completedAt;
+            const i9RetainUntil = ob.i9Section2?.retainUntil;
+            const i9RetainLabel = i9RetainUntil
+                ? '<div style="margin-top:0.4rem;background:#fffbea;border-left:3px solid #f6e05e;padding:5px 10px;border-radius:4px;font-size:0.82rem;color:#744210;">🗂️ Retain until <strong>' + new Date(i9RetainUntil).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + '</strong> — or 1 year after separation if that date is later</div>'
+                : '';
             const i9Row = check(i9Done, 'I-9 Section 2 — verify identity documents in person',
                 '<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' +
                 '<a href="https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;">📄 Download I-9 Form</a>' +
                 '<a href="https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;">📋 Acceptable Documents</a>' +
                 '</div>' +
+                i9RetainLabel +
                 '<div style="margin-top:0.4rem;"><label style="font-size:0.82rem;color:#718096;cursor:pointer;">' +
-                '<input type="checkbox" ' + (i9Done ? 'checked' : '') + ' style="accent-color:#48bb78;margin-right:4px;" onchange="toggleAdminOnboarding(\'' + id + '\',\'i9Section2\',this.checked)"> Mark as completed (verified in person)</label></div>');
+                '<input type="checkbox" ' + (i9Done ? 'checked' : '') + ' style="accent-color:#48bb78;margin-right:4px;" onchange="markI9Complete(\'' + id + '\',this.checked)"> Mark as completed (verified in person)</label></div>');
 
             const jdDone = !!ob.jobDescription?.completedAt;
             const jdText = ob.jobDescription?.text || '';
@@ -13941,6 +13946,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (member) renderOnboardingChecklist(member);
             } else {
                 alert('Error saving. Please try again.');
+            }
+        }
+
+        async function markI9Complete(memberId, checked) {
+            if (!checked) {
+                await toggleAdminOnboarding(memberId, 'i9Section2', false);
+                return;
+            }
+            const today = new Date().toISOString().split('T')[0];
+            const hireDate = prompt('Enter hire date (used to calculate I-9 retention deadline):', today);
+            if (hireDate === null) {
+                // User cancelled — uncheck the box visually
+                await loadTeam();
+                const member = team.find(t => t.id === memberId);
+                if (member) renderOnboardingChecklist(member);
+                return;
+            }
+            const r = await fetch('/api/team/' + memberId + '/onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field: 'i9Section2', value: true, hireDate: hireDate || today })
+            });
+            if (r.ok) {
+                await loadTeam();
+                const member = team.find(t => t.id === memberId);
+                if (member) renderOnboardingChecklist(member);
             }
         }
 
