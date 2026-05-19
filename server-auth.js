@@ -3900,11 +3900,15 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             return inQ(d);
         });
         const revenue = qJobs.reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
+        const cogsMaterials = qJobs.reduce((s, j) => {
+            if (!Array.isArray(j.materialItems)) return s;
+            return s + j.materialItems.reduce((ms, m) => ms + ((m.quantity || 0) * (m.price || 0)), 0);
+        }, 0);
 
         const qExp = expenses.filter(e => inQ(e.date));
         const expTotal = qExp.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
 
-        const netIncome = Math.max(0, revenue - expTotal);
+        const netIncome = Math.max(0, revenue - cogsMaterials - expTotal);
         // SE tax: 15.3% on 92.35% of net (mirrors IRS Schedule SE)
         const seTax = netIncome * 0.9235 * 0.153;
         const seDeduction = seTax / 2;
@@ -3922,13 +3926,19 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         const totalDue = seTax + fedQ + njQ;
 
         const payment = payments.find(p => p.quarter === q);
-        const jobItems = qJobs.map(j => ({
-            date: (j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate || ''),
-            title: j.title || j.description || '(untitled)',
-            client: j.clientName || j.client?.name || '',
-            amount: parseFloat(j.totalWithTax || j.total) || 0,
-            dateField: j.completedAt ? 'completedAt' : j.invoicedAt ? 'invoicedAt' : j.updatedAt ? 'updatedAt' : 'scheduledDate'
-        }));
+        const jobItems = qJobs.map(j => {
+            const matCost = Array.isArray(j.materialItems)
+                ? j.materialItems.reduce((s, m) => s + ((m.quantity || 0) * (m.price || 0)), 0) : 0;
+            return {
+                date: (j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate || ''),
+                title: j.title || j.description || '(untitled)',
+                client: j.clientName || j.client?.name || '',
+                amount: parseFloat(j.totalWithTax || j.total) || 0,
+                matCost,
+                netAmount: (parseFloat(j.totalWithTax || j.total) || 0) - matCost,
+                dateField: j.completedAt ? 'completedAt' : j.invoicedAt ? 'invoicedAt' : j.updatedAt ? 'updatedAt' : 'scheduledDate'
+            };
+        });
         const expItems = qExp.map(e => ({
             date: e.date || '',
             description: e.description || e.vendor || e.category || '(no description)',
@@ -3937,7 +3947,7 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         }));
         return {
             q, label, due: due.toISOString(), months,
-            revenue, expTotal, netIncome,
+            revenue, cogsMaterials, expTotal, netIncome,
             seTax, fedQ, njQ, totalDue,
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',

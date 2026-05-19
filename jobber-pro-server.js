@@ -14148,7 +14148,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             data.quarters.forEach(q => {
                 const days    = daysUntil(q.due);
                 const dueDate = new Date(q.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                const isPaid  = q.paidAmount >= q.totalDue * 0.99;
+                const isPaid  = q.paidAmount > 0 && q.paidAmount >= q.totalDue * 0.99;
                 const isOver  = !isPaid && days < 0;
                 const isUrgent= !isPaid && days >= 0 && days <= 14;
 
@@ -14173,6 +14173,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                   '<div style="background:#f7fafc;border-radius:8px;padding:0.7rem 0.85rem;margin-bottom:0.7rem;">' +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Revenue</span><span>' + fm(q.revenue) + '</span></div>' +
+                    (q.cogsMaterials > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Materials (COGS)</span><span>– ' + fm(q.cogsMaterials) + '</span></div>' : '') +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
                     '<div style="display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700;color:#2d3748;border-top:1px solid #e2e8f0;padding-top:0.25rem;"><span>Net Income</span><span>' + fm(q.netIncome) + '</span></div>' +
                   '</div>' +
@@ -14287,9 +14288,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                       '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + fmDate(j.date) + '<br><span style="font-size:0.72rem;color:#a0aec0;">' + j.dateField + '</span></td>' +
                       '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + (j.client || '—') + '</td>' +
                       '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;">' + j.title + '</td>' +
-                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;text-align:right;">' + fm(j.amount) + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;text-align:right;">' + fm(j.amount) + (j.matCost > 0 ? '<br><span style="font-size:0.72rem;color:#e53e3e;">– ' + fm(j.matCost) + ' materials</span>' : '') + '</td>' +
+                      '<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:600;">' + fm(j.netAmount) + '</td>' +
                     '</tr>').join('')
-                : '<tr><td colspan="4" style="padding:0.75rem;color:#718096;text-align:center;">No jobs in this quarter</td></tr>';
+                : '<tr><td colspan="5" style="padding:0.75rem;color:#718096;text-align:center;">No jobs in this quarter</td></tr>';
 
             const expRows = q.items.expenses.length
                 ? q.items.expenses.map(e =>
@@ -14320,7 +14322,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<h3 style="margin:0;color:#2d3748;">Jobs (' + q.items.jobs.length + ') — ' + fm(q.revenue) + '</h3>' +
                   '</div>' +
                   '<table style="' + tableStyle + '">' +
-                    '<thead><tr><th style="' + thStyle + '">Date</th><th style="' + thStyle + '">Client</th><th style="' + thStyle + '">Title</th><th style="' + thStyle + 'text-align:right;">Amount</th></tr></thead>' +
+                    '<thead><tr><th style="' + thStyle + '">Date</th><th style="' + thStyle + '">Client</th><th style="' + thStyle + '">Title</th><th style="' + thStyle + 'text-align:right;">Total Billed</th><th style="' + thStyle + 'text-align:right;">Net (excl. materials)</th></tr></thead>' +
                     '<tbody>' + jobRows + '</tbody>' +
                   '</table>' +
                 '</div>' +
