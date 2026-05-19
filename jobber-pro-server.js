@@ -6171,7 +6171,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             return jobs.filter(j => {
                 if (statusFilter === 'ACTIVE_WORK') {
-                    if (j.status === 'completed' || j.status === 'invoiced' || j.status === 'bid_lost') return false;
+                    // When filtering by a specific time period, show all statuses (completed/invoiced jobs have history)
+                    if (!periodStart && (j.status === 'completed' || j.status === 'invoiced' || j.status === 'bid_lost')) return false;
                 } else if (statusFilter === 'COMPLETED_WEEK') {
                     if (j.status !== 'completed' && j.status !== 'invoiced') return false;
                     if (!j.scheduledDate || j.scheduledDate < weekStartStr || j.scheduledDate >= weekEndStr) return false;
