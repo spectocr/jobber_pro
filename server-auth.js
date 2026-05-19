@@ -7724,30 +7724,35 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
     } catch(e) {}
 })();`;
 
+async function _patchAndUploadPmPage(s3Key, fetchUrl) {
+    const res = await fetch(fetchUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${fetchUrl}`);
+    let html = await res.text();
+    const idx = html.indexOf(PM_GALLERY_OLD);
+    if (idx === -1) { console.warn(`⚠️  ${s3Key}: commercial gallery marker not found, skipping`); return false; }
+    const end = html.indexOf('})();', idx);
+    if (end === -1) { console.warn(`⚠️  ${s3Key}: IIFE closing not found, skipping`); return false; }
+    html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
+    await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: s3Key, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
+    console.log(`✅ ${s3Key} commercial gallery updated`);
+    return true;
+}
+
 async function rebuildPropertyManagementPage() {
     if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
     try {
-        // Fetch via HTTP to avoid needing GetObject IAM permission on the public bucket
-        const res = await fetch('https://gsdhandymanservice.com/property-management.html');
-        if (!res.ok) throw new Error(`HTTP ${res.status} fetching property-management.html`);
-        let html = await res.text();
-        const idx = html.indexOf(PM_GALLERY_OLD);
-        if (idx === -1) { console.warn('⚠️  property-management.html: commercial gallery marker not found, skipping'); return; }
-        // Find the closing })(); of the IIFE and replace the entire block
-        const end = html.indexOf('})();', idx);
-        if (end === -1) { console.warn('⚠️  property-management.html: IIFE closing not found, skipping'); return; }
-        html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
-        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'property-management.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
-        console.log('✅ property-management.html commercial gallery updated');
-        // Invalidate CloudFront so the new content is served immediately
+        await Promise.all([
+            _patchAndUploadPmPage('property-management.html', 'https://gsdhandymanservice.com/property-management.html'),
+            _patchAndUploadPmPage('property-management',      'https://gsdhandymanservice.com/property-management'),
+        ]);
         const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
         if (distId) {
             const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
-            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 1, Items: ['/property-management.html'] } } }));
-            console.log('✅ CloudFront cache invalidated for /property-management.html');
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 2, Items: ['/property-management.html', '/property-management'] } } }));
+            console.log('✅ CloudFront cache invalidated for /property-management.*');
         }
     } catch (err) {
-        console.error('❌ property-management.html rebuild failed:', err.message);
+        console.error('❌ property-management rebuild failed:', err.message);
     }
 }
 
