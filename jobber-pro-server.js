@@ -13872,6 +13872,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const id = member.id;
             const hasEmail = !!member.email;
 
+            const hint = t => '<div style="font-size:0.78rem;color:#718096;font-style:italic;margin-top:2px;">' + t + '</div>';
+            const aBtn = (label, onclick, color) => '<button onclick="' + onclick + '" style="font-size:0.78rem;background:' + (color||'#edf2f7') + ';color:#4a5568;border:1px solid #e2e8f0;padding:3px 9px;border-radius:5px;cursor:pointer;font-weight:600;margin-top:5px;">' + label + '</button>';
+
             const check = (done, label, extra) => {
                 const icon = done ? '<span style="color:#48bb78;font-weight:700;">✓</span>' : '<span style="color:#cbd5e0;font-weight:700;">○</span>';
                 return '<div style="display:flex;gap:0.75rem;align-items:flex-start;padding:0.65rem 0;border-bottom:1px solid #f0f0f0;">' +
@@ -13886,6 +13889,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 ? '<div style="margin-top:0.4rem;background:#fffbea;border-left:3px solid #f6e05e;padding:5px 10px;border-radius:4px;font-size:0.82rem;color:#744210;">🗂️ Retain until <strong>' + new Date(i9RetainUntil).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + '</strong> — or 1 year after separation if that date is later</div>'
                 : '';
             const i9Row = check(i9Done, 'I-9 Section 2 — verify identity documents in person',
+                hint('Day 1: inspect original IDs, complete the employer section of the paper I-9, sign and date it, then file it separately from their personnel file.') +
                 '<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' +
                 '<a href="https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;">📄 Download I-9 Form</a>' +
                 '<a href="https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;">📋 Acceptable Documents</a>' +
@@ -13897,6 +13901,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const jdDone = !!ob.jobDescription?.completedAt;
             const jdText = ob.jobDescription?.text || '';
             const jdRow = check(jdDone, 'Job description provided to employee',
+                hint('Write a brief description of their duties and hand or email a copy to the employee. Keep one on file.') +
                 '<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' +
                 '<button onclick="openJobDescModal(\'' + id + '\')" style="font-size:0.82rem;background:#faf5ff;color:#6b46c1;border:1px solid #d6bcfa;padding:3px 10px;border-radius:6px;cursor:pointer;font-weight:600;">' + (jdText ? '📝 View / Edit Description' : '📝 Write Description') + '</button>' +
                 '</div>' +
@@ -13908,14 +13913,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 ? 'Invite sent ' + new Date(ob.inviteSentAt).toLocaleDateString() + (ob.completedAt ? ' · <strong style="color:#276749;">Employee completed ' + new Date(ob.completedAt).toLocaleDateString() + '</strong>' : ' · <em style="color:#718096;">Awaiting employee</em>')
                 : 'Onboarding invite not yet sent';
 
+            const inviteExtra =
+                hint('Send an email link — employee fills out the form online in about 3 minutes. No paper needed for this step.') +
+                aBtn(ob.inviteSentAt ? '📧 Re-send Invite' : '📧 Send Invite', 'sendOnboardingInvite(\'' + id + '\')', hasEmail ? '#ebf8ff' : '#f7fafc');
+
+            const w4Extra = ob.w4?.completedAt
+                ? hint('Employee answered online. Also collect a signed paper W-4 on day 1 and enter it in Gusto / ADP.')
+                : hint('Waiting on employee to complete the onboarding form. Send invite above if not done yet.');
+
+            const i9s1Extra = ob.i9Section1?.completedAt
+                ? hint('Employee self-certified online. Nothing required from you for Section 1.')
+                : hint('Waiting on employee to complete the onboarding form.');
+
+            const policyExtra = ob.policyAck?.completedAt
+                ? hint('Employee acknowledged all 4 policies digitally. Timestamp is on record.')
+                : hint('Waiting on employee to complete the onboarding form.');
+
+            const payRateExtra =
+                hint('Required for payroll calculations in the Payroll view.') +
+                aBtn('✏️ Edit Member', 'editTeamMember(\'' + id + '\')', '#faf5ff');
+
             const html = '<div style="background:#f8f9fa;border-radius:8px;padding:1rem;">' +
-                check(!!ob.inviteSentAt, inviteLabel) +
-                check(!!ob.w4?.completedAt, 'W-4 withholding preferences' + (ob.w4?.filingStatus ? ' · ' + ob.w4.filingStatus : '')) +
-                check(!!ob.i9Section1?.completedAt, 'I-9 Section 1 (employee self-certification)') +
+                check(!!ob.inviteSentAt, inviteLabel, inviteExtra) +
+                check(!!ob.w4?.completedAt, 'W-4 withholding preferences' + (ob.w4?.filingStatus ? ' · ' + ob.w4.filingStatus : ''), w4Extra) +
+                check(!!ob.i9Section1?.completedAt, 'I-9 Section 1 (employee self-certification)', i9s1Extra) +
                 i9Row +
-                check(!!ob.policyAck?.completedAt, 'Policy acknowledgments (no cash, safety, tools, OT)') +
+                check(!!ob.policyAck?.completedAt, 'Policy acknowledgments (no cash, safety, tools, OT)', policyExtra) +
                 jdRow +
-                check(!!(member.hourlyRate > 0), 'Pay rate defined' + (member.hourlyRate ? ' · $' + member.hourlyRate + '/hr' : ' · <em style="color:#e53e3e;">Not set — edit team member</em>')) +
+                check(!!(member.hourlyRate > 0), 'Pay rate defined' + (member.hourlyRate ? ' · $' + member.hourlyRate + '/hr' : ' · <em style="color:#e53e3e;">Not set</em>'), payRateExtra) +
                 '</div>';
 
             document.getElementById('team-onboarding-checklist').innerHTML = html;
