@@ -7639,16 +7639,65 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
     try {
         const res = await fetch('https://app.gsdhandymanservice.com/api/portfolio');
         const items = await res.json();
-        const commercial = items.filter(i => i.commercial);
+        const commercial = items.filter(function(i){return i.commercial;});
         if (!commercial.length) return;
         document.getElementById('commercial-portfolio').style.display = '';
-        document.getElementById('commercial-gallery').innerHTML = commercial.map(item => {
-            const photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
-            const sorted = [...photos.filter(p=>p.type==='before'),...photos.filter(p=>p.type==='after'),...photos.filter(p=>p.type==='other')];
-            const show = sorted.slice(0,4);
-            var badge = function(type){var t=type==='before'?'Before':type==='after'?'After':type==='other'?'Other':'';return t?'<span style="position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.55);color:#fff;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;">'+t+'</span>':'';};
-            var containerStyle;
-            var inner;
+
+        // Inject modal + lightbox HTML once
+        if (!document.getElementById('pm-proj-modal')) {
+            var modalHtml = '<div id="pm-proj-modal" onclick="if(event.target===this)pmCloseProject()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;overflow-y:auto;padding:2rem 1rem;">'
+                +'<div style="background:white;border-radius:16px;max-width:720px;margin:0 auto;overflow:hidden;">'
+                +'<div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">'
+                +'<h2 id="pm-proj-title" style="font-size:1.15rem;font-weight:700;font-family:inherit;"></h2>'
+                +'<button onclick="pmCloseProject()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1;">&times;</button></div>'
+                +'<div style="padding:1.5rem;"><p id="pm-proj-cap" style="color:#6b7280;font-size:.9rem;margin-bottom:1.25rem;"></p><div id="pm-proj-photos"></div></div>'
+                +'</div></div>'
+                +'<div id="pm-lightbox" onclick="pmCloseLb()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center;">'
+                +'<span onclick="pmCloseLb()" style="position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer;">&times;</span>'
+                +'<img id="pm-lb-img" src="" alt="" style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:8px;">'
+                +'</div>';
+            var tmp = document.createElement('div');
+            tmp.innerHTML = modalHtml;
+            while (tmp.firstChild) document.body.appendChild(tmp.firstChild);
+            document.getElementById('pm-lightbox').style.display = 'none';
+            document.addEventListener('keydown', function(e){ if(e.key==='Escape'){pmCloseLb();pmCloseProject();} });
+        }
+
+        window._pmData = commercial;
+
+        window.pmOpenProject = function(idx) {
+            var item = window._pmData[idx]; if (!item) return;
+            document.getElementById('pm-proj-title').textContent = item.title || 'Project Details';
+            var cap = document.getElementById('pm-proj-cap');
+            cap.textContent = item.caption || ''; cap.style.display = item.caption ? '' : 'none';
+            var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
+            var secs = [{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
+            var h = '';
+            secs.forEach(function(s){
+                var ph = photos.filter(function(x){return x.type===s.k;}); if (!ph.length) return;
+                h += '<div style="font-weight:700;font-size:.85rem;margin-bottom:.5rem;color:'+s.c+'"><span style="background:'+s.bg+';border:1.5px solid '+s.br+';border-radius:6px;padding:2px 12px;">'+s.l+'</span></div>';
+                h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem;margin-bottom:1.25rem;">';
+                ph.forEach(function(x){
+                    var alt=(s.k==='before'?'Before':s.k==='after'?'After':'')+(item.title?' — '+item.title:'');
+                    h+='<img src="'+x.url+'" alt="'+alt+'" loading="lazy" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;" onclick="pmOpenLb(this.src)">';
+                });
+                h += '</div>';
+            });
+            document.getElementById('pm-proj-photos').innerHTML = h || '<p style="color:#9ca3af">No photos.</p>';
+            document.getElementById('pm-proj-modal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        };
+        window.pmCloseProject = function(){ document.getElementById('pm-proj-modal').style.display='none'; document.body.style.overflow=''; };
+        window.pmOpenLb = function(src){ var lb=document.getElementById('pm-lightbox'); document.getElementById('pm-lb-img').src=src; lb.style.display='flex'; };
+        window.pmCloseLb = function(){ document.getElementById('pm-lightbox').style.display='none'; };
+
+        function badge(type){var t=type==='before'?'Before':type==='after'?'After':type==='other'?'Other':'';return t?'<span style="position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.55);color:#fff;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;">'+t+'</span>':'';}
+
+        document.getElementById('commercial-gallery').innerHTML = commercial.map(function(item, idx) {
+            var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
+            var sorted = [].concat(photos.filter(function(p){return p.type==='before';}),photos.filter(function(p){return p.type==='after';}),photos.filter(function(p){return p.type==='other';}));
+            var show = sorted.slice(0,4);
+            var containerStyle, inner;
             if (!show.length) {
                 containerStyle = 'height:200px;background:#e5e7eb;';
                 inner = '';
@@ -7662,12 +7711,12 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
                 containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
                 inner = show.map(function(p){return '<div style="position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('');
             }
-            const title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
-            const caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
-            return '<div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);">'+
-                '<div style="'+containerStyle+'">'+inner+'</div>'+
-                '<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'+
-                title+caption+'</div></div>';
+            var title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
+            var caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
+            return '<div onclick="pmOpenProject('+idx+')" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;transition:transform .2s,box-shadow .2s;" onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.12)\'" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.07)\'">'
+                +'<div style="'+containerStyle+'">'+inner+'</div>'
+                +'<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'
+                +title+caption+'</div></div>';
         }).join('');
     } catch(e) {}
 })();`;
