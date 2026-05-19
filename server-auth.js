@@ -7615,7 +7615,7 @@ function openProject(id){
     const ph=p.photos.filter(x=>x.type===s.k); if(!ph.length) return;
     h+='<div class="sec-label" style="color:'+s.c+'"><span style="background:'+s.bg+';border:1.5px solid '+s.br+';border-radius:6px;padding:2px 12px;">'+s.l+'</span></div>';
     h+='<div class="photo-row">';
-    ph.forEach(x=>{const alt=(s.k==='before'?'Before':s.k==='after'?'After':'')+(p.catName?' — '+p.catName:'')+(p.title?' — '+p.title:'');h+='<img src="'+x.url+'" alt="'+alt+'" loading="lazy" onclick="openLb(\''+x.url.replace(/'/g,"\\'")+'\')">';});
+    ph.forEach(x=>{const alt=(s.k==='before'?'Before':s.k==='after'?'After':'')+(p.catName?' — '+p.catName:'')+(p.title?' — '+p.title:'');h+='<img src="'+x.url+'" alt="'+alt+'" loading="lazy" style="cursor:pointer" onclick="openLb(this.src)">';});
     h+='</div>';
   });
   document.getElementById('proj-photos').innerHTML=h||'<p style="color:#9ca3af">No photos.</p>';
