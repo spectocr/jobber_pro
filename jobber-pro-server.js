@@ -14199,8 +14199,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<summary style="cursor:pointer;font-size:0.81rem;color:#667eea;font-weight:600;">How to Pay</summary>' +
                     '<div style="font-size:0.79rem;color:#4a5568;padding:0.5rem 0;line-height:1.65;">' +
                       '<strong>Federal (SE + Income Tax):</strong><br>' +
-                      '• <a href="https://directpay.irs.gov" target="_blank" rel="noopener" style="color:#667eea;">IRS Direct Pay</a> — select "Estimated Tax" → "1040-ES"<br>' +
-                      '• <a href="https://eftps.gov" target="_blank" rel="noopener" style="color:#667eea;">EFTPS</a> — Electronic Federal Tax Payment System<br><br>' +
+                      '• <a href="https://directpay.irs.gov" target="_blank" rel="noopener" style="color:#667eea;">IRS Direct Pay</a> ⭐ recommended — select "Estimated Tax" → "1040-ES"<br><br>' +
                       '<strong>New Jersey:</strong><br>' +
                       '• <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndividualRegistrationJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a> — pay via "Gross Income Tax — Estimated" (NJ-1040-ES)' +
                     '</div>' +
