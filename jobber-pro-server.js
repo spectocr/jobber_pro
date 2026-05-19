@@ -1618,6 +1618,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="last_6_months">Last 6 Months</option>
                             <option value="this_year">This Year</option>
                             <option value="last_year">Last Year</option>
+                            <optgroup id="filter-period-months" label="── By Month ──"></optgroup>
                         </select>
                         <select id="filter-assigned" onchange="filterJobs()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                             <option value="">All Team Members</option>
@@ -6160,6 +6161,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 } else if (period === 'last_year') {
                     periodStart = new Date(y - 1, 0, 1).toISOString().slice(0, 10);
                     periodEnd   = new Date(y, 0, 1).toISOString().slice(0, 10);
+                } else if (period.startsWith('month_')) {
+                    const key = period.slice(6); // 'YYYY-MM'
+                    const [my, mm] = key.split('-').map(Number);
+                    periodStart = new Date(my, mm - 1, 1).toISOString().slice(0, 10);
+                    periodEnd   = new Date(my, mm, 1).toISOString().slice(0, 10);
                 }
             }
 
@@ -6878,6 +6884,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             populateDropdown(assignedFilter, team, 'id', 'name', 'All Team Members');
             assignedFilter.value = currentAssigned;
 
+            populatePeriodMonths();
             renderStatusPills();
             renderJobsTable();
             } catch (error) {
@@ -7927,6 +7934,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="status-pill\${current === p.value ? ' active' : ''}" onclick="setStatusPill('\${p.value}')">
                     \${p.label}<span class="pill-count">\${counts[p.value] ?? 0}</span>
                 </button>\`).join('');
+        }
+
+        function populatePeriodMonths() {
+            const grp = document.getElementById('filter-period-months');
+            if (!grp) return;
+            const months = new Set();
+            jobs.forEach(j => { if (j.scheduledDate) months.add(j.scheduledDate.slice(0, 7)); });
+            const sorted = Array.from(months).sort().reverse();
+            const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            grp.innerHTML = sorted.map(key => {
+                const [y, m] = key.split('-');
+                return \`<option value="month_\${key}">\${MONTH_NAMES[+m-1]} \${y}</option>\`;
+            }).join('');
         }
 
         function clearJobFilters() {
@@ -10056,6 +10076,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const faviconLink = document.getElementById('page-favicon');
             if (favicon) {
                 faviconLink.href = favicon;
+                faviconLink.onerror = () => { faviconLink.href = ''; faviconLink.onerror = null; };
             }
         }
 
