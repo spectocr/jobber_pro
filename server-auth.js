@@ -1424,7 +1424,7 @@ app.get('/api/public/reviews', async (req, res) => {
 
     try {
         const https = require('https');
-        const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,reviews&key=${apiKey}&languageCode=en&reviewSort=newestFirst`;
+        const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,reviews&key=${apiKey}&languageCode=en`;
 
         const data = await new Promise((resolve, reject) => {
             https.get(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } }, (r) => {
