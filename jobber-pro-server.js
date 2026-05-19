@@ -1860,8 +1860,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="team-detail-info" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;"></div>
                     </div>
                     <div>
-                        <h3 style="margin-bottom: 1rem; color: #667eea;">Assigned Jobs</h3>
-                        <div id="team-detail-jobs"></div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;cursor:pointer;" onclick="toggleTeamJobs()">
+                            <h3 style="color:#667eea;margin:0;">Assigned Jobs</h3>
+                            <span id="teamJobsIcon" style="color:#718096;font-size:1rem;">▶</span>
+                        </div>
+                        <div id="team-detail-jobs" style="display:none;"></div>
                     </div>
                 </div>
 
@@ -3301,12 +3304,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <h3 style="margin-bottom: 1rem;">Payments Received</h3>
                             <div id="paymentItems"></div>
                             <button type="button" class="btn btn-secondary" onclick="addPaymentItem()" style="margin-top: 0.5rem;">+ Add Payment</button>
-                            <div style="margin-top: 1rem; padding: 1rem; background-color: #f7fafc; border-radius: 8px;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><span>Subtotal:</span><span>$<span id="subtotalSummary">0.00</span></span></div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><span>Tax:</span><span>$<span id="taxSummary">0.00</span></span></div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Total Billed:</strong><strong>$<span id="totalBilledSummary">0.00</span></strong></div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><strong>Total Paid:</strong><span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span></div>
-                                <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Balance Owed:</strong><strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong></div>
+                            <div style="margin-top: 1rem;">
+                                <button type="button" onclick="toggleJobSummary()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:0.6rem 1rem;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:0.9rem;font-weight:600;color:#4a5568;">
+                                    <span>Job Summary</span><span id="jobSummaryIcon">▶</span>
+                                </button>
+                                <div id="jobSummaryPanel" style="display:none;padding:1rem;background:#f7fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><span>Subtotal:</span><span>$<span id="subtotalSummary">0.00</span></span></div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><span>Tax:</span><span>$<span id="taxSummary">0.00</span></span></div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Total Billed:</strong><strong>$<span id="totalBilledSummary">0.00</span></strong></div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><strong>Total Paid:</strong><span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span></div>
+                                    <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Balance Owed:</strong><strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong></div>
+                                </div>
                             </div>
                         </div>
                         <div id="laborActualsSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
@@ -12929,6 +12937,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (error) {
                 alert('Error updating time entry: ' + error.message);
             }
+        }
+
+        function toggleTeamJobs() {
+            const panel = document.getElementById('team-detail-jobs');
+            const icon = document.getElementById('teamJobsIcon');
+            const open = panel.style.display === 'none';
+            panel.style.display = open ? 'block' : 'none';
+            icon.textContent = open ? '▼' : '▶';
+        }
+
+        function toggleJobSummary() {
+            const panel = document.getElementById('jobSummaryPanel');
+            const icon = document.getElementById('jobSummaryIcon');
+            const open = panel.style.display === 'none';
+            panel.style.display = open ? 'block' : 'none';
+            icon.textContent = open ? '▼' : '▶';
         }
 
         function formatDuration(seconds) {
