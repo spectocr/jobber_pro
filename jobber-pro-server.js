@@ -298,6 +298,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             background: #f7f8fc;
         }
 
+        .admin-group-label {
+            padding: 0.75rem 1.25rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #a0aec0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f0f0f0;
+            user-select: none;
+        }
+        .admin-group-label:hover { background: #f7f8fc; }
+
+        .admin-sub-item {
+            border-bottom: none;
+            border-radius: 0;
+            text-align: left;
+            padding: 0.65rem 1.25rem 0.65rem 2rem;
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        .admin-sub-item:hover { background: #f7f8fc; }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -1332,10 +1358,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <button class="nav-btn" id="admin-menu-btn" onclick="toggleAdminMenu(event)">⚙️ Admin ▾</button>
             <div id="admin-dropdown" class="admin-dropdown" style="display:none;">
                 <button class="nav-btn admin-item" onclick="showView('team')">👷 Team</button>
-                <button class="nav-btn admin-item" onclick="showView('payroll')">💼 Payroll</button>
-                <button class="nav-btn admin-item" onclick="showView('taxes')">🧾 Taxes</button>
                 <button class="nav-btn admin-item" onclick="showView('timeclock')">⏱️ Time Clock</button>
-                <button class="nav-btn admin-item" onclick="showView('expenses')">💰 Expenses</button>
+                <div class="admin-group-label" onclick="toggleAdminGroup('money-group', this)">
+                    💰 Money <span id="money-group-icon">▶</span>
+                </div>
+                <div id="money-group" style="display:none;">
+                    <button class="nav-btn admin-sub-item" onclick="showView('payroll')">💼 Payroll</button>
+                    <button class="nav-btn admin-sub-item" onclick="showView('taxes')">🧾 Taxes</button>
+                    <button class="nav-btn admin-sub-item" onclick="showView('expenses')">💸 Expenses</button>
+                </div>
                 <button class="nav-btn admin-item" onclick="showView('vendors')">🏪 Vendors</button>
                 <button class="nav-btn admin-item" onclick="showView('portfolio')">🖼️ Portfolio</button>
                 <button class="nav-btn admin-item" onclick="showView('activity')">📜 Activity</button>
@@ -4060,6 +4091,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (adminViews.includes(viewName)) {
                 const adminBtn = document.getElementById('admin-menu-btn');
                 if (adminBtn) adminBtn.classList.add('active');
+                if (['payroll', 'taxes', 'expenses'].includes(viewName)) {
+                    const g = document.getElementById('money-group');
+                    const icon = document.getElementById('money-group-icon');
+                    if (g) { g.style.display = 'flex'; g.style.flexDirection = 'column'; }
+                    if (icon) icon.textContent = '▼';
+                }
             } else if (event && event.target) {
                 event.target.classList.add('active');
             }
@@ -4097,6 +4134,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const dropdown = document.getElementById('admin-dropdown');
             if (!dropdown) return;
             dropdown.style.display = dropdown.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function toggleAdminGroup(groupId, label) {
+            event.stopPropagation();
+            const group = document.getElementById(groupId);
+            if (!group) return;
+            const open = group.style.display === 'none';
+            group.style.display = open ? 'flex' : 'none';
+            group.style.flexDirection = 'column';
+            const icon = label.querySelector('span');
+            if (icon) icon.textContent = open ? '▼' : '▶';
         }
 
         document.addEventListener('click', function(e) {
