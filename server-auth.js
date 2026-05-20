@@ -67,6 +67,65 @@ if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY && S3_BUCKET_NAME) {
 let db = null;
 let client = null;
 
+async function seedDemoPortalAccount() {
+    try {
+        const demoClient = await db.collection('clients').findOne({ email: 'sample@sample.com' });
+        if (!demoClient) return;
+        const existingCount = await db.collection('jobs').countDocuments({ clientId: demoClient._id });
+        if (existingCount >= 2) return; // Already seeded
+        const now = new Date();
+        await db.collection('jobs').insertMany([
+            {
+                clientId: demoClient._id,
+                title: 'Drywall Repair & Paint — Unit 4B',
+                status: 'completed',
+                scheduledDate: '2026-05-10',
+                completedAt: new Date('2026-05-10T12:00:00'),
+                description: 'Patch 18" × 12" drywall hole near door frame, texture match, and paint to blend.',
+                lineItems: [
+                    { description: 'Drywall patch and texture', quantity: 1, rate: 195, amount: 195 },
+                    { description: 'Paint — 2 coats, color match', quantity: 1, rate: 110, amount: 110 }
+                ],
+                laborItems: [], materialItems: [],
+                taxWaived: false,
+                total: 305,
+                totalWithTax: 325.22,
+                totalPaid: 325.22,
+                balanceOwed: 0,
+                payments: [{ amount: 325.22, method: 'check', date: '2026-05-12', note: '' }],
+                touchPoints: [], photos: [], attachments: [],
+                invoiceNumber: 'INV-4B0510',
+                invoiceSentAt: new Date('2026-05-10T17:00:00'),
+                createdAt: new Date('2026-05-01'),
+                updatedAt: now,
+            },
+            {
+                clientId: demoClient._id,
+                title: 'Common-Area Door Hardware Replacement',
+                status: 'scheduled',
+                scheduledDate: '2026-05-28',
+                description: 'Replace worn deadbolt and lever handle on Building A side entrance. Client to supply hardware or GSD can source.',
+                lineItems: [
+                    { description: 'Hardware installation (labor)', quantity: 1.5, rate: 95, amount: 142.50 }
+                ],
+                laborItems: [], materialItems: [],
+                taxWaived: false,
+                total: 142.50,
+                totalWithTax: 151.94,
+                totalPaid: 0,
+                balanceOwed: 151.94,
+                payments: [],
+                touchPoints: [], photos: [], attachments: [],
+                createdAt: new Date('2026-05-18'),
+                updatedAt: now,
+            }
+        ]);
+        console.log('✅ Demo portal account seeded with 2 sample jobs');
+    } catch (e) {
+        console.warn('⚠️  Demo account seed skipped:', e.message);
+    }
+}
+
 // Connect to MongoDB
 async function connectDB() {
     try {
@@ -125,6 +184,10 @@ async function connectDB() {
                 createdAt: new Date()
             });
         }
+
+        // Seed demo portal account with sample jobs for screenshot capture
+        await seedDemoPortalAccount();
+
     } catch (error) {
         console.error('❌ MongoDB connection error:', error);
         process.exit(1);
