@@ -1466,9 +1466,7 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
       body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error();
-    document.getElementById('formWrap').style.display = 'none';
-    document.getElementById('successMsg').style.display = 'block';
-    notifyHeight();
+    window.location.href = '/thank-you';
   } catch {
     err.style.display = 'block';
     btn.disabled = false;
