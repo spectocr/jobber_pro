@@ -3853,6 +3853,7 @@ app.get('/thank-you', async (req, res) => {
   </div>
   ${phone ? `<a class="phone" href="${phoneHref}">${phone}</a>` : ''}
   <p style="margin-top:1.5rem;font-size:0.9rem;color:#718096;">South Jersey's trusted handyman — no job too small.</p>
+  <a href="https://gsdhandymanservice.com" style="display:inline-block;margin-top:1.25rem;padding:0.65rem 1.75rem;background:#0f1c2e;color:#fff;border-radius:8px;font-weight:600;font-size:0.95rem;text-decoration:none;">← Back to Home</a>
   <div class="brand">Powered by <strong>${companyName}</strong></div>
 </div>
 </body>
@@ -8353,6 +8354,7 @@ async function uploadThankYouPage() {
   </div>
   ${phone ? `<a class="phone" href="${phoneHref}">${phone}</a>` : ''}
   <p style="margin-top:1.5rem;font-size:0.9rem;color:#718096;">South Jersey's trusted handyman — no job too small.</p>
+  <a href="https://gsdhandymanservice.com" style="display:inline-block;margin-top:1.25rem;padding:0.65rem 1.75rem;background:#0f1c2e;color:#fff;border-radius:8px;font-weight:600;font-size:0.95rem;text-decoration:none;">← Back to Home</a>
   <div class="brand">Powered by <strong>${companyName}</strong></div>
 </div>
 </body>
