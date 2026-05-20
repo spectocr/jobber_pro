@@ -8218,6 +8218,106 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLb();closeProj
 </html>`;
 }
 
+const PM_PORTAL_SECTION = `
+<section id="pm-portal" style="padding:5rem 1.5rem;background:#f8fafc;">
+<div style="max-width:1000px;margin:0 auto;">
+<div style="text-align:center;color:#059669;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">Included With Every Account</div>
+<h2 style="text-align:center;font-size:clamp(1.5rem,3vw,2.1rem);font-weight:800;margin-bottom:0.75rem;color:#0f1c2e;">Your Own Client Portal</h2>
+<p style="text-align:center;color:#6b7280;max-width:560px;margin:0 auto 3rem;font-size:1.05rem;line-height:1.6;">Submit work orders, track every job, and message us directly — all in one place. No email chains, no phone tag.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.25rem;">
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">📋</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Submit Work Orders</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Pick the service type, priority level, and property address. Attach photos. A ticket number is generated instantly.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">📍</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Track Job Status</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Real-time visibility from Scheduled → In Progress → Completed → Invoiced. No need to call and ask.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">🧾</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">View &amp; Pay Invoices</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Itemized invoices, easy to code and forward to accounting. View and pay directly from the portal.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">🏘️</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Multi-Property Support</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Manage all your locations under one account. Submit and track work orders per property.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">🔴</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Priority Flags</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Mark requests Urgent, Within 1 Day, 1 Week, or Flexible. We respond and schedule accordingly.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">📸</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Photo Documentation</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Attach photos to every work order. We document before &amp; after on every job for your records.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">💬</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Direct Messaging</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">Message us directly about any quote or job from the portal. No third-party app, no lost threads.</div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-size:1.5rem;margin-bottom:0.75rem;">🚨</div>
+<div style="font-weight:700;color:#0f1c2e;margin-bottom:0.4rem;">Urgent Access</div>
+<div style="font-size:0.88rem;color:#6b7280;line-height:1.6;">One-tap emergency contact when a repair can't wait. We pick up fast for established accounts.</div>
+</div>
+</div>
+<div style="text-align:center;margin-top:2.5rem;">
+<a href="https://app.gsdhandymanservice.com/client-login" style="display:inline-block;padding:0.85rem 2.25rem;background:#0f1c2e;color:white;border-radius:8px;font-weight:700;font-size:1rem;text-decoration:none;">Access Your Portal →</a>
+</div>
+</div>
+</section>
+`;
+
+const PM_VENDOR_READY_SECTION = `
+<section id="vendor-ready" style="padding:5rem 1.5rem;background:#eff6ff;">
+<div style="max-width:1000px;margin:0 auto;">
+<div style="text-align:center;color:#1d4ed8;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">Vendor Onboarding</div>
+<h2 style="text-align:center;font-size:clamp(1.5rem,3vw,2.1rem);font-weight:800;margin-bottom:0.75rem;color:#0f1c2e;">Vendor Ready</h2>
+<p style="text-align:center;color:#6b7280;max-width:560px;margin:0 auto 2.5rem;font-size:1.05rem;line-height:1.6;">Everything your office needs to add us to your approved vendor list. Available same day — no runaround.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem;">
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Certificate of Insurance</div><div style="font-size:0.85rem;color:#6b7280;">Emailed same day on request</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">W9 Available</div><div style="font-size:0.85rem;color:#6b7280;">Ready for your accounting department</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Net-30 Accepted</div><div style="font-size:0.85rem;color:#6b7280;">Flexible billing on recurring accounts</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Itemized Invoicing</div><div style="font-size:0.85rem;color:#6b7280;">Easy to code, forward, and justify</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Multi-Property Billing</div><div style="font-size:0.85rem;color:#6b7280;">One vendor for all your locations</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Work Order Compatible</div><div style="font-size:0.85rem;color:#6b7280;">We work with your existing ticketing systems</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Tenant Coordination</div><div style="font-size:0.85rem;color:#6b7280;">We schedule directly with tenants — hands off for you</div></div>
+</div>
+<div style="background:white;border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:0.75rem;align-items:flex-start;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<span style="color:#16a34a;font-size:1.1rem;font-weight:700;flex-shrink:0;margin-top:0.05rem;">✓</span>
+<div><div style="font-weight:700;color:#0f1c2e;margin-bottom:0.2rem;">Background Checks</div><div style="font-size:0.85rem;color:#6b7280;">Available upon request for your compliance requirements</div></div>
+</div>
+</div>
+<p style="text-align:center;margin-top:2rem;font-size:0.95rem;color:#4b5563;">Need a document? Call or text and we'll have it to you same day. <a href="tel:+18568724636" style="color:#1d4ed8;font-weight:600;">856-872-4636</a></p>
+</div>
+</section>
+`;
+
 const PM_GALLERY_OLD = `(async function loadCommercialPortfolio()`;
 const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
     try {
@@ -8317,6 +8417,20 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
     const end = html.indexOf('})();', idx);
     if (end === -1) { console.warn(`⚠️  ${s3Key}: IIFE closing not found, skipping`); return false; }
     html = html.slice(0, idx) + PM_GALLERY_NEW + html.slice(end + 5);
+    // Inject portal showcase + vendor ready sections before CTA (idempotent)
+    if (!html.includes('id="pm-portal"')) {
+        const ctaIdx = html.indexOf('<section class="cta-section">');
+        if (ctaIdx !== -1) {
+            html = html.slice(0, ctaIdx) + PM_PORTAL_SECTION + PM_VENDOR_READY_SECTION + html.slice(ctaIdx);
+        }
+    }
+    // Add Client Portal link to PM page nav (idempotent)
+    if (!html.includes('app.gsdhandymanservice.com/client-login')) {
+        html = html.replace(
+            '<a href="/#quote">Get a Quote</a>',
+            '<a href="/#quote">Get a Quote</a>\n        <a href="https://app.gsdhandymanservice.com/client-login">Client Portal</a>'
+        );
+    }
     await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: s3Key, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
     console.log(`✅ ${s3Key} commercial gallery updated`);
     return true;
@@ -8690,6 +8804,20 @@ async function rebuildHomePage() {
         const end = html.indexOf('})();', idx);
         if (end === -1) { console.warn('⚠️  index.html: portfolio IIFE closing not found, skipping'); return; }
         html = html.slice(0, idx) + HOME_PORTFOLIO_NEW + html.slice(end);
+        // Add Property Managers nav link (idempotent)
+        if (!html.includes('href="/property-management"')) {
+            html = html.replace(
+                '<a href="#portal">Client Portal</a>',
+                '<a href="/property-management">Property Managers</a>\n        <a href="#portal">Client Portal</a>'
+            );
+        }
+        // Update hero paragraph to include commercial context (idempotent)
+        if (html.includes("homeowners deserve a contractor who communicates")) {
+            html = html.replace(
+                "I'm Cris. I started GSD because homeowners deserve a contractor who communicates clearly, arrives when they say they will, and does the work right. Based in Mount Laurel — serving Moorestown, Marlton, Cherry Hill, Cinnaminson, and surrounding communities.",
+                "I'm Cris. GSD serves homeowners, property managers, landlords, and commercial facilities across South Jersey — reliable repairs, clear communication, and no chasing required. Based in Mount Laurel, serving Cherry Hill, Moorestown, Marlton, Medford, and surrounding towns."
+            );
+        }
         await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'index.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
         console.log('✅ index.html homepage portfolio updated');
         const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
