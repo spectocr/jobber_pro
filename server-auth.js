@@ -8318,6 +8318,33 @@ const PM_VENDOR_READY_SECTION = `
 </section>
 `;
 
+const PM_COMMON_REQUESTS_SECTION = `
+<section id="pm-common-requests" style="padding:5rem 1.5rem;background:#fff;">
+<div style="max-width:1000px;margin:0 auto;">
+<div style="text-align:center;color:#7c3aed;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">What We Handle</div>
+<h2 style="text-align:center;font-size:clamp(1.5rem,3vw,2.1rem);font-weight:800;margin-bottom:0.75rem;color:#0f1c2e;">Common Requests We Handle</h2>
+<p style="text-align:center;color:#6b7280;max-width:560px;margin:0 auto 2.5rem;font-size:1.05rem;line-height:1.6;">Property managers and landlords use us for jobs that need to get done fast, documented, and out of your inbox.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0.75rem;margin-bottom:2.5rem;">
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🏠</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Tenant Repair Requests</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🔄</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Apartment Turnovers</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>📋</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Punch-List Work</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🚪</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Door &amp; Hardware Repairs</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🎨</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Drywall &amp; Paint Repair</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>💡</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Fixture Replacement</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🏢</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Common-Area Maintenance</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🌿</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Exterior Touch-Ups</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🏪</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Retail Maintenance</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>📦</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Move-In / Move-Out Repairs</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🚿</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Pressure Washing</span></div>
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.6rem;"><span>🔒</span><span style="font-weight:600;color:#374151;font-size:0.9rem;">Lock &amp; Hardware Replacement</span></div>
+</div>
+<div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 8px 8px 0;padding:1.1rem 1.4rem;max-width:660px;margin:0 auto;">
+<strong style="color:#15803d;">📸 Every job is photo-documented.</strong> Before &amp; after photos are stored in your client portal — ready to pull for ownership reports, insurance claims, or tenant disputes. No chasing us for records.
+</div>
+</div>
+</section>
+`;
+
 const PM_GALLERY_OLD = `(async function loadCommercialPortfolio()`;
 const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
     try {
@@ -8422,6 +8449,15 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
         const ctaIdx = html.indexOf('<section class="cta-section">');
         if (ctaIdx !== -1) {
             html = html.slice(0, ctaIdx) + PM_PORTAL_SECTION + PM_VENDOR_READY_SECTION + html.slice(ctaIdx);
+        }
+    }
+    // Inject common requests before portal section (idempotent)
+    if (!html.includes('id="pm-common-requests"')) {
+        const insertBefore = html.indexOf('<section id="pm-portal"') !== -1
+            ? html.indexOf('<section id="pm-portal"')
+            : html.indexOf('<section class="cta-section">');
+        if (insertBefore !== -1) {
+            html = html.slice(0, insertBefore) + PM_COMMON_REQUESTS_SECTION + html.slice(insertBefore);
         }
     }
     // Add Client Portal link to PM page nav (idempotent)
