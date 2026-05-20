@@ -80,6 +80,12 @@ async function connectDB() {
         await db.collection('clients').createIndex({ name: 1 });
         await db.collection('jobs').createIndex({ scheduledDate: 1 });
         await db.collection('jobs').createIndex({ clientId: 1 });
+        await db.collection('jobs').createIndex({ status: 1 });
+        await db.collection('jobs').createIndex({ surveyToken: 1 }, { sparse: true });
+        await db.collection('jobs').createIndex({ 'deposit.token': 1 }, { sparse: true });
+        await db.collection('quotes').createIndex({ status: 1 });
+        await db.collection('quotes').createIndex({ secureToken: 1 }, { sparse: true });
+        await db.collection('leads').createIndex({ status: 1 });
         await db.collection('team').createIndex({ name: 1 });
 
         // Check if admin user exists
