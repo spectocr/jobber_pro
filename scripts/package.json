@@ -1,0 +1,11 @@
+{
+  "name": "portal-screenshots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily portal screenshot capture for marketing site",
+  "dependencies": {
+    "@aws-sdk/client-cloudfront": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "puppeteer": "^22.0.0"
+  }
+}

@@ -8318,6 +8318,37 @@ const PM_VENDOR_READY_SECTION = `
 </section>
 `;
 
+const PM_SCREENSHOTS_SECTION = `
+<section id="pm-screenshots" style="padding:4rem 1.5rem;background:#0f1c2e;">
+<div style="max-width:1000px;margin:0 auto;">
+<div style="text-align:center;color:#90cdf4;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">See It In Action</div>
+<h2 style="text-align:center;font-size:clamp(1.4rem,3vw,2rem);font-weight:800;margin-bottom:0.6rem;color:#fff;">Your Portal, Live</h2>
+<p style="text-align:center;color:rgba(255,255,255,0.6);max-width:480px;margin:0 auto 2.5rem;font-size:1rem;line-height:1.6;">Screenshots updated daily — no mockups.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:1.25rem;">
+<div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
+<img src="https://gsdhandymanservice.com/portal-screenshots/01-dashboard.jpg" alt="Client portal dashboard — My Quotes and My Jobs" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">📊 Dashboard — Quotes &amp; Jobs at a glance</div>
+</div>
+<div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
+<img src="https://gsdhandymanservice.com/portal-screenshots/02-work-order.jpg" alt="Submit a maintenance work order" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">📋 Submit a Work Order — service, priority, address, photos</div>
+</div>
+<div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
+<img src="https://gsdhandymanservice.com/portal-screenshots/03-ticket-confirmed.jpg" alt="Work order ticket confirmed" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">✅ Instant ticket number — no waiting, no email chase</div>
+</div>
+<div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
+<img src="https://gsdhandymanservice.com/portal-screenshots/04-invoices.jpg" alt="Invoice history view" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">🧾 Invoice history — itemized, searchable, easy to forward</div>
+</div>
+</div>
+<div style="text-align:center;margin-top:2.25rem;">
+<a href="https://app.gsdhandymanservice.com/client-login" style="display:inline-block;padding:0.85rem 2.25rem;background:#3182ce;color:white;border-radius:8px;font-weight:700;font-size:1rem;text-decoration:none;">Access Your Portal →</a>
+</div>
+</div>
+</section>
+`;
+
 const PM_COMMON_REQUESTS_SECTION = `
 <section id="pm-common-requests" style="padding:5rem 1.5rem;background:#fff;">
 <div style="max-width:1000px;margin:0 auto;">
@@ -8462,6 +8493,15 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
     }
     // Fix nav logo name
     html = html.replace(/GSD Home Improvement/g, 'GSD Property Services');
+    // Inject screenshots section before vendor-ready (idempotent)
+    if (!html.includes('id="pm-screenshots"')) {
+        const insertBefore = html.indexOf('<section id="vendor-ready"') !== -1
+            ? html.indexOf('<section id="vendor-ready"')
+            : html.indexOf('<section class="cta-section">');
+        if (insertBefore !== -1) {
+            html = html.slice(0, insertBefore) + PM_SCREENSHOTS_SECTION + html.slice(insertBefore);
+        }
+    }
     // Add Client Portal link to PM page nav (idempotent)
     if (!html.includes('app.gsdhandymanservice.com/client-login')) {
         html = html.replace(

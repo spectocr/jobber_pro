@@ -1,0 +1,37 @@
+name: Daily Portal Screenshots
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 10am UTC = 6am ET — after overnight activity settles
+  workflow_dispatch:         # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install screenshot dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Take portal screenshots
+        working-directory: scripts
+        env:
+          DEMO_CLIENT_EMAIL:           ${{ secrets.DEMO_CLIENT_EMAIL }}
+          DEMO_CLIENT_PASSWORD:        ${{ secrets.DEMO_CLIENT_PASSWORD }}
+          PUBLIC_S3_KEY:               ${{ secrets.PUBLIC_S3_KEY }}
+          PUBLIC_S3_SECRET:            ${{ secrets.PUBLIC_S3_SECRET }}
+          PUBLIC_S3_BUCKET:            ${{ secrets.PUBLIC_S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID:  ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: node take-portal-screenshots.js
