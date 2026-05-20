@@ -14230,13 +14230,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             data.quarters.forEach(q => {
                 const days    = daysUntil(q.due);
                 const dueDate = new Date(q.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                const isPaid  = q.paidAmount > 0 && q.paidAmount >= q.totalDue * 0.99;
-                const isOver  = !isPaid && days < 0;
-                const isUrgent= !isPaid && days >= 0 && days <= 14;
+                const isPaid   = q.paidAt !== null;
+                const noTaxDue = q.totalDue < 0.01;
+                const isOver   = !isPaid && !noTaxDue && days < 0;
+                const isUrgent = !isPaid && !noTaxDue && days >= 0 && days <= 14;
 
-                const badge  = isPaid ? '✅ PAID' : isOver ? '🔴 OVERDUE' : isUrgent ? '⚠️ DUE SOON' : '📅 UPCOMING';
-                const bColor = isPaid ? '#48bb78' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#667eea';
-                const border = isPaid ? '#48bb78' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#e2e8f0';
+                const badge  = isPaid ? (noTaxDue ? '✅ DONE' : '✅ PAID') : noTaxDue ? '💚 NO TAX DUE' : isOver ? '🔴 OVERDUE' : isUrgent ? '⚠️ DUE SOON' : '📅 UPCOMING';
+                const bColor = isPaid ? '#48bb78' : noTaxDue ? '#38a169' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#667eea';
+                const border = isPaid ? '#48bb78' : noTaxDue ? '#9ae6b4' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#e2e8f0';
 
                 const dueLabel = isPaid ? 'Due ' + dueDate
                     : isOver  ? (days * -1) + ' days overdue (was ' + dueDate + ')'
@@ -14258,7 +14259,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     (q.cashExcluded > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#718096;margin-bottom:0.2rem;font-style:italic;"><span>💵 ' + q.cashExcluded + ' cash job(s) excluded</span></div>' : '') +
                     (q.cogsMaterials > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Materials (COGS)</span><span>– ' + fm(q.cogsMaterials) + '</span></div>' : '') +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
+                    (q.carryApplied > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#805ad5;margin-bottom:0.2rem;"><span>↩ Prior loss applied</span><span>– ' + fm(q.carryApplied) + '</span></div>' : '') +
                     '<div style="display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700;color:#2d3748;border-top:1px solid #e2e8f0;padding-top:0.25rem;"><span>Net Income</span><span>' + fm(q.netIncome) + '</span></div>' +
+                    (q.lossCarriedForward > 0 ? '<div style="font-size:0.78rem;color:#805ad5;margin-top:0.3rem;">⚠ ' + fm(q.lossCarriedForward) + ' loss carries to next quarter</div>' : '') +
                   '</div>' +
 
                   '<div style="margin-bottom:0.7rem;">' +
@@ -14298,8 +14301,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                   '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
                     (isPaid
-                      ? '<button onclick="clearQuarterPaid(' + data.year + ',' + q.q + ')" style="padding:0.4rem 0.85rem;background:#fed7d7;color:#c53030;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">↩ Remove Payment</button>'
-                      : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
+                      ? '<button onclick="clearQuarterPaid(' + data.year + ',' + q.q + ')" style="padding:0.4rem 0.85rem;background:#fed7d7;color:#c53030;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">↩ Undo</button>'
+                      : noTaxDue
+                        ? '<button onclick="markQuarterPaid(' + data.year + ',' + q.q + ',0,\'\',\'No tax due — expenses exceeded income\')" style="padding:0.4rem 0.85rem;background:#38a169;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">✓ Mark as Done</button>'
+                        : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
                     '<button onclick="showTaxDetail(' + q.q + ')" style="padding:0.4rem 0.85rem;background:#edf2f7;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">📋 Source Data</button>' +
                   '</div>' +
                 '</div>';

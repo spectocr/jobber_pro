@@ -3889,13 +3889,21 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         { q: 4, label: 'Sep – Dec', months: [8,9,10,11], due: new Date(year + 1, 0, 15) },
     ];
 
-    const result = quarters.map(({ q, label, months, due }) => {
+    const isCashOnly = j => Array.isArray(j.payments) && j.payments.length > 0 && j.payments.every(p => p.method === 'cash');
+    const stdDed  = ts.filingStatus === 'married' ? 30000 : 15000;
+    const useStd  = ts.standardDeduction !== false;
+    const annualOther = parseFloat(ts.otherIncome) || 0;
+    const w2OnlyTaxable = Math.max(0, annualOther - (useStd ? stdDed : 0));
+
+    let carryLoss = 0; // net loss carried forward from prior quarters
+    const result = [];
+
+    for (const { q, label, months, due } of quarters) {
         const inQ = dateStr => {
             const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
             return d && !isNaN(d) && d.getFullYear() === year && months.includes(d.getMonth());
         };
 
-        const isCashOnly = j => Array.isArray(j.payments) && j.payments.length > 0 && j.payments.every(p => p.method === 'cash');
         const qJobs = jobs.filter(j => {
             const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
             if (!inQ(d)) return false;
@@ -3911,22 +3919,18 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         const qExp = expenses.filter(e => inQ(e.date));
         const expTotal = qExp.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
 
-        const netIncome = Math.max(0, revenue - cogsMaterials - expTotal);
-        // SE tax: 15.3% on 92.35% of net (mirrors IRS Schedule SE)
-        const seTax = netIncome * 0.9235 * 0.153;
-        const seDeduction = seTax / 2;
+        const rawNet       = revenue - cogsMaterials - expTotal;
+        const carryApplied = Math.min(carryLoss, Math.max(0, rawNet)); // how much carry offset this quarter
+        const netAfterCarry= rawNet - carryLoss;
+        const netIncome    = Math.max(0, netAfterCarry);
+        const lossCarriedForward = netAfterCarry < 0 ? Math.abs(netAfterCarry) : 0;
+        carryLoss = lossCarriedForward;
 
-        // Income tax: only the incremental tax business income adds on top of W-2
-        // W-2 withholding already covers the tax on other income — don't double-pay
-        const stdDed     = ts.filingStatus === 'married' ? 30000 : 15000;
-        const useStd     = ts.standardDeduction !== false;
-        const annualBiz  = netIncome * 4;
-        const annualOther= parseFloat(ts.otherIncome) || 0;
-        const annualSEDed= (seTax * 4) / 2;
+        const seTax     = netIncome * 0.9235 * 0.153;
+        const annualBiz = netIncome * 4;
+        const annualSEDed = (seTax * 4) / 2;
 
         const combinedTaxable = Math.max(0, annualBiz + annualOther - annualSEDed - (useStd ? stdDed : 0));
-        const w2OnlyTaxable   = Math.max(0, annualOther - (useStd ? stdDed : 0));
-
         const fedAnnual = Math.max(0, federalIncomeTax(combinedTaxable, ts.filingStatus) - federalIncomeTax(w2OnlyTaxable, ts.filingStatus));
         const njAnnual  = Math.max(0, calcNJTax(combinedTaxable) - calcNJTax(w2OnlyTaxable));
         const fedQ = fedAnnual / 4;
@@ -3953,9 +3957,10 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             category: e.category || '',
             amount: parseFloat(e.amount) || 0
         }));
-        return {
+        result.push({
             q, label, due: due.toISOString(), months,
-            revenue, cogsMaterials, expTotal, netIncome,
+            revenue, cogsMaterials, expTotal, rawNet, netIncome,
+            carryApplied, lossCarriedForward,
             seTax, fedQ, njQ, totalDue,
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
@@ -3965,8 +3970,8 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
                 return inQ(d) && isCashOnly(j);
             }).length : 0,
             items: { jobs: jobItems, expenses: expItems }
-        };
-    });
+        });
+    }
 
     res.json({ quarters: result, taxSettings: ts, year });
 });
