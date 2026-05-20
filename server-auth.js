@@ -71,6 +71,17 @@ async function seedDemoPortalAccount() {
     try {
         const demoClient = await db.collection('clients').findOne({ email: 'sample@sample.com' });
         if (!demoClient) return;
+
+        // Ensure portal password is set (bcrypt of '1234')
+        if (!demoClient.portalPassword) {
+            const hashed = await bcrypt.hash('1234', 10);
+            await db.collection('clients').updateOne(
+                { _id: demoClient._id },
+                { $set: { portalPassword: hashed } }
+            );
+            console.log('✅ Demo portal password set');
+        }
+
         const existingCount = await db.collection('jobs').countDocuments({ clientId: demoClient._id });
         if (existingCount >= 2) return; // Already seeded
         const now = new Date();
