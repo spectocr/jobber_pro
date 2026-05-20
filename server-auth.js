@@ -1466,7 +1466,7 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
       body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error();
-    window.top.location.href = 'https://app.gsdhandymanservice.com/thank-you';
+    window.top.location.href = 'https://gsdhandymanservice.com/thank-you';
   } catch {
     err.style.display = 'block';
     btn.disabled = false;
