@@ -1868,6 +1868,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Tax Year</label>
                             <select id="taxYear" onchange="loadTaxes()" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;"></select>
                         </div>
+                        <div>
+                            <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Cash Jobs</label>
+                            <select id="taxExcludeCash" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                                <option value="false">Include cash jobs in calculation</option>
+                                <option value="true">Exclude cash jobs</option>
+                            </select>
+                        </div>
                     </div>
                     <div style="background:#ebf8ff;border-left:3px solid #63b3ed;padding:0.75rem 1rem;border-radius:4px;font-size:0.83rem;color:#2c5282;margin-bottom:1rem;">
                         <strong>Safe harbor tip:</strong> To avoid underpayment penalties, pay at least 100% of last year's total tax liability spread across 4 quarters (110% if your prior-year AGI was over $150,000).
@@ -14121,6 +14128,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (s.filingStatus) document.getElementById('taxFilingStatus').value = s.filingStatus;
                 if (s.otherIncome !== undefined) document.getElementById('taxOtherIncome').value = s.otherIncome;
                 if (s.standardDeduction !== undefined) document.getElementById('taxStdDed').value = String(s.standardDeduction);
+                if (s.excludeCash !== undefined) document.getElementById('taxExcludeCash').value = String(s.excludeCash);
             } catch(e) {}
 
             const year = document.getElementById('taxYear')?.value || new Date().getFullYear();
@@ -14173,6 +14181,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                   '<div style="background:#f7fafc;border-radius:8px;padding:0.7rem 0.85rem;margin-bottom:0.7rem;">' +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Revenue</span><span>' + fm(q.revenue) + '</span></div>' +
+                    (q.cashExcluded > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#718096;margin-bottom:0.2rem;font-style:italic;"><span>💵 ' + q.cashExcluded + ' cash job(s) excluded</span></div>' : '') +
                     (q.cogsMaterials > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Materials (COGS)</span><span>– ' + fm(q.cogsMaterials) + '</span></div>' : '') +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
                     '<div style="display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700;color:#2d3748;border-top:1px solid #e2e8f0;padding-top:0.25rem;"><span>Net Income</span><span>' + fm(q.netIncome) + '</span></div>' +
@@ -14253,7 +14262,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const body = {
                 filingStatus:      document.getElementById('taxFilingStatus').value,
                 otherIncome:       parseFloat(document.getElementById('taxOtherIncome').value) || 0,
-                standardDeduction: document.getElementById('taxStdDed').value === 'true'
+                standardDeduction: document.getElementById('taxStdDed').value === 'true',
+                excludeCash:       document.getElementById('taxExcludeCash').value === 'true'
             };
             await fetch('/api/settings/taxes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             loadTaxes();

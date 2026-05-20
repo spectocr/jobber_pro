@@ -3895,9 +3895,12 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             return d && !isNaN(d) && d.getFullYear() === year && months.includes(d.getMonth());
         };
 
+        const isCashOnly = j => Array.isArray(j.payments) && j.payments.length > 0 && j.payments.every(p => p.method === 'cash');
         const qJobs = jobs.filter(j => {
             const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
-            return inQ(d);
+            if (!inQ(d)) return false;
+            if (ts.excludeCash && isCashOnly(j)) return false;
+            return true;
         });
         const revenue = qJobs.reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
         const cogsMaterials = qJobs.reduce((s, j) => {
@@ -3957,6 +3960,10 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
             remaining: Math.max(0, totalDue - (payment?.amount || 0)),
+            cashExcluded: ts.excludeCash ? jobs.filter(j => {
+                const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
+                return inQ(d) && isCashOnly(j);
+            }).length : 0,
             items: { jobs: jobItems, expenses: expItems }
         };
     });
