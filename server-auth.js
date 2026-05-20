@@ -2728,6 +2728,11 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             }
         }
 
+        // Convert manually-sent completedAt string to Date
+        if (updateData.completedAt && typeof updateData.completedAt === 'string') {
+            updateData.completedAt = new Date(updateData.completedAt + 'T12:00:00');
+        }
+
         // Auto-complete when paid in full
         const jobTotal = parseFloat(updateData.totalWithTax || updateData.total) || 0;
         const jobPaid = parseFloat(updateData.totalPaid) || 0;

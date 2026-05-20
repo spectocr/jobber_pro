@@ -3308,13 +3308,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <label>Scheduled Time</label>
                             <input type="time" name="scheduledTime">
                         </div>
+                        <div class="form-group" id="completedAtGroup" style="display:none;">
+                            <label style="display:flex;align-items:center;gap:0.5rem;">Date Completed
+                                <button type="button" id="completedAtLockBtn" onclick="toggleCompletedAtLock()" title="Unlock to edit" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0;line-height:1;">🔒</button>
+                            </label>
+                            <input type="date" id="completedAtInput" readonly style="background:#f7fafc;color:#718096;cursor:default;">
+                        </div>
                         <div class="form-group">
                             <label>Assigned To</label>
                             <div id="jobTeamCheckboxes" style="background:#f8f9fa; border:2px solid #e2e8f0; border-radius:8px; padding:0.75rem; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem;"></div>
                         </div>
                         <div class="form-group">
                             <label>Status *</label>
-                            <select name="status" required>
+                            <select name="status" required onchange="syncCompletedAtVisibility(this.value)">
                                 <option value="prospecting">Prospecting</option>
                                 <option value="to_be_scheduled">To Be Scheduled</option>
                                 <option value="scheduled">Scheduled</option>
@@ -4772,9 +4778,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Show follow-up fields if follow-up is set
                 toggleFollowUpFields();
                 window._origFollowUpDate = job.followUpDate || null;
+
+                // Populate completedAt date field
+                const completedAtInput = document.getElementById('completedAtInput');
+                if (completedAtInput) {
+                    completedAtInput.value = job.completedAt ? job.completedAt.slice(0, 10) : '';
+                    completedAtInput.readOnly = true;
+                    completedAtInput.style.background = '#f7fafc';
+                    completedAtInput.style.color = '#718096';
+                    completedAtInput.style.cursor = 'default';
+                    const lockBtn = document.getElementById('completedAtLockBtn');
+                    if (lockBtn) lockBtn.textContent = '🔒';
+                }
+                syncCompletedAtVisibility(job.status);
             } else {
                 document.getElementById('jobModalTitle').textContent = 'Create Job';
                 form.reset();
+                syncCompletedAtVisibility('');
                 document.getElementById('jobClientInput').value = '';
                 document.getElementById('clientTypeaheadDropdown').style.display = 'none';
                 document.getElementById('serviceLocationGroup').style.display = 'none';
@@ -5878,6 +5898,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('followUpFields').style.display = checked ? 'block' : 'none';
         }
 
+        function syncCompletedAtVisibility(status) {
+            const show = status === 'completed' || status === 'invoiced';
+            const group = document.getElementById('completedAtGroup');
+            if (group) group.style.display = show ? '' : 'none';
+            // When switching TO completed/invoiced and no date is set yet, default to today
+            if (show) {
+                const inp = document.getElementById('completedAtInput');
+                if (inp && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+            }
+        }
+
+        function toggleCompletedAtLock() {
+            const inp = document.getElementById('completedAtInput');
+            const btn = document.getElementById('completedAtLockBtn');
+            if (!inp || !btn) return;
+            const locked = inp.readOnly;
+            inp.readOnly = !locked;
+            inp.style.background = locked ? '' : '#f7fafc';
+            inp.style.color = locked ? '' : '#718096';
+            inp.style.cursor = locked ? '' : 'default';
+            btn.textContent = locked ? '🔓' : '🔒';
+            if (locked) inp.focus();
+        }
+
         function updateJobTotal() {
             const laborTotal = laborItems.reduce((sum, item) => sum + (item.hours * item.rate), 0);
             const materialTotal = materialItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
@@ -6072,6 +6116,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
                 return att; // Keep full data for MongoDB fallback
             });
+
+            // Include manually-edited completedAt if present
+            const _completedAtVal = document.getElementById('completedAtInput')?.value;
+            if (_completedAtVal) job.completedAt = _completedAtVal;
 
             // Handle checkboxes - won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
