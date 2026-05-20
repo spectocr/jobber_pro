@@ -8315,6 +8315,64 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
     return true;
 }
 
+async function uploadThankYouPage() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
+    try {
+        const settings = await db.collection('settings').findOne({}) || {};
+        const phone = settings.companyPhone || '';
+        const phoneHref = 'tel:+1' + phone.replace(/\D/g, '');
+        const companyName = settings.companyName || 'GSD Handyman Service';
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thank You — ${companyName}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f0f4ff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 480px; width: 100%; padding: 2.5rem 2rem; text-align: center; }
+  .icon { font-size: 3.5rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.6rem; font-weight: 700; color: #0f1c2e; margin-bottom: 0.6rem; }
+  p { color: #4a5568; line-height: 1.7; font-size: 1rem; margin-bottom: 1rem; }
+  .highlight { background: #f0f4ff; border-left: 4px solid #667eea; border-radius: 0 8px 8px 0; padding: 0.75rem 1rem; text-align: left; font-size: 0.95rem; color: #2d3748; margin: 1.25rem 0; }
+  .phone { display: inline-block; margin-top: 0.5rem; font-size: 1.25rem; font-weight: 700; color: #667eea; text-decoration: none; }
+  .brand { margin-top: 2rem; font-size: 0.8rem; color: #a0aec0; }
+  .brand strong { color: #667eea; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">✅</div>
+  <h1>We got your request!</h1>
+  <p>Thank you for reaching out to ${companyName}. We'll review your information and get back to you shortly.</p>
+  <div class="highlight">
+    <strong>What happens next:</strong><br>
+    We typically respond within a few hours. For urgent jobs, give us a call:
+  </div>
+  ${phone ? `<a class="phone" href="${phoneHref}">${phone}</a>` : ''}
+  <p style="margin-top:1.5rem;font-size:0.9rem;color:#718096;">South Jersey's trusted handyman — no job too small.</p>
+  <div class="brand">Powered by <strong>${companyName}</strong></div>
+</div>
+</body>
+</html>`;
+        const opts = { ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' };
+        await Promise.all([
+            publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'thank-you',      Body: html, ...opts })),
+            publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'thank-you.html', Body: html, ...opts })),
+        ]);
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 2, Items: ['/thank-you', '/thank-you.html'] } } }));
+        }
+        console.log('✅ thank-you page uploaded to S3');
+    } catch (err) {
+        console.error('❌ thank-you upload failed:', err.message);
+    }
+}
+
 async function rebuildPropertyManagementPage() {
     if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
     try {
@@ -8521,6 +8579,7 @@ async function rebuildPublicPortfolio() {
         rebuildPropertyManagementPage().catch(() => {});
         rebuildHomePage().catch(() => {});
         rebuildLocationPages().catch(() => {});
+        uploadThankYouPage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
     }
