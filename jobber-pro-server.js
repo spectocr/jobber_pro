@@ -14125,7 +14125,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 row('Citizenship Status', citizenLabels[i9.citizenStatus] || i9.citizenStatus) +
                 row('Submitted', fmtDate(i9.completedAt)) +
                 section('Policy Acknowledgments') +
-                row('Acknowledged', ob.policyAck?.completedAt ? '✅ Yes — ' + fmtDate(ob.policyAck.completedAt) : '—');
+                row('Acknowledged', ob.policyAck?.completedAt ? '✅ Yes — ' + fmtDate(ob.policyAck.completedAt) : '—') +
+                (ob.policyAck?.completedAt ? [
+                    ['No Cash Payroll', 'All wages are paid by check or direct deposit only. No cash payments will be made.'],
+                    ['Safety Expectations', 'Follow all safety requirements, use appropriate PPE, report hazards immediately, and follow safe work practices on all job sites.'],
+                    ['Tool Policy', 'GSD Handyman Service provides power tools and major equipment. Employees supply basic hand tools. Personal tools on job sites are the employee\'s own responsibility.'],
+                    ['Overtime', 'Overtime (over 40 hrs/week) is paid at 1.5× regular rate per NJ law and must be pre-approved.']
+                ].map(([title, text]) =>
+                    '<div style="display:flex;gap:0.5rem;padding:0.4rem 0 0.4rem 1rem;font-size:0.85rem;color:#4a5568;">' +
+                    '<span style="color:#48bb78;font-weight:700;flex-shrink:0;">✓</span>' +
+                    '<div><strong>' + title + '</strong> — ' + text + '</div>' +
+                    '</div>'
+                ).join('') : '');
 
             let modal = document.getElementById('obSubmissionModal');
             if (!modal) {
