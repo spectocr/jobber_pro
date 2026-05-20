@@ -14230,14 +14230,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             data.quarters.forEach(q => {
                 const days    = daysUntil(q.due);
                 const dueDate = new Date(q.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                const isPaid   = q.paidAt !== null;
-                const noTaxDue = q.totalDue < 0.01;
-                const isOver   = !isPaid && !noTaxDue && days < 0;
-                const isUrgent = !isPaid && !noTaxDue && days >= 0 && days <= 14;
+                const isPaid        = q.paidAt !== null;
+                const qStarted      = today >= new Date(data.year, q.months[0], 1);
+                const noTaxDue      = qStarted && q.totalDue < 0.01;
+                const notStarted    = !qStarted && !isPaid;
+                const isOver        = !isPaid && !noTaxDue && qStarted && days < 0;
+                const isUrgent      = !isPaid && !noTaxDue && qStarted && days >= 0 && days <= 14;
 
-                const badge  = isPaid ? (noTaxDue ? '✅ DONE' : '✅ PAID') : noTaxDue ? '💚 NO TAX DUE' : isOver ? '🔴 OVERDUE' : isUrgent ? '⚠️ DUE SOON' : '📅 UPCOMING';
-                const bColor = isPaid ? '#48bb78' : noTaxDue ? '#38a169' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#667eea';
-                const border = isPaid ? '#48bb78' : noTaxDue ? '#9ae6b4' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#e2e8f0';
+                const badge  = isPaid ? (noTaxDue ? '✅ DONE' : '✅ PAID') : notStarted ? '— NOT STARTED' : noTaxDue ? '💚 NO TAX DUE' : isOver ? '🔴 OVERDUE' : isUrgent ? '⚠️ DUE SOON' : '📅 UPCOMING';
+                const bColor = isPaid ? '#48bb78' : notStarted ? '#a0aec0' : noTaxDue ? '#38a169' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#667eea';
+                const border = isPaid ? '#48bb78' : notStarted ? '#e2e8f0' : noTaxDue ? '#9ae6b4' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#e2e8f0';
 
                 const dueLabel = isPaid ? 'Due ' + dueDate
                     : isOver  ? (days * -1) + ' days overdue (was ' + dueDate + ')'
@@ -14302,6 +14304,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                   '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
                     (isPaid
                       ? '<button onclick="clearQuarterPaid(' + data.year + ',' + q.q + ')" style="padding:0.4rem 0.85rem;background:#fed7d7;color:#c53030;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">↩ Undo</button>'
+                      : notStarted ? ''
                       : noTaxDue
                         ? '<button onclick="markQuarterPaid(' + data.year + ',' + q.q + ',0,\'\',\'No tax due — expenses exceeded income\')" style="padding:0.4rem 0.85rem;background:#38a169;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">✓ Mark as Done</button>'
                         : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
