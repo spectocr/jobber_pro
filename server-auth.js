@@ -8668,7 +8668,7 @@ async function rebuildLocationPages() {
                 html = html.slice(0, injectAt) + block + html.slice(injectAt);
             }
             // Add Property Managers nav link (idempotent)
-            if (!html.includes('href="/property-management"')) {
+            if (!html.includes('>Property Managers</a>')) {
                 html = html.replace(
                     '<a href="/#quote">Get a Quote</a>',
                     '<a href="/#quote">Get a Quote</a>\n        <a href="/property-management">Property Managers</a>'
@@ -8849,8 +8849,8 @@ async function rebuildHomePage() {
         const end = html.indexOf('})();', idx);
         if (end === -1) { console.warn('⚠️  index.html: portfolio IIFE closing not found, skipping'); return; }
         html = html.slice(0, idx) + HOME_PORTFOLIO_NEW + html.slice(end);
-        // Add Property Managers nav link (idempotent)
-        if (!html.includes('href="/property-management"')) {
+        // Add Property Managers nav link (idempotent — check for the specific nav text, not just the href)
+        if (!html.includes('>Property Managers</a>')) {
             html = html.replace(
                 '<a href="#portal">Client Portal</a>',
                 '<a href="/property-management">Property Managers</a>\n        <a href="#portal">Client Portal</a>'
