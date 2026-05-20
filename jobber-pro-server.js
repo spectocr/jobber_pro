@@ -2102,6 +2102,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <option value="meals">Meals & Entertainment</option>
                         <option value="travel">Travel</option>
                         <option value="professional">Professional Services</option>
+                        <option value="interest">Interest</option>
                         <option value="other">Other</option>
                     </select>
                     <button class="btn btn-secondary" onclick="exportExpensesToExcel()">📊 Export</button>
@@ -3755,6 +3756,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="meals">Meals & Entertainment</option>
                             <option value="travel">Travel</option>
                             <option value="professional">Professional Services</option>
+                            <option value="interest">Interest</option>
                             <option value="other">Other</option>
                         </select>
                     </div>
@@ -9385,6 +9387,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     utilities: 'Utilities',
                     insurance: 'Insurance',
                     marketing: 'Marketing & Advertising',
+                    interest: 'Interest',
                     meals: 'Meals & Entertainment',
                     travel: 'Travel',
                     professional: 'Professional Services',
