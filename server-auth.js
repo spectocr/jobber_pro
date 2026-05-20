@@ -8149,7 +8149,7 @@ footer a:hover{color:white}
   <div class="nav-links">
     <a href="/">Home</a><a href="/#services">Services</a>
     <a href="/portfolio.html" class="active">Our Work</a>
-    <a href="/#quote">Get a Quote</a><a href="/#portal">Client Portal</a>
+    <a href="/#quote">Get a Quote</a><a href="/property-management">Property Managers</a><a href="/#portal">Client Portal</a>
   </div>
   <a class="nav-phone" href="tel:+18568724636">
     <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
@@ -8664,6 +8664,13 @@ async function rebuildLocationPages() {
                 const injectAt = html.indexOf(LOC_PORTFOLIO_INJECT_BEFORE);
                 if (injectAt === -1) { console.warn(`⚠️  ${slug}: cta-section marker not found`); return; }
                 html = html.slice(0, injectAt) + block + html.slice(injectAt);
+            }
+            // Add Property Managers nav link (idempotent)
+            if (!html.includes('href="/property-management"')) {
+                html = html.replace(
+                    '<a href="/#quote">Get a Quote</a>',
+                    '<a href="/#quote">Get a Quote</a>\n        <a href="/property-management">Property Managers</a>'
+                );
             }
             await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: slug, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
             console.log(`✅ ${slug} portfolio section updated`);
