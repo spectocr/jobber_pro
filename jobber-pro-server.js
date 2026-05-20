@@ -14048,7 +14048,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const inviteExtra =
                 hint('Send an email link — employee fills out the form online in about 3 minutes. No paper needed for this step.') +
-                aBtn(ob.inviteSentAt ? '📧 Re-send Invite' : '📧 Send Invite', 'sendOnboardingInvite(\'' + id + '\')', hasEmail ? '#ebf8ff' : '#f7fafc');
+                aBtn(ob.inviteSentAt ? '📧 Re-send Invite' : '📧 Send Invite', 'sendOnboardingInvite(\'' + id + '\')', hasEmail ? '#ebf8ff' : '#f7fafc') +
+                (ob.completedAt ? aBtn('📋 View Submitted Data', 'viewOnboardingSubmission(\'' + id + '\')', '#f0fff4') : '');
 
             const w4Extra = ob.w4?.completedAt
                 ? hint('Employee answered online. Also collect a signed paper W-4 on day 1 and enter it in Gusto / ADP.')
@@ -14084,6 +14085,62 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 btn.disabled = !hasEmail;
                 if (!hasEmail) btn.title = 'Add an email address to this team member first';
             }
+        }
+
+        function viewOnboardingSubmission(memberId) {
+            const member = team.find(t => t.id === memberId);
+            if (!member) return;
+            const ob = member.onboarding || {};
+            const w4 = ob.w4 || {};
+            const i9 = ob.i9Section1 || {};
+
+            const filingLabels = {
+                single: 'Single or Married Filing Separately',
+                married: 'Married Filing Jointly (or Qualifying Widow(er))',
+                head: 'Head of Household'
+            };
+            const citizenLabels = {
+                citizen: 'U.S. Citizen or U.S. National',
+                permanent_resident: 'Lawful Permanent Resident',
+                authorized: 'Alien Authorized to Work'
+            };
+            const fmtDate = d => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+            const row = (label, val) =>
+                '<div style="display:flex;gap:1rem;padding:0.55rem 0;border-bottom:1px solid #f0f0f0;font-size:0.9rem;">' +
+                '<div style="width:200px;flex-shrink:0;color:#718096;font-weight:600;">' + label + '</div>' +
+                '<div style="color:#2d3748;">' + (val || '<em style="color:#cbd5e0;">not provided</em>') + '</div>' +
+                '</div>';
+            const section = (title) =>
+                '<div style="font-weight:700;font-size:0.85rem;text-transform:uppercase;letter-spacing:.05em;color:#4a5568;margin:1.25rem 0 0.5rem;">' + title + '</div>';
+
+            const body =
+                section('W-4 Withholding Preferences') +
+                row('Filing Status', filingLabels[w4.filingStatus] || w4.filingStatus) +
+                row('Dependent Tax Credits', w4.dependentsAmt > 0 ? '$' + w4.dependentsAmt.toLocaleString() + ' / year' : 'None') +
+                row('Extra Withholding', w4.extraWithholding > 0 ? '$' + w4.extraWithholding + ' / pay period' : 'None') +
+                row('Submitted', fmtDate(w4.completedAt)) +
+                section('I-9 Section 1 — Employee Self-Certification') +
+                row('Full Name', [i9.firstName, i9.middleInitial, i9.lastName].filter(Boolean).join(' ')) +
+                row('Date of Birth', i9.dob ? new Date(i9.dob + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—') +
+                row('Citizenship Status', citizenLabels[i9.citizenStatus] || i9.citizenStatus) +
+                row('Submitted', fmtDate(i9.completedAt)) +
+                section('Policy Acknowledgments') +
+                row('Acknowledged', ob.policyAck?.completedAt ? '✅ Yes — ' + fmtDate(ob.policyAck.completedAt) : '—');
+
+            let modal = document.getElementById('obSubmissionModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'obSubmissionModal';
+                modal.className = 'modal';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML =
+                '<div class="modal-content" style="max-width:600px;">' +
+                '<div class="modal-header"><h3>📋 ' + member.name + ' — Submitted Onboarding Data</h3>' +
+                '<button class="modal-close" onclick="closeModal(\'obSubmissionModal\')">&times;</button></div>' +
+                '<div style="padding:1.5rem 1.75rem;">' + body + '</div>' +
+                '</div>';
+            modal.style.display = 'flex';
         }
 
         function openJobDescModal(memberId) {
