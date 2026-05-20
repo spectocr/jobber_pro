@@ -14140,7 +14140,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 '<button class="modal-close" onclick="closeModal(\'obSubmissionModal\')">&times;</button></div>' +
                 '<div style="padding:1.5rem 1.75rem;">' + body + '</div>' +
                 '</div>';
-            modal.style.display = 'flex';
+            openModal('obSubmissionModal');
         }
 
         function openJobDescModal(memberId) {
