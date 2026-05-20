@@ -3817,13 +3817,17 @@ app.post('/api/team/:id/onboarding', isAdmin, async (req, res) => {
 });
 
 // Google Ads conversion landing page
-app.get('/thank-you', (req, res) => {
+app.get('/thank-you', async (req, res) => {
+    const settings = await db.collection('settings').findOne({}) || {};
+    const phone = settings.companyPhone || '';
+    const phoneHref = 'tel:+1' + phone.replace(/\D/g, '');
+    const companyName = settings.companyName || 'GSD Handyman Service';
     res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Thank You — GSD Handyman Service</title>
+<title>Thank You — ${companyName}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3842,14 +3846,14 @@ app.get('/thank-you', (req, res) => {
 <div class="card">
   <div class="icon">✅</div>
   <h1>We got your request!</h1>
-  <p>Thank you for reaching out to GSD Handyman Service. We'll review your information and get back to you shortly.</p>
+  <p>Thank you for reaching out to ${companyName}. We'll review your information and get back to you shortly.</p>
   <div class="highlight">
     <strong>What happens next:</strong><br>
     We typically respond within a few hours. For urgent jobs, give us a call:
   </div>
-  <a class="phone" href="tel:+18564550692">(856) 455-0692</a>
+  ${phone ? `<a class="phone" href="${phoneHref}">${phone}</a>` : ''}
   <p style="margin-top:1.5rem;font-size:0.9rem;color:#718096;">South Jersey's trusted handyman — no job too small.</p>
-  <div class="brand">Powered by <strong>GSD Handyman Service</strong></div>
+  <div class="brand">Powered by <strong>${companyName}</strong></div>
 </div>
 </body>
 </html>`);
