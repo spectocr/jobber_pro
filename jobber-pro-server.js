@@ -11958,6 +11958,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td>\${(e.paymentMethod || 'cash').replace('_', ' ')}</td>
                     <td>
                         <button class="btn btn-secondary btn-small" onclick="showExpenseDetail('\${e.id}')" style="margin-right:0.25rem;" title="Receipts &amp; comments">📎 \${(e.attachments||[]).length > 0 ? e.attachments.length : ''}</button>
+                        <button class="btn btn-secondary btn-small" onclick="copyExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="margin-right:0.25rem;" title="Copy expense">⧉</button>
                         <button class="btn btn-secondary btn-small" onclick="editExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="margin-right:0.25rem;">Edit</button>
                         <button class="btn btn-danger btn-small" onclick="deleteExpense('\${e.id}')" \${!isAdmin ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Delete</button>
                     </td>
@@ -12038,6 +12039,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             const expense = expenses.find(e => e.id == id || e._id == id);
             if (expense) openExpenseModal(expense);
+        }
+
+        function copyExpense(id) {
+            if (!isAdmin) return;
+            const expense = expenses.find(e => e.id == id || e._id == id);
+            if (!expense) return;
+            const copy = { ...expense };
+            delete copy._id;
+            delete copy.id;
+            copy.date = new Date().toISOString().split('T')[0];
+            stagedExpenseFiles = [];
+            document.getElementById('expenseModalFileInput').value = '';
+            currentEditingExpenseId = null;
+            document.getElementById('expenseModalTitle').textContent = 'Copy Expense';
+            const form = document.getElementById('expenseForm');
+            form.reset();
+            Object.keys(copy).forEach(key => {
+                const input = form.elements[key];
+                if (input) input.value = copy[key] || '';
+            });
+            renderExpenseModalAttachments([]);
+            document.getElementById('expenseModal').classList.add('active');
         }
 
         async function saveExpense() {
