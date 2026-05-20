@@ -6644,11 +6644,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         const terms = client?.paymentTerms;
                         const td = _termsDays[terms];
                         let dueInfo = '';
-                        if (td !== undefined && j.invoicedAt) {
-                            const dueDate = new Date(new Date(j.invoicedAt).getTime() + td * 86400000);
+                        const _arBase = j.completedAt || j.invoicedAt;
+                        if (td !== undefined && _arBase) {
+                            const dueDate = new Date(new Date(_arBase).getTime() + td * 86400000);
                             const today = new Date(); today.setHours(0,0,0,0);
                             const diffDays = Math.round((dueDate.setHours(0,0,0,0), dueDate - today) / 86400000);
-                            if (diffDays > 0)      dueInfo = `<div style="font-size:0.7rem;color:#48bb78;">Due in ${diffDays}d (${new Date(new Date(j.invoicedAt).getTime() + td*86400000).toLocaleDateString()})</div>`;
+                            if (diffDays > 0)      dueInfo = `<div style="font-size:0.7rem;color:#48bb78;">Due in ${diffDays}d (${new Date(new Date(_arBase).getTime() + td*86400000).toLocaleDateString()})</div>`;
                             else if (diffDays === 0) dueInfo = `<div style="font-size:0.7rem;color:#ed8936;font-weight:600;">Due today</div>`;
                             else                    dueInfo = `<div style="font-size:0.7rem;color:#e53e3e;font-weight:600;">${Math.abs(diffDays)} days overdue</div>`;
                         } else if (terms) {
