@@ -4284,6 +4284,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.querySelectorAll('.job-action-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
+        function copyInvoiceLink(jobId) {
+            const url = window.location.origin + '/invoice/' + jobId;
+            navigator.clipboard.writeText(url).then(() => alert('Invoice link copied!')).catch(() => alert(url));
+        }
         document.addEventListener('click', () => {
             document.querySelectorAll('.job-action-menu').forEach(m => m.style.display = 'none');
         });
@@ -8066,6 +8070,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
                                 <div id="jm-\${j.id}" class="job-action-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + 4px);background:white;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,0.13);z-index:200;min-width:175px;padding:0.3rem 0;">
                                     <button onclick="emailInvoice('\${j.id}')" class="jm-item">📧 Email Invoice</button>
+                                    <button onclick="copyInvoiceLink('\${j.id}')" class="jm-item">🔗 Copy Invoice Link</button>
                                     \${!isPaidInFull ? \`<button onclick="openDepositModal('\${j.id}', \${parseFloat(j.total)||0})" class="jm-item">💳 Request Deposit</button>\` : ''}
                                     \${!isPaidInFull && client?.cloverCustomerId ? \`<button onclick="openChargeCardModal('\${j.id}','\${client.cloverCardLast4||''}','\${client.cloverCardBrand||''}',\${j.totalWithTax||j.total||0})" class="jm-item">💳 Charge ••••\${client.cloverCardLast4||'?'}</button>\` : ''}
                                     \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
@@ -8125,6 +8130,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     <button class="btn btn-secondary btn-small" onclick="toggleJobMenu('\${j.id}',event)" style="letter-spacing:0.1em;padding:0.3rem 0.7rem;">···</button>
                                     <div id="jm-\${j.id}" class="job-action-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,0.13);z-index:200;min-width:175px;padding:0.3rem 0;">
                                         <button onclick="emailInvoice('\${j.id}')" class="jm-item">📧 Email Invoice</button>
+                                        <button onclick="copyInvoiceLink('\${j.id}')" class="jm-item">🔗 Copy Invoice Link</button>
                                         \${!isPaidInFull ? \`<button onclick="openDepositModal('\${j.id}', \${parseFloat(j.total)||0})" class="jm-item">💳 Request Deposit</button>\` : ''}
                                         \${!isPaidInFull && client?.cloverCustomerId ? \`<button onclick="openChargeCardModal('\${j.id}','\${client.cloverCardLast4||''}','\${client.cloverCardBrand||''}',\${j.totalWithTax||j.total||0})" class="jm-item">💳 Charge ••••\${client.cloverCardLast4||'?'}</button>\` : ''}
                                         \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
