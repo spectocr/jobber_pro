@@ -8460,6 +8460,8 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
             html = html.slice(0, insertBefore) + PM_COMMON_REQUESTS_SECTION + html.slice(insertBefore);
         }
     }
+    // Fix nav logo name
+    html = html.replace(/GSD Home Improvement/g, 'GSD Property Services');
     // Add Client Portal link to PM page nav (idempotent)
     if (!html.includes('app.gsdhandymanservice.com/client-login')) {
         html = html.replace(
