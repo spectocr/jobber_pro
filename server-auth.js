@@ -8439,20 +8439,32 @@ const PM_SCREENSHOTS_SECTION = `
 <p style="text-align:center;color:rgba(255,255,255,0.6);max-width:480px;margin:0 auto 2.5rem;font-size:1rem;line-height:1.6;">Screenshots updated daily — no mockups.</p>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:1.25rem;">
 <div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
-<img src="https://gsdhandymanservice.com/portal-screenshots/01-dashboard.jpg" alt="Client portal dashboard — My Quotes and My Jobs" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
-<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">📊 Dashboard — Quotes &amp; Jobs at a glance</div>
+<img src="https://gsdhandymanservice.com/portal-screenshots/01-dashboard.jpg" alt="Client portal dashboard — My Quotes and My Jobs" loading="lazy" style="width:100%;display:block;" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:1rem 1.1rem 1.1rem;">
+<div style="color:#fff;font-size:0.92rem;font-weight:700;margin-bottom:0.3rem;">Centralized Maintenance Requests</div>
+<div style="color:rgba(255,255,255,0.58);font-size:0.82rem;line-height:1.55;">Track open quotes and active jobs across all properties from one dashboard. No phone tags, no spreadsheets.</div>
+</div>
 </div>
 <div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
-<img src="https://gsdhandymanservice.com/portal-screenshots/02-work-order.jpg" alt="Submit a maintenance work order" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
-<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">📋 Submit a Work Order — service, priority, address, photos</div>
+<img src="https://gsdhandymanservice.com/portal-screenshots/02-work-order.jpg" alt="Submit a maintenance work order" loading="lazy" style="width:100%;display:block;" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:1rem 1.1rem 1.1rem;">
+<div style="color:#fff;font-size:0.92rem;font-weight:700;margin-bottom:0.3rem;">Submit Work Orders Online</div>
+<div style="color:rgba(255,255,255,0.58);font-size:0.82rem;line-height:1.55;">Select service type, set priority, attach photos, and submit from any device — in under a minute. No calls required.</div>
+</div>
 </div>
 <div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
-<img src="https://gsdhandymanservice.com/portal-screenshots/03-ticket-confirmed.jpg" alt="Work order ticket confirmed" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
-<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">✅ Instant ticket number — no waiting, no email chase</div>
+<img src="https://gsdhandymanservice.com/portal-screenshots/03-ticket-confirmed.jpg" alt="Work order ticket confirmed" loading="lazy" style="width:100%;display:block;" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:1rem 1.1rem 1.1rem;">
+<div style="color:#fff;font-size:0.92rem;font-weight:700;margin-bottom:0.3rem;">Instant Confirmation, Every Time</div>
+<div style="color:rgba(255,255,255,0.58);font-size:0.82rem;line-height:1.55;">Every request generates a ticket number on the spot. Your team always has a paper trail — no follow-up email needed.</div>
+</div>
 </div>
 <div class="pm-ss-card" style="border-radius:12px;overflow:hidden;background:#1a2f4a;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
-<img src="https://gsdhandymanservice.com/portal-screenshots/04-invoices.jpg" alt="Invoice history view" loading="lazy" style="width:100%;display:block;border-bottom:1px solid rgba(255,255,255,0.08);" onerror="this.closest('.pm-ss-card').style.display='none'">
-<div style="padding:0.85rem 1.1rem;color:rgba(255,255,255,0.85);font-size:0.88rem;font-weight:600;">🧾 Invoice history — itemized, searchable, easy to forward</div>
+<img src="https://gsdhandymanservice.com/portal-screenshots/04-invoices.jpg" alt="Invoice history view" loading="lazy" style="width:100%;display:block;" onerror="this.closest('.pm-ss-card').style.display='none'">
+<div style="padding:1rem 1.1rem 1.1rem;">
+<div style="color:#fff;font-size:0.92rem;font-weight:700;margin-bottom:0.3rem;">Property-Level Invoice History</div>
+<div style="color:rgba(255,255,255,0.58);font-size:0.82rem;line-height:1.55;">Access itemized invoices, payment status, and service records by property — ready to forward to ownership anytime.</div>
+</div>
 </div>
 </div>
 <div style="text-align:center;margin-top:2.25rem;">
