@@ -8618,8 +8618,14 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
     }
     // Fix nav logo name
     html = html.replace(/GSD Home Improvement/g, 'GSD Property Services');
-    // Inject screenshots section before vendor-ready (idempotent)
-    if (!html.includes('id="pm-screenshots"')) {
+    // Inject or replace screenshots section (always overwrite so content stays current)
+    if (html.includes('id="pm-screenshots"')) {
+        const start = html.indexOf('<section id="pm-screenshots"');
+        const end = html.indexOf('</section>', start) + '</section>'.length;
+        if (start !== -1 && end > start) {
+            html = html.slice(0, start) + PM_SCREENSHOTS_SECTION.trim() + html.slice(end);
+        }
+    } else {
         const insertBefore = html.indexOf('<section id="vendor-ready"') !== -1
             ? html.indexOf('<section id="vendor-ready"')
             : html.indexOf('<section class="cta-section">');
