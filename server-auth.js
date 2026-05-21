@@ -3436,6 +3436,45 @@ app.delete('/api/quotes/:id/photos/:index', isAuthenticated, async (req, res) =>
     }
 });
 
+app.post('/api/quotes/:id/import-lead-photos', isAuthenticated, async (req, res) => {
+    try {
+        const { leadId } = req.body;
+        if (!leadId) return res.status(400).json({ error: 'leadId required' });
+
+        const [quote, lead] = await Promise.all([
+            db.collection('quotes').findOne({ _id: new ObjectId(req.params.id) }, { projection: { _id: 1 } }),
+            db.collection('leads').findOne({ _id: new ObjectId(leadId) }, { projection: { photos: 1 } })
+        ]);
+
+        if (!quote) return res.status(404).json({ error: 'Quote not found' });
+        if (!lead || !Array.isArray(lead.photos) || !lead.photos.length) return res.json({ success: true, copied: 0 });
+
+        const s3Keys = lead.photos.filter(p => typeof p === 'string' && !p.startsWith('data:'));
+        if (!s3Keys.length || !s3Client) return res.json({ success: true, copied: 0 });
+
+        const ts = Date.now();
+        const newKeys = await Promise.all(s3Keys.map(async (key, i) => {
+            const ext = key.split('.').pop();
+            const newKey = `quotes/admin/${req.params.id}/${ts}-${i}.${ext}`;
+            await s3Client.send(new CopyObjectCommand({
+                Bucket: S3_BUCKET_NAME,
+                CopySource: `${S3_BUCKET_NAME}/${key}`,
+                Key: newKey
+            }));
+            return newKey;
+        }));
+
+        await db.collection('quotes').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $push: { photos: { $each: newKeys } } }
+        );
+        res.json({ success: true, copied: newKeys.length });
+    } catch (err) {
+        console.error('Import lead photos error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.get('/api/quotes/:id/view-log', isAdmin, async (req, res) => {
     try {
         const quote = await db.collection('quotes').findOne(

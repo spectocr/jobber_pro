@@ -7743,11 +7743,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             quote.touchPoints = quoteTouchPoints;
 
             try {
-                await postData('/api/quotes', quote, {
+                const result = await postData('/api/quotes', quote, {
                     markClean: true,
                     closeModal: 'quoteModal',
                     reload: loadQuotes
                 });
+                // If this quote was converted from a lead, copy the lead's photos over
+                if (window._pendingLeadId && result && result.id && !currentEditingQuoteId) {
+                    fetch(`/api/quotes/${result.id}/import-lead-photos`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ leadId: window._pendingLeadId })
+                    }).catch(() => {});
+                    window._pendingLeadId = null;
+                }
             } catch (error) {
                 alert('Failed to save quote: ' + error.message);
             }
@@ -11929,6 +11938,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             setQuoteClientById(client.id || client._id);
             document.querySelector('#quoteForm [name="title"]').value = l.service || '';
             document.querySelector('#quoteForm [name="description"]').value = l.description || '';
+
+            // Stash lead ID so saveQuote can copy photos after the quote is created
+            window._pendingLeadId = leadId;
 
             // Mark lead as quoted
             updateLeadStatus(leadId, 'quoted');
