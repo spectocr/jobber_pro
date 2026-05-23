@@ -3622,7 +3622,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             userId: new ObjectId(req.session.userId),
             action: 'converted_to_job',
             oldStatus: quote.status,
-            newStatus: 'approved',
+            newStatus: quote.status,
             note: `Quote #${quote.quoteNumber} converted to job by ${req.session.userName}`
         };
 
@@ -3662,7 +3662,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(req.params.id) },
             {
-                $set: { convertedToJobId: result.insertedId, status: 'approved' },
+                $set: { convertedToJobId: result.insertedId },
                 $push: { auditLog: conversionEntry }
             }
         );
