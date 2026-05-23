@@ -3615,7 +3615,18 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             return res.status(400).json({ error: 'Quote has already been converted to a job' });
         }
 
-        // Create job from quote with "prospecting" status (needs review/scheduling)
+        // Build conversion entry first so it lands on both the job and the quote
+        const conversionEntry = {
+            timestamp: new Date(),
+            userName: req.session.userName,
+            userId: new ObjectId(req.session.userId),
+            action: 'converted_to_job',
+            oldStatus: quote.status,
+            newStatus: 'approved',
+            note: `Quote #${quote.quoteNumber} converted to job by ${req.session.userName}`
+        };
+
+        // Create job from quote
         const job = {
             clientId: quote.clientId,
             title: quote.title,
@@ -3636,7 +3647,8 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             notes: `Converted from Quote #${quote.quoteNumber}\n\nNeeds scheduling review.\n\n${quote.notes || ''}`,
             sourceQuoteId: quote._id,
             sourceQuoteNumber: quote.quoteNumber,
-            sourceQuoteHistory: quote.auditLog || []
+            sourceQuoteHistory: [...(quote.auditLog || []), conversionEntry],
+            conversionLog: conversionEntry
         };
 
         if (quote.serviceLocationId) {
@@ -3645,22 +3657,13 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
 
         const result = await db.collection('jobs').insertOne(job);
 
-        // Mark quote as converted and add audit log
-        const auditEntry = {
-            timestamp: new Date(),
-            userName: req.session.userName,
-            userId: new ObjectId(req.session.userId),
-            action: 'converted_to_job',
-            oldStatus: quote.status,
-            newStatus: 'approved',
-            note: `Quote converted to Job #${result.insertedId.toString().slice(-6)}`
-        };
-
+        // Update the conversion entry note with the real job ID, then push to quote
+        conversionEntry.note = `Quote #${quote.quoteNumber} converted to Job #${result.insertedId.toString().slice(-6)} by ${req.session.userName}`;
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(req.params.id) },
             {
                 $set: { convertedToJobId: result.insertedId, status: 'approved' },
-                $push: { auditLog: auditEntry }
+                $push: { auditLog: conversionEntry }
             }
         );
 
