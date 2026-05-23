@@ -7248,7 +7248,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')">📧 Email</button>\` : ''}
-                            \${(q.status === 'approved' || q.status === 'in_review') && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Job</button>\` : ''}
+                            \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Job</button>\` : ''}
                             \${q.convertedToJobId ? \`<span style="color:#48bb78;font-size:0.85rem;">✓ Converted</span>\` : ''}
                             <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)">📦</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
@@ -7283,7 +7283,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')" title="Email quote to client">📧 Email</button>\` : ''}
-                            \${(q.status === 'approved' || q.status === 'in_review') && !q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}')">➡️ Convert to Job</button>\` : ''}
+                            \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Convert to Job</button>\` : ''}
                             \${q.convertedToJobId ? \`<span style="color: #48bb78;">✓ Converted</span>\` : ''}
                             <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)" title="Archive">📦 Archive</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
@@ -7972,10 +7972,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        async function convertQuoteToJob(quoteId) {
-            if (!confirm('Convert this approved quote to a job? This will create a new job with all the quote details.')) {
-                return;
-            }
+        async function convertQuoteToJob(quoteId, quoteStatus) {
+            const isApproved = quoteStatus === 'approved' || quoteStatus === 'in_review';
+            const msg = isApproved
+                ? 'Convert this approved quote to a job? This will create a new job with all the quote details.'
+                : `This quote is currently "${quoteStatus}" and hasn't been approved yet.\n\nConvert to a job anyway?`;
+            if (!confirm(msg)) return;
 
             try {
                 const response = await fetch(\`/api/quotes/\${quoteId}/convert\`, {
