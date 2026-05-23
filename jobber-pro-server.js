@@ -3453,6 +3453,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Convert Quote Warning Modal -->
+    <div id="convertWarnModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:12px;max-width:420px;width:90%;padding:2rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="font-size:2rem;margin-bottom:0.75rem;">⚠️</div>
+            <h3 style="margin:0 0 0.5rem;font-size:1.1rem;color:#1a202c;">Quote Not Yet Approved</h3>
+            <p id="convertWarnMsg" style="color:#4a5568;font-size:0.95rem;line-height:1.6;margin:0 0 1.5rem;"></p>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button onclick="document.getElementById('convertWarnModal').style.display='none'" style="padding:0.55rem 1.2rem;border:1.5px solid #e2e8f0;border-radius:7px;background:white;cursor:pointer;font-weight:600;">Cancel</button>
+                <button id="convertWarnConfirm" style="padding:0.55rem 1.2rem;background:#e53e3e;color:white;border:none;border-radius:7px;cursor:pointer;font-weight:700;">Convert Anyway</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Quote Modal -->
     <div id="quoteModal" class="modal">
         <div class="modal-content">
@@ -7974,18 +7987,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function convertQuoteToJob(quoteId, quoteStatus) {
             const isApproved = quoteStatus === 'approved' || quoteStatus === 'in_review';
-            const msg = isApproved
-                ? 'Convert this approved quote to a job? This will create a new job with all the quote details.'
-                : `This quote is currently "${quoteStatus}" and hasn't been approved yet.\n\nConvert to a job anyway?`;
-            if (!confirm(msg)) return;
 
+            if (!isApproved) {
+                const modal = document.getElementById('convertWarnModal');
+                document.getElementById('convertWarnMsg').textContent =
+                    \`This quote is currently "\${quoteStatus}" and hasn't been approved by the client yet. Converting will create a job immediately. Are you sure?\`;
+                modal.style.display = 'flex';
+                document.getElementById('convertWarnConfirm').onclick = async () => {
+                    modal.style.display = 'none';
+                    await _doConvertQuote(quoteId);
+                };
+                return;
+            }
+
+            if (!confirm('Convert this approved quote to a job? This will create a new job with all the quote details.')) return;
+            await _doConvertQuote(quoteId);
+        }
+
+        async function _doConvertQuote(quoteId) {
             try {
-                const response = await fetch(\`/api/quotes/\${quoteId}/convert\`, {
-                    method: 'POST'
-                });
-
+                const response = await fetch(\`/api/quotes/\${quoteId}/convert\`, { method: 'POST' });
                 const data = await response.json();
-
                 if (response.ok) {
                     alert(\`✅ Quote converted to job successfully!\\n\\nJob #\${data.jobId} has been created.\`);
                     await loadQuotes();
