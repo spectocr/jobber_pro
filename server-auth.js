@@ -4045,15 +4045,20 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         const lossCarriedForward = netAfterCarry < 0 ? Math.abs(netAfterCarry) : 0;
         carryLoss = lossCarriedForward;
 
-        const seTax     = netIncome * 0.9235 * 0.153;
-        const annualBiz = netIncome * 4;
-        const annualSEDed = (seTax * 4) / 2;
+        const annualFactor = 12 / months.length;        // Q1=4, Q2=6, Q3=4, Q4=3
+        const qOther       = annualOther * (months.length / 12); // W2 income for just this period
 
-        const combinedTaxable = Math.max(0, annualBiz + annualOther - annualSEDed - (useStd ? stdDed : 0));
-        const fedAnnual = Math.max(0, federalIncomeTax(combinedTaxable, ts.filingStatus) - federalIncomeTax(w2OnlyTaxable, ts.filingStatus));
-        const njAnnual  = Math.max(0, calcNJTax(combinedTaxable) - calcNJTax(w2OnlyTaxable));
-        const fedQ = fedAnnual / 4;
-        const njQ  = njAnnual  / 4;
+        const seTax        = netIncome * 0.9235 * 0.153;
+        const annualBiz    = netIncome  * annualFactor;
+        const annualSEDed  = seTax      * annualFactor / 2;
+        const annualQOther = qOther     * annualFactor; // re-annualized = original annualOther
+
+        const w2QTaxable      = Math.max(0, annualQOther - (useStd ? stdDed : 0));
+        const combinedTaxable = Math.max(0, annualBiz + annualQOther - annualSEDed - (useStd ? stdDed : 0));
+        const fedAnnual = Math.max(0, federalIncomeTax(combinedTaxable, ts.filingStatus) - federalIncomeTax(w2QTaxable, ts.filingStatus));
+        const njAnnual  = Math.max(0, calcNJTax(combinedTaxable) - calcNJTax(w2QTaxable));
+        const fedQ  = fedAnnual / annualFactor;
+        const njQ   = njAnnual  / annualFactor;
         const totalDue = seTax + fedQ + njQ;
 
         const payment = payments.find(p => p.quarter === q);
