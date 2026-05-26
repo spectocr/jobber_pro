@@ -14636,7 +14636,36 @@ function formatDuration(seconds) {
             const tableStyle = 'width:100%;border-collapse:collapse;font-size:0.82rem;';
             const thStyle    = 'padding:0.4rem 0.6rem;background:#f7fafc;font-weight:600;color:#4a5568;text-align:left;border-bottom:2px solid #e2e8f0;';
 
+            const cd = q.calcDetail || {};
+            const calcSection =
+                '<div style="margin-bottom:1.5rem;background:#f7fafc;border-radius:8px;padding:1rem;">' +
+                  '<h3 style="margin:0 0 0.75rem;color:#2d3748;font-size:0.95rem;">Tax Calculation Breakdown</h3>' +
+                  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem 2rem;font-size:0.83rem;">' +
+                    '<div>' +
+                      '<div style="font-weight:700;color:#4a5568;margin-bottom:0.4rem;border-bottom:1px solid #e2e8f0;padding-bottom:0.25rem;">Income</div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>Revenue</span><span>' + fm(q.revenue) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#e53e3e;"><span>Materials (COGS)</span><span>– ' + fm(q.cogsMaterials) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#e53e3e;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
+                      (q.carryApplied > 0 ? '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#e53e3e;"><span>Prior loss applied</span><span>– ' + fm(q.carryApplied) + '</span></div>' : '') +
+                      '<div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #e2e8f0;padding-top:0.25rem;margin-top:0.25rem;"><span>Net Income</span><span>' + fm(q.netIncome) + '</span></div>' +
+                    '</div>' +
+                    '<div>' +
+                      '<div style="font-weight:700;color:#4a5568;margin-bottom:0.4rem;border-bottom:1px solid #e2e8f0;padding-bottom:0.25rem;">Tax Math</div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>SE Tax (net × 92.35% × 15.3%)</span><span>' + fm(q.seTax) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#718096;font-size:0.78rem;"><span>Annualized biz income (×' + (cd.annualFactor||4) + ')</span><span>' + fm(cd.annualBiz) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#718096;font-size:0.78rem;"><span>SE deduction (½ annual SE tax)</span><span>– ' + fm(cd.annualSEDed) + '</span></div>' +
+                      (cd.grossW2 > 0 ? '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#718096;font-size:0.78rem;"><span>W2 gross / after deductions</span><span>' + fm(cd.grossW2) + ' → ' + fm(cd.effectiveW2) + '</span></div>' : '') +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#718096;font-size:0.78rem;"><span>Combined taxable (annualized)</span><span>' + fm(cd.combinedTaxable) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;color:#718096;font-size:0.78rem;"><span>W2-only taxable (annualized)</span><span>' + fm(cd.w2QTaxable) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>Federal income tax (incremental ÷' + (cd.annualFactor||4) + ')</span><span>' + fm(q.fedQ) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>NJ income tax (incremental ÷' + (cd.annualFactor||4) + ')</span><span>' + fm(q.njQ) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #e2e8f0;padding-top:0.25rem;margin-top:0.25rem;"><span>Total Est. Due</span><span>' + fm(q.totalDue) + '</span></div>' +
+                    '</div>' +
+                  '</div>' +
+                '</div>';
+
             const content =
+                calcSection +
                 '<div style="margin-bottom:1.25rem;">' +
                   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">' +
                     '<h3 style="margin:0;color:#2d3748;">Jobs (' + q.items.jobs.length + ') — ' + fm(q.revenue) + '</h3>' +

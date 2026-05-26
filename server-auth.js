@@ -4095,6 +4095,11 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             revenue, cogsMaterials, expTotal, rawNet, netIncome,
             carryApplied, lossCarriedForward,
             seTax, fedQ, njQ, totalDue,
+            calcDetail: {
+                annualFactor, grossW2, w2DedTotal, effectiveW2: annualOther,
+                annualBiz, annualSEDed, annualQOther, w2QTaxable, combinedTaxable,
+                fedAnnual, njAnnual,
+            },
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
             remaining: Math.max(0, totalDue - (payment?.amount || 0)),
