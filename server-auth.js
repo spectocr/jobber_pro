@@ -4011,7 +4011,16 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
     const isCashOnly = j => Array.isArray(j.payments) && j.payments.length > 0 && j.payments.every(p => p.method === 'cash');
     const stdDed  = ts.filingStatus === 'married' ? 30000 : 15000;
     const useStd  = ts.standardDeduction !== false;
-    const annualOther = parseFloat(ts.otherIncome) || 0;
+    const grossW2 = parseFloat(ts.otherIncome) || 0;
+
+    // Apply W2 pre-tax deductions to get actual taxable W2 income
+    const w2DedTotal = Array.isArray(ts.w2Deductions)
+        ? ts.w2Deductions.reduce((sum, d) => {
+            const amt = parseFloat(d.amount) || 0;
+            return sum + (d.type === 'pct' ? grossW2 * (amt / 100) : amt * 26);
+          }, 0)
+        : 0;
+    const annualOther = Math.max(0, grossW2 - w2DedTotal);
     const w2OnlyTaxable = Math.max(0, annualOther - (useStd ? stdDed : 0));
 
     let carryLoss = 0; // net loss carried forward from prior quarters

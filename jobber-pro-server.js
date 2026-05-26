@@ -1907,6 +1907,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </select>
                         </div>
                     </div>
+                    <div style="margin-bottom:1.25rem;">
+                        <div style="font-size:0.88rem;font-weight:700;color:#2d3748;margin-bottom:0.4rem;">W2 Pre-Tax Deductions <span style="font-weight:400;color:#718096;">(reduce your W2 taxable income)</span></div>
+                        <div style="font-size:0.82rem;color:#718096;margin-bottom:0.75rem;">Enter per paycheck (×26/yr) or as % of gross W2. These are subtracted from your W2 income before bracket calculation.</div>
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;align-items:center;margin-bottom:0.35rem;">
+                            <div style="font-size:0.78rem;font-weight:600;color:#4a5568;">Deduction</div>
+                            <div style="font-size:0.78rem;font-weight:600;color:#4a5568;">Amount</div>
+                            <div style="font-size:0.78rem;font-weight:600;color:#4a5568;">Type</div>
+                        </div>
+                        ${[['401k','401(k) / 403(b)'],['pension','Pension / Defined Benefit'],['health','Health Insurance'],['other','Other Pre-Tax (FSA, HSA, etc.)']].map(([id,label]) => `
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;align-items:center;margin-bottom:0.4rem;">
+                            <div style="font-size:0.85rem;color:#4a5568;">${label}</div>
+                            <input type="number" id="taxDed_${id}" placeholder="0" min="0" step="0.01" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <select id="taxDedType_${id}" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">
+                                <option value="percheck">per paycheck ×26</option>
+                                <option value="pct">% of gross</option>
+                            </select>
+                        </div>`).join('')}
+                        <div style="margin-top:0.5rem;font-size:0.83rem;color:#4a5568;">Effective W2 taxable income: <strong id="effectiveW2Display">—</strong></div>
+                    </div>
                     <div style="background:#ebf8ff;border-left:3px solid #63b3ed;padding:0.75rem 1rem;border-radius:4px;font-size:0.83rem;color:#2c5282;margin-bottom:1rem;">
                         <strong>Safe harbor tip:</strong> To avoid underpayment penalties, pay at least 100% of last year's total tax liability spread across 4 quarters (110% if your prior-year AGI was over $150,000).
                     </div>
@@ -14352,6 +14371,22 @@ function formatDuration(seconds) {
                 if (s.otherIncome !== undefined) document.getElementById('taxOtherIncome').value = s.otherIncome;
                 if (s.standardDeduction !== undefined) document.getElementById('taxStdDed').value = String(s.standardDeduction);
                 if (s.excludeCash !== undefined) document.getElementById('taxExcludeCash').value = String(s.excludeCash);
+                if (Array.isArray(s.w2Deductions)) {
+                    s.w2Deductions.forEach(d => {
+                        const amtEl  = document.getElementById('taxDed_' + d.id);
+                        const typeEl = document.getElementById('taxDedType_' + d.id);
+                        if (amtEl)  amtEl.value  = d.amount || 0;
+                        if (typeEl) typeEl.value = d.type   || 'percheck';
+                    });
+                }
+                updateEffectiveW2Display();
+                // Live update as user types
+                ['taxOtherIncome','taxDed_401k','taxDed_pension','taxDed_health','taxDed_other',
+                 'taxDedType_401k','taxDedType_pension','taxDedType_health','taxDedType_other'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('input', updateEffectiveW2Display);
+                    if (el) el.addEventListener('change', updateEffectiveW2Display);
+                });
             } catch(e) {}
 
             const year = document.getElementById('taxYear')?.value || new Date().getFullYear();
@@ -14489,12 +14524,38 @@ function formatDuration(seconds) {
             icon.textContent = open ? '▼' : '▶';
         }
 
+        function calcEffectiveW2(grossW2) {
+            const dedIds = ['401k','pension','health','other'];
+            let totalDed = 0;
+            dedIds.forEach(id => {
+                const amt  = parseFloat(document.getElementById('taxDed_' + id)?.value) || 0;
+                const type = document.getElementById('taxDedType_' + id)?.value || 'percheck';
+                totalDed += type === 'pct' ? grossW2 * (amt / 100) : amt * 26;
+            });
+            return Math.max(0, grossW2 - totalDed);
+        }
+
+        function updateEffectiveW2Display() {
+            const gross = parseFloat(document.getElementById('taxOtherIncome')?.value) || 0;
+            const eff   = calcEffectiveW2(gross);
+            const el    = document.getElementById('effectiveW2Display');
+            if (el) el.textContent = '$' + eff.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }
+
         async function saveTaxSettings() {
+            const grossW2 = parseFloat(document.getElementById('taxOtherIncome').value) || 0;
+            const dedIds  = ['401k','pension','health','other'];
+            const w2Deductions = dedIds.map(id => ({
+                id,
+                amount: parseFloat(document.getElementById('taxDed_' + id)?.value) || 0,
+                type:   document.getElementById('taxDedType_' + id)?.value || 'percheck'
+            }));
             const body = {
                 filingStatus:      document.getElementById('taxFilingStatus').value,
-                otherIncome:       parseFloat(document.getElementById('taxOtherIncome').value) || 0,
+                otherIncome:       grossW2,
                 standardDeduction: document.getElementById('taxStdDed').value === 'true',
-                excludeCash:       document.getElementById('taxExcludeCash').value === 'true'
+                excludeCash:       document.getElementById('taxExcludeCash').value === 'true',
+                w2Deductions
             };
             await fetch('/api/settings/taxes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             loadTaxes();
