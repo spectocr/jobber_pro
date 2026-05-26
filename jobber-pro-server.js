@@ -1915,15 +1915,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <div style="font-size:0.78rem;font-weight:600;color:#4a5568;">Amount</div>
                             <div style="font-size:0.78rem;font-weight:600;color:#4a5568;">Type</div>
                         </div>
-                        ${[['401k','401(k) / 403(b)'],['pension','Pension / Defined Benefit'],['health','Health Insurance'],['other','Other Pre-Tax (FSA, HSA, etc.)']].map(([id,label]) => `
                         <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;align-items:center;margin-bottom:0.4rem;">
-                            <div style="font-size:0.85rem;color:#4a5568;">${label}</div>
-                            <input type="number" id="taxDed_${id}" placeholder="0" min="0" step="0.01" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
-                            <select id="taxDedType_${id}" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">
-                                <option value="percheck">per paycheck ×26</option>
-                                <option value="pct">% of gross</option>
-                            </select>
-                        </div>`).join('')}
+                            <div style="font-size:0.85rem;color:#4a5568;">401(k) / 403(b)</div>
+                            <input type="number" id="taxDed_401k" placeholder="0" min="0" step="0.01" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <select id="taxDedType_401k" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.82rem;"><option value="percheck">per paycheck ×26</option><option value="pct">% of gross</option></select>
+                        </div>
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;align-items:center;margin-bottom:0.4rem;">
+                            <div style="font-size:0.85rem;color:#4a5568;">Pension / Defined Benefit</div>
+                            <input type="number" id="taxDed_pension" placeholder="0" min="0" step="0.01" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <select id="taxDedType_pension" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.82rem;"><option value="percheck">per paycheck ×26</option><option value="pct">% of gross</option></select>
+                        </div>
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;align-items:center;margin-bottom:0.4rem;">
+                            <div style="font-size:0.85rem;color:#4a5568;">Health Insurance</div>
+                            <input type="number" id="taxDed_health" placeholder="0" min="0" step="0.01" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <select id="taxDedType_health" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.82rem;"><option value="percheck">per paycheck ×26</option><option value="pct">% of gross</option></select>
+                        </div>
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.5rem;align-items:center;margin-bottom:0.4rem;">
+                            <div style="font-size:0.85rem;color:#4a5568;">Other Pre-Tax (FSA, HSA, etc.)</div>
+                            <input type="number" id="taxDed_other" placeholder="0" min="0" step="0.01" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <select id="taxDedType_other" style="padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.82rem;"><option value="percheck">per paycheck ×26</option><option value="pct">% of gross</option></select>
+                        </div>
                         <div style="margin-top:0.5rem;font-size:0.83rem;color:#4a5568;">Effective W2 taxable income: <strong id="effectiveW2Display">—</strong></div>
                     </div>
                     <div style="background:#ebf8ff;border-left:3px solid #63b3ed;padding:0.75rem 1rem;border-radius:4px;font-size:0.83rem;color:#2c5282;margin-bottom:1rem;">
