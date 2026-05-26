@@ -4055,17 +4055,29 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         carryLoss = lossCarriedForward;
 
         const annualFactor = 12 / months.length;        // Q1=4, Q2=6, Q3=4, Q4=3
-        const qOther       = annualOther * (months.length / 12); // W2 income for just this period
+        const qOther       = annualOther * (months.length / 12);
 
+        // SE tax — own base, completely separate from income tax base
         const seTax        = netIncome * 0.9235 * 0.153;
-        const annualBiz    = netIncome  * annualFactor;
-        const annualSEDed  = seTax      * annualFactor / 2;
-        const annualQOther = qOther     * annualFactor; // re-annualized = original annualOther
+        const seTaxBase    = netIncome * 0.9235;
 
-        const w2QTaxable      = Math.max(0, annualQOther - (useStd ? stdDed : 0));
-        const combinedTaxable = Math.max(0, annualBiz + annualQOther - annualSEDed - (useStd ? stdDed : 0));
+        // Annualize for bracket finding
+        const annualBiz    = netIncome  * annualFactor;
+        const annualSEDed  = seTax      * annualFactor / 2;   // projected annual ½ SE deduction
+        const annualQOther = qOther     * annualFactor;        // = annualOther (re-annualized)
+
+        // Income tax bases — SE deduction + standard deduction applied
+        const w2QTaxable        = Math.max(0, annualQOther - (useStd ? stdDed : 0));
+        const combinedBeforeQBI = Math.max(0, annualBiz + annualQOther - annualSEDed - (useStd ? stdDed : 0));
+
+        // Section 199A QBI deduction: 20% of qualified biz income, capped at 20% of taxable income
+        // Federal only — NJ does not recognize QBI deduction
+        const annualQBI    = Math.max(0, annualBiz - annualSEDed);
+        const annualQBIDed = Math.min(annualQBI * 0.20, combinedBeforeQBI * 0.20);
+        const combinedTaxable = Math.max(0, combinedBeforeQBI - annualQBIDed);
+
         const fedAnnual = Math.max(0, federalIncomeTax(combinedTaxable, ts.filingStatus) - federalIncomeTax(w2QTaxable, ts.filingStatus));
-        const njAnnual  = Math.max(0, calcNJTax(combinedTaxable) - calcNJTax(w2QTaxable));
+        const njAnnual  = Math.max(0, calcNJTax(combinedBeforeQBI) - calcNJTax(w2QTaxable)); // NJ: no QBI
         const fedQ  = fedAnnual / annualFactor;
         const njQ   = njAnnual  / annualFactor;
         const totalDue = seTax + fedQ + njQ;
@@ -4097,8 +4109,11 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             seTax, fedQ, njQ, totalDue,
             calcDetail: {
                 annualFactor, grossW2, w2DedTotal, effectiveW2: annualOther,
-                annualBiz, annualSEDed, annualQOther, w2QTaxable, combinedTaxable,
+                seTaxBase, annualBiz, annualSEDed,
+                annualQBI, annualQBIDed, combinedBeforeQBI,
+                annualQOther, w2QTaxable, combinedTaxable,
                 fedAnnual, njAnnual,
+                stdDed: useStd ? stdDed : 0,
             },
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',

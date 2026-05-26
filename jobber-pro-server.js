@@ -14637,8 +14637,6 @@ function formatDuration(seconds) {
             const thStyle    = 'padding:0.4rem 0.6rem;background:#f7fafc;font-weight:600;color:#4a5568;text-align:left;border-bottom:2px solid #e2e8f0;';
 
             const cd = q.calcDetail || {};
-            const effFedRate = q.netIncome > 0 ? (q.fedQ / q.netIncome * 100).toFixed(1) : '0.0';
-            const effNJRate  = q.netIncome > 0 ? (q.njQ  / q.netIncome * 100).toFixed(1) : '0.0';
             const calcSection =
                 '<div style="margin-bottom:1.5rem;background:#f7fafc;border-radius:8px;padding:1rem;">' +
                   '<h3 style="margin:0 0 0.75rem;color:#2d3748;font-size:0.95rem;">Tax Calculation Breakdown</h3>' +
@@ -14653,16 +14651,26 @@ function formatDuration(seconds) {
                     '</div>' +
                     '<div>' +
                       '<div style="font-weight:700;color:#4a5568;margin-bottom:0.4rem;border-bottom:1px solid #e2e8f0;padding-bottom:0.25rem;">Tax Math</div>' +
-                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>SE Tax (net × 92.35% × 15.3%)</span><span>' + fm(q.seTax) + '</span></div>' +
+                      '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;">' +
+                        '<span>SE Tax <span style="color:#718096;font-size:0.78rem;">(base: net × 92.35%)</span></span><span>' + fm(q.seTax) + '</span>' +
+                      '</div>' +
                       (cd.grossW2 > 0 ? '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>W2 income (annual, after deductions)</span><span>' + fm(cd.effectiveW2) + '/yr</span></div>' : '') +
                       '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>Federal income tax (incremental)</span><span>' + fm(q.fedQ) + '</span></div>' +
                       '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>NJ income tax (incremental)</span><span>' + fm(q.njQ) + '</span></div>' +
                       '<div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #e2e8f0;padding-top:0.25rem;margin-top:0.25rem;"><span>Total Est. Due</span><span>' + fm(q.totalDue) + '</span></div>' +
                       '<div style="margin-top:0.6rem;padding:0.5rem 0.6rem;background:#edf2f7;border-radius:5px;">' +
-                        '<div style="font-size:0.72rem;color:#718096;font-style:italic;margin-bottom:0.3rem;">Bracket detail — biz income is projected annually to find your marginal rate, then divided back (IRS 1040-ES method):</div>' +
-                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>Projected annual biz income</span><span>' + fm(cd.annualBiz) + '</span></div>' +
-                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>SE deduction (proj. annual)</span><span>– ' + fm(cd.annualSEDed) + '</span></div>' +
-                        (cd.grossW2 > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>Bracket input (W2 / combined, after SE ded + std ded)</span><span>' + fm(cd.w2QTaxable) + ' / ' + fm(cd.combinedTaxable) + '</span></div>' : '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>Bracket input (after SE ded + std ded)</span><span>' + fm(cd.combinedTaxable) + '</span></div>') +
+                        '<div style="font-size:0.72rem;color:#718096;font-style:italic;margin-bottom:0.3rem;">Income tax bracket detail (annualized, IRS 1040-ES method):</div>' +
+                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>SE tax base (net × 92.35%)</span><span>' + fm(cd.seTaxBase) + '</span></div>' +
+                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>Proj. annual biz income</span><span>' + fm(cd.annualBiz) + '</span></div>' +
+                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>– ½ SE deduction</span><span>– ' + fm(cd.annualSEDed) + '</span></div>' +
+                        (cd.stdDed > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>– Standard deduction</span><span>– ' + fm(cd.stdDed) + '</span></div>' : '') +
+                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#38a169;margin-bottom:0.1rem;font-weight:600;"><span>– §199A QBI deduction (20%, fed only)</span><span>– ' + fm(cd.annualQBIDed) + '</span></div>' +
+                        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;padding-top:0.15rem;border-top:1px solid #e2e8f0;">' +
+                          (cd.grossW2 > 0
+                            ? '<span>Federal bracket input (W2 / combined)</span><span>' + fm(cd.w2QTaxable) + ' / ' + fm(cd.combinedTaxable) + '</span>'
+                            : '<span>Federal bracket input</span><span>' + fm(cd.combinedTaxable) + '</span>') +
+                        '</div>' +
+                        (cd.grossW2 > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#a0aec0;margin-bottom:0.1rem;"><span>NJ bracket input (no QBI ded)</span><span>' + fm(cd.combinedBeforeQBI) + '</span></div>' : '') +
                       '</div>' +
                     '</div>' +
                   '</div>' +
