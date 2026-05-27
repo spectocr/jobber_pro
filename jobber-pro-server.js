@@ -1378,6 +1378,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- 10-Day Weather Bar -->
+    <div id="weather-bar" style="background:#f0f4ff;border-bottom:1px solid #dde3f0;overflow-x:auto;display:flex;align-items:stretch;min-height:52px;">
+        <div id="weather-inner" style="display:flex;align-items:stretch;min-width:max-content;">
+            <span style="display:flex;align-items:center;padding:0 0.75rem;color:#a0aec0;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border-right:1px solid #dde3f0;white-space:nowrap;">10-DAY</span>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Dashboard View -->
         <div id="dashboard" class="view active">
@@ -4205,7 +4212,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         });
 
         // Add change listeners to all forms
+        function loadWeatherBar() {
+            const wxEmoji = c => c===0?'☀️':c<=2?'🌤️':c<=3?'☁️':c<=48?'🌫️':c<=55?'🌦️':c<=65?'🌧️':c<=75?'❄️':c<=82?'🌦️':'⛈️';
+            const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const render = (lat, lon) => {
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=10`)
+                    .then(r => r.json())
+                    .then(data => {
+                        const inner = document.getElementById('weather-inner');
+                        if (!inner) return;
+                        inner.innerHTML = '<span style="display:flex;align-items:center;padding:0 0.75rem;color:#a0aec0;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border-right:1px solid #dde3f0;white-space:nowrap;">10-DAY</span>';
+                        data.daily.time.forEach((dateStr, i) => {
+                            const d = new Date(dateStr + 'T12:00:00');
+                            const label = i === 0 ? 'Today' : dayNames[d.getDay()];
+                            const hi  = Math.round(data.daily.temperature_2m_max[i]);
+                            const lo  = Math.round(data.daily.temperature_2m_min[i]);
+                            const rain = data.daily.precipitation_probability_max[i];
+                            const code = data.daily.weathercode[i];
+                            const rainColor = rain >= 70 ? '#3182ce' : rain >= 40 ? '#63b3ed' : '#b0bec5';
+                            const isToday = i === 0;
+                            inner.innerHTML +=
+                                '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.25rem 0.65rem;border-right:1px solid #e8edf5;min-width:56px;gap:1px;">' +
+                                    '<span style="font-size:0.67rem;font-weight:' + (isToday?'700':'500') + ';color:' + (isToday?'#667eea':'#4a5568') + ';">' + label + '</span>' +
+                                    '<span style="font-size:0.95rem;line-height:1.1;">' + wxEmoji(code) + '</span>' +
+                                    '<span style="font-size:0.67rem;color:#2d3748;font-weight:600;">' + hi + '° <span style="color:#a0aec0;font-weight:400;">' + lo + '°</span></span>' +
+                                    '<span style="font-size:0.63rem;color:' + rainColor + ';">💧' + rain + '%</span>' +
+                                '</div>';
+                        });
+                    })
+                    .catch(() => {});
+            };
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    pos => render(pos.coords.latitude, pos.coords.longitude),
+                    ()  => render(39.72, -74.99)
+                );
+            } else {
+                render(39.72, -74.99);
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
+            loadWeatherBar();
             // Handle post-OAuth redirect
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('analytics') === 'connected') {
