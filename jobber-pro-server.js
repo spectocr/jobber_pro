@@ -1381,7 +1381,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <!-- 10-Day Weather Bar -->
     <div id="weather-bar" style="position:relative;background:#f0f4ff;border-bottom:1px solid #dde3f0;height:28px;overflow:hidden;transition:height 0.2s ease;">
         <div id="weather-slim" style="display:flex;align-items:center;height:28px;overflow-x:auto;overflow-y:hidden;position:absolute;top:0;left:0;right:32px;transition:opacity 0.15s ease;"></div>
-        <div id="weather-full" style="display:flex;align-items:stretch;height:54px;overflow-x:auto;overflow-y:hidden;position:absolute;top:0;left:0;right:32px;opacity:0;transition:opacity 0.15s ease;pointer-events:none;"></div>
+        <div id="weather-full" style="display:flex;align-items:stretch;height:64px;overflow-x:auto;overflow-y:hidden;position:absolute;top:0;left:0;right:32px;opacity:0;transition:opacity 0.15s ease;pointer-events:none;"></div>
         <button id="weather-pin-btn" title="Pin forecast open" onclick="toggleWeatherPin()" style="position:absolute;right:0;top:0;bottom:0;padding:0 0.55rem;background:none;border:none;border-left:1px solid #dde3f0;cursor:pointer;color:#a0aec0;font-size:0.8rem;line-height:1;">📌</button>
     </div>
 
@@ -4232,7 +4232,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const slim = document.getElementById('weather-slim');
             const full = document.getElementById('weather-full');
             if (!bar) return;
-            bar.style.height = '54px';
+            bar.style.height = '64px';
             slim.style.opacity = '0'; slim.style.pointerEvents = 'none';
             full.style.opacity = '1'; full.style.pointerEvents = 'auto';
         }
@@ -4295,7 +4295,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         slim.innerHTML = slimHtml;
 
                         // ── Full (expanded) view ──────────────────────────────
-                        let fullHtml = labelBlock.replace('border-right:1px solid #dde3f0', 'border-right:1px solid #dde3f0;height:54px');
+                        let fullHtml = labelBlock.replace('border-right:1px solid #dde3f0', 'border-right:1px solid #dde3f0;height:64px');
                         data.daily.time.forEach((dateStr, i) => {
                             const d = new Date(dateStr + 'T12:00:00');
                             const label = i === 0 ? 'Today' : dayNames[d.getDay()];
