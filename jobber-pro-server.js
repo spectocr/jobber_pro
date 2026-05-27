@@ -4218,6 +4218,55 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         // Add change listeners to all forms
         let _weatherPinned = localStorage.getItem('weatherPinned') === 'true';
+        let _weatherHourly = null;
+
+        function showWeatherTooltip(dayIndex, el) {
+            if (!_weatherHourly) return;
+            let tooltip = document.getElementById('weather-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'weather-tooltip';
+                tooltip.style.cssText = 'position:fixed;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:0.65rem 0.8rem;z-index:99999;display:none;min-width:170px;pointer-events:none;';
+                document.body.appendChild(tooltip);
+            }
+            const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const startHour = dayIndex * 24;
+            const probs = _weatherHourly.precipitation_probability;
+            const times = _weatherHourly.time;
+            const d = new Date(times[startHour] + ':00');
+            const dayLabel = dayIndex === 0 ? 'Today' : dayNames[d.getDay()];
+            const showHours = [6,8,10,12,14,16,18,20,22];
+            let html = '<div style="font-size:0.72rem;font-weight:700;color:#2d3748;margin-bottom:0.45rem;border-bottom:1px solid #e2e8f0;padding-bottom:0.3rem;">' + dayLabel + ' · Hourly Rain Chance</div>';
+            showHours.forEach(h => {
+                const idx = startHour + h;
+                if (idx >= probs.length) return;
+                const prob = probs[idx];
+                const barColor = prob >= 70 ? '#3182ce' : prob >= 40 ? '#63b3ed' : '#bee3f8';
+                const lbl = h === 12 ? '12p' : h > 12 ? (h - 12) + 'p' : h + 'a';
+                html +=
+                    '<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.18rem;">' +
+                        '<span style="font-size:0.63rem;color:#718096;width:22px;text-align:right;">' + lbl + '</span>' +
+                        '<div style="flex:1;background:#edf2f7;border-radius:3px;height:7px;overflow:hidden;">' +
+                            '<div style="width:' + Math.max(2, prob) + '%;height:100%;background:' + barColor + ';border-radius:3px;"></div>' +
+                        '</div>' +
+                        '<span style="font-size:0.63rem;color:#4a5568;width:28px;text-align:right;">' + prob + '%</span>' +
+                    '</div>';
+            });
+            tooltip.innerHTML = html;
+            tooltip.style.display = 'block';
+            const tr = tooltip.getBoundingClientRect();
+            const er = el.getBoundingClientRect();
+            let left = er.left + er.width / 2 - tr.width / 2;
+            left = Math.max(8, Math.min(left, window.innerWidth - tr.width - 8));
+            const top = er.top - tr.height - 10;
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = (top < 8 ? er.bottom + 8 : top) + 'px';
+        }
+
+        function hideWeatherTooltip() {
+            const t = document.getElementById('weather-tooltip');
+            if (t) t.style.display = 'none';
+        }
 
         function toggleWeatherPin() {
             _weatherPinned = !_weatherPinned;
@@ -4266,9 +4315,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (_weatherPinned && pin) { pin.textContent = '📍'; pin.title = 'Unpin'; }
 
             const render = (lat, lon, locLabel) => {
-                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=10`)
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&hourly=precipitation_probability&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=10`)
                     .then(r => r.json())
                     .then(data => {
+                        _weatherHourly = data.hourly;
                         const labelBlock =
                             '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 0.65rem;border-right:1px solid #dde3f0;white-space:nowrap;flex-shrink:0;gap:1px;">' +
                                 '<span style="color:#a0aec0;font-size:0.6rem;font-weight:700;letter-spacing:0.05em;line-height:1;">10-Day</span>' +
@@ -4305,7 +4355,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             const code = data.daily.weathercode[i];
                             const rainColor = rain >= 70 ? '#3182ce' : rain >= 40 ? '#63b3ed' : '#b0bec5';
                             fullHtml +=
-                                '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.25rem 0.65rem;border-right:1px solid #e8edf5;min-width:56px;gap:1px;flex-shrink:0;">' +
+                                '<div onmouseenter="showWeatherTooltip(' + i + ',this)" onmouseleave="hideWeatherTooltip()" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.25rem 0.65rem;border-right:1px solid #e8edf5;min-width:56px;gap:1px;flex-shrink:0;cursor:default;">' +
                                     '<span style="font-size:0.67rem;font-weight:' + (i===0?'700':'500') + ';color:' + (i===0?'#667eea':'#4a5568') + ';">' + label + '</span>' +
                                     '<span style="font-size:0.95rem;line-height:1.1;">' + wxEmoji(code) + '</span>' +
                                     '<span style="font-size:0.67rem;color:#2d3748;font-weight:600;">' + hi + '° <span style="color:#a0aec0;font-weight:400;">' + lo + '°</span></span>' +
