@@ -4226,7 +4226,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     .then(data => {
                         const inner = document.getElementById('weather-inner');
                         if (!inner) return;
-                        inner.innerHTML = '<span style="display:flex;align-items:center;padding:0 0.75rem;color:#a0aec0;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border-right:1px solid #dde3f0;white-space:nowrap;">' + (locationLabel || '10-DAY') + '</span>';
+                        inner.innerHTML = '<span style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 0.75rem;border-right:1px solid #dde3f0;white-space:nowrap;gap:1px;"><span style="color:#a0aec0;font-size:0.65rem;font-weight:600;letter-spacing:0.05em;">10-Day</span>' + (locationLabel ? '<span style="color:#718096;font-size:0.67rem;font-weight:500;">' + locationLabel + '</span>' : '') + '</span>';
                         data.daily.time.forEach((dateStr, i) => {
                             const d = new Date(dateStr + 'T12:00:00');
                             const label = i === 0 ? 'Today' : dayNames[d.getDay()];
