@@ -1379,10 +1379,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
 
     <!-- 10-Day Weather Bar -->
-    <div id="weather-bar" style="background:#f0f4ff;border-bottom:1px solid #dde3f0;overflow-x:auto;display:flex;align-items:stretch;min-height:52px;">
-        <div id="weather-inner" style="display:flex;align-items:stretch;min-width:max-content;">
-            <span style="display:flex;align-items:center;padding:0 0.75rem;color:#a0aec0;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border-right:1px solid #dde3f0;white-space:nowrap;">10-DAY</span>
-        </div>
+    <div id="weather-bar" style="position:relative;background:#f0f4ff;border-bottom:1px solid #dde3f0;height:28px;overflow:hidden;transition:height 0.2s ease;">
+        <div id="weather-slim" style="display:flex;align-items:center;height:28px;overflow-x:auto;overflow-y:hidden;position:absolute;top:0;left:0;right:32px;transition:opacity 0.15s ease;"></div>
+        <div id="weather-full" style="display:flex;align-items:stretch;height:54px;overflow-x:auto;overflow-y:hidden;position:absolute;top:0;left:0;right:32px;opacity:0;transition:opacity 0.15s ease;pointer-events:none;"></div>
+        <button id="weather-pin-btn" title="Pin forecast open" onclick="toggleWeatherPin()" style="position:absolute;right:0;top:0;bottom:0;padding:0 0.55rem;background:none;border:none;border-left:1px solid #dde3f0;cursor:pointer;color:#a0aec0;font-size:0.8rem;line-height:1;">📌</button>
     </div>
 
     <div class="container">
@@ -4217,52 +4217,124 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         });
 
         // Add change listeners to all forms
+        let _weatherPinned = localStorage.getItem('weatherPinned') === 'true';
+
+        function toggleWeatherPin() {
+            _weatherPinned = !_weatherPinned;
+            localStorage.setItem('weatherPinned', _weatherPinned);
+            const btn = document.getElementById('weather-pin-btn');
+            if (btn) { btn.textContent = _weatherPinned ? '📍' : '📌'; btn.title = _weatherPinned ? 'Unpin' : 'Pin forecast open'; }
+            if (_weatherPinned) _weatherExpand(); else _weatherCollapse();
+        }
+
+        function _weatherExpand() {
+            const bar = document.getElementById('weather-bar');
+            const slim = document.getElementById('weather-slim');
+            const full = document.getElementById('weather-full');
+            if (!bar) return;
+            bar.style.height = '54px';
+            slim.style.opacity = '0'; slim.style.pointerEvents = 'none';
+            full.style.opacity = '1'; full.style.pointerEvents = 'auto';
+        }
+
+        function _weatherCollapse() {
+            if (_weatherPinned) return;
+            const bar = document.getElementById('weather-bar');
+            const slim = document.getElementById('weather-slim');
+            const full = document.getElementById('weather-full');
+            if (!bar) return;
+            bar.style.height = '28px';
+            slim.style.opacity = '1'; slim.style.pointerEvents = 'auto';
+            full.style.opacity = '0'; full.style.pointerEvents = 'none';
+        }
+
         function loadWeatherBar() {
             const wxEmoji = c => c===0?'☀️':c<=2?'🌤️':c<=3?'☁️':c<=48?'🌫️':c<=55?'🌦️':c<=65?'🌧️':c<=75?'❄️':c<=82?'🌦️':'⛈️';
             const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            const render = (lat, lon, locationLabel) => {
+
+            const bar  = document.getElementById('weather-bar');
+            const slim = document.getElementById('weather-slim');
+            const full = document.getElementById('weather-full');
+            const pin  = document.getElementById('weather-pin-btn');
+            if (!bar) return;
+
+            // hover expand/collapse (only when not pinned)
+            bar.addEventListener('mouseenter', _weatherExpand);
+            bar.addEventListener('mouseleave', _weatherCollapse);
+
+            // restore pin state
+            if (_weatherPinned && pin) { pin.textContent = '📍'; pin.title = 'Unpin'; }
+
+            const render = (lat, lon, locLabel) => {
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=10`)
                     .then(r => r.json())
                     .then(data => {
-                        const inner = document.getElementById('weather-inner');
-                        if (!inner) return;
-                        inner.innerHTML = '<span style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 0.75rem;border-right:1px solid #dde3f0;white-space:nowrap;gap:1px;"><span style="color:#a0aec0;font-size:0.65rem;font-weight:600;letter-spacing:0.05em;">10-Day</span>' + (locationLabel ? '<span style="color:#718096;font-size:0.67rem;font-weight:500;">' + locationLabel + '</span>' : '') + '</span>';
+                        const labelBlock =
+                            '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 0.65rem;border-right:1px solid #dde3f0;white-space:nowrap;flex-shrink:0;gap:1px;">' +
+                                '<span style="color:#a0aec0;font-size:0.6rem;font-weight:700;letter-spacing:0.05em;line-height:1;">10-Day</span>' +
+                                (locLabel ? '<span style="color:#718096;font-size:0.62rem;font-weight:500;line-height:1;">' + locLabel + '</span>' : '') +
+                            '</div>';
+
+                        // ── Slim (one-line) view ──────────────────────────────
+                        let slimHtml = labelBlock.replace('border-right:1px solid #dde3f0', 'border-right:1px solid #dde3f0;height:28px');
                         data.daily.time.forEach((dateStr, i) => {
                             const d = new Date(dateStr + 'T12:00:00');
                             const label = i === 0 ? 'Today' : dayNames[d.getDay()];
-                            const hi  = Math.round(data.daily.temperature_2m_max[i]);
-                            const lo  = Math.round(data.daily.temperature_2m_min[i]);
+                            const hi   = Math.round(data.daily.temperature_2m_max[i]);
                             const rain = data.daily.precipitation_probability_max[i];
                             const code = data.daily.weathercode[i];
                             const rainColor = rain >= 70 ? '#3182ce' : rain >= 40 ? '#63b3ed' : '#b0bec5';
-                            const isToday = i === 0;
-                            inner.innerHTML +=
-                                '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.25rem 0.65rem;border-right:1px solid #e8edf5;min-width:56px;gap:1px;">' +
-                                    '<span style="font-size:0.67rem;font-weight:' + (isToday?'700':'500') + ';color:' + (isToday?'#667eea':'#4a5568') + ';">' + label + '</span>' +
+                            slimHtml +=
+                                '<div style="display:flex;align-items:center;gap:0.25rem;padding:0 0.55rem;border-right:1px solid #e8edf5;white-space:nowrap;height:28px;flex-shrink:0;">' +
+                                    '<span style="font-size:0.63rem;font-weight:' + (i===0?'700':'500') + ';color:' + (i===0?'#667eea':'#4a5568') + ';">' + label + '</span>' +
+                                    '<span style="font-size:0.8rem;line-height:1;">' + wxEmoji(code) + '</span>' +
+                                    '<span style="font-size:0.63rem;color:#2d3748;font-weight:600;">' + hi + '°</span>' +
+                                    '<span style="font-size:0.6rem;color:' + rainColor + ';">💧' + rain + '%</span>' +
+                                '</div>';
+                        });
+                        slim.innerHTML = slimHtml;
+
+                        // ── Full (expanded) view ──────────────────────────────
+                        let fullHtml = labelBlock.replace('border-right:1px solid #dde3f0', 'border-right:1px solid #dde3f0;height:54px');
+                        data.daily.time.forEach((dateStr, i) => {
+                            const d = new Date(dateStr + 'T12:00:00');
+                            const label = i === 0 ? 'Today' : dayNames[d.getDay()];
+                            const hi   = Math.round(data.daily.temperature_2m_max[i]);
+                            const lo   = Math.round(data.daily.temperature_2m_min[i]);
+                            const rain = data.daily.precipitation_probability_max[i];
+                            const code = data.daily.weathercode[i];
+                            const rainColor = rain >= 70 ? '#3182ce' : rain >= 40 ? '#63b3ed' : '#b0bec5';
+                            fullHtml +=
+                                '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.25rem 0.65rem;border-right:1px solid #e8edf5;min-width:56px;gap:1px;flex-shrink:0;">' +
+                                    '<span style="font-size:0.67rem;font-weight:' + (i===0?'700':'500') + ';color:' + (i===0?'#667eea':'#4a5568') + ';">' + label + '</span>' +
                                     '<span style="font-size:0.95rem;line-height:1.1;">' + wxEmoji(code) + '</span>' +
                                     '<span style="font-size:0.67rem;color:#2d3748;font-weight:600;">' + hi + '° <span style="color:#a0aec0;font-weight:400;">' + lo + '°</span></span>' +
                                     '<span style="font-size:0.63rem;color:' + rainColor + ';">💧' + rain + '%</span>' +
                                 '</div>';
                         });
+                        full.innerHTML = fullHtml;
+
+                        // Apply initial state
+                        if (_weatherPinned) _weatherExpand(); else _weatherCollapse();
                     })
                     .catch(() => {});
             };
-            // Try settings ZIP first, then fall back to South Jersey default
+
             fetch('/api/settings').then(r => r.json()).then(s => {
                 const zip = (s.companyZip || '').trim().slice(0, 5);
-                if (zip.length === 5 && /^\d{5}$/.test(zip)) {
+                if (/^\d{5}$/.test(zip)) {
                     fetch(`https://api.zippopotam.us/us/${zip}`)
                         .then(r => r.json())
                         .then(geo => {
                             const place = geo.places && geo.places[0];
                             if (place) render(parseFloat(place.latitude), parseFloat(place.longitude), zip);
-                            else render(39.72, -74.99, '10-DAY');
+                            else render(39.72, -74.99, null);
                         })
-                        .catch(() => render(39.72, -74.99, '10-DAY'));
+                        .catch(() => render(39.72, -74.99, null));
                 } else {
-                    render(39.72, -74.99, '10-DAY');
+                    render(39.72, -74.99, null);
                 }
-            }).catch(() => render(39.72, -74.99, '10-DAY'));
+            }).catch(() => render(39.72, -74.99, null));
         }
 
         window.addEventListener('DOMContentLoaded', () => {
