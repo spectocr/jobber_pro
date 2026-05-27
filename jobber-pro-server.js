@@ -2483,6 +2483,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <textarea name="companyAddress" rows="3"></textarea>
                     </div>
                     <div class="form-group">
+                        <label>ZIP Code</label>
+                        <input type="text" name="companyZip" maxlength="10" placeholder="e.g. 08360" style="max-width:140px;">
+                        <small style="color:#718096;display:block;margin-top:0.25rem;">Used for the weather forecast bar</small>
+                    </div>
+                    <div class="form-group">
                         <label>Phone</label>
                         <input type="tel" name="companyPhone">
                     </div>
@@ -4215,13 +4220,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function loadWeatherBar() {
             const wxEmoji = c => c===0?'☀️':c<=2?'🌤️':c<=3?'☁️':c<=48?'🌫️':c<=55?'🌦️':c<=65?'🌧️':c<=75?'❄️':c<=82?'🌦️':'⛈️';
             const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            const render = (lat, lon) => {
+            const render = (lat, lon, locationLabel) => {
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=10`)
                     .then(r => r.json())
                     .then(data => {
                         const inner = document.getElementById('weather-inner');
                         if (!inner) return;
-                        inner.innerHTML = '<span style="display:flex;align-items:center;padding:0 0.75rem;color:#a0aec0;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border-right:1px solid #dde3f0;white-space:nowrap;">10-DAY</span>';
+                        inner.innerHTML = '<span style="display:flex;align-items:center;padding:0 0.75rem;color:#a0aec0;font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border-right:1px solid #dde3f0;white-space:nowrap;">' + (locationLabel || '10-DAY') + '</span>';
                         data.daily.time.forEach((dateStr, i) => {
                             const d = new Date(dateStr + 'T12:00:00');
                             const label = i === 0 ? 'Today' : dayNames[d.getDay()];
@@ -4242,14 +4247,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     })
                     .catch(() => {});
             };
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    pos => render(pos.coords.latitude, pos.coords.longitude),
-                    ()  => render(39.72, -74.99)
-                );
-            } else {
-                render(39.72, -74.99);
-            }
+            // Try settings ZIP first, then fall back to South Jersey default
+            fetch('/api/settings').then(r => r.json()).then(s => {
+                const zip = (s.companyZip || '').trim().slice(0, 5);
+                if (zip.length === 5 && /^\d{5}$/.test(zip)) {
+                    fetch(`https://api.zippopotam.us/us/${zip}`)
+                        .then(r => r.json())
+                        .then(geo => {
+                            const place = geo.places && geo.places[0];
+                            if (place) render(parseFloat(place.latitude), parseFloat(place.longitude), zip);
+                            else render(39.72, -74.99, '10-DAY');
+                        })
+                        .catch(() => render(39.72, -74.99, '10-DAY'));
+                } else {
+                    render(39.72, -74.99, '10-DAY');
+                }
+            }).catch(() => render(39.72, -74.99, '10-DAY'));
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -10352,6 +10365,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             form.elements.companyName.value = settings.companyName || '';
             form.elements.companyAddress.value = settings.companyAddress || '';
+            form.elements.companyZip.value = settings.companyZip || '';
             form.elements.companyPhone.value = settings.companyPhone || '';
             form.elements.companyEmail.value = settings.companyEmail || '';
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
@@ -10485,6 +10499,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 favicon: document.getElementById('favicon').value || null,
                 companyName: form.elements.companyName.value,
                 companyAddress: form.elements.companyAddress.value,
+                companyZip: form.elements.companyZip.value,
                 companyPhone: form.elements.companyPhone.value,
                 companyEmail: form.elements.companyEmail.value,
                 hourlyRate: parseFloat(form.elements.hourlyRate.value),
