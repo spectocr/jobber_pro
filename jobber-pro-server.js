@@ -4808,7 +4808,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             ];
         }
 
-        function editJob(jobId) {
+        async function editJob(jobId) {
             if (!checkAdminPermission('edit jobs')) return;
             // Search in all job arrays
             let job = jobs.find(j => j.id == jobId || j._id == jobId);
@@ -4820,6 +4820,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             if (!job && window.completedJobs) {
                 job = window.completedJobs.find(j => j.id == jobId || j._id == jobId);
+            }
+            if (!job) {
+                try {
+                    const res = await fetch('/api/jobs/' + jobId);
+                    if (res.ok) job = await res.json();
+                } catch(e) { console.error('Failed to fetch job:', e); }
             }
             if (job) {
                 openJobModal(job);

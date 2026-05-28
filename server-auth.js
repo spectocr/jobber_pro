@@ -2841,6 +2841,23 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+app.get('/api/jobs/:id', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        const settings = await db.collection('settings').findOne() || {};
+        const taxRate = settings.taxRate || 0.06625;
+        res.json({
+            ...job,
+            _id: job._id.toString(),
+            id: job._id.toString(),
+            clientId: (job.clientId && typeof job.clientId === 'object') ? job.clientId.toString() : job.clientId || null,
+            assignedTo: Array.isArray(job.assignedTo) ? job.assignedTo.map(id => typeof id === 'object' ? id.toString() : id) : [],
+            totalWithTax: parseFloat(job.total) || 0,
+        });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
     await db.collection('jobs').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
