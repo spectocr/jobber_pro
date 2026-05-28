@@ -2232,6 +2232,10 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
             clientName: j.clientName || '',
             total: parseFloat(j.total) || 0,
             status: j.status,
+            _dateUsed: j.completedAt ? 'completedAt:' + new Date(j.completedAt).toISOString().slice(0,10)
+                     : j.invoicedAt  ? 'invoicedAt:' + new Date(j.invoicedAt).toISOString().slice(0,10)
+                     : j.scheduledDate ? 'scheduledDate:' + j.scheduledDate
+                     : 'none',
         })).sort((a, b) => b.total - a.total),
         profitThisMonth: totalProfit,
         totalAccountsReceivable: totalAccountsReceivable,
