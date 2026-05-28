@@ -161,8 +161,15 @@ async function main() {
     console.log('🚀 Starting portal screenshot capture...');
 
     const browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--single-process',
+        ],
         defaultViewport: { width: 1280, height: 820, deviceScaleFactor: 1.5 },
     });
 
