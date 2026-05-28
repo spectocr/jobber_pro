@@ -2226,6 +2226,13 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         invoiced: jobsMapped.filter(j => j.status === 'invoiced').length,
         bidLost: jobsMapped.filter(j => j.status === 'bid_lost').length,
         revenueThisMonth: totalRevenue,
+        revenueThisMonthJobs: completedJobsThisMonth.map(j => ({
+            id: j.id,
+            name: j.name || j.description || 'Unnamed job',
+            clientName: j.clientName || '',
+            total: parseFloat(j.total) || 0,
+            status: j.status,
+        })).sort((a, b) => b.total - a.total),
         profitThisMonth: totalProfit,
         totalAccountsReceivable: totalAccountsReceivable,
         accountsReceivableJobs: accountsReceivableJobs,

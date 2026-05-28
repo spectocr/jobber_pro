@@ -1394,11 +1394,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div class="value" id="stat-jobs-month">0</div>
                     <div id="stat-jobs-month-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" style="position:relative;cursor:default;" id="stat-revenue-card"
+                     onmouseenter="showRevenueBreakdown(event)" onmouseleave="hideRevenueBreakdown()">
                     <h3>Revenue This Month</h3>
                     <div class="value" id="stat-revenue">$0</div>
                     <div id="stat-revenue-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
                 </div>
+                <div id="revenue-breakdown-tooltip" style="display:none;position:fixed;z-index:9999;background:#1a202c;color:#e2e8f0;border-radius:10px;padding:1rem 1.25rem;min-width:280px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.35);font-size:0.85rem;pointer-events:none;"></div>
                 <div class="stat-card" style="border-left-color: #48bb78;">
                     <h3>Profit This Month</h3>
                     <div class="value" id="stat-profit">$0</div>
@@ -6731,6 +6733,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             })();
 
             document.getElementById('stat-ar').textContent = formatMoney(stats.totalAccountsReceivable || 0);
+            window._revenueJobs = stats.revenueThisMonthJobs || [];
 
             // Follow-up reminders
             (function() {
@@ -6861,6 +6864,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (error) {
                 console.error('Failed to load dashboard:', error);
             }
+        }
+
+        function showRevenueBreakdown(e) {
+            const jobs = window._revenueJobs || [];
+            const tip = document.getElementById('revenue-breakdown-tooltip');
+            if (!tip) return;
+            if (jobs.length === 0) {
+                tip.innerHTML = '<div style="color:#a0aec0;font-style:italic;">No invoiced/completed jobs this month</div>';
+            } else {
+                const rows = jobs.map(j => {
+                    const badge = j.status === 'paid' ? '' :
+                        `<span style="font-size:0.7rem;background:${j.status === 'invoiced' ? '#9f7aea' : '#48bb78'};color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;">${j.status}</span>`;
+                    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+                        <div style="flex:1;min-width:0;margin-right:1rem;">
+                            <div style="font-weight:600;color:#f7fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.name}${badge}</div>
+                            ${j.clientName ? `<div style="font-size:0.75rem;color:#a0aec0;">${j.clientName}</div>` : ''}
+                        </div>
+                        <div style="font-weight:700;color:#68d391;white-space:nowrap;">${formatMoney(j.total)}</div>
+                    </div>`;
+                }).join('');
+                tip.innerHTML = `<div style="font-weight:700;color:#a0aec0;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Revenue This Month</div>${rows}`;
+            }
+            tip.style.display = 'block';
+            const card = document.getElementById('stat-revenue-card');
+            const rect = card.getBoundingClientRect();
+            const tipW = 320;
+            let left = rect.left;
+            if (left + tipW > window.innerWidth - 12) left = window.innerWidth - tipW - 12;
+            tip.style.left = left + 'px';
+            tip.style.top = (rect.bottom + 8) + 'px';
+        }
+
+        function hideRevenueBreakdown() {
+            const tip = document.getElementById('revenue-breakdown-tooltip');
+            if (tip) tip.style.display = 'none';
         }
 
         async function loadClients() {
