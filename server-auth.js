@@ -2228,7 +2228,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         revenueThisMonth: totalRevenue,
         revenueThisMonthJobs: completedJobsThisMonth.map(j => ({
             id: j.id,
-            name: j.name || j.description || 'Unnamed job',
+            name: j.title || 'Untitled job',
             clientName: j.clientName || '',
             total: parseFloat(j.total) || 0,
             status: j.status,

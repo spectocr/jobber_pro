@@ -6917,7 +6917,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function _revLeave() {
-            _revLeaveTimer = setTimeout(hideRevenueBreakdown, 150);
+            _revLeaveTimer = setTimeout(hideRevenueBreakdown, 300);
         }
 
         function _revCancelLeave() {
