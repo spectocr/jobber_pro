@@ -4055,7 +4055,7 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         };
 
         const qJobs = jobs.filter(j => {
-            const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
+            const d = j.scheduledDate;
             if (!inQ(d)) return false;
             if (ts.excludeCash && isCashOnly(j)) return false;
             return true;
@@ -4109,13 +4109,13 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             const matCost = Array.isArray(j.materialItems)
                 ? j.materialItems.reduce((s, m) => s + ((m.quantity || 0) * (m.price || 0)), 0) : 0;
             return {
-                date: (j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate || ''),
+                date: j.scheduledDate || '',
                 title: j.title || j.description || '(untitled)',
                 client: j.clientName || j.client?.name || '',
                 amount: parseFloat(j.totalWithTax || j.total) || 0,
                 matCost,
                 netAmount: (parseFloat(j.totalWithTax || j.total) || 0) - matCost,
-                dateField: j.completedAt ? 'completedAt' : j.invoicedAt ? 'invoicedAt' : j.updatedAt ? 'updatedAt' : 'scheduledDate'
+                dateField: 'scheduledDate'
             };
         });
         const expItems = qExp.map(e => ({
@@ -4141,8 +4141,7 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
             remaining: Math.max(0, totalDue - (payment?.amount || 0)),
             cashExcluded: ts.excludeCash ? jobs.filter(j => {
-                const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
-                return inQ(d) && isCashOnly(j);
+                return inQ(j.scheduledDate) && isCashOnly(j);
             }).length : 0,
             items: { jobs: jobItems, expenses: expItems }
         });
@@ -6615,8 +6614,7 @@ async function getMaddoxContext() {
     const monthRevenue = jobs
         .filter(j => {
             if (j.status !== 'completed' && j.status !== 'invoiced') return false;
-            const d = j.completedAt || j.invoicedAt || j.updatedAt || j.scheduledDate;
-            return d && new Date(d) >= monthStart;
+            return j.scheduledDate && new Date(j.scheduledDate) >= monthStart;
         })
         .reduce((s, j) => s + (parseFloat(j.totalWithTax || j.total) || 0), 0);
 
