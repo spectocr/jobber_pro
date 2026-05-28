@@ -23,11 +23,15 @@ jobs:
 
       - name: Install screenshot dependencies
         working-directory: scripts
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
         run: npm install
 
       - name: Install Chrome
         working-directory: scripts
-        run: node_modules/.bin/puppeteer browsers install chrome
+        run: |
+          rm -rf /home/runner/.cache/puppeteer
+          node_modules/.bin/puppeteer browsers install chrome
 
       - name: Take portal screenshots
         working-directory: scripts
