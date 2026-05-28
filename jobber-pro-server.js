@@ -1395,12 +1395,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div id="stat-jobs-month-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
                 </div>
                 <div class="stat-card" style="position:relative;cursor:default;" id="stat-revenue-card"
-                     onmouseenter="showRevenueBreakdown(event)" onmouseleave="hideRevenueBreakdown()">
+                     onmouseenter="showRevenueBreakdown(event)" onmouseleave="_revLeave()">
                     <h3>Revenue This Month</h3>
                     <div class="value" id="stat-revenue">$0</div>
                     <div id="stat-revenue-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
                 </div>
-                <div id="revenue-breakdown-tooltip" style="display:none;position:fixed;z-index:9999;background:#1a202c;color:#e2e8f0;border-radius:10px;padding:1rem 1.25rem;min-width:280px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.35);font-size:0.85rem;pointer-events:none;"></div>
+                <div id="revenue-breakdown-tooltip" style="display:none;position:fixed;z-index:9999;background:#1a202c;color:#e2e8f0;border-radius:10px;padding:0;min-width:300px;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.35);font-size:0.85rem;overflow:hidden;"
+                     onmouseenter="_revCancelLeave()" onmouseleave="_revLeave()"></div>
                 <div class="stat-card" style="border-left-color: #48bb78;">
                     <h3>Profit This Month</h3>
                     <div class="value" id="stat-profit">$0</div>
@@ -6866,39 +6867,61 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        let _revLeaveTimer = null;
+
         function showRevenueBreakdown(e) {
+            _revCancelLeave();
             const jobs = window._revenueJobs || [];
             const tip = document.getElementById('revenue-breakdown-tooltip');
             if (!tip) return;
+
+            let body;
             if (jobs.length === 0) {
-                tip.innerHTML = '<div style="color:#a0aec0;font-style:italic;">No invoiced/completed jobs this month</div>';
+                body = '<div style="padding:1rem 1.25rem;color:#a0aec0;font-style:italic;">No invoiced/completed jobs this month</div>';
             } else {
                 const rows = jobs.map(j => {
-                    const badge = j.status === 'paid' ? '' :
-                        `<span style="font-size:0.7rem;background:${j.status === 'invoiced' ? '#9f7aea' : '#48bb78'};color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;">${j.status}</span>`;
-                    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+                    const statusColor = j.status === 'invoiced' ? '#9f7aea' : '#48bb78';
+                    const badge = `<span style="font-size:0.68rem;background:${statusColor};color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;">${j.status}</span>`;
+                    return `<div onclick="editJob('${j.id}');hideRevenueBreakdown();"
+                        style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 1.25rem;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.1s;"
+                        onmouseenter="this.style.background='rgba(255,255,255,0.07)'" onmouseleave="this.style.background=''">
                         <div style="flex:1;min-width:0;margin-right:1rem;">
-                            <div style="font-weight:600;color:#f7fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.name}${badge}</div>
-                            ${j.clientName ? `<div style="font-size:0.75rem;color:#a0aec0;">${j.clientName}</div>` : ''}
+                            <div style="font-weight:600;color:#f7fafc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.name}${badge}</div>
+                            ${j.clientName ? `<div style="font-size:0.75rem;color:#a0aec0;margin-top:1px;">${j.clientName}</div>` : ''}
                         </div>
                         <div style="font-weight:700;color:#68d391;white-space:nowrap;">${formatMoney(j.total)}</div>
                     </div>`;
                 }).join('');
-                tip.innerHTML = `<div style="font-weight:700;color:#a0aec0;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Revenue This Month</div>${rows}`;
+                body = `<div style="padding:0.75rem 1.25rem 0.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <span style="font-weight:700;color:#a0aec0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;">Revenue This Month</span>
+                    <button onclick="hideRevenueBreakdown()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:1rem;line-height:1;padding:0 0 0 1rem;">✕</button>
+                </div>
+                <div style="max-height:420px;overflow-y:auto;">${rows}</div>`;
             }
+            tip.innerHTML = body;
             tip.style.display = 'block';
+
             const card = document.getElementById('stat-revenue-card');
             const rect = card.getBoundingClientRect();
-            const tipW = 320;
+            const tipW = 360;
             let left = rect.left;
             if (left + tipW > window.innerWidth - 12) left = window.innerWidth - tipW - 12;
-            tip.style.left = left + 'px';
+            tip.style.left = Math.max(8, left) + 'px';
             tip.style.top = (rect.bottom + 8) + 'px';
         }
 
         function hideRevenueBreakdown() {
+            _revCancelLeave();
             const tip = document.getElementById('revenue-breakdown-tooltip');
             if (tip) tip.style.display = 'none';
+        }
+
+        function _revLeave() {
+            _revLeaveTimer = setTimeout(hideRevenueBreakdown, 150);
+        }
+
+        function _revCancelLeave() {
+            if (_revLeaveTimer) { clearTimeout(_revLeaveTimer); _revLeaveTimer = null; }
         }
 
         async function loadClients() {
