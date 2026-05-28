@@ -1390,10 +1390,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <div id="dashboard" class="view active">
             <div class="stats-grid">
                 <div class="stat-card">
-                    <h3>Total Clients</h3>
-                    <div class="value" id="stat-clients">0</div>
-                </div>
-                <div class="stat-card">
                     <h3>Jobs This Month</h3>
                     <div class="value" id="stat-jobs-month">0</div>
                     <div id="stat-jobs-month-delta" style="margin-top:0.3rem;min-height:1.1rem;font-size:0.75rem;"></div>
@@ -1410,34 +1406,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="stat-card">
                     <h3>Jobs Today</h3>
                     <div class="value" id="stat-jobs-today">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #f56565;">
-                    <h3>Prospecting</h3>
-                    <div class="value" id="stat-prospecting">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #d69e2e;">
-                    <h3>To Be Scheduled</h3>
-                    <div class="value" id="stat-to-be-scheduled">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #4299e1;">
-                    <h3>Scheduled</h3>
-                    <div class="value" id="stat-scheduled">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #ed8936;">
-                    <h3>In Progress</h3>
-                    <div class="value" id="stat-in-progress">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #48bb78;">
-                    <h3>Completed</h3>
-                    <div class="value" id="stat-completed">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #9f7aea;">
-                    <h3>Invoiced</h3>
-                    <div class="value" id="stat-invoiced">0</div>
-                </div>
-                <div class="stat-card" style="border-left-color: #718096;">
-                    <h3>Bid Lost</h3>
-                    <div class="value" id="stat-bid-lost">0</div>
                 </div>
                 <div class="stat-card" style="border-left-color: #e53e3e;">
                     <h3>Accounts Receivable</h3>
@@ -6694,7 +6662,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const response = await fetch('/api/dashboard');
                 const stats = await response.json();
 
-            document.getElementById('stat-clients').textContent = stats.totalClients;
             document.getElementById('stat-jobs-month').textContent = stats.jobsThisMonth;
             document.getElementById('stat-revenue').textContent = formatMoney(stats.revenueThisMonth || 0);
             document.getElementById('stat-profit').textContent = formatMoney(stats.profitThisMonth || 0);
@@ -6763,13 +6730,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 `<text x="305" y="160" font-size="11" fill="#718096" font-family="sans-serif">Profit</text>`;
             })();
 
-            document.getElementById('stat-prospecting').textContent = stats.prospecting;
-            document.getElementById('stat-to-be-scheduled').textContent = stats.toBeScheduled;
-            document.getElementById('stat-scheduled').textContent = stats.scheduled;
-            document.getElementById('stat-in-progress').textContent = stats.inProgress;
-            document.getElementById('stat-completed').textContent = stats.completed;
-            document.getElementById('stat-invoiced').textContent = stats.invoiced;
-            document.getElementById('stat-bid-lost').textContent = stats.bidLost;
             document.getElementById('stat-ar').textContent = formatMoney(stats.totalAccountsReceivable || 0);
 
             // Follow-up reminders
