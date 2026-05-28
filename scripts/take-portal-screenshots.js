@@ -248,6 +248,16 @@ async function main() {
         }
         await uploadScreenshot(shot4, 'portal-screenshots/04-invoices.jpg');
 
+        // ── Write timestamp ──
+        await s3.send(new PutObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: 'portal-screenshots/last-updated.json',
+            Body: JSON.stringify({ iso: new Date().toISOString() }),
+            ContentType: 'application/json',
+            CacheControl: 'no-cache',
+        }));
+        console.log('  ✅ Timestamp written');
+
         // ── CloudFront invalidation ──
         if (cf && CF_DIST_ID) {
             console.log('  → Invalidating CloudFront cache...');
@@ -255,11 +265,12 @@ async function main() {
                 DistributionId: CF_DIST_ID,
                 InvalidationBatch: {
                     CallerReference: Date.now().toString(),
-                    Paths: { Quantity: 4, Items: [
+                    Paths: { Quantity: 5, Items: [
                         '/portal-screenshots/01-dashboard.jpg',
                         '/portal-screenshots/02-work-order.jpg',
                         '/portal-screenshots/03-ticket-confirmed.jpg',
                         '/portal-screenshots/04-invoices.jpg',
+                        '/portal-screenshots/last-updated.json',
                     ]},
                 },
             }));
