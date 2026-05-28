@@ -21,21 +21,19 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install Chromium
+        run: sudo apt-get install -y chromium-browser
+
       - name: Install screenshot dependencies
         working-directory: scripts
         env:
           PUPPETEER_SKIP_DOWNLOAD: 'true'
         run: npm install
 
-      - name: Install Chrome
-        working-directory: scripts
-        run: |
-          rm -rf /home/runner/.cache/puppeteer
-          node_modules/.bin/puppeteer browsers install chrome
-
       - name: Take portal screenshots
         working-directory: scripts
         env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
           DEMO_CLIENT_EMAIL:           ${{ secrets.DEMO_CLIENT_EMAIL }}
           DEMO_CLIENT_PASSWORD:        ${{ secrets.DEMO_CLIENT_PASSWORD }}
           PUBLIC_S3_KEY:               ${{ secrets.PUBLIC_S3_KEY }}
