@@ -6894,7 +6894,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div style="flex:1;min-width:0;margin-right:1rem;">
                             <div style="font-weight:600;color:#f7fafc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.name}${badge}</div>
                             ${j.clientName ? `<div style="font-size:0.75rem;color:#a0aec0;margin-top:1px;">${j.clientName}</div>` : ''}
-                            <div style="font-size:0.68rem;color:#e53e3e;margin-top:1px;">${j._dateUsed || ''}</div>
                         </div>
                         <div style="font-weight:700;color:#68d391;white-space:nowrap;">${formatMoney(j.total)}</div>
                     </div>`;

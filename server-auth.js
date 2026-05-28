@@ -2164,10 +2164,8 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         assignedTo: Array.isArray(j.assignedTo) ? j.assignedTo.map(id => id.toString()) : ((j.assignedTo && j.assignedTo !== 'undefined' && typeof j.assignedTo === 'object') ? [j.assignedTo.toString()] : [])
     }));
 
-    // Revenue is counted in the month the job was completed/invoiced, falling back to scheduled date.
-    // updatedAt intentionally excluded — editing a job later would misplace it into the wrong month.
     const completedJobsThisMonth = jobsMapped
-        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.completedAt || j.invoicedAt || j.scheduledDate || 0).toISOString().slice(0, 7) === thisMonth);
+        .filter(j => (j.status === 'invoiced' || j.status === 'completed') && (j.scheduledDate || '').slice(0, 7) === thisMonth);
 
     const totalRevenue = completedJobsThisMonth.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
 
@@ -2232,10 +2230,6 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
             clientName: j.clientName || '',
             total: parseFloat(j.total) || 0,
             status: j.status,
-            _dateUsed: j.completedAt ? 'completedAt:' + new Date(j.completedAt).toISOString().slice(0,10)
-                     : j.invoicedAt  ? 'invoicedAt:' + new Date(j.invoicedAt).toISOString().slice(0,10)
-                     : j.scheduledDate ? 'scheduledDate:' + j.scheduledDate
-                     : 'none',
         })).sort((a, b) => b.total - a.total),
         profitThisMonth: totalProfit,
         totalAccountsReceivable: totalAccountsReceivable,
@@ -2243,7 +2237,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         lastMonthRevenue: (() => {
             const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
             const lm = d.toISOString().slice(0, 7);
-            return jobsMapped.filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.completedAt || j.invoicedAt || j.scheduledDate || 0).toISOString().slice(0, 7) === lm)
+            return jobsMapped.filter(j => (j.status === 'invoiced' || j.status === 'completed') && (j.scheduledDate || '').slice(0, 7) === lm)
                 .reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
         })(),
         lastMonthJobs: (() => {
@@ -2258,7 +2252,7 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
                 const key = d.toISOString().slice(0, 7);
                 const label = d.toLocaleString('default', { month: 'short' });
                 const monthJobs = jobsMapped
-                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && new Date(j.completedAt || j.invoicedAt || j.scheduledDate || 0).toISOString().slice(0, 7) === key);
+                    .filter(j => (j.status === 'invoiced' || j.status === 'completed') && (j.scheduledDate || '').slice(0, 7) === key);
                 const revenue = monthJobs.reduce((sum, j) => sum + (parseFloat(j.total) || 0), 0);
                 const materialCosts = monthJobs.reduce((sum, j) => {
                     if (j.materialItems && Array.isArray(j.materialItems))
