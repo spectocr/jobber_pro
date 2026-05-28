@@ -21,17 +21,19 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+
       - name: Install screenshot dependencies
         working-directory: scripts
         run: npm install
 
-      - name: Install Chrome
-        working-directory: scripts
-        run: npx puppeteer browsers install chrome
-
       - name: Take portal screenshots
         working-directory: scripts
         env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
           DEMO_CLIENT_EMAIL:           ${{ secrets.DEMO_CLIENT_EMAIL }}
           DEMO_CLIENT_PASSWORD:        ${{ secrets.DEMO_CLIENT_PASSWORD }}
           PUBLIC_S3_KEY:               ${{ secrets.PUBLIC_S3_KEY }}
