@@ -25,6 +25,10 @@ jobs:
         working-directory: scripts
         run: npm install
 
+      - name: Install Chrome
+        working-directory: scripts
+        run: npx puppeteer browsers install chrome
+
       - name: Take portal screenshots
         working-directory: scripts
         env:
