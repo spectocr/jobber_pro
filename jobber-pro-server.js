@@ -11912,15 +11912,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             pollNudges();
             setInterval(pollNudges, 5 * 60 * 1000);
 
-            // Morning briefing — auto-open Maddox with AI daily briefing once per calendar day
+            // Morning briefing — wag tail + show dot; briefing sends when they click to open
             const todayStr = new Date().toDateString();
             if (localStorage.getItem('maddoxBriefDate') !== todayStr) {
                 localStorage.setItem('maddoxBriefDate', todayStr);
+                window._maddoxPendingBrief = true;
                 setTimeout(() => {
-                    const panel = document.getElementById('activityBotPanel');
-                    if (panel && panel.style.display === 'none') toggleActivityBot();
-                    setTimeout(() => sendBotQuery('Good morning! Give me a quick briefing on the business today.'), 400);
-                }, 2500);
+                    const dot = document.getElementById('activityBotDot');
+                    if (dot) dot.style.display = 'block';
+                    const tail = document.getElementById('rexTail');
+                    if (tail) {
+                        tail.style.animationDuration = '0.25s';
+                        setTimeout(() => { if (tail) tail.style.animationDuration = ''; }, 3000);
+                    }
+                }, 1500);
             }
         }
 
@@ -14000,6 +14005,10 @@ function formatDuration(seconds) {
                 clippyAnim('clippyBounce 0.6s ease');
                 setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 650);
                 if (!_botLoaded) { _botLoaded = true; loadActivityBrief(); }
+                if (window._maddoxPendingBrief) {
+                    window._maddoxPendingBrief = false;
+                    setTimeout(() => sendBotQuery('Good morning! Give me a quick briefing on the business today.'), 400);
+                }
             } else {
                 clippyAnim('clippyIdle 3s ease-in-out infinite');
             }
