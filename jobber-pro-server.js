@@ -11912,14 +11912,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             pollNudges();
             setInterval(pollNudges, 5 * 60 * 1000);
 
-            // Morning briefing — wag tail + show dot; briefing sends when they click to open
+            // First load of the day — wag tail as a heads-up indicator
             const todayStr = new Date().toDateString();
             if (localStorage.getItem('maddoxBriefDate') !== todayStr) {
                 localStorage.setItem('maddoxBriefDate', todayStr);
-                window._maddoxPendingBrief = true;
                 setTimeout(() => {
-                    const dot = document.getElementById('activityBotDot');
-                    if (dot) dot.style.display = 'block';
                     const tail = document.getElementById('rexTail');
                     if (tail) {
                         tail.style.animationDuration = '0.25s';
@@ -14004,11 +14001,8 @@ function formatDuration(seconds) {
             if (!isOpen) {
                 clippyAnim('clippyBounce 0.6s ease');
                 setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 650);
+                window._maddoxPendingBrief = false;
                 if (!_botLoaded) { _botLoaded = true; loadActivityBrief(); }
-                if (window._maddoxPendingBrief) {
-                    window._maddoxPendingBrief = false;
-                    setTimeout(() => sendBotQuery('Good morning! Give me a quick briefing on the business today.'), 400);
-                }
             } else {
                 clippyAnim('clippyIdle 3s ease-in-out infinite');
             }
