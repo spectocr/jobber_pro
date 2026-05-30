@@ -13986,6 +13986,7 @@ function formatDuration(seconds) {
         }, 30000);
 
         // ── Clippit (Activity Bot) ────────────────────────────────────────────────
+        let _botLoaded = false;
 
         function clippyAnim(anim) {
             const el = document.getElementById('clippyChar');
@@ -14003,9 +14004,54 @@ function formatDuration(seconds) {
             if (!isOpen) {
                 clippyAnim('clippyBounce 0.6s ease');
                 setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 650);
-                window._maddoxPendingBrief = false;
+                if (!_botLoaded) { _botLoaded = true; loadActivityBrief(); }
+                if (window._maddoxPendingBrief) {
+                    window._maddoxPendingBrief = false;
+                    setTimeout(() => sendBotQuery('Good morning! Give me a quick briefing on the business today.'), 400);
+                }
             } else {
                 clippyAnim('clippyIdle 3s ease-in-out infinite');
+            }
+        }
+
+        async function loadActivityBrief() {
+            clippyAnim('clippyThink 1s ease-in-out infinite');
+            appendBotMessage('bot', 'It looks like you just logged in! Let me check what\'s new... 🔍');
+            try {
+                const res  = await fetch('/api/activity-brief');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                const lines = [];
+                lines.push(\`Here's your update since **\${data.since}**:\n\`);
+
+                if (data.newPortalQuotes.length)
+                    lines.push(\`📥 **\${data.newPortalQuotes.length} new work order\${data.newPortalQuotes.length !== 1 ? 's' : ''}** came in via the portal\${data.newPortalQuotes.length <= 3 ? ': ' + data.newPortalQuotes.map(q => q.clientName + ' (' + (q.priority || 'flexible') + ')').join(', ') : ''}.\`);
+                if (data.quoteStatusChanges.length)
+                    lines.push(\`📋 **\${data.quoteStatusChanges.length} quote\${data.quoteStatusChanges.length !== 1 ? 's' : ''}** changed status: \${data.quoteStatusChanges.map(q => q.clientName + ' → ' + q.status).join(', ')}.\`);
+                if (data.completedJobs.length)
+                    lines.push(\`✅ **\${data.completedJobs.length} job\${data.completedJobs.length !== 1 ? 's' : ''}** marked complete: \${data.completedJobs.map(j => j.clientName).slice(0,3).join(', ')}\${data.completedJobs.length > 3 ? ' +more' : ''}.\`);
+                if (data.newJobs.length)
+                    lines.push(\`🔨 **\${data.newJobs.length} new job\${data.newJobs.length !== 1 ? 's' : ''}** created.\`);
+                if (data.newMessages > 0)
+                    lines.push(\`💬 **\${data.newMessages} unread message\${data.newMessages !== 1 ? 's' : ''}** from clients.\`);
+                if (data.newLeads > 0)
+                    lines.push(\`🎯 **\${data.newLeads} new lead\${data.newLeads !== 1 ? 's' : ''}** came in.\`);
+                if (data.upcomingJobs.length)
+                    lines.push(\`📅 **Upcoming this week:** \${data.upcomingJobs.map(j => j.scheduledDate + ' · ' + j.clientName).join(' | ')}.\`);
+                if (data.outstandingTotal > 0)
+                    lines.push(\`💰 **\${formatMoney(data.outstandingTotal)}** in outstanding invoices.\`);
+                if (lines.length === 1)
+                    lines.push('All quiet since your last visit! Everything looks good. 👍');
+
+                removeBotTyping();
+                clippyAnim('clippyTalk 0.4s ease-in-out 3');
+                setTimeout(() => clippyAnim('clippyIdle 3s ease-in-out infinite'), 1300);
+                appendBotMessage('bot', lines.join('\n'));
+            } catch (e) {
+                removeBotTyping();
+                clippyAnim('clippyIdle 3s ease-in-out infinite');
+                appendBotMessage('bot', 'Hmm, I had trouble loading your activity. Sorry about that!');
             }
         }
 
