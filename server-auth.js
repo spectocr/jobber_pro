@@ -8145,7 +8145,13 @@ function generatePortfolioHtml(rawItems) {
         const catBadge = item.commercial
             ? `<span class="card-cat" style="background:#dbeafe;color:#1d4ed8;">🏢 Commercial</span>`
             : (item.catName ? `<span class="card-cat">${_pfHe(item.catName)}</span>` : '');
-        const body = (catBadge || item.title || item.caption) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${item.caption ? `<div class="card-caption">${_pfHe(item.caption)}</div>` : ''}</div>` : '';
+        const TRUNC = 150;
+        const capFull = item.caption;
+        const capTrunc = capFull.length > TRUNC ? capFull.slice(0, TRUNC).replace(/\s+\S*$/, '') + '…' : capFull;
+        const capHtml = capFull
+            ? `<div class="card-caption">${_pfHe(capTrunc).replace(/\n/g, '<br>')}${capFull.length > TRUNC ? ` <button class="cap-more" onclick="event.stopPropagation();openProject('${_pfEsc(item.id)}')">View more</button>` : ''}</div>`
+            : '';
+        const body = (catBadge || item.title || item.caption) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${capHtml}</div>` : '';
 
         const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
         const show = sorted.slice(0, 4);
@@ -8243,6 +8249,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--navy);padding:0 2rem;disp
 .card-cat{display:inline-block;margin-bottom:.4rem;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
 .card-title{font-size:1rem;font-weight:700;color:#1f2937}
 .card-caption{margin-top:.3rem;font-size:.875rem;color:#6b7280;line-height:1.5}
+.cap-more{background:none;border:none;padding:0;color:#1d6fa4;font-size:.875rem;font-weight:600;cursor:pointer;text-decoration:underline;line-height:inherit}
 #proj-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;overflow-y:auto;padding:2rem 1rem}
 #proj-modal.open{display:block}
 #proj-panel{background:white;border-radius:16px;max-width:720px;margin:0 auto;overflow:hidden}
@@ -8315,7 +8322,8 @@ function openProject(id){
   const p=PF.find(x=>x.id===id); if(!p) return;
   document.getElementById('proj-title').textContent=p.title||'Project Details';
   const cap=document.getElementById('proj-cap');
-  cap.textContent=p.caption||''; cap.style.display=p.caption?'':'none';
+  cap.style.display=p.caption?'':'none';
+  if(p.caption){cap.innerHTML=p.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
   const secs=[{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
   let h='';
   secs.forEach(s=>{

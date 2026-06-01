@@ -8720,7 +8720,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${item.commercial ? \`<span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>\` : ''}
                         </div>
                         \${item.title ? \`<div style="font-weight:700;color:#1f2937;margin-top:0.4rem;font-size:1rem;">\${item.title}</div>\` : ''}
-                        \${item.caption ? \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.2rem;line-height:1.4;">\${item.caption}</div>\` : ''}
+                        \${item.caption ? (() => {
+                            const TRUNC = 150;
+                            const full = item.caption;
+                            const trunc = full.length > TRUNC ? full.slice(0, TRUNC).replace(/\\s+\\S*$/, '') + '…' : full;
+                            const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
+                            const more = full.length > TRUNC ? \` <button onclick="event.stopPropagation();openPortfolioDetail('\${item.id}')" style="background:none;border:none;padding:0;color:#1d6fa4;font-size:0.82rem;font-weight:600;cursor:pointer;text-decoration:underline;">View more</button>\` : '';
+                            return \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.2rem;line-height:1.4;">\${esc(trunc)}\${more}</div>\`;
+                        })() : ''}
                         <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
                             <button onclick="event.stopPropagation();openPortfolioModal('\${item.id}')" style="padding:0.35rem 0.8rem;background:#ede9fe;color:#6d28d9;border:none;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Edit</button>
                             <button onclick="event.stopPropagation();deletePortfolioItem('\${item.id}')" style="padding:0.35rem 0.7rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.82rem;cursor:pointer;">🗑</button>
@@ -8738,8 +8745,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             document.getElementById('portfolioDetailTitle').textContent = item.title || 'Untitled Project';
             const capEl = document.getElementById('portfolioDetailCaption');
-            capEl.textContent = item.caption || '';
             capEl.style.display = item.caption ? '' : 'none';
+            if (item.caption) {
+                capEl.innerHTML = item.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+            }
 
             const secs = [
                 { key: 'before', label: '📷 Before', color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
