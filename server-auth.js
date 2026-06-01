@@ -6523,12 +6523,13 @@ app.delete('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
 // Send compliance docs to a client — stream from S3 and attach to email
 app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) => {
     try {
-        const { clientId, docIds, message } = req.body;
+        const { clientId, docIds, message, toEmail } = req.body;
         if (!clientId || !docIds || docIds.length === 0) return res.status(400).json({ error: 'clientId and docIds required' });
 
         const client = await db.collection('clients').findOne({ _id: new ObjectId(clientId) });
         if (!client) return res.status(404).json({ error: 'Client not found' });
-        if (!client.email) return res.status(400).json({ error: 'Client has no email address on file' });
+        const sendTo = toEmail || client.email;
+        if (!sendTo) return res.status(400).json({ error: 'Client has no email address on file' });
         if (!emailService.transporter) return res.status(503).json({ error: 'Email service not configured' });
         if (!s3Client) return res.status(503).json({ error: 'S3 not configured' });
 
@@ -6561,7 +6562,7 @@ app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) =>
 
         await emailService.transporter.sendMail({
             from: `"${businessName}" <${emailService.fromEmail}>`,
-            to: client.email,
+            to: sendTo,
             subject: `${businessName} — License & Insurance Documents`,
             html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:2rem;">
                 <h2 style="color:#667eea;">License & Insurance Documents</h2>

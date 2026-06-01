@@ -2808,6 +2808,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
             <div class="modal-body">
                 <p style="color: #4a5568; margin-bottom: 1rem;">Select which documents to send to <strong id="sendCompClientName"></strong>.</p>
+                <div id="sendCompEmailGroup" class="form-group" style="display:none;">
+                    <label>Send To</label>
+                    <select id="sendCompEmailSelect" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;"></select>
+                </div>
+                <div id="sendCompEmailSingle" style="display:none;margin-bottom:0.75rem;font-size:0.9rem;color:#4a5568;">Sending to: <span id="sendCompEmailDisplay" style="font-weight:600;"></span></div>
                 <div id="sendCompDocCheckboxes" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem;"></div>
                 <div class="form-group">
                     <label>Additional Message (optional)</label>
@@ -11857,6 +11862,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('sendCompMessage').value = '';
             const checkboxes = document.getElementById('sendCompDocCheckboxes');
             checkboxes.innerHTML = '<p style="color:#718096;">Loading...</p>';
+
+            // Build email options from client data
+            const client = clients.find(c => (c.id || c._id) == clientId);
+            const emailOptions = [];
+            if (client) {
+                if (client.email) emailOptions.push({ label: \`Primary — \${client.email}\`, value: client.email });
+                (client.serviceLocations || []).forEach(loc => {
+                    if (loc.contactEmail) {
+                        const name = loc.name || loc.address || 'Property';
+                        emailOptions.push({ label: \`\${name} — \${loc.contactEmail}\`, value: loc.contactEmail });
+                    }
+                });
+            }
+            const emailGroup  = document.getElementById('sendCompEmailGroup');
+            const emailSingle = document.getElementById('sendCompEmailSingle');
+            const emailSelect = document.getElementById('sendCompEmailSelect');
+            if (emailOptions.length > 1) {
+                emailSelect.innerHTML = emailOptions.map(o => \`<option value="\${o.value}">\${o.label}</option>\`).join('');
+                emailGroup.style.display  = '';
+                emailSingle.style.display = 'none';
+            } else {
+                emailGroup.style.display  = 'none';
+                emailSingle.style.display = emailOptions.length === 1 ? '' : 'none';
+                document.getElementById('sendCompEmailDisplay').textContent = emailOptions[0]?.value || '';
+            }
+
             openModal('sendComplianceModal');
 
             // Always fetch fresh so modal works even if Settings tab was never opened
@@ -11886,6 +11917,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const checked = [...document.querySelectorAll('#sendCompDocCheckboxes input[type=checkbox]:checked')].map(c => c.value);
             if (checked.length === 0) { alert('Select at least one document.'); return; }
             const message = document.getElementById('sendCompMessage').value.trim();
+            const emailGroup = document.getElementById('sendCompEmailGroup');
+            const toEmail = emailGroup.style.display !== 'none'
+                ? document.getElementById('sendCompEmailSelect').value
+                : (document.getElementById('sendCompEmailDisplay').textContent || null);
             const btn = document.querySelector('#sendComplianceModal .btn-primary');
             const origText = btn.textContent;
             btn.textContent = 'Sending...'; btn.disabled = true;
@@ -11893,7 +11928,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const res = await fetch('/api/compliance-docs/send-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ clientId: _sendCompClientId, docIds: checked, message })
+                    body: JSON.stringify({ clientId: _sendCompClientId, docIds: checked, message, toEmail })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Send failed');
