@@ -3290,26 +3290,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- Load From Modal (quotes, jobs, templates) -->
-    <div id="loadFromModal" class="modal" style="z-index:1100;">
-        <div class="modal-content" style="max-width:640px;">
-            <div class="modal-header">
-                <h2>📋 Load Pricing From...</h2>
-                <button class="close-btn" onclick="closeModal('loadFromModal')">&times;</button>
+    <!-- Load From Modal (quotes, jobs, templates) — high z-index, standalone overlay -->
+    <div id="loadFromModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:14px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.35);overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:1.25rem 1.5rem;border-bottom:2px solid #e2e8f0;">
+                <h2 style="margin:0;font-size:1.1rem;color:#1a202c;">📋 Load Pricing From...</h2>
+                <button onclick="closeLoadFromModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#718096;line-height:1;">&times;</button>
             </div>
-            <div class="modal-body">
+            <div style="padding:1.25rem 1.5rem;flex:1;overflow-y:auto;">
                 <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:1rem;">
                     <button id="lfTabBtnHistory" onclick="switchLoadFromTab('history')" style="padding:0.6rem 1.1rem;background:none;border:none;border-bottom:3px solid #667eea;font-weight:700;color:#667eea;cursor:pointer;font-size:0.95rem;">📁 Past Quotes &amp; Jobs</button>
                     <button id="lfTabBtnTemplates" onclick="switchLoadFromTab('templates')" style="padding:0.6rem 1.1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📋 Templates</button>
                 </div>
-                <!-- History pane -->
                 <div id="lfHistoryPane">
                     <input type="search" id="lfSearch" placeholder="Search by title or client..." oninput="filterLoadFromList()" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-bottom:0.75rem;font-size:0.95rem;">
-                    <div id="lfResultsList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:0.4rem;"></div>
+                    <div id="lfResultsList" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
                 </div>
-                <!-- Templates pane -->
                 <div id="lfTemplatesPane" style="display:none;">
-                    <div id="lfTemplatePickList" style="max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:0.4rem;"></div>
+                    <div id="lfTemplatePickList" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
                     <p id="lfNoTemplates" style="display:none;color:#718096;font-style:italic;">No templates yet. Save one from the quote form or go to Settings → Quote Templates.</p>
                 </div>
             </div>
@@ -8479,16 +8477,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         let _lfAllItems = [];
 
-        function openLoadFromModal() {
-            // Build combined list: quotes + jobs
-            _lfAllItems = [
-                ...quotes.map(q => ({ type:'quote', id: q.id||q._id, title: q.title, clientId: q.clientId, total: parseFloat(q.total||0), laborItems: q.laborItems||[], materialItems: q.materialItems||[], description: q.description||'', quoteNumber: q.quoteNumber })),
-                ...jobs.map(j => ({ type:'job', id: j.id||j._id, title: j.title, clientId: j.clientId, total: parseFloat(j.total||0), laborItems: j.laborItems||[], materialItems: j.materialItems||[], description: j.description||'' }))
-            ].sort((a,b) => (b.total||0)-(a.total||0));
+        async function openLoadFromModal() {
+            const modal = document.getElementById('loadFromModal');
+            modal.style.display = 'flex';
             document.getElementById('lfSearch').value = '';
-            filterLoadFromList();
+            document.getElementById('lfResultsList').innerHTML = '<p style="color:#718096;">Loading...</p>';
             switchLoadFromTab('history');
-            openModal('loadFromModal');
+
+            try {
+                const [qRes, jRes] = await Promise.all([
+                    fetch('/api/quotes'),
+                    fetch('/api/jobs')
+                ]);
+                const allQuotes = qRes.ok ? await qRes.json() : [];
+                const allJobs   = jRes.ok ? await jRes.json() : [];
+
+                _lfAllItems = [
+                    ...allQuotes.map(q => ({ type:'quote', id: q.id||q._id, title: q.title, clientId: q.clientId, total: parseFloat(q.total||0), laborItems: q.laborItems||[], materialItems: q.materialItems||[], description: q.description||'', quoteNumber: q.quoteNumber })),
+                    ...allJobs.map(j =>   ({ type:'job',   id: j.id||j._id, title: j.title, clientId: j.clientId, total: parseFloat(j.total||0), laborItems: j.laborItems||[], materialItems: j.materialItems||[], description: j.description||'' }))
+                ].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+
+                filterLoadFromList();
+            } catch(e) {
+                document.getElementById('lfResultsList').innerHTML = '<p style="color:#e53e3e;">Failed to load. Try again.</p>';
+            }
+        }
+
+        function closeLoadFromModal() {
+            document.getElementById('loadFromModal').style.display = 'none';
         }
 
         function switchLoadFromTab(tab) {
@@ -8569,7 +8585,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const descField = document.querySelector('#quoteForm [name="description"]');
                 if (descField && !descField.value.trim()) descField.value = description;
             }
-            closeModal('loadFromModal');
+            closeLoadFromModal();
         }
 
         async function saveCurrentAsTemplate() {
