@@ -5871,21 +5871,6 @@ app.get('/quote-view/:token', async (req, res) => {
         </div>
     </div>
 
-    <!-- Deposit Prompt (non-PM clients, after approval) -->
-    <div id="depositPrompt" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;align-items:center;justify-content:center;padding:1rem;">
-        <div style="background:white;border-radius:16px;padding:2rem;max-width:440px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.25);text-align:center;">
-            <div style="font-size:2.5rem;margin-bottom:0.75rem;">🎉</div>
-            <h2 style="margin:0 0 0.5rem;color:#1a202c;font-size:1.3rem;">You're all set!</h2>
-            <p style="color:#4a5568;margin:0 0 1.25rem;line-height:1.6;">Your quote has been approved. To get on our schedule, <strong>a 50% deposit is required</strong> to hold your spot. We'll send you a secure payment link as soon as we confirm the schedule.</p>
-            <div style="background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;text-align:left;">
-                <p style="margin:0 0 0.4rem;font-weight:700;color:#276749;font-size:0.9rem;">Want to move faster?</p>
-                <p style="margin:0;color:#2d3748;font-size:0.95rem;">Call or text us and we can take care of it right away:</p>
-                ${settings?.companyPhone ? `<p style="margin:0.5rem 0 0;font-size:1.1rem;font-weight:700;color:#667eea;"><a href="tel:${(settings.companyPhone).replace(/\D/g,'')}" style="color:#667eea;text-decoration:none;">${settings.companyPhone}</a></p>` : ''}
-            </div>
-            <button onclick="document.getElementById('depositPrompt').style.display='none';location.reload();" style="width:100%;padding:0.85rem;background:#667eea;color:white;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;">Got it — I'll wait for the link</button>
-        </div>
-    </div>
-
     <!-- Reject Modal -->
     <div id="rejectModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;padding:1rem;">
         <div style="background:white;border-radius:12px;padding:1.5rem;max-width:420px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
@@ -5900,8 +5885,6 @@ app.get('/quote-view/:token', async (req, res) => {
     </div>
 
     <script>
-        const IS_PM_CLIENT = ${client?.isPropertyManagement ? 'true' : 'false'};
-
         async function submitApprove() {
             const approverName = document.getElementById('approveName').value.trim();
             const approverTitle = document.getElementById('approveTitle').value.trim();
@@ -5917,16 +5900,8 @@ app.get('/quote-view/:token', async (req, res) => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ note, approverName, approverTitle })
                 });
-                if (res.ok) {
-                    document.getElementById('approveModal').style.display = 'none';
-                    if (!IS_PM_CLIENT) {
-                        document.getElementById('depositPrompt').style.display = 'flex';
-                    } else {
-                        location.reload();
-                    }
-                } else {
-                    alert('Failed to approve. Please try again or contact us directly.');
-                }
+                if (res.ok) { document.getElementById('approveModal').style.display='none'; location.reload(); }
+                else alert('Failed to approve. Please try again or contact us directly.');
             } catch (e) { alert('Error: ' + e.message); }
         }
 
