@@ -8747,7 +8747,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const capEl = document.getElementById('portfolioDetailCaption');
             capEl.style.display = item.caption ? '' : 'none';
             if (item.caption) {
-                capEl.innerHTML = item.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+                capEl.innerHTML = item.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
             }
 
             const secs = [

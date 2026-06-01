@@ -8323,7 +8323,7 @@ function openProject(id){
   document.getElementById('proj-title').textContent=p.title||'Project Details';
   const cap=document.getElementById('proj-cap');
   cap.style.display=p.caption?'':'none';
-  if(p.caption){cap.innerHTML=p.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+  if(p.caption){cap.innerHTML=p.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');}
   const secs=[{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
   let h='';
   secs.forEach(s=>{
