@@ -3583,7 +3583,8 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             return res.status(404).json({ error: 'Quote not found' });
         }
 
-        if (quote.convertedToJobId) {
+        const isReconvert = req.query.force === 'true' && !!quote.convertedToJobId;
+        if (quote.convertedToJobId && !isReconvert) {
             return res.status(400).json({ error: 'Quote has already been converted to a job' });
         }
 
@@ -3592,10 +3593,12 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             timestamp: new Date(),
             userName: req.session.userName,
             userId: new ObjectId(req.session.userId),
-            action: 'converted_to_job',
+            action: isReconvert ? 'reconverted_to_job' : 'converted_to_job',
             oldStatus: quote.status,
             newStatus: quote.status,
-            note: `Quote #${quote.quoteNumber} converted to job by ${req.session.userName}`
+            note: isReconvert
+                ? `Quote #${quote.quoteNumber} re-converted to a new job by ${req.session.userName}`
+                : `Quote #${quote.quoteNumber} converted to job by ${req.session.userName}`
         };
 
         // Create job from quote
@@ -3630,7 +3633,9 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
         const result = await db.collection('jobs').insertOne(job);
 
         // Update the conversion entry note with the real job ID, then push to quote
-        conversionEntry.note = `Quote #${quote.quoteNumber} converted to Job #${result.insertedId.toString().slice(-6)} by ${req.session.userName}`;
+        conversionEntry.note = isReconvert
+            ? `Quote #${quote.quoteNumber} re-converted to new Job #${result.insertedId.toString().slice(-6)} by ${req.session.userName}`
+            : `Quote #${quote.quoteNumber} converted to Job #${result.insertedId.toString().slice(-6)} by ${req.session.userName}`;
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(req.params.id) },
             {

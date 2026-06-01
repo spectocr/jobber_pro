@@ -7506,8 +7506,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')">📧 Email</button>\` : ''}
-                            \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Job</button>\` : ''}
-                            \${q.convertedToJobId ? \`<span style="color:#48bb78;font-size:0.85rem;">✓ Converted</span>\` : ''}
+                            \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Job</button>\` : \`<button class="btn btn-small" onclick="reConvertQuoteToJob('\${q.id}')" style="background:#e9d8fd;color:#553c9a;border:none;cursor:pointer;" title="Create a new job from this quote">🔄 Re-convert</button>\`}
                             <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)">📦</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </div>
@@ -7541,8 +7540,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-secondary btn-small" onclick="editQuote('\${q.id}')">Edit</button>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')" title="Email quote to client">📧 Email</button>\` : ''}
-                            \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Convert to Job</button>\` : ''}
-                            \${q.convertedToJobId ? \`<span style="color: #48bb78;">✓ Converted</span>\` : ''}
+                            \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Convert to Job</button>\` : \`<button class="btn btn-small" onclick="reConvertQuoteToJob('\${q.id}')" style="background:#e9d8fd;color:#553c9a;border:none;cursor:pointer;" title="Create a new job from this quote">🔄 Re-convert to Job</button>\`}
                             <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)" title="Archive">📦 Archive</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </td>
@@ -8262,6 +8260,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
             } catch (error) {
                 alert('❌ Error converting quote: ' + error.message);
+            }
+        }
+
+        async function reConvertQuoteToJob(quoteId) {
+            if (!confirm('This will create a new job from this quote.\\n\\nThe previous job will not be deleted — use this when the scope changed and you need a fresh job.\\n\\nContinue?')) return;
+            try {
+                const response = await fetch(\`/api/quotes/\${quoteId}/convert?force=true\`, { method: 'POST' });
+                const data = await response.json();
+                if (response.ok) {
+                    alert(\`✅ New job created from quote!\\n\\nJob #\${data.jobId} has been created.\`);
+                    await loadQuotes();
+                    await loadJobs();
+                } else {
+                    alert(\`❌ Failed: \${data.error || 'Unknown error'}\`);
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
             }
         }
 
