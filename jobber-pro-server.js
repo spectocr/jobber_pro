@@ -3291,7 +3291,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     </div>
 
     <!-- Load From Modal (quotes, jobs, templates) -->
-    <div id="loadFromModal" class="modal">
+    <div id="loadFromModal" class="modal" style="z-index:1100;">
         <div class="modal-content" style="max-width:640px;">
             <div class="modal-header">
                 <h2>📋 Load Pricing From...</h2>
