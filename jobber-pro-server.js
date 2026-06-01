@@ -2405,6 +2405,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="settings-tab" onclick="switchSettingsTab('account')" data-tab="account">🔒 Account</button>
                         <button class="settings-tab" id="usersTab" onclick="switchSettingsTab('users')" data-tab="users" style="display: none;">👥 Users</button>
                         <button class="settings-tab" onclick="switchSettingsTab('compliance')" data-tab="compliance" id="complianceTabBtn">🛡️ License & Insurance</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('quotetemplates')" data-tab="quotetemplates">📋 Quote Templates</button>
                     </div>
                 </div>
 
@@ -2798,6 +2799,44 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
         </div>
     </div>
+
+                <!-- Quote Templates Tab -->
+                <div id="quotetemplatesTab" class="settings-tab-content" style="display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+                        <div>
+                            <h3 style="margin:0 0 0.25rem;color:#667eea;">📋 Quote Templates</h3>
+                            <p style="margin:0;color:#718096;font-size:0.9rem;">Save common line-item bundles to load into any new quote in one click.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="showNewTemplateForm()">+ New Template</button>
+                    </div>
+                    <div id="newTemplateForm" style="display:none;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;">
+                        <h4 style="margin:0 0 1rem;color:#4a5568;">New Template</h4>
+                        <div class="form-group" style="margin-bottom:0.75rem;">
+                            <label>Template Name *</label>
+                            <input type="text" id="newTemplateName" placeholder="e.g. Standard Drywall Patch" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0.75rem;">
+                            <label>Description (optional — pre-fills the quote description field)</label>
+                            <textarea id="newTemplateDesc" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
+                        </div>
+                        <div style="margin-bottom:0.75rem;">
+                            <label style="font-weight:600;font-size:0.85rem;color:#4a5568;display:block;margin-bottom:0.4rem;">Labor Lines</label>
+                            <div id="tplLaborRows" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.4rem;"></div>
+                            <button type="button" onclick="addTplLaborRow()" class="btn btn-secondary" style="font-size:0.85rem;padding:0.3rem 0.75rem;">+ Labor</button>
+                        </div>
+                        <div style="margin-bottom:1rem;">
+                            <label style="font-weight:600;font-size:0.85rem;color:#4a5568;display:block;margin-bottom:0.4rem;">Material Lines</label>
+                            <div id="tplMaterialRows" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.4rem;"></div>
+                            <button type="button" onclick="addTplMaterialRow()" class="btn btn-secondary" style="font-size:0.85rem;padding:0.3rem 0.75rem;">+ Material</button>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;">
+                            <button class="btn btn-primary" onclick="saveNewTemplate()">Save Template</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('newTemplateForm').style.display='none'">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="quoteTemplatesList" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
+                    <p id="noQuoteTemplates" style="color:#718096;font-style:italic;">No templates yet. Click "+ New Template" to create your first one.</p>
+                </div>
 
     <!-- Send Compliance Docs Modal -->
     <div id="sendComplianceModal" class="modal">
@@ -3251,6 +3290,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Load From Modal (quotes, jobs, templates) -->
+    <div id="loadFromModal" class="modal">
+        <div class="modal-content" style="max-width:640px;">
+            <div class="modal-header">
+                <h2>📋 Load Pricing From...</h2>
+                <button class="close-btn" onclick="closeModal('loadFromModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:1rem;">
+                    <button id="lfTabBtnHistory" onclick="switchLoadFromTab('history')" style="padding:0.6rem 1.1rem;background:none;border:none;border-bottom:3px solid #667eea;font-weight:700;color:#667eea;cursor:pointer;font-size:0.95rem;">📁 Past Quotes &amp; Jobs</button>
+                    <button id="lfTabBtnTemplates" onclick="switchLoadFromTab('templates')" style="padding:0.6rem 1.1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📋 Templates</button>
+                </div>
+                <!-- History pane -->
+                <div id="lfHistoryPane">
+                    <input type="search" id="lfSearch" placeholder="Search by title or client..." oninput="filterLoadFromList()" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-bottom:0.75rem;font-size:0.95rem;">
+                    <div id="lfResultsList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:0.4rem;"></div>
+                </div>
+                <!-- Templates pane -->
+                <div id="lfTemplatesPane" style="display:none;">
+                    <div id="lfTemplatePickList" style="max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:0.4rem;"></div>
+                    <p id="lfNoTemplates" style="display:none;color:#718096;font-style:italic;">No templates yet. Save one from the quote form or go to Settings → Quote Templates.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Send Portal Login Modal -->
     <div id="sendPortalModal" class="modal">
         <div class="modal-content" style="max-width:420px;">
@@ -3553,7 +3618,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </label>
                     </div>
 
-                    <div style="margin-top: 2rem;">
+                    <div style="margin-top:2rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+                        <h3 style="margin:0;">Line Items</h3>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button type="button" onclick="openLoadFromModal()" style="padding:0.35rem 0.85rem;background:#ebf4ff;color:#3182ce;border:1.5px solid #bee3f8;border-radius:7px;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap;">📋 Load from...</button>
+                            <button type="button" onclick="saveCurrentAsTemplate()" style="padding:0.35rem 0.85rem;background:#f0fff4;color:#276749;border:1.5px solid #9ae6b4;border-radius:7px;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap;">💾 Save as Template</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 0.5rem;">
                         <h3 style="margin-bottom: 1rem;">Labor</h3>
                         <div id="quoteLaborItems"></div>
                         <button type="button" class="btn btn-secondary" onclick="addQuoteLaborItem()" style="margin-top: 0.5rem;">+ Add Labor</button>
@@ -4406,6 +4479,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 teamForm.addEventListener('input', markFormDirty);
                 teamForm.addEventListener('change', markFormDirty);
             }
+
+            // Pre-load quote templates so "Load from..." modal works without visiting Settings
+            loadQuoteTemplates();
         });
 
         // Modals
@@ -7507,6 +7583,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')">📧 Email</button>\` : ''}
                             \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Job</button>\` : \`<button class="btn btn-small" onclick="reConvertQuoteToJob('\${q.id}')" style="background:#e9d8fd;color:#553c9a;border:none;cursor:pointer;" title="Create a new job from this quote">🔄 Re-convert</button>\`}
+                            <button class="btn btn-secondary btn-small" onclick="duplicateQuote('\${q.id}')" title="Duplicate this quote">⧉ Dupe</button>
                             <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)">📦</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </div>
@@ -7541,6 +7618,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button class="btn btn-primary btn-small" onclick="window.open('/quote-view/\${q.secureToken}', '_blank')">📄 View</button>
                             \${q.status === 'draft' || q.status === 'sent' ? \`<button class="btn btn-secondary btn-small" onclick="emailQuote('\${q.id}')" title="Email quote to client">📧 Email</button>\` : ''}
                             \${!q.convertedToJobId ? \`<button class="btn btn-success btn-small" onclick="convertQuoteToJob('\${q.id}','\${q.status}')" style="\${q.status !== 'approved' && q.status !== 'in_review' ? 'opacity:0.7;' : ''}">➡️ Convert to Job</button>\` : \`<button class="btn btn-small" onclick="reConvertQuoteToJob('\${q.id}')" style="background:#e9d8fd;color:#553c9a;border:none;cursor:pointer;" title="Create a new job from this quote">🔄 Re-convert to Job</button>\`}
+                            <button class="btn btn-secondary btn-small" onclick="duplicateQuote('\${q.id}')" title="Duplicate this quote">⧉ Duplicate</button>
                             <button class="btn btn-secondary btn-small" onclick="archiveQuote('\${q.id}', true)" title="Archive">📦 Archive</button>
                             <button class="btn btn-danger btn-small" onclick="deleteQuote('\${q.id}')">Delete</button>
                         </td>
@@ -8280,6 +8358,275 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        // ── Quote Templates & Load-From ────────────────────────────────────────
+
+        let quoteTemplates = [];
+
+        async function loadQuoteTemplates() {
+            try {
+                const r = await fetch('/api/quote-templates');
+                quoteTemplates = await r.json();
+                renderQuoteTemplatesSettings();
+            } catch (e) { console.error('loadQuoteTemplates:', e); }
+        }
+
+        function renderQuoteTemplatesSettings() {
+            const list = document.getElementById('quoteTemplatesList');
+            const empty = document.getElementById('noQuoteTemplates');
+            if (!list) return;
+            if (quoteTemplates.length === 0) {
+                list.innerHTML = '';
+                if (empty) empty.style.display = '';
+                return;
+            }
+            if (empty) empty.style.display = 'none';
+            list.innerHTML = quoteTemplates.map(t => {
+                const laborCount = (t.laborItems||[]).length;
+                const matCount   = (t.materialItems||[]).length;
+                const total = [...(t.laborItems||[])].reduce((s,i)=>s+(parseFloat(i.hours||0)*parseFloat(i.rate||0)),0)
+                            + [...(t.materialItems||[])].reduce((s,i)=>s+(parseFloat(i.quantity||0)*parseFloat(i.price||0)),0);
+                return \`<div style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+                    <div>
+                        <div style="font-weight:700;color:#1a202c;font-size:0.97rem;">\${t.name}</div>
+                        <div style="color:#718096;font-size:0.82rem;margin-top:0.2rem;">\${laborCount} labor · \${matCount} material · est. \${formatMoney(total)}\${t.description ? ' · <em>' + t.description.slice(0,50) + (t.description.length>50?'…':'') + '</em>' : ''}</div>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;white-space:nowrap;">
+                        <button class="btn btn-secondary btn-small" onclick="editTemplate('\${t.id||t._id}')">Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteTemplate('\${t.id||t._id}')">Delete</button>
+                    </div>
+                </div>\`;
+            }).join('');
+        }
+
+        function showNewTemplateForm() {
+            document.getElementById('newTemplateForm').style.display = 'block';
+            document.getElementById('newTemplateName').value = '';
+            document.getElementById('newTemplateDesc').value = '';
+            document.getElementById('tplLaborRows').innerHTML = '';
+            document.getElementById('tplMaterialRows').innerHTML = '';
+            addTplLaborRow();
+        }
+
+        function addTplLaborRow(desc='', hours=0, rate=0) {
+            const id = Date.now() + Math.random();
+            const row = document.createElement('div');
+            row.className = 'tpl-labor-row';
+            row.style.cssText = 'display:flex;gap:0.4rem;align-items:center;';
+            row.innerHTML = \`<input type="text" placeholder="Description" value="\${desc}" style="flex:2;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">
+                <input type="number" placeholder="Hrs" value="\${hours||''}" min="0" step="0.25" style="width:60px;padding:0.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">
+                <input type="number" placeholder="Rate" value="\${rate||''}" min="0" step="0.01" style="width:70px;padding:0.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">
+                <button type="button" onclick="this.closest('.tpl-labor-row').remove()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:1.1rem;padding:0 0.2rem;">&times;</button>\`;
+            document.getElementById('tplLaborRows').appendChild(row);
+        }
+
+        function addTplMaterialRow(desc='', qty=0, price=0) {
+            const row = document.createElement('div');
+            row.className = 'tpl-material-row';
+            row.style.cssText = 'display:flex;gap:0.4rem;align-items:center;';
+            row.innerHTML = \`<input type="text" placeholder="Description" value="\${desc}" style="flex:2;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">
+                <input type="number" placeholder="Qty" value="\${qty||''}" min="0" step="1" style="width:60px;padding:0.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">
+                <input type="number" placeholder="Price" value="\${price||''}" min="0" step="0.01" style="width:70px;padding:0.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">
+                <button type="button" onclick="this.closest('.tpl-material-row').remove()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:1.1rem;padding:0 0.2rem;">&times;</button>\`;
+            document.getElementById('tplMaterialRows').appendChild(row);
+        }
+
+        function collectTplRows() {
+            const laborItems = [...document.querySelectorAll('#tplLaborRows .tpl-labor-row')].map(r => {
+                const [desc, hrs, rate] = r.querySelectorAll('input');
+                return { id: Date.now()+Math.random(), description: desc.value.trim(), hours: parseFloat(hrs.value)||0, rate: parseFloat(rate.value)||0 };
+            }).filter(i => i.description || i.hours);
+            const materialItems = [...document.querySelectorAll('#tplMaterialRows .tpl-material-row')].map(r => {
+                const [desc, qty, price] = r.querySelectorAll('input');
+                return { id: Date.now()+Math.random(), description: desc.value.trim(), quantity: parseFloat(qty.value)||0, price: parseFloat(price.value)||0 };
+            }).filter(i => i.description || i.quantity);
+            return { laborItems, materialItems };
+        }
+
+        async function saveNewTemplate() {
+            const name = document.getElementById('newTemplateName').value.trim();
+            if (!name) { document.getElementById('newTemplateName').focus(); return; }
+            const description = document.getElementById('newTemplateDesc').value.trim();
+            const { laborItems, materialItems } = collectTplRows();
+            const r = await fetch('/api/quote-templates', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, laborItems, materialItems, description })
+            });
+            if (r.ok) {
+                document.getElementById('newTemplateForm').style.display = 'none';
+                await loadQuoteTemplates();
+            } else { alert('Failed to save template.'); }
+        }
+
+        async function deleteTemplate(id) {
+            if (!confirm('Delete this template?')) return;
+            await fetch('/api/quote-templates/' + id, { method: 'DELETE' });
+            await loadQuoteTemplates();
+        }
+
+        async function editTemplate(id) {
+            const t = quoteTemplates.find(t => (t.id||t._id) == id);
+            if (!t) return;
+            const name = prompt('Template name:', t.name);
+            if (name === null) return;
+            await fetch('/api/quote-templates/' + id, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), laborItems: t.laborItems, materialItems: t.materialItems, description: t.description })
+            });
+            await loadQuoteTemplates();
+        }
+
+        // ── Load-from modal ────────────────────────────────────────────────────
+
+        let _lfAllItems = [];
+
+        function openLoadFromModal() {
+            // Build combined list: quotes + jobs
+            _lfAllItems = [
+                ...quotes.map(q => ({ type:'quote', id: q.id||q._id, title: q.title, clientId: q.clientId, total: parseFloat(q.total||0), laborItems: q.laborItems||[], materialItems: q.materialItems||[], description: q.description||'', quoteNumber: q.quoteNumber })),
+                ...jobs.map(j => ({ type:'job', id: j.id||j._id, title: j.title, clientId: j.clientId, total: parseFloat(j.total||0), laborItems: j.laborItems||[], materialItems: j.materialItems||[], description: j.description||'' }))
+            ].sort((a,b) => (b.total||0)-(a.total||0));
+            document.getElementById('lfSearch').value = '';
+            filterLoadFromList();
+            switchLoadFromTab('history');
+            openModal('loadFromModal');
+        }
+
+        function switchLoadFromTab(tab) {
+            const isHistory = tab === 'history';
+            document.getElementById('lfHistoryPane').style.display    = isHistory ? '' : 'none';
+            document.getElementById('lfTemplatesPane').style.display   = isHistory ? 'none' : '';
+            const btnH = document.getElementById('lfTabBtnHistory');
+            const btnT = document.getElementById('lfTabBtnTemplates');
+            btnH.style.borderBottomColor = isHistory ? '#667eea' : 'transparent';
+            btnH.style.color = isHistory ? '#667eea' : '#718096';
+            btnH.style.fontWeight = isHistory ? '700' : '600';
+            btnT.style.borderBottomColor = isHistory ? 'transparent' : '#667eea';
+            btnT.style.color = isHistory ? '#718096' : '#667eea';
+            btnT.style.fontWeight = isHistory ? '600' : '700';
+            if (!isHistory) renderLoadFromTemplates();
+        }
+
+        function filterLoadFromList() {
+            const q = (document.getElementById('lfSearch').value || '').toLowerCase();
+            const filtered = q ? _lfAllItems.filter(i => {
+                const client = findClient(i.clientId);
+                return (i.title||'').toLowerCase().includes(q)
+                    || (client?.name||'').toLowerCase().includes(q)
+                    || (i.quoteNumber||'').toLowerCase().includes(q);
+            }) : _lfAllItems;
+            const list = document.getElementById('lfResultsList');
+            if (filtered.length === 0) { list.innerHTML = '<p style="color:#718096;font-style:italic;">No results.</p>'; return; }
+            list.innerHTML = filtered.slice(0,40).map(i => {
+                const client = findClient(i.clientId);
+                const label = i.type === 'quote' ? (i.quoteNumber ? i.quoteNumber + ' — ' : '') + 'Quote' : 'Job';
+                const lc = (i.laborItems||[]).length, mc = (i.materialItems||[]).length;
+                return \`<button type="button" onclick="applyLoadFrom('\${i.type}','\${i.id}')" style="text-align:left;width:100%;padding:0.75rem 1rem;background:white;border:2px solid #e2e8f0;border-radius:9px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#667eea'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <div style="font-weight:700;color:#1a202c;font-size:0.93rem;">\${i.title||'Untitled'}</div>
+                    <div style="font-size:0.8rem;color:#718096;margin-top:0.2rem;">\${label} · \${client?.name||'Unknown client'} · \${lc} labor · \${mc} material · \${formatMoney(i.total)}</div>
+                </button>\`;
+            }).join('');
+        }
+
+        function renderLoadFromTemplates() {
+            const list = document.getElementById('lfTemplatePickList');
+            const empty = document.getElementById('lfNoTemplates');
+            if (quoteTemplates.length === 0) {
+                list.innerHTML = '';
+                empty.style.display = '';
+                return;
+            }
+            empty.style.display = 'none';
+            list.innerHTML = quoteTemplates.map(t => {
+                const lc = (t.laborItems||[]).length, mc = (t.materialItems||[]).length;
+                const total = (t.laborItems||[]).reduce((s,i)=>s+(parseFloat(i.hours||0)*parseFloat(i.rate||0)),0)
+                            + (t.materialItems||[]).reduce((s,i)=>s+(parseFloat(i.quantity||0)*parseFloat(i.price||0)),0);
+                return \`<button type="button" onclick="applyLoadFromTemplate('\${t.id||t._id}')" style="text-align:left;width:100%;padding:0.75rem 1rem;background:white;border:2px solid #e2e8f0;border-radius:9px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#667eea'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <div style="font-weight:700;color:#1a202c;font-size:0.93rem;">\${t.name}</div>
+                    <div style="font-size:0.8rem;color:#718096;margin-top:0.2rem;">\${lc} labor · \${mc} material · est. \${formatMoney(total)}\${t.description ? ' · ' + t.description.slice(0,60) : ''}</div>
+                </button>\`;
+            }).join('');
+        }
+
+        function applyLoadFrom(type, id) {
+            const src = _lfAllItems.find(i => i.type === type && String(i.id) === String(id));
+            if (!src) return;
+            _applyLineItems(src.laborItems, src.materialItems, src.description);
+        }
+
+        function applyLoadFromTemplate(id) {
+            const t = quoteTemplates.find(t => String(t.id||t._id) === String(id));
+            if (!t) return;
+            _applyLineItems(t.laborItems, t.materialItems, t.description);
+        }
+
+        function _applyLineItems(laborItems, materialItems, description) {
+            quoteLaborItems = (laborItems||[]).map(i => ({ ...i, id: Date.now() + Math.random() }));
+            quoteMaterialItems = (materialItems||[]).map(i => ({ ...i, id: Date.now() + Math.random() }));
+            renderQuoteLaborItems();
+            renderQuoteMaterialItems();
+            updateQuoteTotal();
+            if (description) {
+                const descField = document.querySelector('#quoteForm [name="description"]');
+                if (descField && !descField.value.trim()) descField.value = description;
+            }
+            closeModal('loadFromModal');
+        }
+
+        async function saveCurrentAsTemplate() {
+            if (quoteLaborItems.length === 0 && quoteMaterialItems.length === 0) {
+                alert('Add some line items first, then save as a template.');
+                return;
+            }
+            const name = prompt('Name this template:');
+            if (!name?.trim()) return;
+            const description = document.querySelector('#quoteForm [name="description"]')?.value.trim() || '';
+            const r = await fetch('/api/quote-templates', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), laborItems: quoteLaborItems, materialItems: quoteMaterialItems, description })
+            });
+            if (r.ok) { alert('Template saved!'); await loadQuoteTemplates(); }
+            else { alert('Failed to save template.'); }
+        }
+
+        // ── Duplicate ──────────────────────────────────────────────────────────
+
+        function duplicateQuote(quoteId) {
+            const q = quotes.find(q => (q.id||q._id) == quoteId);
+            if (!q) return;
+            showAddQuoteModal();
+            setTimeout(() => {
+                document.querySelector('#quoteForm [name="title"]').value = q.title || '';
+                document.querySelector('#quoteForm [name="description"]').value = q.description || '';
+                if (q.clientId) setQuoteClientById(q.clientId);
+                quoteLaborItems   = (q.laborItems||[]).map(i => ({ ...i, id: Date.now()+Math.random() }));
+                quoteMaterialItems = (q.materialItems||[]).map(i => ({ ...i, id: Date.now()+Math.random() }));
+                document.getElementById('quoteTaxWaivedCheckbox').checked = q.taxWaived || false;
+                renderQuoteLaborItems();
+                renderQuoteMaterialItems();
+                updateQuoteTotal();
+                markFormDirty();
+            }, 60);
+        }
+
+        function duplicateJob(jobId) {
+            const j = jobs.find(j => (j.id||j._id) == jobId);
+            if (!j) return;
+            showView('quotes');
+            showAddQuoteModal();
+            setTimeout(() => {
+                document.querySelector('#quoteForm [name="title"]').value = j.title || '';
+                document.querySelector('#quoteForm [name="description"]').value = j.description || '';
+                if (j.clientId) setQuoteClientById(j.clientId);
+                quoteLaborItems   = (j.laborItems||[]).map(i => ({ ...i, id: Date.now()+Math.random() }));
+                quoteMaterialItems = (j.materialItems||[]).map(i => ({ ...i, id: Date.now()+Math.random() }));
+                document.getElementById('quoteTaxWaivedCheckbox').checked = j.taxWaived || false;
+                renderQuoteLaborItems();
+                renderQuoteMaterialItems();
+                updateQuoteTotal();
+                markFormDirty();
+            }, 60);
+        }
+
         // ===== END QUOTES FUNCTIONS =====
 
         function renderJobsTable() {
@@ -8369,6 +8716,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     \${!isPaidInFull ? \`<button onclick="openEnterCardModal('\${j.id}')" class="jm-item">💳 Enter Card</button>\` : ''}
                                     <button onclick="showPayDiag('\${j.id}')" class="jm-item">⚡ Pay Log</button>
                                     <button onclick="openSignoffForm('\${j.id}')" class="jm-item">✍️ Sign-Off Form</button>
+                                    <button onclick="duplicateJob('\${j.id}')" class="jm-item">⧉ Duplicate as Quote</button>
                                     <div style="border-top:1px solid #f1f5f9;margin:0.25rem 0;"></div>
                                     <button onclick="deleteJob('\${j.id}')" class="jm-item" style="color:#dc2626;">🗑 Delete</button>
                                 </div>
@@ -8430,6 +8778,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                         <button onclick="showPayDiag('\${j.id}')" class="jm-item">⚡ Pay Log</button>
                                         \${j.calendarEventId ? \`<button onclick="window.open('\${j.calendarEventLink}','_blank')" class="jm-item">📅 View Calendar</button>\` : (j.scheduledDate && j.status==='scheduled' ? \`<button onclick="createCalendarEvent('\${j.id}')" class="jm-item">📅 Add to Calendar</button>\` : '')}
                                         <button onclick="openSignoffForm('\${j.id}')" class="jm-item">✍️ Sign-Off Form</button>
+                                        <button onclick="duplicateJob('\${j.id}')" class="jm-item">⧉ Duplicate as Quote</button>
                                         <div style="border-top:1px solid #f1f5f9;margin:0.25rem 0;"></div>
                                         <button onclick="deleteJob('\${j.id}')" class="jm-item" style="color:#dc2626;">🗑 Delete</button>
                                     </div>
@@ -10511,6 +10860,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             if (tabName === 'compliance') {
                 loadComplianceDocs();
+            }
+            if (tabName === 'quotetemplates') {
+                loadQuoteTemplates();
             }
         }
 

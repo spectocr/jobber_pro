@@ -6525,6 +6525,44 @@ app.delete('/api/compliance-docs/:id', isAuthenticated, async (req, res) => {
     }
 });
 
+// ── Quote Templates ─────────────────────────────────────────────────────────
+app.get('/api/quote-templates', isAuthenticated, async (req, res) => {
+    try {
+        const templates = await db.collection('quote_templates').find({}).sort({ createdAt: -1 }).toArray();
+        res.json(templates.map(t => ({ ...t, id: t._id.toString() })));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/quote-templates', isAuthenticated, async (req, res) => {
+    try {
+        const { name, laborItems, materialItems, description } = req.body;
+        if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
+        const result = await db.collection('quote_templates').insertOne({
+            name: name.trim(), laborItems: laborItems || [], materialItems: materialItems || [],
+            description: description || '', createdAt: new Date()
+        });
+        res.json({ id: result.insertedId.toString(), success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/quote-templates/:id', isAuthenticated, async (req, res) => {
+    try {
+        const { name, laborItems, materialItems, description } = req.body;
+        await db.collection('quote_templates').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { name, laborItems, materialItems, description, updatedAt: new Date() } }
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/quote-templates/:id', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('quote_templates').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Send compliance docs to a client — stream from S3 and attach to email
 app.post('/api/compliance-docs/send-email', isAuthenticated, async (req, res) => {
     try {
