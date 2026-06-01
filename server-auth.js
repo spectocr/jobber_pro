@@ -8122,8 +8122,8 @@ function _pfFormatCaption(text) {
         const fc = line.trimStart().charAt(0);
         const isBullet = (fc === '-' || fc === '*' || fc === '•') && line.trim().length > 1;
         if (isBullet) {
-            if (!inList) { html += '<ul style="margin:.25rem 0 .25rem 1.2rem;padding:0;">'; inList = true; }
-            html += `<li style="margin:.1rem 0;">${esc(line.trim().slice(1).trim())}</li>`;
+            if (!inList) { html += '<ul style="margin:.2rem 0 .2rem 0;padding-left:1.2rem;">'; inList = true; }
+            html += `<li>${esc(line.trim().slice(1).trim())}</li>`;
         } else {
             if (inList) { html += '</ul>'; inList = false; }
             if (line.trim()) html += esc(line) + '<br>';

@@ -2177,7 +2177,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div style="margin-bottom:1rem;">
                         <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Caption</label>
-                        <textarea id="portfolioCaption" rows="2" placeholder="Brief description of the work done..." style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
+                        <textarea id="portfolioCaption" rows="5" placeholder="Brief description of the work done...&#10;&#10;Use - or • at the start of a line for bullet points." style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;box-sizing:border-box;resize:vertical;line-height:1.5;"></textarea>
                     </div>
                     <div style="margin-bottom:1.25rem;">
                         <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-weight:600;">
@@ -13992,16 +13992,19 @@ function formatDuration(seconds) {
         // ── Portfolio caption formatter ──────────────────────────────────────────
         function _portfolioFmt(text) {
             if (!text) return '';
-            const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            const lines = text.split('\\n');
-            let h = '', inList = false;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const fc = line.trimStart().charAt(0);
-                const isBullet = (fc === '-' || fc === '*' || fc === '\\u2022') && line.trim().length > 1;
+            var NL  = String.fromCharCode(10);   // newline — avoids \n escape in template literal
+            var DOT = String.fromCharCode(8226);  // • bullet character
+            var CR  = String.fromCharCode(13);
+            var esc = function(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+            var lines = text.replace(new RegExp(CR,'g'),'').split(NL);
+            var h = '', inList = false;
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                var fc = line.trimStart ? line.trimStart().charAt(0) : line.replace(/^\s+/,'').charAt(0);
+                var isBullet = (fc === '-' || fc === '*' || fc === DOT) && line.trim().length > 1;
                 if (isBullet) {
-                    if (!inList) { h += '<ul style="margin:.25rem 0 .25rem 1.2rem;padding:0;">'; inList = true; }
-                    h += '<li style="margin:.1rem 0;">' + esc(line.trim().slice(1).trim()) + '</li>';
+                    if (!inList) { h += '<ul style="margin:.2rem 0 .2rem 1.2rem;padding-left:.9rem;">'; inList = true; }
+                    h += '<li>' + esc(line.trim().slice(1).trim()) + '</li>';
                 } else {
                     if (inList) { h += '</ul>'; inList = false; }
                     if (line.trim()) h += esc(line) + '<br>';
@@ -14009,7 +14012,7 @@ function formatDuration(seconds) {
                 }
             }
             if (inList) h += '</ul>';
-            return h.replace(/(<br>)+$/, '');
+            return h.replace(/<br>$/, '');
         }
 
         // ── Clippit (Activity Bot) ────────────────────────────────────────────────
