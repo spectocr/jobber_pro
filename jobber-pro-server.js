@@ -8724,9 +8724,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             const TRUNC = 150;
                             const full = item.caption;
                             const trunc = full.length > TRUNC ? full.slice(0, TRUNC).replace(/\\s+\\S*$/, '') + '…' : full;
-                            const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
                             const more = full.length > TRUNC ? \` <button onclick="event.stopPropagation();openPortfolioDetail('\${item.id}')" style="background:none;border:none;padding:0;color:#1d6fa4;font-size:0.82rem;font-weight:600;cursor:pointer;text-decoration:underline;">View more</button>\` : '';
-                            return \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.2rem;line-height:1.4;">\${esc(trunc)}\${more}</div>\`;
+                            return \`<div style="color:#6b7280;font-size:0.85rem;margin-top:0.2rem;line-height:1.4;">\${_portfolioFmt(trunc)}\${more}</div>\`;
                         })() : ''}
                         <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
                             <button onclick="event.stopPropagation();openPortfolioModal('\${item.id}')" style="padding:0.35rem 0.8rem;background:#ede9fe;color:#6d28d9;border:none;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Edit</button>
@@ -8745,10 +8744,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             document.getElementById('portfolioDetailTitle').textContent = item.title || 'Untitled Project';
             const capEl = document.getElementById('portfolioDetailCaption');
-            capEl.style.display = item.caption ? '' : 'none';
-            if (item.caption) {
-                capEl.innerHTML = item.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
-            }
+            const capHtml = _portfolioFmt(item.caption);
+            capEl.style.display = capHtml ? '' : 'none';
+            capEl.innerHTML = capHtml;
 
             const secs = [
                 { key: 'before', label: '📷 Before', color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
@@ -13990,6 +13988,29 @@ function formatDuration(seconds) {
                 loadDashboard();
             }
         }, 30000);
+
+        // ── Portfolio caption formatter ──────────────────────────────────────────
+        function _portfolioFmt(text) {
+            if (!text) return '';
+            const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const lines = text.split('\\n');
+            let h = '', inList = false;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const fc = line.trimStart().charAt(0);
+                const isBullet = (fc === '-' || fc === '*' || fc === '\\u2022') && line.trim().length > 1;
+                if (isBullet) {
+                    if (!inList) { h += '<ul style="margin:.25rem 0 .25rem 1.2rem;padding:0;">'; inList = true; }
+                    h += '<li style="margin:.1rem 0;">' + esc(line.trim().slice(1).trim()) + '</li>';
+                } else {
+                    if (inList) { h += '</ul>'; inList = false; }
+                    if (line.trim()) h += esc(line) + '<br>';
+                    else if (h.length) h += '<br>';
+                }
+            }
+            if (inList) h += '</ul>';
+            return h.replace(/(<br>)+$/, '');
+        }
 
         // ── Clippit (Activity Bot) ────────────────────────────────────────────────
         let _botLoaded = false;

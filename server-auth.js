@@ -8113,6 +8113,26 @@ function _pfUrl(raw) {
 
 function _pfEsc(s) { return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function _pfHe(s)  { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _pfFormatCaption(text) {
+    if (!text) return '';
+    const esc = s => _pfHe(s);
+    const lines = text.split('\n');
+    let html = '', inList = false;
+    for (const line of lines) {
+        const fc = line.trimStart().charAt(0);
+        const isBullet = (fc === '-' || fc === '*' || fc === '•') && line.trim().length > 1;
+        if (isBullet) {
+            if (!inList) { html += '<ul style="margin:.25rem 0 .25rem 1.2rem;padding:0;">'; inList = true; }
+            html += `<li style="margin:.1rem 0;">${esc(line.trim().slice(1).trim())}</li>`;
+        } else {
+            if (inList) { html += '</ul>'; inList = false; }
+            if (line.trim()) html += esc(line) + '<br>';
+            else if (html.length) html += '<br>';
+        }
+    }
+    if (inList) html += '</ul>';
+    return html.replace(/(<br>)+$/, '');
+}
 
 function generatePortfolioHtml(rawItems) {
     const CAT_ORDER = ['bathroom','kitchen','deck','flooring','painting','carpentry','electrical','plumbing','exterior','general'];
@@ -8149,7 +8169,7 @@ function generatePortfolioHtml(rawItems) {
         const capFull = item.caption;
         const capTrunc = capFull.length > TRUNC ? capFull.slice(0, TRUNC).replace(/\s+\S*$/, '') + '…' : capFull;
         const capHtml = capFull
-            ? `<div class="card-caption">${_pfHe(capTrunc).replace(/\n/g, '<br>')}${capFull.length > TRUNC ? ` <button class="cap-more" onclick="event.stopPropagation();openProject('${_pfEsc(item.id)}')">View more</button>` : ''}</div>`
+            ? `<div class="card-caption">${_pfFormatCaption(capTrunc)}${capFull.length > TRUNC ? ` <button class="cap-more" onclick="event.stopPropagation();openProject('${_pfEsc(item.id)}')">View more</button>` : ''}</div>`
             : '';
         const body = (catBadge || item.title || item.caption) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${capHtml}</div>` : '';
 
@@ -8185,7 +8205,7 @@ function generatePortfolioHtml(rawItems) {
 
     // JSON payload for lightbox (UX only — SEO comes from the <img> tags above)
     const projectJson = JSON.stringify(items.map(i => ({
-        id: i.id, title: i.title, caption: i.caption, catName: i.catName,
+        id: i.id, title: i.title, captionHtml: _pfFormatCaption(i.caption), catName: i.catName,
         photos: i.photos.map(p => ({ url: p.url, type: p.type }))
     }))).replace(/<\/script>/gi, '<\\/script>');
 
@@ -8322,8 +8342,8 @@ function openProject(id){
   const p=PF.find(x=>x.id===id); if(!p) return;
   document.getElementById('proj-title').textContent=p.title||'Project Details';
   const cap=document.getElementById('proj-cap');
-  cap.style.display=p.caption?'':'none';
-  if(p.caption){cap.innerHTML=p.caption.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');}
+  cap.style.display=p.captionHtml?'':'none';
+  cap.innerHTML=p.captionHtml||'';
   const secs=[{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
   let h='';
   secs.forEach(s=>{
