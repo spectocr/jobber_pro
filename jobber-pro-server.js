@@ -12124,7 +12124,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <td style="padding:0.75rem 1rem;">\${expiryStr}</td>
                     <td style="padding:0.75rem 1rem;">\${statusBadge}</td>
                     <td style="padding:0.75rem 1rem;">
-                        <div style="display:flex;gap:0.5rem;">
+                        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                            <button class="btn btn-primary btn-small" onclick="viewComplianceDoc('\${doc._id}')">👁 View</button>
+                            <button class="btn btn-secondary btn-small" onclick="printComplianceDoc('\${doc._id}')">🖨 Print</button>
                             <button class="btn btn-secondary btn-small" onclick="downloadComplianceDoc('\${doc._id}')">⬇ Download</button>
                             <button class="btn btn-secondary btn-small" onclick="openEditComplianceDoc('\${doc._id}')">Edit</button>
                             <button class="btn btn-secondary btn-small" style="color:#dc2626;border-color:#fecaca;" onclick="deleteComplianceDoc('\${doc._id}')">Delete</button>
@@ -12225,16 +12227,34 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        async function downloadComplianceDoc(docId) {
+        function viewComplianceDoc(docId) {
+            window.open('/api/compliance-docs/' + docId + '/view', '_blank');
+        }
+
+        function printComplianceDoc(docId) {
             const doc = _complianceDocs.find(d => d._id === docId);
-            const filename = doc ? doc.filename : 'document';
-            const res = await fetch('/api/compliance-docs/' + docId + '/file');
-            if (!res.ok) { alert('Download failed'); return; }
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
+            const isPdf = doc && (doc.mimeType === 'application/pdf' || (doc.filename||'').toLowerCase().endsWith('.pdf'));
+            if (isPdf) {
+                const iframe = document.createElement('iframe');
+                iframe.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
+                iframe.src = '/api/compliance-docs/' + docId + '/view';
+                document.body.appendChild(iframe);
+                iframe.onload = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); };
+            } else {
+                // For images: open in new window and print
+                const win = window.open('/api/compliance-docs/' + docId + '/view', '_blank');
+                win.onload = () => win.print();
+            }
+        }
+
+        function downloadComplianceDoc(docId) {
+            const doc = _complianceDocs.find(d => d._id === docId);
             const a = document.createElement('a');
-            a.href = url; a.download = filename; a.click();
-            URL.revokeObjectURL(url);
+            a.href = '/api/compliance-docs/' + docId + '/file';
+            a.download = doc ? doc.filename : 'document';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
 
         async function openSendComplianceModal(clientId) {
