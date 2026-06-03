@@ -12232,19 +12232,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function printComplianceDoc(docId) {
-            const doc = _complianceDocs.find(d => d._id === docId);
-            const isPdf = doc && (doc.mimeType === 'application/pdf' || (doc.filename||'').toLowerCase().endsWith('.pdf'));
-            if (isPdf) {
-                const iframe = document.createElement('iframe');
-                iframe.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
-                iframe.src = '/api/compliance-docs/' + docId + '/view';
-                document.body.appendChild(iframe);
-                iframe.onload = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); };
-            } else {
-                // For images: open in new window and print
-                const win = window.open('/api/compliance-docs/' + docId + '/view', '_blank');
-                win.onload = () => win.print();
-            }
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
+            iframe.src = '/api/compliance-docs/' + docId + '/inline';
+            document.body.appendChild(iframe);
+            iframe.onload = () => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe); }, 60000);
+            };
         }
 
         function downloadComplianceDoc(docId) {

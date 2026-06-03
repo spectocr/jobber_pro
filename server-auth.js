@@ -6498,6 +6498,20 @@ app.get('/api/compliance-docs/:id/file', isAuthenticated, async (req, res) => {
     }
 });
 
+// Inline — streams from S3 with Content-Disposition: inline (same-origin, safe for iframe printing)
+app.get('/api/compliance-docs/:id/inline', isAuthenticated, async (req, res) => {
+    try {
+        const doc = await db.collection('compliance_docs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!doc) return res.status(404).json({ error: 'Not found' });
+        const s3Res = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET_NAME, Key: doc.s3Key }));
+        res.setHeader('Content-Disposition', `inline; filename="${doc.filename.replace(/"/g, '')}"`);
+        res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+        s3Res.Body.pipe(res);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // View — redirects to a short-lived signed URL so browser renders inline
 app.get('/api/compliance-docs/:id/view', isAuthenticated, async (req, res) => {
     try {
