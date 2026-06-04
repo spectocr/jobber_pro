@@ -8696,8 +8696,10 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             }
             var title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
             var rawCap = item.caption || '';
-            var truncCap = rawCap.length > 110 ? rawCap.slice(0, 110).replace(/\s+\S*$/, '') + '…' : rawCap;
-            var caption = truncCap ? '<div style="color:#6b7280;font-size:0.82rem;margin-top:0.25rem;line-height:1.5;">'+truncCap+'</div>' : '';
+            var isTrunc = rawCap.length > 110;
+            var truncCap = isTrunc ? rawCap.slice(0, 110).replace(/\s+\S*$/, '') + '… ' : rawCap;
+            var viewMore = isTrunc ? '<button onclick="event.stopPropagation();pmOpenProject('+idx+')" style="background:none;border:none;padding:0;color:#1d4ed8;font-size:0.82rem;font-weight:600;cursor:pointer;text-decoration:underline;">View more</button>' : '';
+            var caption = truncCap ? '<div style="color:#6b7280;font-size:0.82rem;margin-top:0.25rem;line-height:1.5;">'+truncCap+viewMore+'</div>' : '';
             return '<div onclick="pmOpenProject('+idx+')" class="pm-card" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;transition:transform .2s,box-shadow .2s;">'
                 +'<div style="'+containerStyle+'">'+inner+'</div>'
                 +'<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'
