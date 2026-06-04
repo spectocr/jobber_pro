@@ -2514,7 +2514,7 @@ app.get('/api/portfolio', async (req, res) => {
                 photos = [{ s3Key: item.s3Key, url: portfolioPhotoUrl(item.s3Key), type: 'after' }];
             }
             const coverPhoto = photos.find(p => p.type === 'after') || photos[0];
-            return { id, title: item.title || '', caption: item.caption || '', category: item.category || '', commercial: item.commercial || false, photos, photoUrl: coverPhoto?.url || portfolioPhotoUrl(item.s3Key) || '', createdAt: item.createdAt };
+            return { id, title: item.title || '', caption: item.caption || '', captionHtml: _pfFormatCaption(item.caption || ''), category: item.category || '', commercial: item.commercial || false, photos, photoUrl: coverPhoto?.url || portfolioPhotoUrl(item.s3Key) || '', createdAt: item.createdAt };
         }));
     } catch (err) {
         console.error('Portfolio GET error:', err);
@@ -8647,7 +8647,7 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             var item = window._pmData[idx]; if (!item) return;
             document.getElementById('pm-proj-title').textContent = item.title || 'Project Details';
             var cap = document.getElementById('pm-proj-cap');
-            cap.textContent = item.caption || ''; cap.style.display = item.caption ? '' : 'none';
+            cap.innerHTML = item.captionHtml || ''; cap.style.display = item.captionHtml ? '' : 'none';
             var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
             var secs = [{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
             var h = '';
@@ -8877,7 +8877,7 @@ function makeLocPortfolioBlock() {
                 var item = window._hpData[idx]; if (!item) return;
                 document.getElementById('hp-proj-title').textContent = item.title || 'Project Details';
                 var cap = document.getElementById('hp-proj-cap');
-                cap.textContent = item.caption || ''; cap.style.display = item.caption ? '' : 'none';
+                cap.innerHTML = item.captionHtml || ''; cap.style.display = item.captionHtml ? '' : 'none';
                 var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
                 var secs = [{k:'before',l:'\\uD83D\\uDCF7 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'\\u2705 After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'\\uD83D\\uDCCC Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
                 var h = '';
@@ -9067,7 +9067,7 @@ const HOME_PORTFOLIO_NEW = `(function(){
                 var item = window._hpData[idx]; if (!item) return;
                 document.getElementById('hp-proj-title').textContent = item.title || 'Project Details';
                 var cap = document.getElementById('hp-proj-cap');
-                cap.textContent = item.caption || ''; cap.style.display = item.caption ? '' : 'none';
+                cap.innerHTML = item.captionHtml || ''; cap.style.display = item.captionHtml ? '' : 'none';
                 var photos = (item.photos && item.photos.length) ? item.photos : (item.photoUrl ? [{url:item.photoUrl,type:'after'}] : []);
                 var secs = [{k:'before',l:'📷 Before',c:'#b45309',bg:'#fffbeb',br:'#fcd34d'},{k:'after',l:'✅ After',c:'#166534',bg:'#f0fdf4',br:'#86efac'},{k:'other',l:'📌 Other',c:'#1e40af',bg:'#eff6ff',br:'#93c5fd'}];
                 var h = '';
