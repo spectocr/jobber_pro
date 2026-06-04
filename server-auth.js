@@ -8685,12 +8685,19 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             } else if (show.length === 2) {
                 containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:flex;gap:2px;';
                 inner = show.map(function(p){return '<div style="flex:1;min-width:0;position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:200px;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('');
+            } else if (show.length === 3) {
+                containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
+                inner = '<div style="grid-row:1/3;position:relative;overflow:hidden;"><img src="'+show[0].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(show[0].type)+'</div>'
+                      + '<div style="position:relative;overflow:hidden;"><img src="'+show[1].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(show[1].type)+'</div>'
+                      + '<div style="position:relative;overflow:hidden;"><img src="'+show[2].url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(show[2].type)+'</div>';
             } else {
                 containerStyle = 'height:200px;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;';
                 inner = show.map(function(p){return '<div style="position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'Commercial job')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('');
             }
             var title = item.title ? '<div style="font-weight:700;color:#1f2937;margin-top:0.5rem;">'+item.title+'</div>' : '';
-            var caption = item.caption ? '<div style="color:#6b7280;font-size:0.85rem;margin-top:0.25rem;line-height:1.5;">'+item.caption+'</div>' : '';
+            var rawCap = item.caption || '';
+            var truncCap = rawCap.length > 110 ? rawCap.slice(0, 110).replace(/\s+\S*$/, '') + '…' : rawCap;
+            var caption = truncCap ? '<div style="color:#6b7280;font-size:0.82rem;margin-top:0.25rem;line-height:1.5;">'+truncCap+'</div>' : '';
             return '<div onclick="pmOpenProject('+idx+')" class="pm-card" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;transition:transform .2s,box-shadow .2s;">'
                 +'<div style="'+containerStyle+'">'+inner+'</div>'
                 +'<div style="padding:0.9rem 1.1rem 1.1rem;"><span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">🏢 Commercial</span>'
@@ -9104,6 +9111,12 @@ const HOME_PORTFOLIO_NEW = `(function(){
                 } else if (sp.length === 2) {
                     inner = '<div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;display:flex;gap:2px;">'
                         +sp.map(function(p){return '<div style="flex:1;min-width:0;position:relative;overflow:hidden;"><img src="'+p.url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(p.type)+'</div>';}).join('')
+                        +'</div>';
+                } else if (sp.length === 3) {
+                    inner = '<div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;">'
+                        +'<div style="grid-row:1/3;position:relative;overflow:hidden;"><img src="'+sp[0].url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(sp[0].type)+'</div>'
+                        +'<div style="position:relative;overflow:hidden;"><img src="'+sp[1].url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(sp[1].type)+'</div>'
+                        +'<div style="position:relative;overflow:hidden;"><img src="'+sp[2].url+'" alt="'+(item.title||'GSD work')+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">'+badge(sp[2].type)+'</div>'
                         +'</div>';
                 } else {
                     inner = '<div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;">'
