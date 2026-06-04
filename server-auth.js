@@ -8625,7 +8625,7 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
                 +'<div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">'
                 +'<h2 id="pm-proj-title" style="font-size:1.15rem;font-weight:700;font-family:inherit;"></h2>'
                 +'<button onclick="pmCloseProject()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1;">&times;</button></div>'
-                +'<div style="padding:1.5rem;"><p id="pm-proj-cap" style="color:#6b7280;font-size:.9rem;margin-bottom:1.25rem;"></p><div id="pm-proj-photos"></div></div>'
+                +'<div style="padding:1.5rem;"><div id="pm-proj-cap" style="color:#4b5563;font-size:.93rem;line-height:1.65;margin-bottom:1.25rem;"></div><div id="pm-proj-photos"></div></div>'
                 +'</div></div>'
                 +'<div id="pm-lightbox" onclick="pmCloseLb()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center;">'
                 +'<span onclick="pmCloseLb()" style="position:absolute;top:1rem;right:1.25rem;color:white;font-size:2.2rem;cursor:pointer;">&times;</span>'
@@ -8637,7 +8637,7 @@ const PM_GALLERY_NEW = `(async function loadCommercialPortfolio() {
             document.getElementById('pm-lightbox').style.display = 'none';
             document.addEventListener('keydown', function(e){ if(e.key==='Escape'){pmCloseLb();pmCloseProject();} });
             var st = document.createElement('style');
-            st.textContent = '.pm-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;}';
+            st.textContent = '.pm-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;} #pm-proj-cap ul,#hp-proj-cap ul{margin:.3rem 0 .5rem 1.1rem;padding-left:.8rem;} #pm-proj-cap li,#hp-proj-cap li{margin-bottom:.2rem;}';
             document.head.appendChild(st);
         }
 
@@ -8860,7 +8860,7 @@ function makeLocPortfolioBlock() {
                     +'<div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">'
                     +'<h2 id="hp-proj-title" style="font-size:1.15rem;font-weight:700;font-family:inherit;"></h2>'
                     +'<button onclick="hpCloseProject()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1;">&times;</button></div>'
-                    +'<div style="padding:1.5rem;"><p id="hp-proj-cap" style="color:#6b7280;font-size:.9rem;margin-bottom:1.25rem;"></p><div id="hp-proj-photos"></div>'
+                    +'<div style="padding:1.5rem;"><div id="hp-proj-cap" style="color:#4b5563;font-size:.93rem;line-height:1.65;margin-bottom:1.25rem;"></div><div id="hp-proj-photos"></div>'
                     +'<div style="text-align:center;margin-top:1.5rem;"><a href="/portfolio.html" style="display:inline-block;padding:0.65rem 1.75rem;background:#0f1c2e;color:white;border-radius:8px;font-weight:700;font-size:0.9rem;text-decoration:none;">View All Work &rarr;</a></div>'
                     +'</div></div></div>'
                     +'<div id="hp-lightbox" onclick="hpCloseLb()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center;">'
@@ -8869,7 +8869,7 @@ function makeLocPortfolioBlock() {
                 while (el.firstChild) document.body.appendChild(el.firstChild);
                 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){hpCloseLb();hpCloseProject();} });
                 var st = document.createElement('style');
-                st.textContent = '.hp-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;}';
+                st.textContent = '.hp-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;} #hp-proj-cap ul{margin:.3rem 0 .5rem 1.1rem;padding-left:.8rem;} #hp-proj-cap li{margin-bottom:.2rem;}';
                 document.head.appendChild(st);
             }
             window._hpData = show;
@@ -9049,7 +9049,7 @@ const HOME_PORTFOLIO_NEW = `(function(){
                     +'<div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">'
                     +'<h2 id="hp-proj-title" style="font-size:1.15rem;font-weight:700;font-family:inherit;"></h2>'
                     +'<button onclick="hpCloseProject()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:#6b7280;line-height:1;">&times;</button></div>'
-                    +'<div style="padding:1.5rem;"><p id="hp-proj-cap" style="color:#6b7280;font-size:.9rem;margin-bottom:1.25rem;"></p><div id="hp-proj-photos"></div>'
+                    +'<div style="padding:1.5rem;"><div id="hp-proj-cap" style="color:#4b5563;font-size:.93rem;line-height:1.65;margin-bottom:1.25rem;"></div><div id="hp-proj-photos"></div>'
                     +'<div style="text-align:center;margin-top:1.5rem;"><a href="/portfolio.html" style="display:inline-block;padding:0.65rem 1.75rem;background:#0f1c2e;color:white;border-radius:8px;font-weight:700;font-size:0.9rem;text-decoration:none;">View All Work &rarr;</a></div>'
                     +'</div></div></div>'
                     +'<div id="hp-lightbox" onclick="hpCloseLb()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:99999;align-items:center;justify-content:center;">'
@@ -9058,7 +9058,7 @@ const HOME_PORTFOLIO_NEW = `(function(){
                 while (el.firstChild) document.body.appendChild(el.firstChild);
                 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){hpCloseLb();hpCloseProject();} });
                 var st = document.createElement('style');
-                st.textContent = '.hp-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;}';
+                st.textContent = '.hp-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important;} #hp-proj-cap ul{margin:.3rem 0 .5rem 1.1rem;padding-left:.8rem;} #hp-proj-cap li{margin-bottom:.2rem;}';
                 document.head.appendChild(st);
             }
 
