@@ -1874,10 +1874,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </select>
                         </div>
                         <div>
-                            <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Tax Year</label>
-                            <select id="taxYear" onchange="loadTaxes()" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;"></select>
-                        </div>
-                        <div>
                             <label style="display:block;font-size:0.88rem;font-weight:600;color:#4a5568;margin-bottom:0.35rem;">Cash Jobs</label>
                             <select id="taxExcludeCash" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
                                 <option value="false">Include cash jobs in calculation</option>
@@ -1925,7 +1921,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="card">
                 <div class="card-header">
                     <h2>🧾 Quarterly Estimated Taxes</h2>
-                    <button class="btn btn-secondary" onclick="loadTaxes()">🔄 Recalculate</button>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <select id="taxYear" onchange="loadTaxes()" style="padding:0.5rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;"></select>
+                        <button class="btn btn-secondary" onclick="loadTaxes()">🔄 Recalculate</button>
+                    </div>
                 </div>
                 <div id="taxContent"><div class="empty-state"><p>Loading...</p></div></div>
             </div>
