@@ -15095,6 +15095,59 @@ function formatDuration(seconds) {
 
         let _taxData = null;
 
+        function renderTaxConfirmRow(year, quarter, type, label, key, name) {
+            const base = '/api/taxes/confirmations/' + year + '/' + quarter + '/' + type;
+            if (key) {
+                const displayName = name || (label + ' confirmation');
+                return '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;font-size:0.82rem;">' +
+                    '<span style="width:28px;font-size:0.8rem;font-weight:700;color:#4a5568;">' + label + ':</span>' +
+                    '<span style="color:#276749;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + displayName + '">✓ ' + displayName + '</span>' +
+                    '<a href="' + base + '/view" target="_blank" style="padding:2px 8px;background:#ebf8ff;color:#2b6cb0;border-radius:5px;text-decoration:none;font-weight:600;white-space:nowrap;">👁 View</a>' +
+                    '<a href="' + base + '/file" style="padding:2px 8px;background:#f0fff4;color:#276749;border-radius:5px;text-decoration:none;font-weight:600;white-space:nowrap;">⬇</a>' +
+                    '<button onclick="deleteTaxConfirm(' + year + ',' + quarter + ',\'' + type + '\')" style="padding:2px 8px;background:#fff5f5;color:#c53030;border:none;border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap;">✕</button>' +
+                    '</div>';
+            }
+            return '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;font-size:0.82rem;">' +
+                '<span style="width:28px;font-weight:700;color:#4a5568;">' + label + ':</span>' +
+                '<label style="padding:2px 10px;background:#f7fafc;border:1.5px dashed #cbd5e0;border-radius:6px;cursor:pointer;color:#718096;font-size:0.8rem;white-space:nowrap;">' +
+                    '📎 Upload confirmation' +
+                    '<input type="file" accept="image/*,.pdf" style="display:none;" onchange="uploadTaxConfirm(event,' + year + ',' + quarter + ',\'' + type + '\')">' +
+                '</label></div>';
+        }
+
+        async function uploadTaxConfirm(event, year, quarter, type) {
+            let file = event.target.files[0];
+            if (!file) return;
+            const label = event.target.closest('label');
+            if (label) label.textContent = 'Uploading…';
+            try {
+                const isImage = file.type.startsWith('image/');
+                if (isImage) file = await optimizeImage(file);
+                const reader = new FileReader();
+                const fileData = await new Promise((res, rej) => {
+                    reader.onload = e => res(e.target.result);
+                    reader.onerror = rej;
+                    reader.readAsDataURL(file);
+                });
+                const r = await fetch('/api/taxes/confirmations/' + year + '/' + quarter, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, fileName: file.name, fileType: file.type, fileData })
+                });
+                if (!r.ok) throw new Error((await r.json()).error || 'Upload failed');
+                await loadTaxes();
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+                if (label) label.textContent = '📎 Upload confirmation';
+            }
+        }
+
+        async function deleteTaxConfirm(year, quarter, type) {
+            if (!confirm('Remove this confirmation?')) return;
+            await fetch('/api/taxes/confirmations/' + year + '/' + quarter + '/' + type, { method: 'DELETE' });
+            await loadTaxes();
+        }
+
         function renderTaxSummary(data) {
             _taxData = data;
             const box   = document.getElementById('taxContent');
@@ -15187,6 +15240,14 @@ function formatDuration(seconds) {
                         : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
                     '<button onclick="showTaxDetail(' + q.q + ')" style="padding:0.4rem 0.85rem;background:#edf2f7;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">📋 Source Data</button>' +
                   '</div>' +
+
+                  // ── Confirmation uploads ──
+                  '<div style="margin-top:0.9rem;padding-top:0.75rem;border-top:1px solid #e2e8f0;">' +
+                    '<div style="font-size:0.75rem;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">📎 Payment Confirmations</div>' +
+                    renderTaxConfirmRow(data.year, q.q, 'irs', 'IRS', q.irsConfirmKey, q.irsConfirmName) +
+                    renderTaxConfirmRow(data.year, q.q, 'nj',  'NJ',  q.njConfirmKey,  q.njConfirmName) +
+                  '</div>' +
+
                 '</div>';
             });
 

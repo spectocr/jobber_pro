@@ -4144,6 +4144,8 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             },
             paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
+            irsConfirmKey: payment?.irsConfirmKey || null, irsConfirmName: payment?.irsConfirmName || null,
+            njConfirmKey:  payment?.njConfirmKey  || null, njConfirmName:  payment?.njConfirmName  || null,
             remaining: Math.max(0, totalDue - (payment?.amount || 0)),
             cashExcluded: ts.excludeCash ? jobs.filter(j => {
                 return inQ(j.scheduledDate) && isCashOnly(j);
@@ -4177,6 +4179,81 @@ app.post('/api/taxes/payments', isAdmin, async (req, res) => {
 app.delete('/api/taxes/payments/:year/:quarter', isAdmin, async (req, res) => {
     await db.collection('taxpayments').deleteOne({ year: parseInt(req.params.year), quarter: parseInt(req.params.quarter) });
     res.json({ success: true });
+});
+
+// Upload a tax confirmation (IRS or NJ) — base64 body, stored in S3
+app.post('/api/taxes/confirmations/:year/:quarter', isAdmin, async (req, res) => {
+    try {
+        const year = parseInt(req.params.year), quarter = parseInt(req.params.quarter);
+        const { type, fileName, fileType, fileData } = req.body;
+        if (!['irs','nj'].includes(type)) return res.status(400).json({ error: 'type must be irs or nj' });
+        if (!fileData) return res.status(400).json({ error: 'fileData required' });
+
+        const ext = fileName?.split('.').pop()?.toLowerCase() || 'jpg';
+        const s3Key = `tax-confirmations/${year}/Q${quarter}/${type}-${Date.now()}.${ext}`;
+        const buf = Buffer.from(fileData.replace(/^data:[^;]+;base64,/, ''), 'base64');
+        await s3Client.send(new PutObjectCommand({
+            Bucket: S3_BUCKET_NAME, Key: s3Key, Body: buf,
+            ContentType: fileType || 'application/octet-stream'
+        }));
+
+        // Delete old S3 object if one exists
+        const existing = await db.collection('taxpayments').findOne({ year, quarter });
+        const oldKey = type === 'irs' ? existing?.irsConfirmKey : existing?.njConfirmKey;
+        if (oldKey && oldKey !== s3Key) await deleteFromS3(oldKey).catch(() => {});
+
+        const setFields = type === 'irs'
+            ? { irsConfirmKey: s3Key, irsConfirmName: fileName }
+            : { njConfirmKey:  s3Key, njConfirmName:  fileName };
+        await db.collection('taxpayments').updateOne(
+            { year, quarter },
+            { $set: setFields },
+            { upsert: true }
+        );
+        res.json({ success: true, s3Key });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete a tax confirmation
+app.delete('/api/taxes/confirmations/:year/:quarter/:type', isAdmin, async (req, res) => {
+    try {
+        const year = parseInt(req.params.year), quarter = parseInt(req.params.quarter);
+        const { type } = req.params;
+        if (!['irs','nj'].includes(type)) return res.status(400).json({ error: 'invalid type' });
+        const rec = await db.collection('taxpayments').findOne({ year, quarter });
+        const key = type === 'irs' ? rec?.irsConfirmKey : rec?.njConfirmKey;
+        if (key) await deleteFromS3(key).catch(() => {});
+        const unset = type === 'irs' ? { irsConfirmKey: '', irsConfirmName: '' } : { njConfirmKey: '', njConfirmName: '' };
+        await db.collection('taxpayments').updateOne({ year, quarter }, { $unset: unset });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// View a tax confirmation inline (browser renders PDF/image)
+app.get('/api/taxes/confirmations/:year/:quarter/:type/view', isAdmin, async (req, res) => {
+    try {
+        const year = parseInt(req.params.year), quarter = parseInt(req.params.quarter);
+        const rec = await db.collection('taxpayments').findOne({ year, quarter });
+        const key = req.params.type === 'irs' ? rec?.irsConfirmKey : rec?.njConfirmKey;
+        if (!key) return res.status(404).json({ error: 'No confirmation on file' });
+        const url = await getS3SignedUrl(key, 300);
+        res.redirect(url);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Download a tax confirmation
+app.get('/api/taxes/confirmations/:year/:quarter/:type/file', isAdmin, async (req, res) => {
+    try {
+        const year = parseInt(req.params.year), quarter = parseInt(req.params.quarter);
+        const rec = await db.collection('taxpayments').findOne({ year, quarter });
+        const key  = req.params.type === 'irs' ? rec?.irsConfirmKey  : rec?.njConfirmKey;
+        const name = req.params.type === 'irs' ? rec?.irsConfirmName : rec?.njConfirmName;
+        if (!key) return res.status(404).json({ error: 'No confirmation on file' });
+        const s3Res = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key }));
+        res.setHeader('Content-Disposition', `attachment; filename="${(name||'confirmation').replace(/"/g,'')}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        s3Res.Body.pipe(res);
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Save job description text for a team member
