@@ -15172,7 +15172,7 @@ function formatDuration(seconds) {
                       '6. Enter amount: <strong>' + fm(q.seTax + q.fedQ) + '</strong> (SE tax + federal income tax)<br><br>' +
                       '<strong>New Jersey — pay ' + fm(q.njQ) + '</strong><br>' +
                       '1. Go to <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndTaxLoginJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a><br>' +
-                      '2. Select <strong>Gross Income Tax — Estimated</strong><br>' +
+                      '2. Under <strong>Gross Income Tax</strong>, select <strong>Estimated Payments — Schedule/Submit NJ-1040-ES</strong><br>' +
                       '3. Tax Period: <strong>' + data.year + '</strong><br>' +
                       '4. Enter amount: <strong>' + fm(q.njQ) + '</strong>' +
                     '</div>' +
