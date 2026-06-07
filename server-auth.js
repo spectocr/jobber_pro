@@ -8154,6 +8154,20 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
             } catch (e) { console.error('Failed to save card to client (manual):', e); }
         }
 
+        try {
+            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
+            await db.collection('client_messages').insertOne({
+                clientId: job.clientId || null,
+                clientName: client?.name || 'Client',
+                clientEmail: client?.email || '',
+                message: `💳 Payment of $${parseFloat(amount).toFixed(2)} received for "${job.title}"${cardDesc}.`,
+                subject: 'payment',
+                reference: job.title,
+                createdAt: new Date(),
+                read: false
+            });
+        } catch (e) { console.error('Manual charge inbox message error:', e.message); }
+
         res.json({ success: true, chargeId: charge.id, last4, cardBrand, cardSaved: !!cloverCustomerId });
     } catch (e) {
         console.error('Manual charge error:', e);
@@ -8239,6 +8253,20 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: setFields }
         );
+
+        try {
+            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
+            await db.collection('client_messages').insertOne({
+                clientId: job.clientId || null,
+                clientName: client?.name || 'Client',
+                clientEmail: client?.email || '',
+                message: `💳 Payment of $${parseFloat(amount).toFixed(2)} received for "${job.title}"${cardDesc}.`,
+                subject: 'payment',
+                reference: job.title,
+                createdAt: new Date(),
+                read: false
+            });
+        } catch (e) { console.error('Saved card inbox message error:', e.message); }
 
         res.json({ success: true, chargeId: charge.id, last4, cardBrand });
     } catch (e) {
