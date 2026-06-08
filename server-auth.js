@@ -2778,30 +2778,6 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             { $set: { ...updateData, updatedAt: new Date() } }
         );
 
-        // Notify on new manually-entered payments
-        if (Array.isArray(updateData.payments) && oldJob) {
-            const oldIds = new Set((oldJob.payments || []).map(p => String(p.id)));
-            const newPayments = updateData.payments.filter(p => p.id && !oldIds.has(String(p.id)));
-            if (newPayments.length > 0) {
-                const client = updateData.clientId
-                    ? await db.collection('clients').findOne({ _id: new ObjectId(updateData.clientId) }).catch(() => null)
-                    : null;
-                for (const p of newPayments) {
-                    const methodLabel = { cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' }[p.method] || p.method || 'payment';
-                    await db.collection('client_messages').insertOne({
-                        clientId: updateData.clientId ? new ObjectId(updateData.clientId) : null,
-                        clientName: client?.name || 'Client',
-                        clientEmail: client?.email || '',
-                        message: `💵 ${methodLabel} payment of $${parseFloat(p.amount).toFixed(2)} received for "${updateData.title}"${p.notes ? ' — ' + p.notes : ''}.`,
-                        subject: 'payment',
-                        reference: updateData.title,
-                        createdAt: new Date(),
-                        read: false
-                    }).catch(() => {});
-                }
-            }
-        }
-
     } else {
         job.createdAt = new Date();
 
@@ -8195,20 +8171,6 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
             } catch (e) { console.error('Failed to save card to client (manual):', e); }
         }
 
-        try {
-            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
-            await db.collection('client_messages').insertOne({
-                clientId: job.clientId || null,
-                clientName: client?.name || 'Client',
-                clientEmail: client?.email || '',
-                message: `💳 Payment of $${parseFloat(amount).toFixed(2)} received for "${job.title}"${cardDesc}.`,
-                subject: 'payment',
-                reference: job.title,
-                createdAt: new Date(),
-                read: false
-            });
-        } catch (e) { console.error('Manual charge inbox message error:', e.message); }
-
         res.json({ success: true, chargeId: charge.id, last4, cardBrand, cardSaved: !!cloverCustomerId });
     } catch (e) {
         console.error('Manual charge error:', e);
@@ -8294,20 +8256,6 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: setFields }
         );
-
-        try {
-            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
-            await db.collection('client_messages').insertOne({
-                clientId: job.clientId || null,
-                clientName: client?.name || 'Client',
-                clientEmail: client?.email || '',
-                message: `💳 Payment of $${parseFloat(amount).toFixed(2)} received for "${job.title}"${cardDesc}.`,
-                subject: 'payment',
-                reference: job.title,
-                createdAt: new Date(),
-                read: false
-            });
-        } catch (e) { console.error('Saved card inbox message error:', e.message); }
 
         res.json({ success: true, chargeId: charge.id, last4, cardBrand });
     } catch (e) {
