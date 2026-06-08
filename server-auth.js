@@ -7714,6 +7714,22 @@ app.post('/api/client-portal/pay', async (req, res) => {
             } catch (e) { console.error('Failed to save cloverCustomerId to client:', e); }
         }
 
+        // Inbox notification
+        try {
+            const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+            const cardDesc = last4 ? ` (${cardBrand || 'card'} ••••${last4})` : '';
+            await db.collection('client_messages').insertOne({
+                clientId: job.clientId || null,
+                clientName: client?.name || 'Client',
+                clientEmail: client?.email || '',
+                message: `💳 Client paid $${parseFloat(amount).toFixed(2)} online for "${job.title}"${cardDesc}.`,
+                subject: 'payment',
+                reference: job.title,
+                createdAt: new Date(),
+                read: false
+            });
+        } catch (e) { console.error('Invoice payment inbox message error:', e.message); }
+
         res.json({ success: true, chargeId: charge.id, cardSaved: !!cloverCustomerId });
     } catch (e) {
         console.error('Clover payment error:', e);
