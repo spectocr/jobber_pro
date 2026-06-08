@@ -2777,6 +2777,31 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
         );
+
+        // Notify on new manually-entered payments
+        if (Array.isArray(updateData.payments) && oldJob) {
+            const oldIds = new Set((oldJob.payments || []).map(p => String(p.id)));
+            const newPayments = updateData.payments.filter(p => p.id && !oldIds.has(String(p.id)));
+            if (newPayments.length > 0) {
+                const client = updateData.clientId
+                    ? await db.collection('clients').findOne({ _id: new ObjectId(updateData.clientId) }).catch(() => null)
+                    : null;
+                for (const p of newPayments) {
+                    const methodLabel = { cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' }[p.method] || p.method || 'payment';
+                    await db.collection('client_messages').insertOne({
+                        clientId: updateData.clientId ? new ObjectId(updateData.clientId) : null,
+                        clientName: client?.name || 'Client',
+                        clientEmail: client?.email || '',
+                        message: `💵 ${methodLabel} payment of $${parseFloat(p.amount).toFixed(2)} received for "${updateData.title}"${p.notes ? ' — ' + p.notes : ''}.`,
+                        subject: 'payment',
+                        reference: updateData.title,
+                        createdAt: new Date(),
+                        read: false
+                    }).catch(() => {});
+                }
+            }
+        }
+
     } else {
         job.createdAt = new Date();
 
