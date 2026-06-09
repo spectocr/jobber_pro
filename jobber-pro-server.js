@@ -15220,7 +15220,13 @@ function formatDuration(seconds) {
                     '<div style="background:#f0fff4;border-radius:6px;padding:0.55rem 0.75rem;margin-bottom:0.7rem;font-size:0.82rem;">' +
                       '<div style="color:#276749;font-weight:600;">Paid: ' + fm(q.paidAmount) + (q.paidMethod ? ' via ' + q.paidMethod : '') + '</div>' +
                       (q.paidNotes ? '<div style="color:#4a5568;">' + q.paidNotes + '</div>' : '') +
-                      (q.remaining > 0.5 ? '<div style="color:#c05621;font-weight:600;">Still owed: ' + fm(q.remaining) + '</div>' : '') +
+                      (q.remaining > 0.5 ?
+                        (() => {
+                          const nextQLabel = q.q < 4 ? 'Q' + (q.q + 1) : 'Q1 next year';
+                          const delta = q.totalDue - q.paidAmount;
+                          const tip = 'Paid ' + fm(q.paidAmount) + ' · Current calculation: ' + fm(q.totalDue) + ' · ' + fm(delta) + ' difference carries to ' + nextQLabel;
+                          return '<div style="color:#805ad5;font-size:0.82rem;font-weight:600;margin-top:0.2rem;">↪ ' + fm(delta) + ' carrying to ' + nextQLabel + ' <span title="' + tip + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#805ad5;color:white;border-radius:50%;font-size:0.65rem;font-weight:700;vertical-align:middle;">i</span></div>';
+                        })() : '') +
                     '</div>' : '') +
 
                   '<details style="margin-bottom:0.7rem;">' +
