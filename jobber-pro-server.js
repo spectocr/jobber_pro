@@ -15210,11 +15210,17 @@ function formatDuration(seconds) {
                     '<span>Total Est. Due</span><span style="color:' + (isOver ? '#e53e3e' : '#667eea') + ';">' + fm(q.adjustedDue !== undefined ? q.adjustedDue : q.totalDue) + '</span>' +
                   '</div>' +
                   (q.carryAppliedHere && Math.abs(q.carryAppliedHere) > 0.5 ?
-                    '<div style="font-size:0.78rem;margin-bottom:0.55rem;padding:0.3rem 0.6rem;border-radius:5px;background:' + (q.carryAppliedHere > 0 ? '#f0fff4' : '#fff5f5') + ';color:' + (q.carryAppliedHere > 0 ? '#276749' : '#c53030') + ';">' +
-                      (q.carryAppliedHere > 0
-                        ? '✓ Includes ' + fm(q.carryAppliedHere) + ' credit from prior overpayment (base: ' + fm(q.totalDue) + ')'
-                        : '⚠ Includes ' + fm(Math.abs(q.carryAppliedHere)) + ' deficit from prior underpayment (base: ' + fm(q.totalDue) + ')') +
-                    '</div>' : '') +
+                    (() => {
+                      const carry = q.carryAppliedHere;
+                      const isCredit = carry > 0;
+                      const adjRatio = q.totalDue > 0 ? q.adjustedDue / q.totalDue : 1;
+                      const adjFed = (q.seTax + q.fedQ) * adjRatio;
+                      const adjNJ  = q.njQ * adjRatio;
+                      return '<div style="font-size:0.78rem;margin-bottom:0.55rem;padding:0.4rem 0.7rem;border-radius:5px;background:' + (isCredit ? '#f0fff4' : '#fff5f5') + ';color:' + (isCredit ? '#276749' : '#c53030') + ';line-height:1.6;">' +
+                        (isCredit ? '✓ ' + fm(carry) + ' credit carried from prior overpayment' : '⚠ ' + fm(Math.abs(carry)) + ' deficit carried from prior underpayment') +
+                        '<br><span style="font-size:0.75rem;opacity:0.85;">Adjusted pay: IRS (SE+Fed) ' + fm(adjFed) + ' · NJ State ' + fm(adjNJ) + ' · Base was ' + fm(q.totalDue) + '</span>' +
+                      '</div>';
+                    })() : '') +
 
                   (q.paidAmount > 0 ?
                     '<div style="background:#f0fff4;border-radius:6px;padding:0.55rem 0.75rem;margin-bottom:0.7rem;font-size:0.82rem;">' +
