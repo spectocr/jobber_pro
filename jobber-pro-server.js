@@ -15224,7 +15224,9 @@ function formatDuration(seconds) {
                         (() => {
                           const nextQLabel = q.q < 4 ? 'Q' + (q.q + 1) : 'Q1 next year';
                           const delta = q.totalDue - q.paidAmount;
-                          const tip = 'Paid ' + fm(q.paidAmount) + ' · Current calculation: ' + fm(q.totalDue) + ' · ' + fm(delta) + ' difference carries to ' + nextQLabel;
+                          const fedDelta = (q.seTax + q.fedQ) - ((q.seTax + q.fedQ) / q.totalDue * q.paidAmount);
+                          const njDelta  = q.njQ - (q.njQ / q.totalDue * q.paidAmount);
+                          const tip = 'Paid ' + fm(q.paidAmount) + ' when calculated at ' + fm(q.totalDue) + ' — breakdown of ' + fm(delta) + ' deficit: IRS (SE+Fed) ' + fm(fedDelta) + ' · NJ State ' + fm(njDelta) + ' · All carries to ' + nextQLabel;
                           return '<div style="color:#805ad5;font-size:0.82rem;font-weight:600;margin-top:0.2rem;">↪ ' + fm(delta) + ' carrying to ' + nextQLabel + ' <span title="' + tip + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#805ad5;color:white;border-radius:50%;font-size:0.65rem;font-weight:700;vertical-align:middle;">i</span></div>';
                         })() : '') +
                     '</div>' : '') +
