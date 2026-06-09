@@ -15214,11 +15214,14 @@ function formatDuration(seconds) {
                       const carry = q.carryAppliedHere;
                       const isCredit = carry > 0;
                       const adjRatio = q.totalDue > 0 ? q.adjustedDue / q.totalDue : 1;
-                      const adjFed = (q.seTax + q.fedQ) * adjRatio;
-                      const adjNJ  = q.njQ * adjRatio;
-                      return '<div style="font-size:0.78rem;margin-bottom:0.55rem;padding:0.4rem 0.7rem;border-radius:5px;background:' + (isCredit ? '#f0fff4' : '#fff5f5') + ';color:' + (isCredit ? '#276749' : '#c53030') + ';line-height:1.6;">' +
+                      const baseFed = q.seTax + q.fedQ;
+                      const baseNJ  = q.njQ;
+                      const adjFed  = baseFed * adjRatio;
+                      const adjNJ   = baseNJ  * adjRatio;
+                      return '<div style="font-size:0.78rem;margin-bottom:0.55rem;padding:0.4rem 0.7rem;border-radius:5px;background:' + (isCredit ? '#f0fff4' : '#fff5f5') + ';color:' + (isCredit ? '#276749' : '#c53030') + ';line-height:1.7;">' +
                         (isCredit ? '✓ ' + fm(carry) + ' credit carried from prior overpayment' : '⚠ ' + fm(Math.abs(carry)) + ' deficit carried from prior underpayment') +
-                        '<br><span style="font-size:0.75rem;opacity:0.85;">Adjusted pay: IRS (SE+Fed) ' + fm(adjFed) + ' · NJ State ' + fm(adjNJ) + ' · Base was ' + fm(q.totalDue) + '</span>' +
+                        '<br><span style="font-size:0.75rem;opacity:0.85;">IRS (SE+Fed): base ' + fm(baseFed) + ' → pay <strong>' + fm(adjFed) + '</strong></span>' +
+                        '<br><span style="font-size:0.75rem;opacity:0.85;">NJ State: base ' + fm(baseNJ) + ' → pay <strong>' + fm(adjNJ) + '</strong></span>' +
                       '</div>';
                     })() : '') +
 
@@ -15232,7 +15235,7 @@ function formatDuration(seconds) {
                           const delta = q.totalDue - q.paidAmount;
                           const fedDelta = (q.seTax + q.fedQ) - ((q.seTax + q.fedQ) / q.totalDue * q.paidAmount);
                           const njDelta  = q.njQ - (q.njQ / q.totalDue * q.paidAmount);
-                          const tip = 'Paid ' + fm(q.paidAmount) + ' when calculated at ' + fm(q.totalDue) + ' — breakdown of ' + fm(delta) + ' deficit: IRS (SE+Fed) ' + fm(fedDelta) + ' · NJ State ' + fm(njDelta) + ' · All carries to ' + nextQLabel;
+                          const tip = 'Paid ' + fm(q.paidAmount) + ' | IRS base ' + fm(q.seTax + q.fedQ) + ' deficit ' + fm(fedDelta) + ' | NJ base ' + fm(q.njQ) + ' deficit ' + fm(njDelta) + ' | Total ' + fm(delta) + ' carries to ' + nextQLabel;
                           return '<div style="color:#805ad5;font-size:0.82rem;font-weight:600;margin-top:0.2rem;">↪ ' + fm(delta) + ' carrying to ' + nextQLabel + ' <span title="' + tip + '" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#805ad5;color:white;border-radius:50%;font-size:0.65rem;font-weight:700;vertical-align:middle;">i</span></div>';
                         })() : '') +
                     '</div>' : '') +
