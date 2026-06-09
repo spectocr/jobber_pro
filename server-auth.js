@@ -4052,6 +4052,7 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
     const w2OnlyTaxable = Math.max(0, annualOther - (useStd ? stdDed : 0));
 
     let carryLoss = 0; // net loss carried forward from prior quarters
+    let carryPaymentDelta = 0; // cumulative (paidAmount - calcDue) from paid quarters; positive = credit, negative = deficit
     const result = [];
 
     for (const { q, label, months, due } of quarters) {
@@ -4111,6 +4112,17 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         const totalDue = seTax + fedQ + njQ;
 
         const payment = payments.find(p => p.quarter === q);
+        const paidAmount = payment?.amount || 0;
+
+        // Accumulate payment delta for paid quarters
+        if (payment) {
+            carryPaymentDelta += paidAmount - totalDue;
+        }
+
+        // For the next unpaid quarter, apply accumulated carry
+        const carryAppliedHere = !payment ? carryPaymentDelta : 0;
+        const adjustedDue = !payment ? Math.max(0, totalDue - carryPaymentDelta) : totalDue;
+
         const jobItems = qJobs.map(j => {
             const matCost = Array.isArray(j.materialItems)
                 ? j.materialItems.reduce((s, m) => s + ((m.quantity || 0) * (m.price || 0)), 0) : 0;
@@ -4143,11 +4155,12 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
                 fedAnnual, njAnnual,
                 stdDed: useStd ? stdDed : 0,
             },
-            paidAmount: payment?.amount || 0, paidAt: payment?.paidAt || null,
+            paidAmount, paidAt: payment?.paidAt || null,
             paidMethod: payment?.method || '', paidNotes: payment?.notes || '',
             irsConfirmKey: payment?.irsConfirmKey || null, irsConfirmName: payment?.irsConfirmName || null,
             njConfirmKey:  payment?.njConfirmKey  || null, njConfirmName:  payment?.njConfirmName  || null,
-            remaining: Math.max(0, totalDue - (payment?.amount || 0)),
+            adjustedDue, carryAppliedHere,
+            remaining: Math.max(0, adjustedDue - paidAmount),
             cashExcluded: ts.excludeCash ? jobs.filter(j => {
                 return inQ(j.scheduledDate) && isCashOnly(j);
             }).length : 0,

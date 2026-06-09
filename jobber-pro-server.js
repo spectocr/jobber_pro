@@ -15206,9 +15206,15 @@ function formatDuration(seconds) {
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;"><span>NJ Income Tax<br><span style="font-size:0.72rem;color:#a0aec0;">' + (data.taxSettings.otherIncome > 0 ? 'incremental — above W-2 bracket' : 'on business income') + '</span></span><span>' + fm(q.njQ) + '</span></div>' +
                   '</div>' +
 
-                  '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem;color:#2d3748;border-top:2px solid #e2e8f0;padding-top:0.55rem;margin-bottom:0.7rem;">' +
-                    '<span>Total Est. Due</span><span style="color:' + (isOver ? '#e53e3e' : '#667eea') + ';">' + fm(q.totalDue) + '</span>' +
+                  '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem;color:#2d3748;border-top:2px solid #e2e8f0;padding-top:0.55rem;margin-bottom:0.2rem;">' +
+                    '<span>Total Est. Due</span><span style="color:' + (isOver ? '#e53e3e' : '#667eea') + ';">' + fm(q.adjustedDue !== undefined ? q.adjustedDue : q.totalDue) + '</span>' +
                   '</div>' +
+                  (q.carryAppliedHere && Math.abs(q.carryAppliedHere) > 0.5 ?
+                    '<div style="font-size:0.78rem;margin-bottom:0.55rem;padding:0.3rem 0.6rem;border-radius:5px;background:' + (q.carryAppliedHere > 0 ? '#f0fff4' : '#fff5f5') + ';color:' + (q.carryAppliedHere > 0 ? '#276749' : '#c53030') + ';">' +
+                      (q.carryAppliedHere > 0
+                        ? '✓ Includes ' + fm(q.carryAppliedHere) + ' credit from prior overpayment (base: ' + fm(q.totalDue) + ')'
+                        : '⚠ Includes ' + fm(Math.abs(q.carryAppliedHere)) + ' deficit from prior underpayment (base: ' + fm(q.totalDue) + ')') +
+                    '</div>' : '') +
 
                   (q.paidAmount > 0 ?
                     '<div style="background:#f0fff4;border-radius:6px;padding:0.55rem 0.75rem;margin-bottom:0.7rem;font-size:0.82rem;">' +
@@ -15226,8 +15232,8 @@ function formatDuration(seconds) {
                       '3. Tax Form: <strong>1040</strong><br>' +
                       '4. Tax Type: <strong>Estimated Tax</strong><br>' +
                       '5. Tax Period: <strong>' + data.year + '</strong><br>' +
-                      '6. Enter amount: <strong>' + fm(q.seTax + q.fedQ) + '</strong> (SE tax + federal income tax)<br><br>' +
-                      '<strong>New Jersey — pay ' + fm(q.njQ) + '</strong><br>' +
+                      '6. Enter amount: <strong>' + fm((q.carryAppliedHere && q.totalDue > 0 ? (q.seTax + q.fedQ) * (q.adjustedDue / q.totalDue) : q.seTax + q.fedQ)) + '</strong> (SE tax + federal income tax)<br><br>' +
+                      '<strong>New Jersey — pay ' + fm((q.carryAppliedHere && q.totalDue > 0 ? q.njQ * (q.adjustedDue / q.totalDue) : q.njQ)) + '</strong><br>' +
                       '1. Go to <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndTaxLoginJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a><br>' +
                       '2. Under <strong>Gross Income Tax</strong>, select <strong>Estimated Payments — Schedule/Submit NJ-1040-ES</strong><br>' +
                       '3. Tax Period: <strong>' + data.year + '</strong><br>' +
@@ -15257,7 +15263,7 @@ function formatDuration(seconds) {
 
             cards += '</div>';
 
-            const totalDue  = data.quarters.reduce((s, q) => s + q.totalDue,   0);
+            const totalDue  = data.quarters.reduce((s, q) => s + (q.adjustedDue !== undefined ? q.adjustedDue : q.totalDue), 0);
             const totalPaid = data.quarters.reduce((s, q) => s + q.paidAmount, 0);
             const remaining = Math.max(0, totalDue - totalPaid);
 
