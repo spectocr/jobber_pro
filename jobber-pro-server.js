@@ -1597,6 +1597,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <select id="filter-quote-status" onchange="filterQuotes()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 150px;">
                             <option value="">All Statuses</option>
                             <option value="draft">Draft</option>
+                            <option value="pending_pricing">Pending Pricing</option>
                             <option value="sent">Sent</option>
                             <option value="in_review">In Review</option>
                             <option value="approved">Approved</option>
@@ -3601,7 +3602,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Status</label>
                         <select name="status" required>
                             <option value="draft">Draft</option>
+                            <option value="pending_pricing">Pending Pricing</option>
                             <option value="sent">Sent</option>
+                            <option value="in_review">In Review</option>
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
                             <option value="expired">Expired</option>
@@ -7551,6 +7554,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const client = findClient(q.clientId);
                     const statusClass = q.status === 'approved' ? 'status-completed' :
                                        q.status === 'in_review' ? 'status-scheduled' :
+                                       q.status === 'pending_pricing' ? 'status-to_be_scheduled' :
                                        q.status === 'rejected' ? 'status-bid_lost' :
                                        q.status === 'expired' ? 'status-bid_lost' :
                                        q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
@@ -7563,7 +7567,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${maskName(client ? client.name : 'Unknown')}</div>
                                 <div style="font-weight:600;color:#4a5568;margin-top:0.15rem;">\${q.title}</div>
                             </div>
-                            <span class="status-badge \${statusClass}" style="white-space:nowrap;margin-left:0.5rem;">\${q.status.replace('_', ' ')}</span>
+                            <span class="status-badge \${statusClass}" style="white-space:nowrap;margin-left:0.5rem;">\${q.status.replace(/_/g, ' ')}</span>
                         </div>
                         <div style="color:#718096;font-size:0.85rem;margin-bottom:0.4rem;">
                             #\${q.quoteNumber} · Valid: \${q.validUntil}\${isExpired ? ' <span style="color:#e53e3e;">(Expired)</span>' : ''}\${q.priority ? ' · ' + ({urgent:'🔴 Urgent','1_day':'🟠 1 Day','3_days':'🟡 3 Days','1_week':'🟢 1 Week','2_weeks':'🔵 2 Weeks',flexible:'⚪ Flexible'}[q.priority] || q.priority) : ''}
@@ -7592,6 +7596,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const client = findClient(q.clientId);
                     const statusClass = q.status === 'approved' ? 'status-completed' :
                                        q.status === 'in_review' ? 'status-scheduled' :
+                                       q.status === 'pending_pricing' ? 'status-to_be_scheduled' :
                                        q.status === 'rejected' ? 'status-bid_lost' :
                                        q.status === 'expired' ? 'status-bid_lost' :
                                        q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
@@ -7604,7 +7609,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <td>\${maskName(client ? client.name : 'Unknown')}</td>
                         <td><strong>\${q.title}</strong>\${q.priority ? ' <span style="font-size:0.8rem;color:#718096;">' + ({urgent:'🔴 Urgent','1_day':'🟠 1 Day','3_days':'🟡 3 Days','1_week':'🟢 1 Week','2_weeks':'🔵 2 Weeks',flexible:'⚪ Flexible'}[q.priority] || q.priority) + '</span>' : ''}</td>
                         <td>\${q.validUntil}\${isExpired ? ' <span style="color: #e53e3e;">(Expired)</span>' : ''}</td>
-                        <td><span class="status-badge \${statusClass}">\${q.status.replace('_', ' ')}</span></td>
+                        <td><span class="status-badge \${statusClass}">\${q.status.replace(/_/g, ' ')}</span></td>
                         <td>\${formatMoney(parseFloat(q.total || 0))}</td>
                         <td style="font-size:0.8rem;white-space:nowrap;">
                             \${q.sentAt ? \`<div style="color:#4a5568;">📧 \${new Date(q.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>\` : ''}
