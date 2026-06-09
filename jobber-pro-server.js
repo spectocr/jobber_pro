@@ -12442,8 +12442,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
-            const activeLeadsSorted = applySortState(filtered.filter(l => l.status === 'new'), 'leads', { date: 'createdAt', name: 'name', service: 'service', city: 'city', status: 'status' });
-            const archiveLeadsSorted = applySortState(filtered.filter(l => l.status !== 'new'), 'leads', { date: 'createdAt', name: 'name', service: 'service', city: 'city', status: 'status' });
+            const activeLeadsSorted = applySortState(filtered.filter(l => !['won','lost','rejected'].includes(l.status)), 'leads', { date: 'createdAt', name: 'name', service: 'service', city: 'city', status: 'status' });
+            const archiveLeadsSorted = applySortState(filtered.filter(l => ['won','lost','rejected'].includes(l.status)), 'leads', { date: 'createdAt', name: 'name', service: 'service', city: 'city', status: 'status' });
             const activeLeads = activeLeadsSorted;
             const archiveLeads = archiveLeadsSorted;
 
