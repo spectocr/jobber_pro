@@ -8360,12 +8360,19 @@ function generatePortfolioHtml(rawItems) {
         const capHtml = capFull
             ? `<div class="card-caption">${_pfFormatCaption(capTrunc)}${capFull.length > TRUNC ? ` <button class="cap-more" onclick="event.stopPropagation();openProject('${_pfEsc(item.id)}')">View more</button>` : ''}</div>`
             : '';
-        const reviewStrip = item.survey?.rating
-            ? `<div style="display:flex;align-items:center;gap:0.35rem;margin-top:0.4rem;padding-top:0.4rem;border-top:1px solid #e5e7eb;font-size:0.78rem;">
-                <span style="color:#f59e0b;letter-spacing:0.05em;">${'★'.repeat(item.survey.rating)}${'☆'.repeat(5 - item.survey.rating)}</span>
-                <span style="color:#6b7280;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_pfHe(item.survey.clientName)}</span>
-              </div>`
-            : '';
+        const reviewStrip = item.survey?.rating ? (() => {
+            const stars = '★'.repeat(item.survey.rating) + '☆'.repeat(5 - item.survey.rating);
+            const comment = item.survey.comment || '';
+            const CTRUNC = 90;
+            const commentSnip = comment.length > CTRUNC ? comment.slice(0, CTRUNC).replace(/\s+\S*$/, '') + '…' : comment;
+            return `<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #e5e7eb;font-size:0.8rem;">
+                <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;">
+                  <span style="color:#f59e0b;letter-spacing:0.05em;">${_pfHe(stars)}</span>
+                  <span style="color:#374151;font-weight:600;">${_pfHe(item.survey.clientName)}</span>
+                </div>
+                ${commentSnip ? `<div style="color:#6b7280;font-style:italic;line-height:1.4;">"${_pfHe(commentSnip)}"</div>` : ''}
+              </div>`;
+        })() : '';
         const body = (catBadge || item.title || item.caption || reviewStrip) ? `<div class="card-body">${catBadge}${item.title ? `<div class="card-title">${_pfHe(item.title)}</div>` : ''}${capHtml}${reviewStrip}</div>` : '';
 
         const sorted = [...item.photos.filter(p => p.type === 'before'), ...item.photos.filter(p => p.type === 'after'), ...item.photos.filter(p => p.type === 'other')];
