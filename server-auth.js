@@ -8336,7 +8336,7 @@ function generatePortfolioHtml(rawItems) {
         const badge = [bCt && bCt+'B', aCt && aCt+'A', oCt && oCt+'O'].filter(Boolean).join(' · ');
         const catName = CAT_LABEL[item.category] || item.category || '';
         return { id: item._id.toString(), title: item.title || '', caption: item.caption || '',
-            category: item.category || '', commercial: !!item.commercial, catName, cover, photos, badge };
+            category: item.category || '', commercial: !!item.commercial, catName, cover, photos, badge, survey: item.survey || null };
     });
 
     // Filter buttons — only categories that have items
