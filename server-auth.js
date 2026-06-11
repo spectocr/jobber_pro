@@ -9126,6 +9126,11 @@ async function rebuildPublicPortfolio() {
             });
         } catch (e) { console.warn('S3 listing for portfolio.html failed:', e.message); }
 
+        // Join survey data
+        const surveyIds = rawItems.filter(i => i.surveyId).map(i => { try { return new ObjectId(i.surveyId); } catch(e) { return null; } }).filter(Boolean);
+        const linkedSurveys = surveyIds.length ? await db.collection('surveys').find({ _id: { $in: surveyIds } }).toArray() : [];
+        const surveyMap = Object.fromEntries(linkedSurveys.map(s => [s._id.toString(), s]));
+
         // Merge S3 photos into each item (same fallback chain as API)
         const items = rawItems.map(item => {
             const id = item._id.toString();
@@ -9134,7 +9139,7 @@ async function rebuildPublicPortfolio() {
                 photos = item.photos.map(p => ({ s3Key: p.s3Key, url: portfolioPhotoUrl(p.s3Key || p.url), type: p.type || 'other' }));
             if (!photos.length && item.s3Key)
                 photos = [{ s3Key: item.s3Key, url: portfolioPhotoUrl(item.s3Key), type: 'after' }];
-            return { ...item, photos };
+            return { ...item, photos, survey: surveyMap[item.surveyId] || null };
         });
 
         const html = generatePortfolioHtml(items);
