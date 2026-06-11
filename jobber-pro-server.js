@@ -2186,6 +2186,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </label>
                         <div style="font-size:0.78rem;color:#6b7280;margin-top:0.25rem;margin-left:1.7rem;">Shows in the commercial portfolio section on the property management page.</div>
                     </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Linked Review <span style="font-weight:400;color:#718096;font-size:0.82rem;">(optional)</span></label>
+                        <select id="portfolioSurveyId" style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <option value="">No review linked</option>
+                        </select>
+                        <div id="portfolioSurveyPreview" style="display:none;margin-top:0.5rem;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:8px;padding:0.6rem 0.85rem;font-size:0.82rem;color:#92400e;"></div>
+                    </div>
                     <div style="margin-bottom:0.5rem;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
                             <label style="font-weight:600;">Photos</label>
@@ -2211,6 +2218,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
                 <div class="modal-body">
                     <p id="portfolioDetailCaption" style="color:#6b7280;margin-top:0;margin-bottom:1rem;font-size:0.9rem;"></p>
+                    <div id="portfolioDetailReview" style="display:none;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.88rem;"></div>
                     <div id="portfolioDetailPhotos"></div>
                     <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.25rem;">
                         <button id="portfolioDetailDeleteBtn" style="background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:8px;padding:0.4rem 1rem;cursor:pointer;font-weight:600;">🗑 Delete</button>
@@ -9159,12 +9167,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
             document.getElementById('portfolioDetailPhotos').innerHTML = html || '<p style="color:#9ca3af;font-size:0.9rem;">No photos yet.</p>';
 
+            // Linked review
+            const reviewEl = document.getElementById('portfolioDetailReview');
+            const survey = item.survey;
+            if (survey) {
+                const stars = '★'.repeat(survey.rating) + '☆'.repeat(5 - survey.rating);
+                reviewEl.style.display = '';
+                reviewEl.innerHTML = \`<div style="color:#f59e0b;font-size:1.1rem;margin-bottom:0.25rem;">\${stars}</div>\${survey.comment ? \`<div style="color:#1a202c;font-style:italic;margin-bottom:0.3rem;">"\${survey.comment}"</div>\` : ''}<div style="color:#92400e;font-weight:600;font-size:0.82rem;">— \${survey.clientName}</div>\`;
+            } else {
+                reviewEl.style.display = 'none';
+            }
+
             document.getElementById('portfolioDetailEditBtn').onclick = () => { closeModal('portfolioDetailModal'); openPortfolioModal(id); };
             document.getElementById('portfolioDetailDeleteBtn').onclick = () => { closeModal('portfolioDetailModal'); deletePortfolioItem(id); };
             openModal('portfolioDetailModal');
         }
 
-        function openPortfolioModal(id) {
+        let _allSurveys = [];
+
+        async function openPortfolioModal(id) {
             _portfolioState = { editId: id || null, existingPhotos: [], stagedPhotos: [], removedKeys: [] };
             document.getElementById('portfolioEditId').value = id || '';
             document.getElementById('portfolioModalTitle').textContent = id ? 'Edit Work' : 'Add Work';
@@ -9173,6 +9194,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('portfolioCaption').value = '';
             document.getElementById('portfolioCommercial').checked = false;
 
+            // Load surveys into dropdown
+            if (!_allSurveys.length) {
+                try { _allSurveys = await (await fetch('/api/surveys')).json(); } catch(e) {}
+            }
+            const sel = document.getElementById('portfolioSurveyId');
+            const stars = n => '★'.repeat(n) + '☆'.repeat(5-n);
+            sel.innerHTML = '<option value="">No review linked</option>' +
+                _allSurveys.map(s => \`<option value="\${s.id||s._id}">\${stars(s.rating)} \${s.clientName} — \${(s.comment||'').slice(0,50)}\${s.comment?.length>50?'…':''}</option>\`).join('');
+            sel.onchange = () => _updateSurveyPreview();
+
+            let linkedSurveyId = null;
             if (id) {
                 const item = allPortfolioItems.find(i => i.id === id);
                 if (item) {
@@ -9181,11 +9213,27 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     document.getElementById('portfolioCaption').value = item.caption;
                     document.getElementById('portfolioCommercial').checked = !!item.commercial;
                     _portfolioState.existingPhotos = _pfPhotos(item).map(p => ({ ...p }));
+                    linkedSurveyId = item.surveyId || null;
                 }
             }
+            sel.value = linkedSurveyId || '';
+            _updateSurveyPreview();
 
             _renderPortfolioPhotoList();
             openModal('portfolioModal');
+        }
+
+        function _updateSurveyPreview() {
+            const sel = document.getElementById('portfolioSurveyId');
+            const preview = document.getElementById('portfolioSurveyPreview');
+            const survey = _allSurveys.find(s => (s.id||s._id) === sel.value);
+            if (survey && sel.value) {
+                const stars = '★'.repeat(survey.rating) + '☆'.repeat(5-survey.rating);
+                preview.style.display = '';
+                preview.innerHTML = \`<span style="font-size:1rem;color:#f59e0b;">\${stars}</span> <strong>\${survey.clientName}</strong>\${survey.comment ? ' — "' + survey.comment + '"' : ''}\`;
+            } else {
+                preview.style.display = 'none';
+            }
         }
 
         function closePortfolioModal() { closeModal('portfolioModal'); }
@@ -9298,6 +9346,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const category = document.getElementById('portfolioCategory').value;
             const caption = document.getElementById('portfolioCaption').value.trim();
             const commercial = document.getElementById('portfolioCommercial').checked;
+            const surveyId = document.getElementById('portfolioSurveyId').value || null;
 
             if (!editId && !stagedPhotos.length) { alert('Please add at least one photo.'); return; }
 
@@ -9309,12 +9358,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 let entryId = editId;
 
                 if (!editId) {
-                    const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, caption, category, commercial }) });
+                    const res = await fetch('/api/portfolio', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, caption, category, commercial, surveyId }) });
                     if (!res.ok) throw new Error('Failed to create entry');
                     entryId = (await res.json()).id;
                 } else {
                     const res = await fetch('/api/portfolio/' + editId, { method: 'PUT', headers: {'Content-Type':'application/json'},
-                        body: JSON.stringify({ title, caption, category, commercial, photos: existingPhotos.map(p => ({ id: p.id, s3Key: p.s3Key, url: p.url, type: p.type })) }) });
+                        body: JSON.stringify({ title, caption, category, commercial, surveyId, photos: existingPhotos.map(p => ({ id: p.id, s3Key: p.s3Key, url: p.url, type: p.type })) }) });
                     if (!res.ok) throw new Error('Failed to update entry');
                     for (const s3Key of removedKeys) {
                         await fetch(\`/api/portfolio/\${editId}/photo\`, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ s3Key }) });

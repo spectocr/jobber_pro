@@ -2484,6 +2484,12 @@ app.get('/api/portfolio', async (req, res) => {
     try {
         const items = await db.collection('portfolio').find({}).sort({ createdAt: -1 }).toArray();
 
+        // Join survey data for items with a linked survey
+        const surveyIds = items.filter(i => i.surveyId).map(i => { try { return new ObjectId(i.surveyId); } catch(e) { return null; } }).filter(Boolean);
+        const surveys = surveyIds.length ? await db.collection('surveys').find({ _id: { $in: surveyIds } }).toArray() : [];
+        const surveyMap = Object.fromEntries(surveys.map(s => [s._id.toString(), s]));
+        items.forEach(i => { if (i.surveyId) i._survey = surveyMap[i.surveyId] || null; });
+
         // One S3 list call for all new-style photos
         const client = publicS3Client || s3Client;
         const bucket = publicS3Client ? PUBLIC_S3_BUCKET : S3_BUCKET_NAME;
@@ -2514,7 +2520,7 @@ app.get('/api/portfolio', async (req, res) => {
                 photos = [{ s3Key: item.s3Key, url: portfolioPhotoUrl(item.s3Key), type: 'after' }];
             }
             const coverPhoto = photos.find(p => p.type === 'after') || photos[0];
-            return { id, title: item.title || '', caption: item.caption || '', captionHtml: _pfFormatCaption(item.caption || ''), category: item.category || '', commercial: item.commercial || false, photos, photoUrl: coverPhoto?.url || portfolioPhotoUrl(item.s3Key) || '', createdAt: item.createdAt };
+            return { id, title: item.title || '', caption: item.caption || '', captionHtml: _pfFormatCaption(item.caption || ''), category: item.category || '', commercial: item.commercial || false, surveyId: item.surveyId || null, survey: item._survey || null, photos, photoUrl: coverPhoto?.url || portfolioPhotoUrl(item.s3Key) || '', createdAt: item.createdAt };
         }));
     } catch (err) {
         console.error('Portfolio GET error:', err);
@@ -2525,8 +2531,8 @@ app.get('/api/portfolio', async (req, res) => {
 // Create entry — metadata only in MongoDB, no photo data
 app.post('/api/portfolio', isAuthenticated, async (req, res) => {
     try {
-        const { title, caption, category, commercial } = req.body;
-        const doc = { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true', createdAt: new Date() };
+        const { title, caption, category, commercial, surveyId } = req.body;
+        const doc = { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true', surveyId: surveyId || null, createdAt: new Date() };
         const result = await db.collection('portfolio').insertOne(doc);
         res.json({ success: true, id: result.insertedId.toString() });
         rebuildPublicPortfolio().catch(() => {});
@@ -2578,10 +2584,13 @@ app.delete('/api/portfolio/:id/photo', isAuthenticated, async (req, res) => {
 // Update metadata only + handle type changes via S3 copy+delete
 app.put('/api/portfolio/:id', isAuthenticated, async (req, res) => {
     try {
-        const { title, caption, category, commercial, photos } = req.body;
+        const { title, caption, category, commercial, photos, surveyId } = req.body;
+        const setFields = { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' };
+        if (surveyId) setFields.surveyId = surveyId;
+        else setFields.surveyId = null;
         // Metadata update only — leave photos array untouched (legacy compat)
         await db.collection('portfolio').updateOne({ _id: new ObjectId(req.params.id) },
-            { $set: { title: title || '', caption: caption || '', category: category || '', commercial: commercial === true || commercial === 'true' } });
+            { $set: setFields });
 
         // Handle type changes: if photo's type doesn't match its key prefix, rename via copy+delete
         if (Array.isArray(photos)) {
@@ -8386,6 +8395,7 @@ function generatePortfolioHtml(rawItems) {
     // JSON payload for lightbox (UX only — SEO comes from the <img> tags above)
     const projectJson = JSON.stringify(items.map(i => ({
         id: i.id, title: i.title, captionHtml: _pfFormatCaption(i.caption), catName: i.catName,
+        survey: i.survey ? { rating: i.survey.rating, comment: i.survey.comment || '', clientName: i.survey.clientName || '' } : null,
         photos: i.photos.map(p => ({ url: p.url, type: p.type }))
     }))).replace(/<\/script>/gi, '<\\/script>');
 
@@ -8499,7 +8509,7 @@ footer a:hover{color:white}
 <div id="proj-modal" onclick="if(event.target===this)closeProject()">
   <div id="proj-panel">
     <div id="proj-head"><h2 id="proj-title"></h2><button id="proj-close" onclick="closeProject()">×</button></div>
-    <div id="proj-body"><p class="proj-cap" id="proj-cap"></p><div id="proj-photos"></div></div>
+    <div id="proj-body"><p class="proj-cap" id="proj-cap"></p><div id="proj-review" style="display:none;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:0.65rem 1rem;margin-bottom:1.1rem;font-size:0.88rem;"></div><div id="proj-photos"></div></div>
   </div>
 </div>
 <div id="lightbox" onclick="closeLb()"><span id="lb-close" onclick="closeLb()">×</span><img id="lb-img" src="" alt=""></div>
@@ -8534,6 +8544,12 @@ function openProject(id){
     h+='</div>';
   });
   document.getElementById('proj-photos').innerHTML=h||'<p style="color:#9ca3af">No photos.</p>';
+  const revEl=document.getElementById('proj-review');
+  if(p.survey&&p.survey.rating){
+    const stars='★'.repeat(p.survey.rating)+'☆'.repeat(5-p.survey.rating);
+    revEl.style.display='';
+    revEl.innerHTML='<div style="color:#f59e0b;font-size:1rem;margin-bottom:0.2rem;">'+stars+'</div>'+(p.survey.comment?'<div style="color:#1a202c;font-style:italic;margin-bottom:0.25rem;">"'+p.survey.comment+'"</div>':'')+'<div style="color:#92400e;font-weight:600;font-size:0.8rem;">— '+p.survey.clientName+'</div>';
+  } else { revEl.style.display='none'; }
   document.getElementById('proj-modal').classList.add('open');
   document.body.style.overflow='hidden';
 }
