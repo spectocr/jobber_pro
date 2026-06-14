@@ -2797,6 +2797,21 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 const clientName = cancelClient?.name || 'Valued Client';
                 if (clientEmail) {
                     const cancelDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    const _cancelLogId = new ObjectId();
+                    await db.collection('email_logs').insertOne({
+                        _id: _cancelLogId,
+                        type: 'cancellation',
+                        to: clientEmail,
+                        toName: clientName,
+                        subject: `Service Cancellation Confirmation — ${job.title}`,
+                        trigger: `Job "${job.title}" cancelled`,
+                        relatedId: new ObjectId(_id),
+                        relatedTitle: job.title,
+                        sentBy: req.session.userName || 'admin',
+                        sentAt: new Date(),
+                        status: 'sent',
+                        opened: false
+                    });
                     await emailService.sendEmail({
                         to: clientEmail,
                         subject: `Service Cancellation Confirmation — ${job.title}`,

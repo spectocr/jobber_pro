@@ -2016,6 +2016,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="invoice">Invoices</option>
                             <option value="quote">Quotes</option>
                             <option value="deposit">Deposits</option>
+                            <option value="cancellation">Cancellations</option>
                             <option value="credentials">Credentials</option>
                             <option value="portal_access">Portal Access</option>
                             <option value="test">Test Emails</option>
@@ -11851,6 +11852,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 portal_access:{ icon: '🏠', label: 'Portal Access',color: '#805ad5', bg: '#faf5ff' },
                 survey:       { icon: '⭐', label: 'Survey',       color: '#c05621', bg: '#fffaf0' },
                 deposit:      { icon: '💳', label: 'Deposit',      color: '#d97706', bg: '#fffbeb' },
+                cancellation: { icon: '🚫', label: 'Cancellation', color: '#991b1b', bg: '#fee2e2' },
                 test:         { icon: '🧪', label: 'Test',         color: '#718096', bg: '#f7fafc' }
             };
 
