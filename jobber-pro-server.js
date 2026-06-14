@@ -11891,7 +11891,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <td style="padding:0.85rem 1rem;">\${openedBadge}</td>
                                 <td style="padding:0.85rem 1rem;text-align:right;color:#718096;font-size:0.85rem;white-space:nowrap;">\${date}</td>
                                 <td style="padding:0.85rem 1rem;">
-                                    \${log.htmlBody ? \`<button onclick="viewEmailBody(\${JSON.stringify(log).replace(/'/g,'&#39;')})" style="padding:0.25rem 0.65rem;background:#ebf4ff;color:#2b6cb0;border:1px solid #bee3f8;border-radius:6px;font-size:0.78rem;cursor:pointer;white-space:nowrap;">👁 View</button>\` : ''}
+                                    \${log.htmlBody ? \`<button onclick="viewEmailBody('\${log.id||log._id}')" style="padding:0.25rem 0.65rem;background:#ebf4ff;color:#2b6cb0;border:1px solid #bee3f8;border-radius:6px;font-size:0.78rem;cursor:pointer;white-space:nowrap;">👁 View</button>\` : ''}
                                 </td>
                             </tr>\`;
                         }).join('')}
@@ -11901,26 +11901,37 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             \`;
         }
 
-        function viewEmailBody(log) {
+        function viewEmailBody(logId) {
+            const log = allEmailLogs.find(l => (l.id || l._id) == logId);
+            if (!log || !log.htmlBody) return;
             const existing = document.getElementById('emailBodyModal');
             if (existing) existing.remove();
             const m = document.createElement('div');
             m.id = 'emailBodyModal';
             m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
-            m.innerHTML = \`<div style="background:white;border-radius:14px;max-width:680px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid #e2e8f0;">
+            const header = document.createElement('div');
+            header.style.cssText = 'background:white;border-radius:14px;max-width:680px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;';
+            header.innerHTML = \`<div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
                     <div>
                         <div style="font-weight:700;color:#1a202c;">\${log.subject || 'Email Preview'}</div>
                         <div style="font-size:0.8rem;color:#718096;">To: \${log.toName ? log.toName + ' &lt;' + log.to + '&gt;' : log.to} · \${new Date(log.sentAt).toLocaleString()}</div>
                     </div>
                     <button onclick="document.getElementById('emailBodyModal').remove()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#718096;padding:0 0.25rem;">&times;</button>
                 </div>
-                <div style="flex:1;overflow-y:auto;padding:1.25rem;">
-                    <iframe srcdoc="\${log.htmlBody.replace(/"/g,'&quot;')}" style="width:100%;border:none;min-height:400px;" onload="this.style.height=(this.contentDocument.body.scrollHeight+32)+'px'"></iframe>
-                </div>
-            </div>\`;
+                <div style="flex:1;overflow-y:auto;padding:1rem;">
+                    <div id="emailBodyContent" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;"></div>
+                </div>\`;
+            m.appendChild(header);
             m.onclick = e => { if (e.target === m) m.remove(); };
             document.body.appendChild(m);
+            // Use srcdoc via iframe inserted after DOM is ready to avoid attribute escaping issues
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'width:100%;border:none;min-height:420px;display:block;';
+            iframe.onload = () => { try { iframe.style.height = (iframe.contentDocument.body.scrollHeight + 32) + 'px'; } catch(e){} };
+            document.getElementById('emailBodyContent').appendChild(iframe);
+            iframe.contentDocument.open();
+            iframe.contentDocument.write(log.htmlBody);
+            iframe.contentDocument.close();
         }
 
         async function loadMessages() {
