@@ -2787,6 +2787,40 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             { $set: { ...updateData, updatedAt: new Date() } }
         );
 
+        // Send cancellation confirmation email when status changes to cancelled
+        if (job.status === 'cancelled' && oldJob?.status !== 'cancelled' && emailService.initialized) {
+            try {
+                const cancelClient = job.clientId ? await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) }) : null;
+                const cancelSettings = await db.collection('settings').findOne({});
+                const businessName = cancelSettings?.companyName || 'GSD Property Services';
+                const clientEmail = cancelClient?.email;
+                const clientName = cancelClient?.name || 'Valued Client';
+                if (clientEmail) {
+                    const cancelDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    await emailService.sendEmail({
+                        to: clientEmail,
+                        subject: `Service Cancellation Confirmation — ${job.title}`,
+                        html: `<div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;padding:2rem;color:#1a202c;">
+                            <h2 style="color:#667eea;margin-bottom:0.25rem;">${businessName}</h2>
+                            <p style="color:#718096;font-size:0.85rem;margin-top:0;">Service Cancellation Confirmation</p>
+                            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0;">
+                            <p>Dear ${clientName},</p>
+                            <p>This letter confirms that, by mutual agreement between <strong>${businessName}</strong> and <strong>${clientName}</strong>, the service arrangement for the following has been cancelled effective <strong>${cancelDate}</strong>:</p>
+                            <div style="background:#f8fafc;border-left:4px solid #667eea;padding:0.85rem 1.1rem;margin:1.25rem 0;border-radius:0 6px 6px 0;">
+                                <strong style="font-size:1rem;">${job.title}</strong>
+                            </div>
+                            <p>Both parties acknowledge that this cancellation is final and agreed upon by mutual consent. Neither party shall pursue any claim, dispute, or legal action against the other arising from or related to this service arrangement or its cancellation.</p>
+                            <p>We appreciate the opportunity and wish you well.</p>
+                            <p style="margin-top:2rem;">Sincerely,<br><strong>${businessName}</strong></p>
+                            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
+                            <p style="color:#9ca3af;font-size:0.78rem;">This is an automated confirmation. Please retain this email for your records.</p>
+                        </div>`,
+                        text: `Service Cancellation Confirmation\n\nDear ${clientName},\n\nThis confirms that by mutual agreement, the service arrangement for "${job.title}" has been cancelled effective ${cancelDate}.\n\nBoth parties acknowledge this cancellation is final. Neither party shall pursue any claim or legal action related to this arrangement or its cancellation.\n\nSincerely,\n${businessName}`
+                    });
+                }
+            } catch (e) { console.error('Cancellation email error:', e.message); }
+        }
+
     } else {
         job.createdAt = new Date();
 

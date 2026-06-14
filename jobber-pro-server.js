@@ -3417,6 +3417,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <option value="completed">Completed</option>
                                 <option value="invoiced">Invoiced</option>
                                 <option value="bid_lost">Bid Lost</option>
+                                <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -16134,6 +16135,7 @@ const handleRequest = async (req, res) => {
         .status-completed { background: #c6f6d5; color: #22543d; }
         .status-invoiced { background: #e9d8fd; color: #553c9a; }
         .status-bid_lost { background: #e2e8f0; color: #4a5568; }
+        .status-cancelled { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body>
