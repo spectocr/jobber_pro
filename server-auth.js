@@ -2426,6 +2426,7 @@ app.post('/api/clients/send-portal-info', isAuthenticated, async (req, res) => {
             to: sendTo,
             toName: client.name,
             subject: subject,
+            htmlBody: html,
             trigger: 'Portal access email sent manually',
             relatedId: client._id,
             relatedTitle: client.name,
@@ -2812,10 +2813,7 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                         status: 'sent',
                         opened: false
                     });
-                    await emailService.sendEmail({
-                        to: clientEmail,
-                        subject: `Service Cancellation Confirmation — ${job.title}`,
-                        html: `<div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;padding:2rem;color:#1a202c;">
+                    const _cancelHtml = `<div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;padding:2rem;color:#1a202c;">
                             <h2 style="color:#667eea;margin-bottom:0.25rem;">${businessName}</h2>
                             <p style="color:#718096;font-size:0.85rem;margin-top:0;">Service Cancellation Confirmation</p>
                             <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0;">
@@ -2829,7 +2827,12 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                             <p style="margin-top:2rem;">Sincerely,<br><strong>${businessName}</strong></p>
                             <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
                             <p style="color:#9ca3af;font-size:0.78rem;">This is an automated confirmation. Please retain this email for your records.</p>
-                        </div>`,
+                        </div>`;
+                    await db.collection('email_logs').updateOne({ _id: _cancelLogId }, { $set: { htmlBody: _cancelHtml } });
+                    await emailService.sendEmail({
+                        to: clientEmail,
+                        subject: `Service Cancellation Confirmation — ${job.title}`,
+                        html: _cancelHtml,
                         text: `Service Cancellation Confirmation\n\nDear ${clientName},\n\nThis confirms that by mutual agreement, the service arrangement for "${job.title}" has been cancelled effective ${cancelDate}.\n\nBoth parties acknowledge this cancellation is final. Neither party shall pursue any claim or legal action related to this arrangement or its cancellation.\n\nSincerely,\n${businessName}`
                     });
                 }
@@ -2936,10 +2939,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
     const subject = `How did we do? — ${companyName}`;
     const _surveyLogId = new ObjectId();
     const _surveyTrackUrl = `${appUrl}/api/email-track/${_surveyLogId}`;
-    await emailService.sendEmail({
-        to: surveyEmail,
-        subject,
-        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;color:#1a202c;">
+    const _surveyHtml = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;color:#1a202c;">
             <div style="text-align:center;margin-bottom:1.5rem;">
                 <div style="font-size:2.5rem;">🐾</div>
                 <h2 style="color:#0f1c2e;margin:0.5rem 0;">How did we do?</h2>
@@ -2953,7 +2953,11 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
             <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">Or paste this link: <a href="${surveyUrl}" style="color:#667eea;">${surveyUrl}</a></p>
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
             <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">${companyName} · South Jersey</p>
-        </div>`,
+        </div>`;
+    await emailService.sendEmail({
+        to: surveyEmail,
+        subject,
+        html: _surveyHtml,
         trackingPixelUrl: _surveyTrackUrl
     });
     await db.collection('email_logs').insertOne({
@@ -2965,6 +2969,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
         trigger: `Survey request for job "${jobTitle}"`,
         relatedId: new ObjectId(jobId.toString()),
         relatedTitle: jobTitle,
+        htmlBody: _surveyHtml,
         sentBy: 'system',
         sentAt: new Date(),
         status: 'sent',
@@ -3603,6 +3608,7 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
             trigger: `Quote #${quote.quoteNumber} — ${quote.title}`,
             relatedId: quote._id,
             relatedTitle: quote.title,
+            htmlBody: html,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
             opened: false,
@@ -4570,6 +4576,7 @@ app.post('/api/email/send-credentials', isAuthenticated, async (req, res) => {
             trigger: `Login credentials sent to team member ${user.name}`,
             relatedId: user._id,
             relatedTitle: user.name,
+            htmlBody: `<p style="font-family:Arial,sans-serif;padding:1rem;color:#4a5568;">Login credentials sent to <strong>${user.name}</strong> at <strong>${user.email}</strong>.<br><br>Email included their temporary password and a link to log in.</p>`,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
             status: 'sent',
@@ -4657,6 +4664,7 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             trigger: `Invoice #${invoiceNumber} for job "${job.title}" — $${parseFloat(total).toFixed(2)}`,
             relatedId: job._id,
             relatedTitle: job.title,
+            htmlBody: `<p style="font-family:Arial,sans-serif;padding:1rem;color:#4a5568;">Invoice email sent for <strong>${job.title}</strong> — Invoice #${invoiceNumber} — $${parseFloat(total).toFixed(2)}<br><br><a href="${invoiceUrl}" style="color:#667eea;">View full invoice →</a></p>`,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
             status: 'sent',
@@ -7831,10 +7839,7 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
         const _depLogId = new ObjectId();
         const _depTrackUrl = `${process.env.APP_URL}/api/email-track/${_depLogId}`;
 
-        await emailService.sendEmail({
-            to: toEmail,
-            subject: `Deposit Request — ${job.title} — ${companyName}`,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:2rem;">
+        const _depHtml = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:2rem;">
                 <h2 style="color:#667eea;">${companyName}</h2>
                 <p>Hi ${client?.name || 'there'},</p>
                 <p>To secure your upcoming job, a deposit is required:</p>
@@ -7848,7 +7853,11 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
                 <p style="color:#718096;font-size:0.85rem;">This secures your spot on our schedule. Thank you!</p>
                 <p style="color:#718096;font-size:0.85rem;">${companyName}</p>
                 <img src="${_depTrackUrl}" width="1" height="1" style="display:none" alt="">
-            </div>`,
+            </div>`;
+        await emailService.sendEmail({
+            to: toEmail,
+            subject: `Deposit Request — ${job.title} — ${companyName}`,
+            html: _depHtml,
             text: `Deposit request for "${job.title}"\nAmount: $${depositAmount.toFixed(2)}\nPay here: ${depositUrl}`
         });
 
@@ -7861,6 +7870,7 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
             trigger: `Deposit of $${depositAmount.toFixed(2)} requested for "${job.title}"`,
             relatedId: job._id,
             relatedTitle: job.title,
+            htmlBody: _depHtml,
             sentBy: req.session.userName || 'admin',
             sentAt: new Date(),
             status: 'sent',
