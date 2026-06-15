@@ -2977,6 +2977,28 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
     });
 }
 
+// ── OOO Banner helper ──────────────────────────────────────────────────────
+async function getOOOBanner() {
+    try {
+        const s = await db.collection('settings').findOne({}, { projection: { ooo: 1 } });
+        const ooo = s?.ooo || {};
+        if (!ooo.enabled) return '';
+        const today = new Date(); today.setHours(0,0,0,0);
+        const start = ooo.startDate ? new Date(ooo.startDate) : null;
+        const end   = ooo.endDate   ? new Date(ooo.endDate)   : null;
+        if (start) start.setHours(0,0,0,0);
+        if (end)   end.setHours(23,59,59,999);
+        if (start && today < start) return '';
+        if (end   && new Date() > end) return '';
+        const msg = ooo.message || 'We are currently out of the office.';
+        const returnPart = ooo.endDate ? ` We return on <strong>${new Date(ooo.endDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</strong>.` : '';
+        const phonePart = ooo.phone ? ` For emergencies call <a href="tel:${ooo.phone.replace(/\D/g,'')}" style="color:#92400e;font-weight:700;">${ooo.phone}</a>.` : '';
+        return `<div style="background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;">
+            ⚠️ ${msg}${returnPart}${phonePart}
+        </div>`;
+    } catch(e) { return ''; }
+}
+
 // Public survey page
 app.get('/survey/:token', async (req, res) => {
     const job = await db.collection('jobs').findOne({ surveyToken: req.params.token });
@@ -2984,6 +3006,7 @@ app.get('/survey/:token', async (req, res) => {
     if (job.surveySubmittedAt) return res.status(410).send('<h2>This survey has already been submitted. Thank you!</h2>');
     const settings = await db.collection('settings').findOne({});
     const companyName = settings?.companyName || 'GSD Handyman Service';
+    const oooBanner = await getOOOBanner();
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -3015,7 +3038,7 @@ textarea:focus{border-color:#553c9a;}
 .thanks h2{color:#0f1c2e;margin-bottom:0.5rem;}
 .thanks p{color:#718096;}
 .err{color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;text-align:center;}
-</style></head><body>
+</style></head><body>${oooBanner}
 <div class="card">
   <div id="surveyForm">
     <div class="logo">🐾</div>
@@ -4410,6 +4433,23 @@ app.get('/api/public/branding', async (req, res) => {
     res.json(s || {});
 });
 
+// Public OOO status — no auth required (used by public pages)
+app.get('/api/ooo-status', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+        const s = await db.collection('settings').findOne({}, { projection: { ooo: 1 } });
+        const ooo = s?.ooo || {};
+        if (!ooo.enabled) return res.json({ active: false });
+        const today = new Date(); today.setHours(0,0,0,0);
+        const start = ooo.startDate ? new Date(ooo.startDate) : null;
+        const end   = ooo.endDate   ? new Date(ooo.endDate)   : null;
+        if (start) start.setHours(0,0,0,0);
+        if (end)   end.setHours(23,59,59,999);
+        const active = (!start || today >= start) && (!end || new Date() <= end);
+        res.json({ active, message: ooo.message || '', returnDate: ooo.endDate || '', phone: ooo.phone || '' });
+    } catch (e) { res.json({ active: false }); }
+});
+
 app.get('/api/settings', isAuthenticated, async (req, res) => {
     const settings = await db.collection('settings').findOne();
     res.json(settings || {});
@@ -4428,6 +4468,18 @@ app.post('/api/settings', isAuthenticated, async (req, res) => {
         await db.collection('settings').insertOne(settings);
     }
     res.json({ success: true });
+});
+
+app.post('/api/settings/ooo', isAuthenticated, async (req, res) => {
+    try {
+        const { enabled, startDate, endDate, message, phone } = req.body;
+        await db.collection('settings').updateOne(
+            {},
+            { $set: { ooo: { enabled: !!enabled, startDate: startDate || null, endDate: endDate || null, message: message || '', phone: phone || '' }, updatedAt: new Date() } },
+            { upsert: true }
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Email Configuration API
@@ -5793,7 +5845,8 @@ app.get('/invoice/:jobId', async (req, res) => {
 </body>
 </html>`;
 
-    res.send(invoiceHTML);
+    const oooBanner = await getOOOBanner();
+    res.send(invoiceHTML.replace('<body>', '<body>' + oooBanner));
 });
 
 // Public Quote Viewing (no authentication required)
@@ -6078,7 +6131,8 @@ app.get('/quote-view/:token', async (req, res) => {
 </body>
 </html>`;
 
-        res.send(quoteHTML);
+        const oooBanner = await getOOOBanner();
+        res.send(quoteHTML.replace('<body>', '<body>' + oooBanner));
     } catch (error) {
         console.error('Quote view error:', error);
         res.status(500).send('<h1>Error loading quote</h1>');
@@ -6187,19 +6241,21 @@ app.post('/quote-action/:token/reject', async (req, res) => {
 });
 
 // Client Portal Routes
-app.get('/client-login', (req, res) => {
+app.get('/client-login', async (req, res) => {
     const fs = require('fs');
     const html = fs.readFileSync('./client-login.html', 'utf8');
-    res.send(html);
+    const oooBanner = await getOOOBanner();
+    res.send(html.replace('<body>', '<body>' + oooBanner));
 });
 
-app.get('/client-portal', (req, res) => {
+app.get('/client-portal', async (req, res) => {
     if (!req.session.clientId) {
         return res.redirect('/client-login');
     }
     const fs = require('fs');
     const html = fs.readFileSync('./client-portal.html', 'utf8');
-    res.send(html);
+    const oooBanner = await getOOOBanner();
+    res.send(html.replace('<body>', '<body>' + oooBanner));
 });
 
 // Client Portal API - Login
@@ -7892,6 +7948,7 @@ app.get('/deposit/:token', async (req, res) => {
     const companyName = settings.appName || 'GSD Property Services';
     const deposit = job.deposit;
     const isPaid = deposit.status === 'paid';
+    const oooBanner = await getOOOBanner();
 
     res.send(`<!DOCTYPE html><html lang="en"><head>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -7916,7 +7973,7 @@ app.get('/deposit/:token', async (req, res) => {
             .btn:disabled{opacity:0.6;cursor:not-allowed;}
             .secure{text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem;}
         </style>
-    </head><body>
+    </head><body>${oooBanner}
     <div class="card">
         <div class="header">
             <h1>${companyName}</h1>
@@ -8952,6 +9009,7 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
             '<a href="/#quote">Get a Quote</a>\n        <a href="https://app.gsdhandymanservice.com/client-login">Client Portal</a>'
         );
     }
+    html = _withOOOSnippet(html);
     await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: s3Key, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
     console.log(`✅ ${s3Key} commercial gallery updated`);
     return true;
@@ -9157,6 +9215,7 @@ async function rebuildLocationPages() {
                     '<a href="/#quote">Get a Quote</a>\n        <a href="/property-management">Property Managers</a>'
                 );
             }
+            html = _withOOOSnippet(html);
             await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: slug, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
             console.log(`✅ ${slug} portfolio section updated`);
             cfKeys.push(`/${slug}`);
@@ -9176,6 +9235,12 @@ async function rebuildLocationPages() {
     }
 }
 
+
+const OOO_SNIPPET = '<script>\n(function(){fetch(\'https://app.gsdhandymanservice.com/api/ooo-status\').then(function(r){return r.json();}).then(function(d){if(!d.active)return;var msg=d.message||\'We are currently out of the office.\';var ret=d.returnDate?(\' We return on <strong>\'+new Date(d.returnDate).toLocaleDateString(\'en-US\',{month:\'long\',day:\'numeric\',year:\'numeric\'})+\'</strong>.\'):\'\';var ph=d.phone?(\' For emergencies call <a href="tel:\'+d.phone.replace(/\\D/g,\'\')+\'" style="color:#92400e;font-weight:700;">\'+d.phone+\'</a>.\'):\'\';var el=document.createElement(\'div\');el.style.cssText=\'background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;position:relative;z-index:1000;\';el.innerHTML=\'⚠️ \'+msg+ret+ph;document.body.prepend(el);}).catch(function(){});})();\n</script>';
+function _withOOOSnippet(html) {
+    if (html.includes('app.gsdhandymanservice.com/api/ooo-status')) return html;
+    return html.replace('</body>', OOO_SNIPPET + '\n</body>');
+}
 
 async function rebuildPublicPortfolio() {
     if (!publicS3Client || !PUBLIC_S3_BUCKET) {
@@ -9214,7 +9279,7 @@ async function rebuildPublicPortfolio() {
             return { ...item, photos, survey: surveyMap[item.surveyId] || null };
         });
 
-        const html = generatePortfolioHtml(items);
+        const html = _withOOOSnippet(generatePortfolioHtml(items));
         await publicS3Client.send(new PutObjectCommand({
             Bucket: PUBLIC_S3_BUCKET,
             Key: 'portfolio.html',
@@ -9357,6 +9422,7 @@ async function rebuildHomePage() {
                 "I'm Cris. GSD serves homeowners, property managers, landlords, and commercial facilities across South Jersey — reliable repairs, clear communication, and no chasing required. Based in Mount Laurel, serving Cherry Hill, Moorestown, Marlton, Medford, and surrounding towns."
             );
         }
+        html = _withOOOSnippet(html);
         await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'index.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
         console.log('✅ index.html homepage portfolio updated');
         const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;

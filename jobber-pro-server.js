@@ -2415,6 +2415,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="settings-tab" id="usersTab" onclick="switchSettingsTab('users')" data-tab="users" style="display: none;">👥 Users</button>
                         <button class="settings-tab" onclick="switchSettingsTab('compliance')" data-tab="compliance" id="complianceTabBtn">🛡️ License & Insurance</button>
                         <button class="settings-tab" onclick="switchSettingsTab('quotetemplates')" data-tab="quotetemplates">📋 Quote Templates</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('ooo')" data-tab="ooo">🏖️ Away / OOO</button>
                     </div>
                 </div>
 
@@ -2845,6 +2846,47 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div id="quoteTemplatesList" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
                     <p id="noQuoteTemplates" style="color:#718096;font-style:italic;">No templates yet. Click "+ New Template" to create your first one.</p>
+                </div>
+
+                <div id="oooTab" class="settings-tab-content" style="display:none;">
+                    <div style="margin-bottom:1.5rem;">
+                        <h3 style="margin:0 0 0.25rem;color:#667eea;">🏖️ Away / Out of Office</h3>
+                        <p style="margin:0;color:#718096;font-size:0.9rem;">Display a banner on all public-facing pages when you're away.</p>
+                    </div>
+                    <div style="background:#fffbeb;border:1.5px solid #fbbf24;border-radius:10px;padding:1.25rem;margin-bottom:1.5rem;">
+                        <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;font-weight:600;font-size:1rem;color:#78350f;">
+                            <input type="checkbox" id="oooEnabled" style="width:18px;height:18px;accent-color:#f59e0b;cursor:pointer;">
+                            Enable Away / OOO Banner
+                        </label>
+                        <p style="margin:0.5rem 0 0 2rem;font-size:0.85rem;color:#92400e;">When enabled and within the date range, a banner will appear on all client-facing pages.</p>
+                    </div>
+                    <div style="display:grid;gap:1rem;max-width:520px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                            <div>
+                                <label class="form-label">Start Date</label>
+                                <input type="date" id="oooStartDate" class="form-input">
+                            </div>
+                            <div>
+                                <label class="form-label">Return / End Date</label>
+                                <input type="date" id="oooEndDate" class="form-input">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">Banner Message</label>
+                            <input type="text" id="oooMessage" class="form-input" placeholder="We are currently out of the office.">
+                        </div>
+                        <div>
+                            <label class="form-label">Emergency Phone (optional)</label>
+                            <input type="text" id="oooPhone" class="form-input" placeholder="(609) 555-0100">
+                        </div>
+                    </div>
+                    <div style="margin-top:1.5rem;display:flex;gap:1rem;align-items:center;">
+                        <button class="btn btn-primary" onclick="saveOOOSettings()">Save Away Settings</button>
+                        <span id="oooSaveStatus" style="font-size:0.9rem;color:#38a169;display:none;">✅ Saved!</span>
+                    </div>
+                    <div id="oooBannerPreview" style="margin-top:1.5rem;display:none;">
+                        <p style="font-size:0.85rem;color:#718096;margin-bottom:0.5rem;">Banner preview:</p>
+                    </div>
                 </div>
 
     <!-- Send Compliance Docs Modal -->
@@ -4448,6 +4490,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         window.addEventListener('DOMContentLoaded', () => {
             loadWeatherBar();
+            checkAdminOOOBadge();
             // Handle post-OAuth redirect
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('analytics') === 'connected') {
@@ -10935,6 +10978,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (tabName === 'quotetemplates') {
                 loadQuoteTemplates();
             }
+            if (tabName === 'ooo') {
+                checkAdminOOOBadge();
+            }
         }
 
         async function loadSettings() {
@@ -10993,8 +11039,60 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 statusDiv.style.border = '2px solid #fc8181';
             }
 
+            // Load OOO settings
+            const ooo = settings.ooo || {};
+            document.getElementById('oooEnabled').checked = !!ooo.enabled;
+            document.getElementById('oooStartDate').value = ooo.startDate ? ooo.startDate.slice(0, 10) : '';
+            document.getElementById('oooEndDate').value = ooo.endDate ? ooo.endDate.slice(0, 10) : '';
+            document.getElementById('oooMessage').value = ooo.message || '';
+            document.getElementById('oooPhone').value = ooo.phone || '';
+
             // Mark form as clean after loading
             markFormClean();
+        }
+
+        async function saveOOOSettings() {
+            const payload = {
+                enabled: document.getElementById('oooEnabled').checked,
+                startDate: document.getElementById('oooStartDate').value || null,
+                endDate: document.getElementById('oooEndDate').value || null,
+                message: document.getElementById('oooMessage').value.trim(),
+                phone: document.getElementById('oooPhone').value.trim()
+            };
+            try {
+                const res = await fetch('/api/settings/ooo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Save failed');
+                const statusEl = document.getElementById('oooSaveStatus');
+                statusEl.style.display = 'inline';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+                // Refresh admin header badge
+                checkAdminOOOBadge();
+            } catch (e) {
+                alert('Failed to save OOO settings: ' + e.message);
+            }
+        }
+
+        async function checkAdminOOOBadge() {
+            try {
+                const data = await fetch('/api/ooo-status').then(r => r.json());
+                let badge = document.getElementById('oooAdminBadge');
+                if (data.active) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.id = 'oooAdminBadge';
+                        badge.style.cssText = 'background:#fbbf24;color:#78350f;font-weight:700;font-size:0.78rem;padding:0.2rem 0.6rem;border-radius:999px;margin-left:0.75rem;';
+                        badge.textContent = '🏖️ OOO ACTIVE';
+                        const header = document.querySelector('.top-bar') || document.querySelector('header') || document.body;
+                        header.prepend(badge);
+                    }
+                } else if (badge) {
+                    badge.remove();
+                }
+            } catch (e) {}
         }
 
         function handleLogoUpload(event) {
