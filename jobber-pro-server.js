@@ -2495,6 +2495,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">These terms will be displayed at the bottom of all invoices</small>
                     </div>
 
+                    <div class="form-group" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid #e2e8f0;">
+                        <label>Credit Card Processing Fee (%)</label>
+                        <div style="display:flex;align-items:center;gap:0.5rem;max-width:200px;">
+                            <input type="number" name="cloverFeePercent" min="0" max="10" step="0.01" placeholder="3.50" style="flex:1;">
+                            <span style="color:#718096;font-weight:600;">%</span>
+                        </div>
+                        <small style="color:#718096;display:block;margin-top:0.4rem;">Clover's processing fee passed to customers. Find this in your <strong>Clover Dashboard → Account &amp; Setup → Fees</strong>. Shown on deposit and invoice payment pages before the customer enters their card.</small>
+                    </div>
+
                     <div style="margin-top: 2rem;">
                         <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
                     </div>
@@ -11072,6 +11081,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
             form.elements.taxRatePercent.value = ((settings.taxRate || 0.06625) * 100).toFixed(3);
             form.elements.contractTerms.value = settings.contractTerms || '';
+            form.elements.cloverFeePercent.value = settings.cloverFeePercent != null ? settings.cloverFeePercent : '';
 
             // Load logo if exists
             if (settings.companyLogo) {

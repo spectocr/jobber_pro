@@ -5774,10 +5774,23 @@ app.get('/invoice/:jobId', async (req, res) => {
                     <label>Amount to Pay</label>
                     <div style="position:relative;">
                         <span style="position:absolute;left:0.875rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-weight:600;">$</span>
-                        <input type="number" id="payAmount" class="pay-input" value="${balance.toFixed(2)}" min="0.50" step="0.01" style="padding-left:1.75rem;">
+                        <input type="number" id="payAmount" class="pay-input" value="${balance.toFixed(2)}" min="0.50" step="0.01" style="padding-left:1.75rem;" oninput="updateInvFee()">
                     </div>
                     <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.3rem;">Enter less than the balance to make a partial payment.</p>
                 </div>
+
+                ${(parseFloat(settings.cloverFeePercent) || 0) > 0 ? `
+                <div id="invFeeBox" style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.85rem;font-size:0.85rem;">
+                    <div style="display:flex;justify-content:space-between;color:#4a5568;margin-bottom:0.3rem;">
+                        <span>Processing fee (${parseFloat(settings.cloverFeePercent)}%)</span>
+                        <span id="invFeeAmt">$${(balance * parseFloat(settings.cloverFeePercent) / 100).toFixed(2)}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-weight:700;color:#1a202c;padding-top:0.3rem;border-top:1px solid #e2e8f0;">
+                        <span>Total charged</span>
+                        <span id="invFeeTotal">$${(balance * (1 + parseFloat(settings.cloverFeePercent) / 100)).toFixed(2)}</span>
+                    </div>
+                    <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.4rem;">Credit card processing fees are collected by Clover and are non-refundable.</p>
+                </div>` : ''}
 
                 <div class="pay-divider"></div>
 
@@ -5835,6 +5848,17 @@ app.get('/invoice/:jobId', async (req, res) => {
                 elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
                 cloverMounted = true;
             }
+        }
+
+        function updateInvFee() {
+            var feeBox = document.getElementById('invFeeBox');
+            if (!feeBox) return;
+            var amt = parseFloat(document.getElementById('payAmount').value) || 0;
+            var feeRate = ${parseFloat(settings.cloverFeePercent) || 0} / 100;
+            var fee = amt * feeRate;
+            var total = amt + fee;
+            document.getElementById('invFeeAmt').textContent = '$' + fee.toFixed(2);
+            document.getElementById('invFeeTotal').textContent = '$' + total.toFixed(2);
         }
 
         function closePayModal() {
@@ -8111,6 +8135,9 @@ app.get('/deposit/:token', async (req, res) => {
     const deposit = job.deposit;
     const isPaid = deposit.status === 'paid';
     const oooBanner = await getOOOBanner();
+    const feePercent = parseFloat(settings.cloverFeePercent) || 0;
+    const feeAmount = feePercent > 0 ? deposit.amount * (feePercent / 100) : 0;
+    const depositTotal = deposit.amount + feeAmount;
 
     res.send(`<!DOCTYPE html><html lang="en"><head>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8143,13 +8170,26 @@ app.get('/deposit/:token', async (req, res) => {
         </div>
         <div class="body">
             <div class="job-name"><strong>${job.title}</strong></div>
-            <div class="amount">$${deposit.amount.toFixed(2)}</div>
             ${isPaid ? `
+            <div class="amount">$${deposit.amount.toFixed(2)}</div>
             <div class="paid-box">
                 <div style="font-size:2rem;margin-bottom:0.5rem;">✅</div>
                 <h2>Deposit Paid!</h2>
                 <p style="color:#276749;margin-top:0.5rem;">Thank you — you're all set.</p>
             </div>` : `
+            ${feePercent > 0 ? `
+            <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:#4a5568;margin-bottom:0.4rem;">
+                    <span>Deposit amount</span><span>$${deposit.amount.toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:#4a5568;margin-bottom:0.6rem;padding-bottom:0.6rem;border-bottom:1px solid #e2e8f0;">
+                    <span>Processing fee (${feePercent}%)</span><span>$${feeAmount.toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-weight:700;color:#1a202c;font-size:1rem;">
+                    <span>Total charged</span><span>$${depositTotal.toFixed(2)}</span>
+                </div>
+                <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.6rem;line-height:1.4;">Credit card processing fees are collected by Clover and are non-refundable.</p>
+            </div>` : `<div class="amount">$${deposit.amount.toFixed(2)}</div>`}
             <div id="payError"></div>
             <label style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;display:block;margin-bottom:0.35rem;">Card Number</label>
             <div id="card-number" class="clover-field"></div>
@@ -8169,7 +8209,7 @@ app.get('/deposit/:token', async (req, res) => {
                 <input type="checkbox" id="saveCardCheckbox" checked style="width:15px;height:15px;accent-color:#667eea;cursor:pointer;flex-shrink:0;">
                 Save card for future payments
             </label>
-            <button class="btn" id="payBtn" onclick="submitDeposit()">Pay $${deposit.amount.toFixed(2)} Deposit</button>
+            <button class="btn" id="payBtn" onclick="submitDeposit()">Pay $${depositTotal.toFixed(2)} Deposit</button>
             <div class="secure">🔒 Secure payment via Clover</div>
             <script src="https://checkout.clover.com/sdk.js"></script>
             <script>
