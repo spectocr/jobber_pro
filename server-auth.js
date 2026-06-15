@@ -4470,6 +4470,82 @@ app.post('/api/settings', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Backup / Restore API ───────────────────────────────────────────────────
+
+async function runMongoBackup() {
+    const bucket = process.env.S3_BUCKET_NAME;
+    const s3b = new S3Client({ region: 'us-east-1', credentials: { accessKeyId: process.env.AWS_ACCESS_KEY_ID, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY } });
+    const collectionNames = (await db.listCollections().toArray()).map(c => c.name);
+    const dump = {};
+    for (const name of collectionNames) {
+        const docs = await db.collection(name).find({}).toArray();
+        dump[name] = JSON.parse(JSON.stringify(docs));
+    }
+    const { promisify } = require('util');
+    const gzip = promisify(require('zlib').gzip);
+    const payload = await gzip(Buffer.from(JSON.stringify(dump), 'utf8'));
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `backups/${today}.json.gz`;
+    await s3b.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: payload, ContentType: 'application/gzip', ServerSideEncryption: 'AES256' }));
+    const RETENTION_DAYS = 30;
+    const listed = await s3b.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'backups/' }));
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400 * 1000);
+    const toDelete = (listed.Contents || []).filter(obj => {
+        const d = obj.Key.replace('backups/', '').replace('.json.gz', '');
+        return new Date(d) < cutoff;
+    });
+    for (const obj of toDelete) await s3b.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }));
+    return { key, sizeKB: (payload.length / 1024).toFixed(1), collections: collectionNames.length, docs: Object.values(dump).reduce((s, d) => s + d.length, 0), pruned: toDelete.length };
+}
+
+app.post('/api/backup/run', isAdmin, async (req, res) => {
+    try {
+        const result = await runMongoBackup();
+        res.json({ success: true, ...result });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/backup/list', isAdmin, async (req, res) => {
+    try {
+        const bucket = process.env.S3_BUCKET_NAME;
+        const s3b = new S3Client({ region: 'us-east-1', credentials: { accessKeyId: process.env.AWS_ACCESS_KEY_ID, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY } });
+        const listed = await s3b.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'backups/' }));
+        const backups = (listed.Contents || [])
+            .filter(o => o.Key.endsWith('.json.gz'))
+            .sort((a, b) => b.LastModified - a.LastModified)
+            .map(o => ({ key: o.Key, date: o.Key.replace('backups/', '').replace('.json.gz', ''), sizeKB: (o.Size / 1024).toFixed(1), lastModified: o.LastModified }));
+        res.json(backups);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/backup/restore', isAdmin, async (req, res) => {
+    try {
+        const { key } = req.body;
+        if (!key || !key.startsWith('backups/') || !key.endsWith('.json.gz')) return res.status(400).json({ error: 'Invalid backup key' });
+        const bucket = process.env.S3_BUCKET_NAME;
+        const s3b = new S3Client({ region: 'us-east-1', credentials: { accessKeyId: process.env.AWS_ACCESS_KEY_ID, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY } });
+        const getRes = await s3b.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        const chunks = [];
+        for await (const chunk of getRes.Body) chunks.push(chunk);
+        const { promisify } = require('util');
+        const gunzip = promisify(require('zlib').gunzip);
+        const dump = JSON.parse((await gunzip(Buffer.concat(chunks))).toString('utf8'));
+        const results = {};
+        for (const [name, docs] of Object.entries(dump)) {
+            await db.collection(name).deleteMany({});
+            if (docs.length > 0) {
+                const prepared = docs.map(doc => {
+                    try { if (doc._id && typeof doc._id === 'string' && doc._id.length === 24) doc._id = new ObjectId(doc._id); } catch (e) {}
+                    return doc;
+                });
+                await db.collection(name).insertMany(prepared, { ordered: false });
+            }
+            results[name] = docs.length;
+        }
+        res.json({ success: true, restored: results });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/settings/ooo', isAuthenticated, async (req, res) => {
     try {
         const { enabled, startDate, endDate, message, phone } = req.body;

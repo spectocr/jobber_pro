@@ -2416,6 +2416,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="settings-tab" onclick="switchSettingsTab('compliance')" data-tab="compliance" id="complianceTabBtn">🛡️ License & Insurance</button>
                         <button class="settings-tab" onclick="switchSettingsTab('quotetemplates')" data-tab="quotetemplates">📋 Quote Templates</button>
                         <button class="settings-tab" onclick="switchSettingsTab('ooo')" data-tab="ooo">🏖️ Away / OOO</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('backups')" data-tab="backups">💾 Backups</button>
                     </div>
                 </div>
 
@@ -2883,6 +2884,55 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div id="oooBannerPreview" style="margin-top:1.5rem;display:none;">
                         <p style="font-size:0.85rem;color:#718096;margin-bottom:0.5rem;">Banner preview:</p>
+                    </div>
+                </div>
+
+                <!-- Backups Tab -->
+                <div id="backupsTab" class="settings-tab-content" style="display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+                        <div>
+                            <h3 style="margin:0 0 0.25rem;color:#667eea;">💾 Database Backups</h3>
+                            <p style="margin:0;color:#718096;font-size:0.9rem;">All MongoDB data exported to encrypted, compressed files in S3.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="runBackupNow()" id="runBackupBtn">⬆️ Back Up Now</button>
+                    </div>
+
+                    <!-- Automation note -->
+                    <div style="background:#f0f4ff;border:1.5px solid #667eea;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:0.75rem;">
+                        <span style="font-size:1.2rem;line-height:1.4;">🤖</span>
+                        <div>
+                            <div style="font-weight:600;color:#3730a3;margin-bottom:0.2rem;">Automatic backups are scheduled nightly</div>
+                            <div style="font-size:0.88rem;color:#4338ca;line-height:1.5;">Heroku Scheduler runs <code style="background:#e0e7ff;padding:1px 5px;border-radius:4px;">node scripts/backup.js</code> every night at 4:00 AM UTC. The last 30 days are kept; older files are deleted automatically.</div>
+                        </div>
+                    </div>
+
+                    <!-- How it works -->
+                    <div style="margin-bottom:1.5rem;">
+                        <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ How it works':'▶ How it works';"
+                            style="background:none;border:none;color:#667eea;font-weight:600;font-size:0.95rem;cursor:pointer;padding:0;display:flex;align-items:center;gap:0.4rem;">
+                            ▶ How it works
+                        </button>
+                        <div style="display:none;margin-top:0.75rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:1.25rem;font-size:0.88rem;color:#4a5568;line-height:1.7;">
+                            <p style="margin:0 0 0.75rem;"><strong>What it backs up:</strong> Every MongoDB collection — jobs, clients, invoices, quotes, settings, email logs, surveys, portfolio, and more — exported as a single JSON snapshot.</p>
+                            <p style="margin:0 0 0.75rem;"><strong>Where it goes:</strong> Compressed (gzip) and encrypted (AES-256) files stored in your private S3 bucket under the <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">backups/</code> folder. Named by date: <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">2026-06-15.json.gz</code>.</p>
+                            <p style="margin:0 0 0.75rem;"><strong>Retention:</strong> 30 days. Files older than that are deleted automatically on each backup run to keep storage costs minimal.</p>
+                            <p style="margin:0 0 0.75rem;"><strong>To restore:</strong> Find the date you want below and click <strong>Restore</strong>. You'll be asked to confirm — it will overwrite the live database with that snapshot. The app may need a restart after.</p>
+                            <p style="margin:0;"><strong>CLI restore (Heroku console):</strong> <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">node scripts/restore.js YYYY-MM-DD</code></p>
+                        </div>
+                    </div>
+
+                    <!-- Backup status message -->
+                    <div id="backupStatusMsg" style="display:none;padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:0.9rem;"></div>
+
+                    <!-- Backup list -->
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <h4 style="margin:0;color:#2d3748;font-size:0.95rem;">Available Backups</h4>
+                            <button onclick="loadBackupList()" style="background:none;border:none;color:#667eea;font-size:0.85rem;cursor:pointer;font-weight:600;">↻ Refresh</button>
+                        </div>
+                        <div id="backupListContainer">
+                            <p style="color:#718096;font-style:italic;font-size:0.9rem;">Loading backups…</p>
+                        </div>
                     </div>
                 </div>
 
@@ -6769,7 +6819,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             return jobs.filter(j => {
                 if (statusFilter === 'ACTIVE_WORK') {
                     // When filtering by a specific time period, show all statuses (completed/invoiced jobs have history)
-                    if (!periodStart && (j.status === 'completed' || j.status === 'invoiced' || j.status === 'bid_lost')) return false;
+                    if (!periodStart && (j.status === 'completed' || j.status === 'invoiced' || j.status === 'bid_lost' || j.status === 'cancelled')) return false;
                 } else if (statusFilter === 'COMPLETED_WEEK') {
                     if (j.status !== 'completed' && j.status !== 'invoiced') return false;
                     if (!j.scheduledDate || j.scheduledDate < weekStartStr || j.scheduledDate >= weekEndStr) return false;
@@ -8890,7 +8940,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
             const counts = {
-                ACTIVE_WORK: jobs.filter(j => j.status !== 'completed' && j.status !== 'invoiced' && j.status !== 'bid_lost').length,
+                ACTIVE_WORK: jobs.filter(j => j.status !== 'completed' && j.status !== 'invoiced' && j.status !== 'bid_lost' && j.status !== 'cancelled').length,
                 prospecting: jobs.filter(j => j.status === 'prospecting').length,
                 to_be_scheduled: jobs.filter(j => j.status === 'to_be_scheduled').length,
                 scheduled: jobs.filter(j => j.status === 'scheduled').length,
@@ -8898,6 +8948,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 completed: jobs.filter(j => j.status === 'completed').length,
                 invoiced: jobs.filter(j => j.status === 'invoiced').length,
                 bid_lost: jobs.filter(j => j.status === 'bid_lost').length,
+                cancelled: jobs.filter(j => j.status === 'cancelled').length,
                 COMPLETED_WEEK: jobs.filter(j => (j.status === 'completed' || j.status === 'invoiced') && j.scheduledDate >= weekStartStr && j.scheduledDate < weekEndStr).length
             };
 
@@ -8910,6 +8961,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 { value: 'completed', label: 'Completed' },
                 { value: 'invoiced', label: 'Invoiced' },
                 { value: 'bid_lost', label: 'Bid Lost' },
+                { value: 'cancelled', label: '🚫 Cancelled' },
                 { value: 'COMPLETED_WEEK', label: '✅ Done This Week' }
             ];
 
@@ -10982,6 +11034,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (tabName === 'ooo') {
                 checkAdminOOOBadge();
             }
+            if (tabName === 'backups') {
+                loadBackupList();
+            }
         }
 
         async function loadSettings() {
@@ -11094,6 +11149,98 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     badge.remove();
                 }
             } catch (e) {}
+        }
+
+        async function runBackupNow() {
+            const btn = document.getElementById('runBackupBtn');
+            const statusEl = document.getElementById('backupStatusMsg');
+            btn.disabled = true;
+            btn.textContent = '⏳ Backing up…';
+            statusEl.style.display = 'none';
+            try {
+                const res = await fetch('/api/backup/run', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Backup failed');
+                statusEl.style.cssText = 'display:block;background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#276749;';
+                statusEl.innerHTML = `✅ Backup complete — <strong>${data.key}</strong> (${data.sizeKB} KB, ${data.docs} docs across ${data.collections} collections)`;
+                loadBackupList();
+            } catch (e) {
+                statusEl.style.cssText = 'display:block;background:#fff5f5;border:1.5px solid #fc8181;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#c53030;';
+                statusEl.textContent = '❌ ' + e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⬆️ Back Up Now';
+            }
+        }
+
+        async function loadBackupList() {
+            const container = document.getElementById('backupListContainer');
+            container.innerHTML = '<p style="color:#718096;font-style:italic;font-size:0.9rem;">Loading…</p>';
+            try {
+                const res = await fetch('/api/backup/list');
+                const backups = await res.json();
+                if (!backups.length) {
+                    container.innerHTML = '<p style="color:#718096;font-style:italic;font-size:0.9rem;">No backups yet. Click "Back Up Now" or wait for tonight\'s scheduled run.</p>';
+                    return;
+                }
+                container.innerHTML = `
+                    <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #e2e8f0;text-align:left;">
+                                <th style="padding:0.5rem 0.75rem;color:#718096;font-weight:600;">Date</th>
+                                <th style="padding:0.5rem 0.75rem;color:#718096;font-weight:600;">Size</th>
+                                <th style="padding:0.5rem 0.75rem;color:#718096;font-weight:600;">Created</th>
+                                <th style="padding:0.5rem 0.75rem;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${backups.map((b, i) => `
+                            <tr style="border-bottom:1px solid #f0f0f0;${i===0?'background:#fafffe;':''}">
+                                <td style="padding:0.6rem 0.75rem;font-weight:600;color:#2d3748;">${b.date}${i===0?' <span style="background:#c6f6d5;color:#276749;font-size:0.72rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:0.4rem;">latest</span>':''}</td>
+                                <td style="padding:0.6rem 0.75rem;color:#718096;">${b.sizeKB} KB</td>
+                                <td style="padding:0.6rem 0.75rem;color:#718096;">${new Date(b.lastModified).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td>
+                                <td style="padding:0.6rem 0.75rem;text-align:right;">
+                                    <button onclick="restoreBackup('${b.key}','${b.date}')"
+                                        style="background:#fff5f5;border:1.5px solid #fc8181;color:#c53030;border-radius:6px;padding:0.3rem 0.75rem;font-size:0.82rem;font-weight:600;cursor:pointer;">
+                                        ♻️ Restore
+                                    </button>
+                                </td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>`;
+            } catch (e) {
+                container.innerHTML = '<p style="color:#e53e3e;font-size:0.9rem;">Failed to load backup list: ' + e.message + '</p>';
+            }
+        }
+
+        async function restoreBackup(key, date) {
+            const confirmed = confirm(
+                '⚠️ RESTORE FROM ' + date + '?\n\n' +
+                'This will REPLACE all live data (jobs, clients, invoices, etc.) with the ' + date + ' snapshot.\n\n' +
+                'This cannot be undone. Consider backing up first.\n\n' +
+                'Type OK to confirm.'
+            );
+            if (!confirmed) return;
+
+            const statusEl = document.getElementById('backupStatusMsg');
+            statusEl.style.cssText = 'display:block;background:#fffbeb;border:1.5px solid #fbbf24;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#92400e;';
+            statusEl.textContent = '⏳ Restoring ' + date + '… this may take a moment.';
+
+            try {
+                const res = await fetch('/api/backup/restore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Restore failed');
+                const total = Object.values(data.restored).reduce((s, n) => s + n, 0);
+                statusEl.style.cssText = 'display:block;background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#276749;';
+                statusEl.innerHTML = `✅ Restore complete — ${total} documents across ${Object.keys(data.restored).length} collections restored from <strong>${date}</strong>. Refresh the page to see live data.`;
+            } catch (e) {
+                statusEl.style.cssText = 'display:block;background:#fff5f5;border:1.5px solid #fc8181;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.9rem;color:#c53030;';
+                statusEl.textContent = '❌ Restore failed: ' + e.message;
+            }
         }
 
         function handleLogoUpload(event) {
