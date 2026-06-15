@@ -6113,8 +6113,39 @@ app.get('/quote-view/:token', async (req, res) => {
         ` : ''}
 
         ${showButtons ? `
+        <!-- ── Agreement block ─────────────────────────────────────────── -->
+        <div style="margin:2.5rem 0 1rem;">
+            <h3 style="color:#2d3748;font-size:1.05rem;margin:0 0 0.5rem;display:flex;align-items:center;gap:0.5rem;">📋 Review &amp; Agree to Project Terms</h3>
+            <p style="color:#718096;font-size:0.87rem;margin-bottom:0.85rem;">Scroll through the project scope and terms below. The checkbox unlocks when you reach the bottom.</p>
+
+            <div id="agreementScroll" onscroll="checkScrolled()" style="border:2px solid #e2e8f0;border-radius:10px;max-height:280px;overflow-y:scroll;padding:1.25rem 1.5rem;background:#fafafa;font-size:0.88rem;line-height:1.75;color:#2d3748;">
+                <p style="font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:#667eea;margin:0 0 0.35rem;">Project Scope</p>
+                <p style="font-weight:600;font-size:1rem;margin:0 0 0.5rem;">${quote.title}</p>
+                ${quote.description ? `<p style="white-space:pre-wrap;margin-bottom:0.75rem;">${quote.description}</p>` : ''}
+                ${quote.laborItems && quote.laborItems.length > 0 ? `
+                <p style="font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:#718096;margin:0.75rem 0 0.3rem;">Labor</p>
+                ${quote.laborItems.map(item => `<p style="margin:0.2rem 0;">• ${item.description} — ${item.hours} hr${item.hours != 1 ? 's' : ''} @ $${parseFloat(item.rate).toFixed(2)}/hr</p>`).join('')}` : ''}
+                ${quote.materialItems && quote.materialItems.length > 0 ? `
+                <p style="font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:#718096;margin:0.75rem 0 0.3rem;">Materials</p>
+                ${quote.materialItems.map(item => `<p style="margin:0.2rem 0;">• ${item.description} — qty ${item.quantity} @ $${parseFloat(item.price).toFixed(2)}</p>`).join('')}` : ''}
+                <div style="border-top:1.5px solid #e2e8f0;margin:1.25rem 0;"></div>
+                <p style="font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:#667eea;margin:0 0 0.5rem;">Terms &amp; Conditions</p>
+                ${settings.contractTerms
+                    ? `<p style="white-space:pre-wrap;">${settings.contractTerms}</p>`
+                    : `<p>By approving this ${viewLabel.toLowerCase()}, you agree that ${companyName} will perform the work described above at the quoted price. Payment is due upon completion unless otherwise agreed in writing. All work is performed professionally and consistent with industry standards. Either party may cancel prior to commencement of work with written notice.</p>`}
+                <div style="height:4px;"></div>
+            </div>
+
+            <p id="scrollHint" style="font-size:0.8rem;color:#d97706;margin:0.4rem 0 0;display:flex;align-items:center;gap:0.3rem;">↕ Scroll to the bottom to continue</p>
+
+            <label id="agreeLabel" style="display:flex;align-items:flex-start;gap:0.75rem;margin-top:0.85rem;padding:0.9rem 1rem;border:2px solid #e2e8f0;border-radius:8px;background:#f7fafc;opacity:0.45;cursor:not-allowed;transition:opacity 0.3s,border-color 0.3s,background 0.3s;user-select:none;">
+                <input type="checkbox" id="agreeCheck" disabled onchange="checkAgreed()" style="width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:#48bb78;cursor:inherit;">
+                <span style="font-size:0.9rem;color:#2d3748;line-height:1.5;">I have read and agree to the project scope and terms &amp; conditions above. I am authorized to approve this ${viewLabel.toLowerCase()} on behalf of the client.</span>
+            </label>
+        </div>
+
         <div class="actions">
-            <button class="btn btn-approve" onclick="document.getElementById('approveModal').style.display='flex'">✓ Approve</button>
+            <button id="approveBtn" class="btn btn-approve" onclick="document.getElementById('approveModal').style.display='flex'" disabled style="opacity:0.45;cursor:not-allowed;transition:opacity 0.3s;">✓ Approve ${viewLabel}</button>
             <button class="btn btn-reject" onclick="document.getElementById('rejectModal').style.display='flex'">✗ Decline</button>
         </div>
         ` : ''}
@@ -6171,8 +6202,59 @@ app.get('/quote-view/:token', async (req, res) => {
     </div>
 
     <script>
+        // ── Scroll-to-agree logic ────────────────────────────────────────────
+        var _scrolledThrough = false;
+        function checkScrolled() {
+            if (_scrolledThrough) return;
+            var el = document.getElementById('agreementScroll');
+            if (!el) return;
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 30) {
+                _unlockCheckbox();
+            }
+        }
+        function _unlockCheckbox() {
+            if (_scrolledThrough) return;
+            _scrolledThrough = true;
+            var cb  = document.getElementById('agreeCheck');
+            var lbl = document.getElementById('agreeLabel');
+            var hint = document.getElementById('scrollHint');
+            if (!cb) return;
+            cb.disabled = false;
+            lbl.style.opacity = '1';
+            lbl.style.cursor = 'pointer';
+            lbl.style.borderColor = '#9ae6b4';
+            lbl.style.background = '#f0fff4';
+            if (hint) hint.style.display = 'none';
+        }
+        function checkAgreed() {
+            var btn = document.getElementById('approveBtn');
+            var cb  = document.getElementById('agreeCheck');
+            if (!btn || !cb) return;
+            if (cb.checked) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.45';
+                btn.style.cursor = 'not-allowed';
+            }
+        }
+        // Auto-unlock if content is too short to scroll
+        window.addEventListener('load', function() {
+            var el = document.getElementById('agreementScroll');
+            if (el && el.scrollHeight <= el.clientHeight + 10) _unlockCheckbox();
+        });
+
+        // ── Submit handlers ──────────────────────────────────────────────────
         async function submitApprove() {
-            const approverName = document.getElementById('approveName').value.trim();
+            var agreeCheck = document.getElementById('agreeCheck');
+            if (agreeCheck && !agreeCheck.checked) {
+                alert('Please read and check the agreement box before approving.');
+                document.getElementById('approveModal').style.display = 'none';
+                return;
+            }
+            const approverName  = document.getElementById('approveName').value.trim();
             const approverTitle = document.getElementById('approveTitle').value.trim();
             const note = document.getElementById('approveNote').value.trim();
             if (!approverName) {
@@ -6184,7 +6266,7 @@ app.get('/quote-view/:token', async (req, res) => {
                 const res = await fetch('/quote-action/${quote.secureToken}/approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ note, approverName, approverTitle })
+                    body: JSON.stringify({ note, approverName, approverTitle, agreedToTerms: true, agreedAt: new Date().toISOString() })
                 });
                 if (res.ok) { document.getElementById('approveModal').style.display='none'; location.reload(); }
                 else alert('Failed to approve. Please try again or contact us directly.');
@@ -6221,7 +6303,8 @@ app.post('/quote-action/:token/approve', async (req, res) => {
         const quote = await db.collection('quotes').findOne({ secureToken: req.params.token });
         if (!quote) return res.status(404).json({ error: 'Quote not found' });
 
-        const { note, approverName, approverTitle } = req.body || {};
+        const { note, approverName, approverTitle, agreedToTerms, agreedAt } = req.body || {};
+        const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
         const client = await db.collection('clients').findOne({ _id: new ObjectId(quote.clientId) });
         const signerLabel = [approverName, approverTitle].filter(Boolean).join(' — ');
         const auditEntry = {
@@ -6231,12 +6314,15 @@ app.post('/quote-action/:token/approve', async (req, res) => {
             action: 'approved',
             oldStatus: quote.status,
             newStatus: 'in_review',
-            note: [signerLabel ? `Authorized by: ${signerLabel}` : '', note ? `Comments: ${note}` : ''].filter(Boolean).join('\n') || 'Approved by client'
+            agreedToTerms: !!agreedToTerms,
+            agreedAt: agreedAt ? new Date(agreedAt) : new Date(),
+            ipAddress: ip,
+            note: [signerLabel ? `Authorized by: ${signerLabel}` : '', agreedToTerms ? 'Agreed to project scope & T&C ✓' : '', note ? `Comments: ${note}` : ''].filter(Boolean).join('\n') || 'Approved by client'
         };
 
         await db.collection('quotes').updateOne(
             { _id: quote._id },
-            { $set: { status: 'in_review', approvedAt: new Date(), clientNote: note || '', approverName: approverName || '', approverTitle: approverTitle || '' }, $push: { auditLog: auditEntry } }
+            { $set: { status: 'in_review', approvedAt: new Date(), clientNote: note || '', approverName: approverName || '', approverTitle: approverTitle || '', agreedToTerms: !!agreedToTerms, agreedAt: agreedAt ? new Date(agreedAt) : new Date(), approverIp: ip }, $push: { auditLog: auditEntry } }
         );
 
         const approvalLabel = quote.source === 'portal' ? 'work order' : 'quote';
