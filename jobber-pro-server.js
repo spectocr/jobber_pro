@@ -2806,9 +2806,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                     <div id="compDocsList"></div>
                 </div>
-            </div>
-        </div>
-    </div>
 
                 <!-- Quote Templates Tab -->
                 <div id="quotetemplatesTab" class="settings-tab-content" style="display:none;">
@@ -2888,6 +2885,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <p style="font-size:0.85rem;color:#718096;margin-bottom:0.5rem;">Banner preview:</p>
                     </div>
                 </div>
+
+            </div>
+        </div>
+    </div>
 
     <!-- Send Compliance Docs Modal -->
     <div id="sendComplianceModal" class="modal">
