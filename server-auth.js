@@ -2535,6 +2535,11 @@ app.get('/api/portfolio', async (req, res) => {
 });
 
 // Create entry — metadata only in MongoDB, no photo data
+app.post('/api/portfolio/rebuild', isAdmin, async (req, res) => {
+    res.json({ success: true, message: 'Rebuild queued' });
+    rebuildPublicPortfolio().catch(e => console.error('Manual portfolio rebuild failed:', e.message));
+});
+
 app.post('/api/portfolio', isAuthenticated, async (req, res) => {
     try {
         const { title, caption, category, commercial, surveyId } = req.body;
