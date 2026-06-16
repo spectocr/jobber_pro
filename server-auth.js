@@ -4140,6 +4140,7 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
 
     let carryLoss = 0; // net loss carried forward from prior quarters
     let carryPaymentDelta = 0; // cumulative (paidAmount - calcDue) from paid quarters; positive = credit, negative = deficit
+    let carryAssigned = false; // carry is applied to the first unpaid quarter only
     const result = [];
 
     for (const { q, label, months, due } of quarters) {
@@ -4204,11 +4205,13 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
         // Accumulate payment delta for paid quarters
         if (payment) {
             carryPaymentDelta += paidAmount - totalDue;
+            carryAssigned = false; // payment received — carry resets for next unpaid quarter
         }
 
-        // For the next unpaid quarter, apply accumulated carry
-        const carryAppliedHere = !payment ? carryPaymentDelta : 0;
-        const adjustedDue = !payment ? Math.max(0, totalDue - carryPaymentDelta) : totalDue;
+        // Apply carry only to the first unpaid quarter after paid ones
+        const carryAppliedHere = (!payment && !carryAssigned) ? carryPaymentDelta : 0;
+        const adjustedDue = (!payment && !carryAssigned) ? Math.max(0, totalDue - carryPaymentDelta) : totalDue;
+        if (!payment && !carryAssigned && Math.abs(carryPaymentDelta) > 0.01) carryAssigned = true;
 
         const jobItems = qJobs.map(j => {
             const matCost = Array.isArray(j.materialItems)
