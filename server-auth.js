@@ -8649,6 +8649,12 @@ function _pfFormatCaption(text) {
     return html.replace(/(<br>)+$/, '');
 }
 
+function _pfInitialLastName(name) {
+    if (!name) return name;
+    const parts = name.trim().split(/\s+/);
+    return parts.length > 1 ? parts[0] + ' ' + parts[parts.length - 1][0] + '.' : name;
+}
+
 function generatePortfolioHtml(rawItems) {
     const CAT_ORDER = ['bathroom','kitchen','deck','flooring','painting','carpentry','electrical','plumbing','exterior','general'];
 
@@ -8694,7 +8700,7 @@ function generatePortfolioHtml(rawItems) {
             return `<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #e5e7eb;font-size:0.8rem;">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;">
                   <span style="color:#f59e0b;letter-spacing:0.05em;">${_pfHe(stars)}</span>
-                  <span style="color:#374151;font-weight:600;">${_pfHe(item.survey.clientName)}</span>
+                  <span style="color:#374151;font-weight:600;">${_pfHe(_pfInitialLastName(item.survey.clientName))}</span>
                 </div>
                 ${commentSnip ? `<div style="color:#6b7280;font-style:italic;line-height:1.4;">"${_pfHe(commentSnip)}"</div>` : ''}
               </div>`;
@@ -8734,7 +8740,7 @@ function generatePortfolioHtml(rawItems) {
     // JSON payload for lightbox (UX only — SEO comes from the <img> tags above)
     const projectJson = JSON.stringify(items.map(i => ({
         id: i.id, title: i.title, captionHtml: _pfFormatCaption(i.caption), catName: i.catName,
-        survey: i.survey ? { rating: i.survey.rating, comment: i.survey.comment || '', clientName: i.survey.clientName || '' } : null,
+        survey: i.survey ? { rating: i.survey.rating, comment: i.survey.comment || '', clientName: _pfInitialLastName(i.survey.clientName || '') } : null,
         photos: i.photos.map(p => ({ url: p.url, type: p.type }))
     }))).replace(/<\/script>/gi, '<\\/script>');
 
