@@ -1641,7 +1641,11 @@ app.get('/api/public/reviews', async (req, res) => {
             .filter(r => r.rating >= 4)
             .sort((a, b) => new Date(b.publishTime || 0) - new Date(a.publishTime || 0))
             .map(r => ({
-                author: r.authorAttribution?.displayName || 'Anonymous',
+                author: (() => {
+                    const name = r.authorAttribution?.displayName || 'Anonymous';
+                    const parts = name.trim().split(/\s+/);
+                    return parts.length > 1 ? parts[0] + ' ' + parts[parts.length - 1][0] + '.' : name;
+                })(),
                 rating: r.rating,
                 text: r.text?.text || '',
                 time: r.relativePublishTimeDescription || '',
