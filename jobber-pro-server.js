@@ -15511,7 +15511,8 @@ function formatDuration(seconds) {
                 const dueDate = new Date(q.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const isPaid        = q.paidAt !== null;
                 const qStarted      = today >= new Date(data.year, q.months[0], 1);
-                const noTaxDue      = qStarted && q.totalDue < 0.01;
+                const effectiveDue  = q.adjustedDue !== undefined ? q.adjustedDue : q.totalDue;
+                const noTaxDue      = qStarted && effectiveDue < 0.01;
                 const notStarted    = !qStarted && !isPaid;
                 const isOver        = !isPaid && !noTaxDue && qStarted && days < 0;
                 const isUrgent      = !isPaid && !noTaxDue && qStarted && days >= 0 && days <= 14;
@@ -15519,6 +15520,24 @@ function formatDuration(seconds) {
                 const badge  = isPaid ? (noTaxDue ? '✅ DONE' : '✅ PAID') : notStarted ? '— NOT STARTED' : noTaxDue ? '💚 NO TAX DUE' : isOver ? '🔴 OVERDUE' : isUrgent ? '⚠️ DUE SOON' : '📅 UPCOMING';
                 const bColor = isPaid ? '#48bb78' : notStarted ? '#a0aec0' : noTaxDue ? '#38a169' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#667eea';
                 const border = isPaid ? '#48bb78' : notStarted ? '#e2e8f0' : noTaxDue ? '#9ae6b4' : isOver ? '#e53e3e' : isUrgent ? '#ed8936' : '#e2e8f0';
+
+                // Adjusted IRS/NJ pay amounts — handles the case where own taxes are $0 but carry-forward deficit exists
+                let adjFed, adjNJ;
+                if (q.totalDue > 0.01 && q.carryAppliedHere) {
+                    const adjRatio = q.adjustedDue / q.totalDue;
+                    adjFed = (q.seTax + q.fedQ) * adjRatio;
+                    adjNJ  = q.njQ * adjRatio;
+                } else if (q.totalDue <= 0.01 && q.carryAppliedHere && q.carryAppliedHere < -0.5) {
+                    // No own taxes but carry deficit — split by prior quarter's IRS:NJ ratio
+                    const prevQ = data.quarters.find(x => x.q === q.q - 1);
+                    const prevTotal = prevQ ? prevQ.totalDue : 0;
+                    const fedRatio = prevTotal > 0.01 ? (prevQ.seTax + prevQ.fedQ) / prevTotal : 0.84;
+                    adjFed = Math.abs(q.carryAppliedHere) * fedRatio;
+                    adjNJ  = Math.abs(q.carryAppliedHere) * (1 - fedRatio);
+                } else {
+                    adjFed = q.seTax + q.fedQ;
+                    adjNJ  = q.njQ;
+                }
 
                 const dueLabel = isPaid ? 'Due ' + dueDate
                     : isOver  ? (days * -1) + ' days overdue (was ' + dueDate + ')'
@@ -15558,15 +15577,12 @@ function formatDuration(seconds) {
                     (() => {
                       const carry = q.carryAppliedHere;
                       const isCredit = carry > 0;
-                      const adjRatio = q.totalDue > 0 ? q.adjustedDue / q.totalDue : 1;
                       const baseFed = q.seTax + q.fedQ;
                       const baseNJ  = q.njQ;
-                      const adjFed  = baseFed * adjRatio;
-                      const adjNJ   = baseNJ  * adjRatio;
                       return '<div style="font-size:0.78rem;margin-bottom:0.55rem;padding:0.4rem 0.7rem;border-radius:5px;background:' + (isCredit ? '#f0fff4' : '#fff5f5') + ';color:' + (isCredit ? '#276749' : '#c53030') + ';line-height:1.7;">' +
                         (isCredit ? '✓ ' + fm(carry) + ' credit carried from prior overpayment' : '⚠ ' + fm(Math.abs(carry)) + ' deficit carried from prior underpayment') +
-                        '<br><span style="font-size:0.75rem;opacity:0.85;">IRS (SE+Fed): base ' + fm(baseFed) + ' → pay <strong>' + fm(adjFed) + '</strong></span>' +
-                        '<br><span style="font-size:0.75rem;opacity:0.85;">NJ State: base ' + fm(baseNJ) + ' → pay <strong>' + fm(adjNJ) + '</strong></span>' +
+                        '<br><span style="font-size:0.75rem;opacity:0.85;">IRS (SE+Fed): ' + (baseFed > 0.01 ? 'base ' + fm(baseFed) + ' → ' : '') + 'pay <strong>' + fm(adjFed) + '</strong></span>' +
+                        '<br><span style="font-size:0.75rem;opacity:0.85;">NJ State: ' + (baseNJ > 0.01 ? 'base ' + fm(baseNJ) + ' → ' : '') + 'pay <strong>' + fm(adjNJ) + '</strong></span>' +
                       '</div>';
                     })() : '') +
 
@@ -15588,18 +15604,18 @@ function formatDuration(seconds) {
                   '<details style="margin-bottom:0.7rem;">' +
                     '<summary style="cursor:pointer;font-size:0.81rem;color:#667eea;font-weight:600;">How to Pay</summary>' +
                     '<div style="font-size:0.79rem;color:#4a5568;padding:0.5rem 0;line-height:1.8;">' +
-                      '<strong>Federal — pay ' + fm(q.seTax + q.fedQ) + '</strong><br>' +
+                      '<strong>Federal — pay ' + fm(adjFed) + '</strong><br>' +
                       '1. Go to <a href="https://directpay.irs.gov" target="_blank" rel="noopener" style="color:#667eea;">IRS Direct Pay</a><br>' +
                       '2. Click <strong>Pay individual tax</strong><br>' +
                       '3. Tax Form: <strong>1040</strong><br>' +
                       '4. Tax Type: <strong>Estimated Tax</strong><br>' +
                       '5. Tax Period: <strong>' + data.year + '</strong><br>' +
-                      '6. Enter amount: <strong>' + fm((q.carryAppliedHere && q.totalDue > 0 ? (q.seTax + q.fedQ) * (q.adjustedDue / q.totalDue) : q.seTax + q.fedQ)) + '</strong> (SE tax + federal income tax)<br><br>' +
-                      '<strong>New Jersey — pay ' + fm((q.carryAppliedHere && q.totalDue > 0 ? q.njQ * (q.adjustedDue / q.totalDue) : q.njQ)) + '</strong><br>' +
+                      '6. Enter amount: <strong>' + fm(adjFed) + '</strong> (SE tax + federal income tax)<br><br>' +
+                      '<strong>New Jersey — pay ' + fm(adjNJ) + '</strong><br>' +
                       '1. Go to <a href="https://www1.state.nj.us/TYTR_RevTaxPortal/jsp/IndTaxLoginJsp.jsp" target="_blank" rel="noopener" style="color:#667eea;">NJ Tax Portal</a><br>' +
                       '2. Under <strong>Gross Income Tax</strong>, select <strong>Estimated Payments — Schedule/Submit NJ-1040-ES</strong><br>' +
                       '3. Tax Period: <strong>' + data.year + '</strong><br>' +
-                      '4. Enter amount: <strong>' + fm(q.njQ) + '</strong>' +
+                      '4. Enter amount: <strong>' + fm(adjNJ) + '</strong>' +
                     '</div>' +
                   '</details>' +
 
@@ -15609,7 +15625,7 @@ function formatDuration(seconds) {
                       : notStarted ? ''
                       : noTaxDue
                         ? '<button onclick="markQuarterPaid(' + data.year + ',' + q.q + ',0,\'\',\'No tax due — expenses exceeded income\')" style="padding:0.4rem 0.85rem;background:#38a169;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">✓ Mark as Done</button>'
-                        : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + q.totalDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
+                        : '<button onclick="openMarkPaid(' + data.year + ',' + q.q + ',' + effectiveDue.toFixed(2) + ')" style="padding:0.4rem 0.85rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">💳 Mark as Paid</button>') +
                     '<button onclick="showTaxDetail(' + q.q + ')" style="padding:0.4rem 0.85rem;background:#edf2f7;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;">📋 Source Data</button>' +
                   '</div>' +
 
