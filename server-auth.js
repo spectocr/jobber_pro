@@ -1605,6 +1605,7 @@ let reviewsCachedAt = 0;
 app.get('/api/public/reviews', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', 'https://gsdhandymanservice.com');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Cache-Control', 'no-store');
 
     const CACHE_TTL = 60 * 60 * 1000; // 1 hour
     if (reviewsCache && Date.now() - reviewsCachedAt < CACHE_TTL) {
