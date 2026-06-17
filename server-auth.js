@@ -9459,7 +9459,9 @@ async function rebuildLocationPages() {
 
 const OOO_SNIPPET = '<script>\n(function(){fetch(\'https://app.gsdhandymanservice.com/api/ooo-status\').then(function(r){return r.json();}).then(function(d){if(!d.active)return;var msg=d.message||\'We are currently out of the office.\';var ret=d.returnDate?(\' We return on <strong>\'+new Date(d.returnDate+\'T12:00:00\').toLocaleDateString(\'en-US\',{month:\'long\',day:\'numeric\',year:\'numeric\'})+\'</strong>.\'):\'\';var ph=d.phone?(\' For emergencies call <a href="tel:\'+d.phone.replace(/\\D/g,\'\')+\'" style="color:#92400e;font-weight:700;">\'+d.phone+\'</a>.\'):\'\';var el=document.createElement(\'div\');el.style.cssText=\'background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;position:relative;z-index:1000;\';el.innerHTML=\'⚠️ \'+msg+ret+ph;document.body.prepend(el);}).catch(function(){});})();\n</script>';
 function _withOOOSnippet(html) {
-    if (html.includes('app.gsdhandymanservice.com/api/ooo-status')) return html;
+    if (html.includes("d.returnDate+'T12:00:00'")) return html; // already up to date
+    // Strip any old version of the snippet before injecting the fixed one
+    html = html.replace(/<script>\s*\(function\(\)\{fetch\('https:\/\/app\.gsdhandymanservice\.com\/api\/ooo-status'\)[\s\S]*?\}\)\(\);[\s\S]*?<\/script>/g, '');
     return html.replace('</body>', OOO_SNIPPET + '\n</body>');
 }
 
