@@ -4725,7 +4725,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             _soTitle  = job.title;
             _soClient = client ? client.name : '';
             _soLoc    = locAddr || '';
-            _soDate   = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
+            _soDate   = job.scheduledDate ? new Date(job.scheduledDate + 'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
             _soDesc   = (job.description||'').trim() || 'See work order for details.';
             _soToday  = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
@@ -7566,7 +7566,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             jobsContainer.innerHTML = '<table><thead><tr><th>Date</th><th>Job</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody>' +
                 clientJobs.map(j => {
                     // Format date more compactly for mobile
-                    const dateObj = new Date(j.scheduledDate);
+                    const dateObj = new Date(j.scheduledDate + 'T12:00:00');
                     const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return \`<tr>
                         <td data-label="Date">\${shortDate}<br><small>\${j.scheduledTime || ''}</small></td>
@@ -10624,7 +10624,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <tbody>
                         \${sortedMonths.map(([month, revenue]) => \`
                             <tr>
-                                <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</td>
+                                <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">\${new Date(month + '-01T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</td>
                                 <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid #e2e8f0;">\${formatMoney(revenue)}</td>
                             </tr>
                         \`).join('')}
@@ -15508,7 +15508,7 @@ function formatDuration(seconds) {
 
             data.quarters.forEach(q => {
                 const days    = daysUntil(q.due);
-                const dueDate = new Date(q.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const dueDate = new Date(q.due + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const isPaid        = q.paidAt !== null;
                 const qStarted      = today >= new Date(data.year, q.months[0], 1);
                 const effectiveDue  = q.adjustedDue !== undefined ? q.adjustedDue : q.totalDue;

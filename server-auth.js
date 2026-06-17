@@ -2994,14 +2994,14 @@ async function getOOOBanner() {
         const ooo = s?.ooo || {};
         if (!ooo.enabled) return '';
         const today = new Date(); today.setHours(0,0,0,0);
-        const start = ooo.startDate ? new Date(ooo.startDate) : null;
-        const end   = ooo.endDate   ? new Date(ooo.endDate)   : null;
+        const start = ooo.startDate ? new Date(ooo.startDate + 'T12:00:00') : null;
+        const end   = ooo.endDate   ? new Date(ooo.endDate   + 'T12:00:00') : null;
         if (start) start.setHours(0,0,0,0);
         if (end)   end.setHours(23,59,59,999);
         if (start && today < start) return '';
         if (end   && new Date() > end) return '';
         const msg = ooo.message || 'We are currently out of the office.';
-        const returnPart = ooo.endDate ? ` We return on <strong>${new Date(ooo.endDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</strong>.` : '';
+        const returnPart = ooo.endDate ? ` We return on <strong>${new Date(ooo.endDate + 'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</strong>.` : '';
         const phonePart = ooo.phone ? ` For emergencies call <a href="tel:${ooo.phone.replace(/\D/g,'')}" style="color:#92400e;font-weight:700;">${ooo.phone}</a>.` : '';
         return `<div style="background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;">
             ⚠️ ${msg}${returnPart}${phonePart}
@@ -4454,8 +4454,8 @@ app.get('/api/ooo-status', async (req, res) => {
         const ooo = s?.ooo || {};
         if (!ooo.enabled) return res.json({ active: false });
         const today = new Date(); today.setHours(0,0,0,0);
-        const start = ooo.startDate ? new Date(ooo.startDate) : null;
-        const end   = ooo.endDate   ? new Date(ooo.endDate)   : null;
+        const start = ooo.startDate ? new Date(ooo.startDate + 'T12:00:00') : null;
+        const end   = ooo.endDate   ? new Date(ooo.endDate   + 'T12:00:00') : null;
         if (start) start.setHours(0,0,0,0);
         if (end)   end.setHours(23,59,59,999);
         const active = (!start || today >= start) && (!end || new Date() <= end);
@@ -9457,7 +9457,7 @@ async function rebuildLocationPages() {
 }
 
 
-const OOO_SNIPPET = '<script>\n(function(){fetch(\'https://app.gsdhandymanservice.com/api/ooo-status\').then(function(r){return r.json();}).then(function(d){if(!d.active)return;var msg=d.message||\'We are currently out of the office.\';var ret=d.returnDate?(\' We return on <strong>\'+new Date(d.returnDate).toLocaleDateString(\'en-US\',{month:\'long\',day:\'numeric\',year:\'numeric\'})+\'</strong>.\'):\'\';var ph=d.phone?(\' For emergencies call <a href="tel:\'+d.phone.replace(/\\D/g,\'\')+\'" style="color:#92400e;font-weight:700;">\'+d.phone+\'</a>.\'):\'\';var el=document.createElement(\'div\');el.style.cssText=\'background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;position:relative;z-index:1000;\';el.innerHTML=\'⚠️ \'+msg+ret+ph;document.body.prepend(el);}).catch(function(){});})();\n</script>';
+const OOO_SNIPPET = '<script>\n(function(){fetch(\'https://app.gsdhandymanservice.com/api/ooo-status\').then(function(r){return r.json();}).then(function(d){if(!d.active)return;var msg=d.message||\'We are currently out of the office.\';var ret=d.returnDate?(\' We return on <strong>\'+new Date(d.returnDate+\'T12:00:00\').toLocaleDateString(\'en-US\',{month:\'long\',day:\'numeric\',year:\'numeric\'})+\'</strong>.\'):\'\';var ph=d.phone?(\' For emergencies call <a href="tel:\'+d.phone.replace(/\\D/g,\'\')+\'" style="color:#92400e;font-weight:700;">\'+d.phone+\'</a>.\'):\'\';var el=document.createElement(\'div\');el.style.cssText=\'background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;position:relative;z-index:1000;\';el.innerHTML=\'⚠️ \'+msg+ret+ph;document.body.prepend(el);}).catch(function(){});})();\n</script>';
 function _withOOOSnippet(html) {
     if (html.includes('app.gsdhandymanservice.com/api/ooo-status')) return html;
     return html.replace('</body>', OOO_SNIPPET + '\n</body>');
