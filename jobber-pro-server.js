@@ -5139,9 +5139,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     }
                 });
 
-                // Load line items if they exist
-                if (job.laborItems) laborItems = [...job.laborItems];
-                if (job.materialItems) materialItems = [...job.materialItems];
+                // Load line items if they exist — ensure every item has a unique id
+                if (job.laborItems) laborItems = job.laborItems.map(item => ({ ...item, id: item.id || (Date.now() + Math.random()) }));
+                if (job.materialItems) materialItems = job.materialItems.map(item => ({ ...item, id: item.id || (Date.now() + Math.random()) }));
                 if (job.payments) paymentItems = [...job.payments];
                 if (job.touchPoints) touchPoints = [...job.touchPoints];
                 if (job.attachments) {
@@ -6132,7 +6132,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.85rem;">Total</label>
-                        <input type="text" value="$\${(item.hours * item.rate).toFixed(2)}" readonly style="background: #f5f5f5;">
+                        <input type="text" data-total-for="\${item.id}" value="$\${(item.hours * item.rate).toFixed(2)}" readonly style="background: #f5f5f5;">
                     </div>
                     <button type="button" onclick="removeLaborItem(\${item.id})" style="background: #dc3545; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; height: 38px;">×</button>
                 </div>
@@ -6259,7 +6259,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (item) {
                 if (field === 'rate') item.rateOverridden = true;
                 item[field] = field === 'description' ? value : parseFloat(value) || 0;
-                renderLineItems();
+                // Update total in-place instead of re-rendering the whole list
+                const totalEl = document.querySelector('[data-total-for="' + id + '"]');
+                if (totalEl) {
+                    totalEl.value = '$' + (item.hours * item.rate).toFixed(2);
+                } else {
+                    renderLineItems();
+                }
                 markFormDirty();
             }
         }
