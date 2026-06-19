@@ -6084,7 +6084,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const teamMember = team.find(t => t.id == checked[0].value);
             if (!teamMember || !teamMember.hourlyRate) return;
 
-            laborItems.forEach(item => { item.rate = parseFloat(teamMember.hourlyRate); });
+            laborItems.forEach(item => { if (!item.rateOverridden) item.rate = parseFloat(teamMember.hourlyRate); });
             if (laborItems.length === 0) {
                 laborItems.push({ id: Date.now(), description: '', hours: 0, rate: parseFloat(teamMember.hourlyRate) });
             }
@@ -6257,6 +6257,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function updateLaborItem(id, field, value) {
             const item = laborItems.find(i => i.id === id);
             if (item) {
+                if (field === 'rate') item.rateOverridden = true;
                 item[field] = field === 'description' ? value : parseFloat(value) || 0;
                 renderLineItems();
                 markFormDirty();
