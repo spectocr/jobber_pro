@@ -689,6 +689,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             flex-shrink: 0;
         }
 
+        .autosave-status {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #718096;
+            margin-left: 0.5rem;
+            align-self: center;
+            white-space: nowrap;
+            transition: color 0.2s;
+        }
+        .autosave-status.saving { color: #667eea; }
+        .autosave-status.saved  { color: #48bb78; }
+        .autosave-status.error  { color: #e53e3e; }
+
         .close-btn {
             background: none;
             border: none;
@@ -3642,6 +3655,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="btn btn-secondary" id="jobSignoffBtn" style="display:none;" onclick="openSignoffForm(document.querySelector('#jobForm [name=id]').value)">✍️ Sign-Off</button>
                 <button class="btn btn-secondary" id="jobResendSurveyBtn" style="display:none;" onclick="resendSurvey()">📋 Resend Survey</button>
                 <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
+                <span id="jobAutoSaveStatus" class="autosave-status"></span>
             </div>
         </div>
     </div>
@@ -3809,6 +3823,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('quoteModal')">Cancel</button>
                 <button class="btn btn-primary" onclick="saveQuote()">Save Quote</button>
+                <span id="quoteAutoSaveStatus" class="autosave-status"></span>
             </div>
         </div>
     </div>
@@ -4170,6 +4185,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let team = [];
         let expenses = [];
         let hasUnsavedChanges = false;
+        let autoSaveContext = null; // 'job' | 'quote'
+        let autoSaveTimer   = null;
         let _complianceDocs = [];
         let _sendCompClientId = null;
         let _compDocFileData = null;
@@ -4277,11 +4294,55 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // Track form changes
         function markFormDirty() {
             hasUnsavedChanges = true;
+            scheduleAutoSave();
         }
 
         function markFormClean() {
             hasUnsavedChanges = false;
+            clearTimeout(autoSaveTimer);
         }
+
+        // ── Autosave ──────────────────────────────────────────────────────────
+
+        function scheduleAutoSave() {
+            if (!autoSaveContext) return;
+            clearTimeout(autoSaveTimer);
+            showAutoSaveStatus('pending');
+            autoSaveTimer = setTimeout(runAutoSave, 4000);
+        }
+
+        async function runAutoSave() {
+            if (!autoSaveContext || !hasUnsavedChanges) return;
+            try {
+                showAutoSaveStatus('saving');
+                if (autoSaveContext === 'job')   await saveJob({ silent: true });
+                if (autoSaveContext === 'quote') await saveQuote({ silent: true });
+                showAutoSaveStatus('saved');
+            } catch(e) {
+                showAutoSaveStatus('error');
+                console.warn('[autosave] failed:', e.message);
+            }
+        }
+
+        function showAutoSaveStatus(state) {
+            const ids = ['jobAutoSaveStatus', 'quoteAutoSaveStatus'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.className = 'autosave-status';
+                if (state === 'pending') { el.textContent = ''; return; }
+                if (state === 'saving') { el.classList.add('saving'); el.textContent = 'Saving…'; return; }
+                if (state === 'saved') {
+                    el.classList.add('saved');
+                    const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    el.textContent = '✓ Saved ' + t;
+                    return;
+                }
+                if (state === 'error') { el.classList.add('error'); el.textContent = '⚠ Save failed'; }
+            });
+        }
+
+        // ── End autosave ──────────────────────────────────────────────────────
 
         // Navigation
         function showView(viewName) {
@@ -5289,6 +5350,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             showJobTab('Details');
             document.getElementById('jobModal').classList.add('active');
+            autoSaveContext = 'job';
+            showAutoSaveStatus('pending');
         }
 
         let currentEditingTeamId = null;
@@ -5409,13 +5472,29 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function closeModal(modalId) {
-            // Check for unsaved changes in modal forms
-            if (hasUnsavedChanges) {
+            const isAutoSaveModal = (modalId === 'jobModal' && autoSaveContext === 'job') ||
+                                    (modalId === 'quoteModal' && autoSaveContext === 'quote');
+
+            if (isAutoSaveModal && hasUnsavedChanges) {
+                // Save immediately, then close — no discard prompt needed
+                clearTimeout(autoSaveTimer);
+                showAutoSaveStatus('saving');
+                runAutoSave().finally(() => {
+                    autoSaveContext = null;
+                    document.getElementById(modalId).classList.remove('active');
+                });
+                return;
+            }
+
+            if (!isAutoSaveModal && hasUnsavedChanges) {
                 if (!confirm('You have unsaved changes. Do you want to discard them?')) {
                     return;
                 }
                 hasUnsavedChanges = false;
             }
+
+            clearTimeout(autoSaveTimer);
+            autoSaveContext = null;
             document.getElementById(modalId).classList.remove('active');
         }
 
@@ -6488,10 +6567,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }).join('');
         }
 
-        async function saveJob() {
+        async function saveJob(opts = {}) {
+            const silent = opts.silent === true;
             const form = document.getElementById('jobForm');
             const formData = new FormData(form);
             const job = Object.fromEntries(formData);
+
+            // Require a title before saving (avoids persisting blank new records)
+            if (!job.title || !job.title.trim()) {
+                if (!silent) alert('Please enter a job title before saving.');
+                return;
+            }
 
             // If editing, include the _id
             if (currentEditingJobId) {
@@ -6509,7 +6595,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Clean attachments - remove base64 data if s3Key exists (save space)
             job.attachments = attachments.map(att => {
                 if (att.s3Key) {
-                    // Only store S3 metadata, not the full base64 data
                     return {
                         id: att.id,
                         name: att.name,
@@ -6517,10 +6602,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         size: att.size,
                         s3Key: att.s3Key,
                         uploadedAt: att.uploadedAt,
-                        comment: att.comment // Preserve comment field
+                        comment: att.comment
                     };
                 }
-                return att; // Keep full data for MongoDB fallback
+                return att;
             });
 
             // Include manually-edited completedAt if present
@@ -6530,11 +6615,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Handle checkboxes - won't be in formData if unchecked
             job.taxWaived = document.getElementById('taxWaivedCheckbox').checked;
             job.followUp = document.getElementById('followUpCheckbox').checked;
-            // Saving from the form always reactivates the follow-up (done state is set only via dashboard)
             if (job.followUp) job.followUpDone = false;
 
-            // Stamp a touchpoint when a follow-up is newly set or its date changes
-            if (job.followUp && job.followUpDate && job.followUpDate !== window._origFollowUpDate) {
+            // Stamp a touchpoint when a follow-up is newly set or its date changes (manual save only)
+            if (!silent && job.followUp && job.followUpDate && job.followUpDate !== window._origFollowUpDate) {
                 const timeStr = job.followUpTime ? ` at ${job.followUpTime}` : '';
                 const noteStr = job.followUpNote ? ` — ${job.followUpNote}` : '';
                 touchPoints.push({
@@ -6558,7 +6642,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             job.totalPaid = paymentTotal;
             job.balanceOwed = job.total - paymentTotal;
 
-            console.log('Saving job with attachments:', job.attachments);
+            if (!silent) console.log('Saving job with attachments:', job.attachments);
 
             try {
                 const response = await fetch('/api/jobs', {
@@ -6573,36 +6657,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     throw new Error(result.error || 'Failed to save job');
                 }
 
-                // Check if we should auto-create calendar event
+                // Capture whether this was a new job before we assign the ID
                 const isNewJob = !currentEditingJobId;
-                const hasScheduledDate = job.scheduledDate && job.status === 'scheduled';
 
-                if (isNewJob && hasScheduledDate && settings.calendarSettings?.autoSync) {
-                    try {
-                        const calendarResponse = await fetch('/api/calendar/create-event', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                jobId: result.id || result._id,
-                                sendInvite: settings.calendarSettings?.sendInvites || false
-                            })
-                        });
-
-                        if (calendarResponse.ok) {
-                            console.log('✅ Calendar event auto-created');
-                        }
-                    } catch (calError) {
-                        console.warn('Calendar event creation failed:', calError);
-                        // Don't block job save if calendar fails
-                    }
+                // Capture ID for new jobs so subsequent autosaves update the same record
+                if (!currentEditingJobId && (result.id || result._id)) {
+                    currentEditingJobId = result.id || result._id;
                 }
 
-                markFormClean('jobForm');
-                closeModal('jobModal');
-                loadJobs();
-                loadDashboard();
+                markFormClean();
+
+                if (!silent) {
+                    // Auto-create calendar event for new scheduled jobs
+                    const hasScheduledDate = job.scheduledDate && job.status === 'scheduled';
+                    if (isNewJob && hasScheduledDate && settings.calendarSettings?.autoSync) {
+                        try {
+                            const calendarResponse = await fetch('/api/calendar/create-event', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    jobId: result.id || result._id,
+                                    sendInvite: settings.calendarSettings?.sendInvites || false
+                                })
+                            });
+                            if (calendarResponse.ok) console.log('✅ Calendar event auto-created');
+                        } catch (calError) {
+                            console.warn('Calendar event creation failed:', calError);
+                        }
+                    }
+                    closeModal('jobModal');
+                    loadJobs();
+                    loadDashboard();
+                }
             } catch (error) {
-                alert('Failed to save job: ' + error.message);
+                if (!silent) alert('Failed to save job: ' + error.message);
+                throw error;
             }
         }
 
@@ -7999,6 +8088,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             updateQuoteTotal();
             document.getElementById('quoteModal').classList.add('active');
             markFormClean('quoteForm');
+            autoSaveContext = 'quote';
+            showAutoSaveStatus('pending');
         }
 
         function handleQuoteClientChange() {
@@ -8174,10 +8265,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('quoteTotal').textContent = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
-        async function saveQuote() {
+        async function saveQuote(opts = {}) {
+            const silent = opts.silent === true;
             const form = document.getElementById('quoteForm');
             const formData = new FormData(form);
             const quote = Object.fromEntries(formData);
+
+            // Require a title before saving
+            if (!quote.title || !quote.title.trim()) {
+                if (!silent) alert('Please enter a quote title before saving.');
+                return;
+            }
 
             if (currentEditingQuoteId) {
                 quote._id = currentEditingQuoteId;
@@ -8200,12 +8298,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             try {
                 const result = await postData('/api/quotes', quote, {
-                    markClean: true,
-                    closeModal: 'quoteModal',
-                    reload: loadQuotes
+                    markClean: !silent,
+                    closeModal: silent ? null : 'quoteModal',
+                    reload: silent ? null : loadQuotes
                 });
-                // If this quote was converted from a lead, copy the lead's photos over
-                if (window._pendingLeadId && result && result.id && !currentEditingQuoteId) {
+
+                // Capture ID for new quotes so subsequent autosaves update the same record
+                if (!currentEditingQuoteId && result && (result.id || result._id)) {
+                    currentEditingQuoteId = result.id || result._id;
+                }
+
+                if (silent) markFormClean();
+
+                // Import lead photos on manual save of a new quote only
+                if (!silent && window._pendingLeadId && result && result.id && !quote._id) {
                     fetch(`/api/quotes/${result.id}/import-lead-photos`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -8214,7 +8320,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     window._pendingLeadId = null;
                 }
             } catch (error) {
-                alert('Failed to save quote: ' + error.message);
+                if (!silent) alert('Failed to save quote: ' + error.message);
+                throw error;
             }
         }
 
@@ -8302,6 +8409,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             document.getElementById('quoteModal').classList.add('active');
             markFormClean('quoteForm');
+            autoSaveContext = 'quote';
+            showAutoSaveStatus('pending');
         }
 
         function loadQuotePhotos(quoteId) {
