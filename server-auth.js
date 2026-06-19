@@ -2142,6 +2142,7 @@ app.get('/api/analytics/summary', isAuthenticated, async (req, res) => {
             report, sources, pages
         });
     } catch (e) {
+        console.error('[analytics/summary]', e.message, e.stack);
         res.status(500).json({ error: e.message });
     }
 });
