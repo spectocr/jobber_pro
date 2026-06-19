@@ -6,299 +6,166 @@
     <title>Client Portal</title>
     <link rel="icon" type="image/x-icon" id="favicon-link">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 2rem;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+        .container { max-width: 860px; margin: 0 auto; }
 
         .header {
             background: white;
-            padding: 1.5rem 2rem;
+            padding: 1.25rem 1.75rem;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
         }
+        .header h1 { color: #667eea; font-size: 1.4rem; }
+        .header-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 
-        .header h1 {
-            color: #667eea;
-            font-size: 1.5rem;
-        }
-
-        .logout-btn {
-            background: #e53e3e;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
+        .btn-hdr {
+            padding: 0.5rem 1rem;
             border-radius: 8px;
-            cursor: pointer;
+            border: none;
             font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            color: white;
         }
 
-        .logout-btn:hover {
-            background: #c53030;
+        /* Tab nav */
+        .tab-nav {
+            display: flex;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 0.3rem;
+            margin-bottom: 1.25rem;
+            gap: 0.25rem;
         }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-bottom: 2rem;
+        .tab-btn {
+            flex: 1;
+            padding: 0.6rem 1rem;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: rgba(255,255,255,0.75);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.15s;
         }
+        .tab-btn.active { background: white; color: #667eea; }
+        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.2); color: white; }
 
+        /* Tab panels */
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Cards */
         .card {
             background: white;
-            padding: 2rem;
+            padding: 1.25rem 1.5rem;
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .card h2 {
-            color: #667eea;
-            margin-bottom: 1rem;
-            font-size: 1.3rem;
-        }
-
-        .empty-state {
-            text-align: center;
-            color: #718096;
-            padding: 2rem;
-        }
-
-        .quote-card, .job-card, .invoice-card {
-            background: #f7fafc;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 0.875rem;
             border-left: 4px solid #667eea;
         }
+        .card.card-invoice  { border-left-color: #48bb78; }
+        .card.card-archived { border-left-color: #cbd5e0; opacity: 0.8; }
 
-        .invoice-card {
-            border-left-color: #48bb78;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .invoice-card .invoice-info { flex: 1; }
-
-        .invoice-card .invoice-amounts {
-            text-align: right;
-            white-space: nowrap;
-        }
-
-        .quote-card h3, .job-card h3, .invoice-card h3 {
-            color: #2d3748;
+        .card-type-badge {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.15rem 0.55rem;
+            border-radius: 999px;
             margin-bottom: 0.5rem;
         }
+        .badge-quote   { background: #e9d8fd; color: #553c9a; }
+        .badge-job     { background: #bee3f8; color: #2c5282; }
+        .badge-invoice { background: #c6f6d5; color: #22543d; }
 
-        .status-paid { background: #c6f6d5; color: #22543d; }
-        .status-outstanding { background: #fed7d7; color: #742a2a; }
-        .status-partial { background: #feebc8; color: #7b341e; }
+        .card-title { font-size: 1.05rem; font-weight: 700; color: #2d3748; margin-bottom: 0.2rem; }
+        .card-meta  { font-size: 0.82rem; color: #718096; margin-bottom: 0.6rem; }
 
-        .request-card {
-            background: #f7fafc;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 0.875rem 1rem;
-            margin-bottom: 0.75rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 1rem;
-        }
-
-        .ticket-badge {
-            font-family: monospace;
-            font-size: 0.8rem;
-            font-weight: 700;
-            background: #e9d8fd;
-            color: #553c9a;
-            padding: 0.2rem 0.6rem;
-            border-radius: 6px;
-            display: inline-block;
-            margin-bottom: 0.35rem;
-        }
-
-        .photo-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
-        }
-
-        .photo-thumb {
-            position: relative;
-            width: 80px;
-            height: 80px;
-        }
-
-        .photo-thumb img {
-            width: 80px;
-            height: 80px;
-            object-fit: cover;
-            border-radius: 6px;
-            border: 2px solid #e2e8f0;
-        }
-
-        .photo-thumb .remove-photo {
-            position: absolute;
-            top: -6px;
-            right: -6px;
-            background: #e53e3e;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            font-size: 12px;
-            cursor: pointer;
+        .card-actions {
             display: flex;
             align-items: center;
-            justify-content: center;
-            line-height: 1;
-        }
-
-        .upload-area {
-            border: 2px dashed #cbd5e0;
-            border-radius: 8px;
-            padding: 1.5rem;
-            text-align: center;
-            cursor: pointer;
-            color: #718096;
-            transition: border-color 0.2s;
-            margin-top: 0.5rem;
-        }
-
-        .upload-area:hover { border-color: #667eea; color: #667eea; }
-
-        .form-label {
-            display: block;
-            font-weight: 600;
-            color: #4a5568;
-            margin-bottom: 0.4rem;
-            font-size: 0.9rem;
-        }
-
-        .form-input, .form-select, .form-textarea {
-            width: 100%;
-            padding: 0.7rem 0.875rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 0.95rem;
-            color: #2d3748;
-            box-sizing: border-box;
-        }
-
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .form-group { margin-bottom: 1rem; }
-
-        .success-banner {
-            background: #c6f6d5;
-            border: 2px solid #9ae6b4;
-            border-radius: 10px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1.25rem;
-            color: #22543d;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .status-sent {
-            background: #bee3f8;
-            color: #2c5282;
-        }
-
-        .status-approved {
-            background: #c6f6d5;
-            color: #22543d;
-        }
-
-        .status-scheduled {
-            background: #fed7d7;
-            color: #742a2a;
-        }
-
-        .status-completed {
-            background: #c6f6d5;
-            color: #22543d;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
         }
 
         .btn {
-            padding: 0.5rem 1rem;
+            padding: 0.45rem 1rem;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            margin-top: 0.5rem;
+            font-size: 0.875rem;
             display: inline-block;
             text-decoration: none;
         }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-ghost   { background: none; border: 1.5px solid #e2e8f0; color: #4a5568; font-size: 0.82rem; }
+        .btn:hover   { opacity: 0.88; }
 
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-success {
-            background: #48bb78;
-            color: white;
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-        }
-
-        .message-form {
+        .amount-row {
             display: flex;
-            flex-direction: column;
-            gap: 1rem;
+            justify-content: space-between;
+            align-items: baseline;
+            margin: 0.4rem 0;
+        }
+        .amount-total { font-size: 1.15rem; font-weight: 700; color: #2d3748; }
+        .amount-due   { font-size: 0.9rem; font-weight: 600; color: #e53e3e; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.65rem;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .status-paid        { background: #c6f6d5; color: #22543d; }
+        .status-outstanding { background: #fed7d7; color: #742a2a; }
+        .status-partial     { background: #feebc8; color: #7b341e; }
+        .status-sent        { background: #bee3f8; color: #2c5282; }
+        .status-approved    { background: #c6f6d5; color: #22543d; }
+        .status-scheduled   { background: #fed7d7; color: #742a2a; }
+        .status-completed   { background: #c6f6d5; color: #22543d; }
+
+        .empty-state {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            padding: 3rem 1rem;
+            font-size: 0.95rem;
         }
 
-        .message-form textarea {
-            padding: 0.75rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-family: inherit;
-            resize: vertical;
+        .archive-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.65);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.75rem;
+            padding: 0 0.25rem;
         }
 
-        .message-form button {
-            align-self: flex-start;
-        }
-
-        /* Workflow Stepper */
-        .wf-wrap{padding:0.6rem 0 0.1rem;margin-bottom:0.75rem;}
-        .wf-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;}
-        .wf-hdr-title{font-weight:700;font-size:0.82rem;color:#2d3748;}
-        .wf-pill{background:#f0ebff;color:#553c9a;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.7rem;font-weight:700;}
+        /* Workflow stepper */
+        .wf-wrap{padding:0.5rem 0 0.1rem;margin-bottom:0.6rem;}
+        .wf-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.65rem;}
+        .wf-hdr-title{font-weight:700;font-size:0.78rem;color:#2d3748;}
+        .wf-pill{background:#f0ebff;color:#553c9a;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.68rem;font-weight:700;}
         .wf-stages-wrap{position:relative;display:flex;padding:0 0.5rem;}
         .wf-track-bg{position:absolute;top:15px;left:calc(0.5rem + 15px);right:calc(0.5rem + 15px);height:3px;background:#e2e8f0;border-radius:2px;}
         .wf-track-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#48bb78 0%,#667eea 100%);border-radius:2px;transition:width 0.4s ease;}
@@ -313,74 +180,90 @@
         .wf-st.wf-done{background:#c6f6d5;color:#22543d;}
         .wf-st.wf-now{background:#e9d8fd;color:#553c9a;}
 
-        @media (max-width: 768px) {
-            body {
-                padding: 1rem;
-            }
+        /* Forms */
+        .form-card { background: white; padding: 1.75rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .form-card h2 { color: #667eea; margin-bottom: 0.4rem; font-size: 1.2rem; }
+        .form-card > p { color: #718096; font-size: 0.88rem; margin-bottom: 1.25rem; }
+        .form-label { display: block; font-weight: 600; color: #4a5568; margin-bottom: 0.4rem; font-size: 0.9rem; }
+        .form-input,.form-select,.form-textarea { width: 100%; padding: 0.7rem 0.875rem; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 0.95rem; color: #2d3748; box-sizing: border-box; }
+        .form-input:focus,.form-select:focus,.form-textarea:focus { outline: none; border-color: #667eea; }
+        .form-group { margin-bottom: 1rem; }
+        .success-banner { background: #c6f6d5; border: 2px solid #9ae6b4; border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; color: #22543d; }
 
-            .header {
-                flex-direction: column;
-                gap: 1rem;
-            }
+        .photo-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+        .photo-thumb { position: relative; width: 80px; height: 80px; }
+        .photo-thumb img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid #e2e8f0; }
+        .photo-thumb .remove-photo { position: absolute; top: -6px; right: -6px; background: #e53e3e; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .upload-area { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 1.5rem; text-align: center; cursor: pointer; color: #718096; transition: border-color 0.2s; margin-top: 0.5rem; }
+        .upload-area:hover { border-color: #667eea; color: #667eea; }
 
-            .grid {
-                grid-template-columns: 1fr;
-            }
+        /* Modals */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-box { background: white; border-radius: 12px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; padding: 1.5rem; position: relative; }
+        .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #718096; }
+
+        /* Urgent popover */
+        .urgent-wrap { position: relative; }
+        #urgentPopover { display: none; position: absolute; top: calc(100% + 8px); right: 0; background: #1a202c; color: white; border-radius: 10px; padding: 1rem 1.25rem; min-width: 220px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); z-index: 200; text-align: center; }
+
+        @media (max-width: 600px) {
+            body { padding: 0.75rem; }
+            .header { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+            .tab-btn { font-size: 0.8rem; padding: 0.5rem 0.4rem; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1 id="portalTitle">Client Portal</h1>
-                <p id="clientName" style="color: #718096; margin-top: 0.25rem;"></p>
-            </div>
-            <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;position:relative;">
-                <button class="logout-btn" style="background:#48bb78;border-color:#48bb78;" onclick="document.getElementById('quoteRequestSection').scrollIntoView({behavior:'smooth'})">+ Work Order</button>
-                <button class="logout-btn" style="background:#4299e1;border-color:#4299e1;" onclick="document.getElementById('messageSection').scrollIntoView({behavior:'smooth'})">💬 Message Us</button>
-                <div style="position:relative;">
-                    <button id="urgentBtn" class="logout-btn" style="background:#e53e3e;border-color:#e53e3e;display:none;" onclick="toggleUrgentPopover()">🚨 Urgent</button>
-                    <div id="urgentPopover" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:#1a202c;color:white;border-radius:10px;padding:1rem 1.25rem;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,0.25);z-index:200;text-align:center;">
-                        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.5);margin-bottom:0.4rem;">Need immediate help?</div>
-                        <a id="urgentPhone" href="#" style="display:inline-flex;align-items:center;gap:0.5rem;background:#e53e3e;color:white;font-weight:700;font-size:1rem;padding:0.5rem 1.25rem;border-radius:8px;text-decoration:none;margin-top:0.1rem;">
-                            💬 Text Us
-                        </a>
-                        <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:0.5rem;">Tap to open in Messages</div>
-                    </div>
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div>
+            <h1 id="portalTitle">Client Portal</h1>
+            <p id="clientName" style="color:#718096;margin-top:0.2rem;font-size:0.9rem;"></p>
+        </div>
+        <div class="header-actions">
+            <div class="urgent-wrap">
+                <button id="urgentBtn" class="btn-hdr" style="background:#e53e3e;display:none;" onclick="toggleUrgentPopover()">🚨 Urgent</button>
+                <div id="urgentPopover">
+                    <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.5);margin-bottom:0.4rem;">Need immediate help?</div>
+                    <a id="urgentPhone" href="#" style="display:inline-flex;align-items:center;gap:0.5rem;background:#e53e3e;color:white;font-weight:700;font-size:1rem;padding:0.5rem 1.25rem;border-radius:8px;text-decoration:none;margin-top:0.1rem;">💬 Text Us</a>
+                    <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:0.5rem;">Tap to open in Messages</div>
                 </div>
-                <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
+            <button class="btn-hdr" style="background:#4299e1;" onclick="openMessageModal()">💬 Message Us</button>
+            <button class="btn-hdr" style="background:#718096;" onclick="logout()">Logout</button>
         </div>
+    </div>
 
-        <div class="grid">
-            <!-- Quotes Section -->
-            <div class="card" id="quotesCard">
-                <h2>📋 My Quotes</h2>
-                <div id="quotesList"></div>
-            </div>
+    <!-- Tab nav -->
+    <div class="tab-nav">
+        <button class="tab-btn active" id="tab-btn-activity"    onclick="switchTab('activity')">Activity</button>
+        <button class="tab-btn"        id="tab-btn-archive"     onclick="switchTab('archive')">Archive</button>
+        <button class="tab-btn"        id="tab-btn-new-request" onclick="switchTab('new-request')">+ New Request</button>
+    </div>
 
-            <!-- Jobs Section -->
-            <div class="card">
-                <h2>🔨 My Jobs</h2>
-                <div id="jobsList"></div>
-            </div>
-        </div>
+    <!-- Activity -->
+    <div class="tab-panel active" id="tab-activity">
+        <div id="activityList"></div>
+    </div>
 
-        <!-- Invoices Section -->
-        <div class="card" style="margin-bottom: 2rem;">
-            <h2>🧾 My Invoices</h2>
-            <div id="invoicesList"></div>
-        </div>
+    <!-- Archive -->
+    <div class="tab-panel" id="tab-archive">
+        <div class="archive-label">Completed &amp; Paid</div>
+        <div id="archiveList"></div>
+    </div>
 
-        <!-- Request a Quote Section -->
-        <div class="card" style="margin-bottom: 2rem;" id="quoteRequestSection">
-            <h2>📝 Request a Quote</h2>
-            <p class="portal-request-desc" style="color:#718096;margin-bottom:1.25rem;font-size:0.9rem;">Tell us what you need done. We'll follow up with a quote. Your ticket number will appear after submission.</p>
+    <!-- New Request -->
+    <div class="tab-panel" id="tab-new-request">
+        <div class="form-card">
+            <h2 id="requestTitle">📝 Request a Quote</h2>
+            <p class="portal-request-desc">Tell us what you need done. We'll follow up with a quote. Your ticket number will appear after submission.</p>
 
             <div id="quoteRequestSuccess" style="display:none;" class="success-banner">
                 <div id="qrSuccessMsg" style="font-size:1.1rem;font-weight:700;margin-bottom:0.25rem;">✅ Request submitted!</div>
-                <div><span id="qrTicketLabel">Your quote number is</span> <span id="newTicketNumber" class="ticket-badge" style="font-size:0.9rem;"></span><span id="qrTicketSuffix">. We'll be in touch soon with pricing.</span></div>
+                <div><span id="qrTicketLabel">Your quote number is</span> <strong id="newTicketNumber"></strong><span id="qrTicketSuffix">. We'll be in touch soon with pricing.</span></div>
+                <button class="btn btn-primary" style="margin-top:0.75rem;" onclick="switchTab('activity')">← View in Activity</button>
             </div>
 
             <form id="quoteRequestForm" onsubmit="submitPortalQuoteRequest(event)">
@@ -390,14 +273,14 @@
                         <option value="">Select a service...</option>
                         <option value="Drywall Repair">Drywall Repair</option>
                         <option value="Door Repair / Installation">Door Repair / Installation</option>
-                        <option value="Carpentry & Wood Rot Repair">Carpentry & Wood Rot Repair</option>
+                        <option value="Carpentry & Wood Rot Repair">Carpentry &amp; Wood Rot Repair</option>
                         <option value="Fixture Installation (lights, fans, faucets)">Fixture Installation (lights, fans, faucets)</option>
                         <option value="Pressure Washing">Pressure Washing</option>
                         <option value="Fence Repair / Installation">Fence Repair / Installation</option>
                         <option value="Property Maintenance">Property Maintenance</option>
                         <option value="Painting (interior / exterior)">Painting (interior / exterior)</option>
                         <option value="Flooring">Flooring</option>
-                        <option value="Caulking & Weatherproofing">Caulking & Weatherproofing</option>
+                        <option value="Caulking & Weatherproofing">Caulking &amp; Weatherproofing</option>
                         <option value="General Handyman">General Handyman</option>
                         <option value="Other">Other</option>
                     </select>
@@ -443,592 +326,672 @@
                 <button type="submit" class="btn btn-primary" id="qrSubmitBtn" style="width:100%;padding:0.875rem;font-size:1rem;">Submit Request</button>
             </form>
         </div>
+    </div>
 
-        <!-- Message Section -->
-        <div class="card" id="messageSection">
-            <h2>💬 Send Message</h2>
-            <form class="message-form" onsubmit="sendMessage(event)">
-                <select id="messageSubject" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit;">
+</div><!-- /container -->
+
+<!-- Job Detail Modal -->
+<div id="jobDetailModal" class="modal-overlay" onclick="if(event.target===this)closeJobDetail()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeJobDetail()">✕</button>
+        <div id="jobDetailBody"></div>
+    </div>
+</div>
+
+<!-- Quote / Work Order Detail Modal -->
+<div id="submissionModal" class="modal-overlay" onclick="if(event.target===this)closeSubmissionModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeSubmissionModal()">✕</button>
+        <h3 style="margin:0 0 1rem;color:#2d3748;">Submission Details</h3>
+        <div id="submissionModalBody"></div>
+    </div>
+</div>
+
+<!-- Message Modal -->
+<div id="messageModal" class="modal-overlay" onclick="if(event.target===this)closeMessageModal()">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeMessageModal()">✕</button>
+        <h3 style="margin:0 0 1.25rem;color:#2d3748;">💬 Send Message</h3>
+        <form onsubmit="sendMessage(event)">
+            <div class="form-group">
+                <label class="form-label">Topic</label>
+                <select id="messageSubject" class="form-select" onchange="handleMessageSubjectChange(this.value)">
                     <option value="">General question</option>
                     <option value="quote">About a quote</option>
                     <option value="job">About a job</option>
                 </select>
-                <select id="quoteJobSelect" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; display: none;">
-                    <option value="">Select...</option>
-                </select>
-                <textarea id="messageText" placeholder="Ask a question or send a message..." rows="4" required></textarea>
-                <button type="submit" class="btn btn-primary">Send Message</button>
-            </form>
-        </div>
+            </div>
+            <div class="form-group" id="quoteJobSelectGroup" style="display:none;">
+                <label class="form-label">Which one?</label>
+                <select id="quoteJobSelect" class="form-select"><option value="">Select...</option></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Message *</label>
+                <textarea id="messageText" class="form-textarea" placeholder="Ask a question or send a message..." rows="4" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.75rem;">Send Message</button>
+        </form>
     </div>
+</div>
 
-    <script>
-        let clientData = null;
-        let qrPhotos = []; // { dataUrl, file }
+<script>
+let clientData = null;
+let qrPhotos   = [];
 
-        const WF_DESC = {
-            'Submitted':   { now: 'We received your request and will review it shortly.' },
-            'Reviewing':   { now: 'Our team is looking over your request.', next: 'We\'ll price it out and send it over for your approval.' },
-            'Priced':      { now: 'Your quote is ready and waiting for your review.', next: 'Approve or decline from the link we sent you.' },
-            'Approved':    { now: 'Approved — we\'re getting this on the calendar.', next: 'You\'ll hear from us to confirm the date and time.' },
-            'Scheduled':   { now: 'Your job is scheduled and on our calendar.', next: 'Our crew will be on-site at the confirmed time.' },
-            'In Progress': { now: 'The crew is actively on-site working on your job.', next: 'You\'ll receive an invoice once the work is complete.' },
-            'Invoiced':    { now: 'Work is done and your invoice has been issued.', next: 'The job will close once payment is received.' },
-            'Complete':    { done: 'All done! Thank you for trusting us with your property.' },
+// ── Workflow stepper ──────────────────────────────────────────────────────────
+
+const WF_DESC = {
+    'Submitted':   { now: 'We received your request and will review it shortly.' },
+    'Reviewing':   { now: 'Our team is looking over your request.', next: 'We\'ll price it out and send it over for your approval.' },
+    'Priced':      { now: 'Your quote is ready and waiting for your review.', next: 'Approve or decline from the link we sent you.' },
+    'Approved':    { now: 'Approved — we\'re getting this on the calendar.', next: 'You\'ll hear from us to confirm the date and time.' },
+    'Scheduled':   { now: 'Your job is scheduled and on our calendar.', next: 'Our crew will be on-site at the confirmed time.' },
+    'In Progress': { now: 'The crew is actively on-site working on your job.', next: 'You\'ll receive an invoice once the work is complete.' },
+    'Invoiced':    { now: 'Work is done and your invoice has been issued.', next: 'The job will close once payment is received.' },
+    'Complete':    { done: 'All done! Thank you for trusting us with your property.' },
+};
+
+function buildWorkflowStepper(stages) {
+    const completedCount = stages.filter(s => s.s === 'wf-done').length;
+    const activeIdx      = stages.findIndex(s => s.s === 'wf-now');
+    const doneCount      = completedCount + (activeIdx >= 0 ? 1 : 0);
+    const fillIdx        = activeIdx >= 0 ? activeIdx : completedCount - 1;
+    const fillPct        = fillIdx < 0 ? 0 : (fillIdx / (stages.length - 1)) * 100;
+    const dots = stages.map(s => {
+        const icon  = s.s === 'wf-done' ? '✓' : s.s === 'wf-now' ? '⬤' : '·';
+        const badge = s.s === 'wf-done' ? 'DONE' : s.s === 'wf-now' ? 'NOW' : '';
+        return `<div class="wf-stage"><div class="wf-dot ${s.s}">${icon}</div><div class="wf-lbl">${s.l}</div>${badge ? `<div class="wf-st ${s.s}">${badge}</div>` : ''}</div>`;
+    }).join('');
+    const allDone     = stages.every(s => s.s === 'wf-done');
+    const activeStage = stages[activeIdx];
+    let blurb = '';
+    if (allDone) {
+        blurb = '✅ All stages complete. Thank you for choosing us!';
+    } else if (activeStage) {
+        const d = WF_DESC[activeStage.l] || {};
+        blurb = d.now || '';
+        if (d.next) blurb += `<span style="display:block;margin-top:2px;color:#667eea;font-weight:600;">Next: ${d.next}</span>`;
+    }
+    return `<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Progress</div><div class="wf-pill">⚡ ${doneCount} / ${stages.length}</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:${fillPct}%"></div></div>${dots}</div>${blurb ? `<div style="font-size:0.78rem;color:#4a5568;margin-top:0.55rem;line-height:1.5;padding:0 0.25rem;">${blurb}</div>` : ''}</div>`;
+}
+
+function getQuoteStages(quote) {
+    const s = quote.status;
+    if (quote.convertedToJobId && clientData && clientData.jobs) {
+        const cid       = String(quote.convertedToJobId);
+        const linkedJob = clientData.jobs.find(j => j.id === cid || String(j._id) === cid);
+        if (linkedJob) return getJobStages(linkedJob);
+    }
+    return [
+        { l: 'Submitted',   s: 'wf-done' },
+        { l: 'Reviewing',   s: (s === 'sent' || s === 'approved' || s === 'in_review') ? 'wf-done' : 'wf-now' },
+        { l: 'Priced',      s: s === 'approved' || s === 'in_review' ? 'wf-done' : s === 'sent' ? 'wf-now' : 'wf-wait' },
+        { l: 'Approved',    s: s === 'approved' || s === 'in_review' ? 'wf-now' : 'wf-wait' },
+        { l: 'Scheduled',   s: 'wf-wait' },
+        { l: 'In Progress', s: 'wf-wait' },
+        { l: 'Complete',    s: 'wf-wait' },
+    ];
+}
+
+function getJobStages(job) {
+    const s            = job.status;
+    const isScheduled  = s === 'scheduled' || s === 'to_be_scheduled' || s === 'prospecting';
+    const isInProgress = s === 'in_progress';
+    const isInvoiced   = s === 'invoiced';
+    const isComplete   = s === 'completed';
+    return [
+        { l: 'Received',    s: 'wf-done' },
+        { l: 'Reviewed',    s: 'wf-done' },
+        { l: 'Approved',    s: 'wf-done' },
+        { l: 'Scheduled',   s: isInProgress || isInvoiced || isComplete ? 'wf-done' : isScheduled   ? 'wf-now' : 'wf-wait' },
+        { l: 'In Progress', s: isInvoiced   || isComplete ? 'wf-done' : isInProgress ? 'wf-now' : 'wf-wait' },
+        { l: 'Invoiced',    s: isComplete   ? 'wf-done'  : isInvoiced  ? 'wf-now'    : 'wf-wait' },
+        { l: 'Complete',    s: isComplete   ? 'wf-done'  : 'wf-wait' },
+    ];
+}
+
+// ── Unified activity list ─────────────────────────────────────────────────────
+
+function buildUnifiedItems(data) {
+    const quotes   = data.quotes   || [];
+    const jobs     = data.jobs     || [];
+    const invoices = data.invoices || [];
+
+    // inv.id is used as the job ID in /invoice/:id links — use it as join key
+    const invoiceByJobId = {};
+    invoices.forEach(inv => { if (inv.id) invoiceByJobId[String(inv.id)] = inv; });
+
+    const jobIds = new Set(jobs.map(j => String(j.id || j._id)));
+    const items  = [];
+
+    // Quotes not yet converted to a job
+    quotes.forEach(q => {
+        if (!q.convertedToJobId) {
+            items.push({ type: 'quote', data: q, sortDate: q.updatedAt || q.createdAt });
+        }
+    });
+
+    // Jobs — show as invoice card if an invoice exists for this job
+    jobs.forEach(job => {
+        const jid = String(job.id || job._id);
+        const inv = invoiceByJobId[jid];
+        if (inv) {
+            items.push({ type: 'invoice', data: inv, job, sortDate: inv.date || job.updatedAt });
+        } else {
+            items.push({ type: 'job', data: job, sortDate: job.updatedAt || job.scheduledDate || job.createdAt });
+        }
+    });
+
+    // Invoices with no matching job record (edge case)
+    invoices.forEach(inv => {
+        if (inv.id && !jobIds.has(String(inv.id))) {
+            items.push({ type: 'invoice', data: inv, sortDate: inv.date });
+        }
+    });
+
+    items.sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0));
+    return items;
+}
+
+function isArchived(item) {
+    if (item.type === 'invoice') return item.data.status === 'paid';
+    if (item.type === 'job')     return item.data.status === 'completed';
+    return false;
+}
+
+function renderActivityList(items, containerId) {
+    const container = document.getElementById(containerId);
+    const T = window._portalT || {};
+    if (!items.length) {
+        container.innerHTML = `<div class="empty-state">${containerId === 'archiveList' ? 'No archived items yet.' : 'No active items.'}</div>`;
+        return;
+    }
+    container.innerHTML = items.map(item => renderCard(item, T)).join('');
+}
+
+function renderCard(item, T) {
+    if (item.type === 'quote')   return renderQuoteCard(item.data, T);
+    if (item.type === 'job')     return renderJobCard(item.data, T);
+    if (item.type === 'invoice') return renderInvoiceCard(item.data, item.job, T);
+    return '';
+}
+
+function esc(str) { return String(str || '').replace(/'/g, "\\'"); }
+
+function renderQuoteCard(quote, T) {
+    const isDraft     = quote.status === 'draft';
+    const isApproved  = quote.status === 'approved' || quote.status === 'in_review';
+    const pendingLabel = T.pendingBadge || 'PENDING REVIEW';
+    const approvedWhen = quote.approvedAt
+        ? new Date(quote.approvedAt).toLocaleString('en-US',{month:'numeric',day:'numeric',year:'2-digit',hour:'numeric',minute:'2-digit'})
+        : '';
+    const approvedLabel = 'APPROVED' + (quote.approverName ? ': ' + quote.approverName : '') + (approvedWhen ? ' · ' + approvedWhen : '');
+    const statusLabel  = isDraft ? pendingLabel : isApproved ? approvedLabel : quote.status.replace(/_/g,' ').toUpperCase();
+    const statusStyle  = isDraft ? 'background:#e9d8fd;color:#553c9a;' : '';
+    const validUntil   = quote.validUntil ? new Date(quote.validUntil) : null;
+    const isExpired    = validUntil && validUntil < new Date() && quote.status === 'sent';
+    const typeLabel    = T.quoteLabel || 'Quote';
+
+    const meta = [
+        `${T.quoteNum || 'Quote #:'} ${quote.quoteNumber}`,
+        !isDraft && quote.total ? `$${parseFloat(quote.total).toFixed(2)}` : '',
+        validUntil && !isDraft ? `Valid until ${validUntil.toLocaleDateString()}` : '',
+    ].filter(Boolean).join(' · ');
+
+    let cta = '';
+    if (isDraft) {
+        cta = `<button class="btn btn-primary" onclick="viewSubmission('${esc(quote.id)}')">View ${typeLabel}</button>`;
+    } else if (!isExpired) {
+        cta = `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">${T.viewBtn || 'View Quote'}</a>`;
+    }
+
+    return `
+    <div class="card">
+        <span class="card-type-badge badge-quote">${typeLabel}</span>
+        <div class="card-title">${quote.title}</div>
+        <div class="card-meta">${meta}</div>
+        ${buildWorkflowStepper(getQuoteStages(quote))}
+        <div class="card-actions">
+            <span class="status-badge" style="${statusStyle}">${statusLabel}</span>
+            ${cta}
+            ${isExpired ? '<span style="color:#e53e3e;font-size:0.85rem;font-weight:600;">Expired</span>' : ''}
+            <button class="btn btn-ghost" onclick="openMessageModal('quote','${esc(quote.quoteNumber)}')">Message</button>
+        </div>
+    </div>`;
+}
+
+function renderJobCard(job, T) {
+    const date        = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'TBD';
+    const time        = job.scheduledTime || '';
+    const statusLabel = job.status.replace(/_/g,' ').toUpperCase();
+    const statusClass = job.status === 'completed' ? 'status-completed' : 'status-scheduled';
+
+    return `
+    <div class="card">
+        <span class="card-type-badge badge-job">Job</span>
+        <div class="card-title">${job.title}</div>
+        <div class="card-meta">Scheduled: ${date}${time ? ' · ' + time : ''}</div>
+        ${buildWorkflowStepper(getJobStages(job))}
+        <div class="card-actions">
+            <span class="status-badge ${statusClass}">${statusLabel}</span>
+            <button class="btn btn-primary" onclick="viewJobDetail('${esc(job.id)}')">View Details</button>
+            ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-success">View Invoice</a>` : ''}
+            <button class="btn btn-ghost" onclick="openMessageModal('job','${esc(job.id)}')">Message</button>
+        </div>
+    </div>`;
+}
+
+function renderInvoiceCard(inv, job, T) {
+    const date      = inv.date ? new Date(inv.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+    const isPaid    = inv.status === 'paid';
+    const statusLabel = isPaid ? 'PAID' : inv.status === 'partial' ? 'PARTIAL' : 'OUTSTANDING';
+    const statusClass = `status-${inv.status}`;
+    const stages    = job ? getJobStages(job) : null;
+
+    return `
+    <div class="card ${isPaid ? 'card-invoice card-archived' : 'card-invoice'}">
+        <span class="card-type-badge badge-invoice">Invoice</span>
+        <div class="card-title">${inv.jobTitle}</div>
+        <div class="card-meta">${inv.invoiceNumber}${date ? ' · ' + date : ''}</div>
+        ${stages ? buildWorkflowStepper(stages) : ''}
+        <div class="amount-row">
+            <span class="amount-total">$${inv.total.toFixed(2)}</span>
+            ${inv.due > 0 ? `<span class="amount-due">$${inv.due.toFixed(2)} due</span>` : ''}
+        </div>
+        <div class="card-actions">
+            <span class="status-badge ${statusClass}">${statusLabel}</span>
+            <a href="/invoice/${inv.id}" target="_blank" class="btn ${inv.due > 0 ? 'btn-success' : 'btn-primary'}">
+                ${inv.due > 0 ? 'Pay / View Invoice' : 'View Invoice'}
+            </a>
+            ${!isPaid ? `<button class="btn btn-ghost" onclick="openMessageModal('job','${esc(inv.id)}')">Message</button>` : ''}
+        </div>
+    </div>`;
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+
+async function loadClientData() {
+    try {
+        const res = await fetch('/api/client-portal/me');
+        if (!res.ok) { window.location.href = '/client-login'; return; }
+        clientData = await res.json();
+
+        const isPM = clientData.client.isPropertyManagement;
+        const T = {
+            quotes:        isPM ? '🎫 Work Orders'         : '📋 My Quotes',
+            quoteLabel:    isPM ? 'Work Order'              : 'Quote',
+            quoteNum:      isPM ? 'Ticket #'                : 'Quote #:',
+            requestTitle:  isPM ? '📝 Submit a Work Order'  : '📝 Request a Quote',
+            requestDesc:   isPM ? 'Submit a work order request. We\'ll review and follow up.' : 'Tell us what you need done. We\'ll follow up with a quote.',
+            requestBtn:    isPM ? 'Submit Work Order'       : 'Submit Request',
+            successMsg:    isPM ? 'Work order submitted!'   : 'Request submitted!',
+            ticketLabel:   isPM ? 'Work Order #'            : 'Your quote number is',
+            ticketSuffix:  isPM ? '. We\'ll schedule a time to review the work.' : '. We\'ll be in touch soon with pricing.',
+            pendingBadge:  isPM ? 'SUBMITTED'               : 'PENDING REVIEW',
+            viewBtn:       isPM ? 'View Work Order'         : 'View Quote',
+            viewSubmitBtn: isPM ? 'View Work Order'         : 'View Submission',
         };
+        window._portalT = T;
 
-        function buildWorkflowStepper(stages) {
-            const completedCount = stages.filter(s => s.s === 'wf-done').length;
-            const activeIdx = stages.findIndex(s => s.s === 'wf-now');
-            const doneCount = completedCount + (activeIdx >= 0 ? 1 : 0);
-            const fillIdx = activeIdx >= 0 ? activeIdx : completedCount - 1;
-            const fillPct = fillIdx < 0 ? 0 : (fillIdx / (stages.length - 1)) * 100;
-            const dots = stages.map(s => {
-                const icon = s.s === 'wf-done' ? '✓' : s.s === 'wf-now' ? '⬤' : '·';
-                const badge = s.s === 'wf-done' ? 'DONE' : s.s === 'wf-now' ? 'NOW' : '';
-                return `<div class="wf-stage"><div class="wf-dot ${s.s}">${icon}</div><div class="wf-lbl">${s.l}</div>${badge ? `<div class="wf-st ${s.s}">${badge}</div>` : ''}</div>`;
-            }).join('');
-            const allDone = stages.every(s => s.s === 'wf-done');
-            const activeStage = stages[activeIdx];
-            let blurb = '';
-            if (allDone) {
-                blurb = '✅ All stages complete. Thank you for choosing us!';
-            } else if (activeStage) {
-                const d = WF_DESC[activeStage.l] || {};
-                blurb = d.now || '';
-                if (d.next) blurb += `<span style="display:block;margin-top:2px;color:#667eea;font-weight:600;">Next: ${d.next}</span>`;
-            }
-            return `<div class="wf-wrap"><div class="wf-hdr"><div class="wf-hdr-title">Progress</div><div class="wf-pill">⚡ ${doneCount} / ${stages.length}</div></div><div class="wf-stages-wrap"><div class="wf-track-bg"><div class="wf-track-fill" style="width:${fillPct}%"></div></div>${dots}</div>${blurb ? `<div style="font-size:0.78rem;color:#4a5568;margin-top:0.55rem;line-height:1.5;padding:0 0.25rem;">${blurb}</div>` : ''}</div>`;
+        document.getElementById('requestTitle').textContent = T.requestTitle;
+        document.querySelector('.portal-request-desc').textContent = T.requestDesc;
+        document.getElementById('qrSubmitBtn').textContent = T.requestBtn;
+        if (isPM) document.getElementById('tab-btn-new-request').textContent = '+ Work Order';
+
+        const welcomeName = clientData.client.isLocationScoped
+            ? `${clientData.client.name}${clientData.client.locationAddress ? ' — ' + clientData.client.locationAddress : ''}`
+            : clientData.client.name;
+        document.getElementById('clientName').textContent = `Welcome, ${welcomeName}`;
+
+        if (clientData.settings.appName) {
+            document.getElementById('portalTitle').textContent = clientData.settings.appName + ' Portal';
+            document.title = clientData.settings.appName + ' - Client Portal';
+        }
+        if (clientData.settings.favicon) {
+            document.getElementById('favicon-link').href = clientData.settings.favicon;
+        }
+        if (clientData.settings.companyPhone) {
+            const ph     = clientData.settings.companyPhone;
+            const digits = ph.replace(/\D/g,'');
+            const el     = document.getElementById('urgentPhone');
+            el.textContent = '💬 Text Us · ' + ph;
+            el.href = 'sms:' + digits;
+            document.getElementById('urgentBtn').style.display = '';
         }
 
-        function getQuoteStages(quote) {
-            const s = quote.status;
-            // If converted to a job, look up the job and hand off to getJobStages
-            if (quote.convertedToJobId && clientData && clientData.jobs) {
-                const cid = String(quote.convertedToJobId);
-                const linkedJob = clientData.jobs.find(j => j.id === cid || String(j._id) === cid);
-                if (linkedJob) return getJobStages(linkedJob);
-            }
-            return [
-                { l: 'Submitted',  s: 'wf-done' },
-                { l: 'Reviewing',  s: (s === 'sent' || s === 'approved' || s === 'in_review') ? 'wf-done' : 'wf-now' },
-                { l: 'Priced',     s: s === 'approved' || s === 'in_review' ? 'wf-done' : s === 'sent' ? 'wf-now' : 'wf-wait' },
-                { l: 'Approved',   s: s === 'approved' || s === 'in_review' ? 'wf-now' : 'wf-wait' },
-                { l: 'Scheduled',  s: 'wf-wait' },
-                { l: 'In Progress',s: 'wf-wait' },
-                { l: 'Complete',   s: 'wf-wait' },
-            ];
+        const allItems = buildUnifiedItems(clientData);
+        const active   = allItems.filter(i => !isArchived(i));
+        const archived = allItems.filter(i =>  isArchived(i));
+
+        renderActivityList(active,   'activityList');
+        renderActivityList(archived, 'archiveList');
+
+        if (archived.length) {
+            document.getElementById('tab-btn-archive').textContent = `Archive (${archived.length})`;
         }
 
-        function getJobStages(job) {
-            const s = job.status;
-            const isScheduled  = s === 'scheduled' || s === 'to_be_scheduled' || s === 'prospecting';
-            const isInProgress = s === 'in_progress';
-            const isInvoiced   = s === 'invoiced';
-            const isComplete   = s === 'completed';
-            return [
-                { l: 'Received',    s: 'wf-done' },
-                { l: 'Reviewed',    s: 'wf-done' },
-                { l: 'Approved',    s: 'wf-done' },
-                { l: 'Scheduled',   s: isInProgress || isInvoiced || isComplete ? 'wf-done' : isScheduled ? 'wf-now' : 'wf-wait' },
-                { l: 'In Progress', s: isInvoiced || isComplete ? 'wf-done' : isInProgress ? 'wf-now' : 'wf-wait' },
-                { l: 'Invoiced',    s: isComplete ? 'wf-done' : isInvoiced ? 'wf-now' : 'wf-wait' },
-                { l: 'Complete',    s: isComplete ? 'wf-done' : 'wf-wait' },
-            ];
-        }
+        setupAddressPicker(clientData.addresses);
+    } catch (e) {
+        console.error('Failed to load client data:', e);
+        window.location.href = '/client-login';
+    }
+}
 
-        async function loadClientData() {
-            try {
-                const response = await fetch('/api/client-portal/me');
-                if (!response.ok) {
-                    window.location.href = '/client-login';
-                    return;
-                }
+// ── Tabs ──────────────────────────────────────────────────────────────────────
 
-                clientData = await response.json();
-                const isPM = clientData.client.isPropertyManagement;
+function switchTab(name) {
+    ['activity','archive','new-request'].forEach(t => {
+        document.getElementById('tab-' + t).classList.remove('active');
+        document.getElementById('tab-btn-' + t).classList.remove('active');
+    });
+    document.getElementById('tab-' + name).classList.add('active');
+    document.getElementById('tab-btn-' + name).classList.add('active');
+    if (name === 'new-request') {
+        // Reset form state in case a prior submission is showing
+        document.getElementById('quoteRequestSuccess').style.display = 'none';
+        document.getElementById('quoteRequestForm').style.display    = 'block';
+    }
+}
 
-                // PM-aware terminology
-                const T = {
-                    quotes:        isPM ? '🎫 Work Orders'       : '📋 My Quotes',
-                    quoteLabel:    isPM ? 'Work Order'            : 'Quote',
-                    quoteNum:      isPM ? 'Ticket #'              : 'Quote #:',
-                    requestTitle:  isPM ? '📝 Submit a Work Order' : '📝 Request a Quote',
-                    requestDesc:   isPM ? 'Submit a work order request. We\'ll review and follow up.' : 'Tell us what you need done. We\'ll follow up with a quote.',
-                    requestBtn:    isPM ? 'Submit Work Order'     : 'Submit Request',
-                    successMsg:    isPM ? 'Work order submitted!' : 'Request submitted!',
-                    ticketLabel:   isPM ? 'Work Order #'          : 'Your quote number is',
-                    ticketSuffix:  isPM ? '. We\'ll schedule a time to review the work.' : '. We\'ll be in touch soon with pricing.',
-                    pendingBadge:  isPM ? 'SUBMITTED'             : 'PENDING REVIEW',
-                    viewBtn:       isPM ? 'View Work Order'       : 'View Quote',
-                    viewSubmitBtn: isPM ? 'View Work Order'       : 'View Submission',
-                };
-                window._portalT = T;
+// ── Message Modal ─────────────────────────────────────────────────────────────
 
-                // Apply static text labels
-                document.querySelector('#quotesCard h2').textContent = T.quotes;
-                document.querySelector('#quoteRequestSection h2').textContent = T.requestTitle;
-                document.querySelector('#quoteRequestSection .portal-request-desc').textContent = T.requestDesc;
-                document.getElementById('qrSubmitBtn').textContent = T.requestBtn;
+function openMessageModal(subject, ref) {
+    const subjectEl = document.getElementById('messageSubject');
+    const selectEl  = document.getElementById('quoteJobSelect');
+    const groupEl   = document.getElementById('quoteJobSelectGroup');
 
-                const welcomeName = clientData.client.isLocationScoped
-                    ? `${clientData.client.name}${clientData.client.locationAddress ? ' — ' + clientData.client.locationAddress : ''}`
-                    : clientData.client.name;
-                document.getElementById('clientName').textContent = `Welcome, ${welcomeName}`;
+    subjectEl.value = subject || '';
+    selectEl.innerHTML = '<option value="">Select...</option>';
+    groupEl.style.display = (subject === 'quote' || subject === 'job') ? 'block' : 'none';
 
-                // Update branding
-                if (clientData.settings.appName) {
-                    document.getElementById('portalTitle').textContent = clientData.settings.appName + ' Portal';
-                    document.title = clientData.settings.appName + ' - Client Portal';
-                }
-                if (clientData.settings.favicon) {
-                    document.getElementById('favicon-link').href = clientData.settings.favicon;
-                }
-                if (clientData.settings.companyPhone) {
-                    const ph = clientData.settings.companyPhone;
-                    const digits = ph.replace(/\D/g,'');
-                    const el = document.getElementById('urgentPhone');
-                    el.textContent = '💬 Text Us · ' + ph;
-                    el.href = 'sms:' + digits;
-                    document.getElementById('urgentBtn').style.display = '';
-                }
-
-                renderQuotes(clientData.quotes);
-                renderJobs(clientData.jobs);
-                renderInvoices(clientData.invoices);
-                setupAddressPicker(clientData.addresses);
-                setupMessageForm();
-            } catch (error) {
-                console.error('Failed to load client data:', error);
-                window.location.href = '/client-login';
-            }
-        }
-
-        function renderQuotes(quotes) {
-            const container = document.getElementById('quotesList');
-
-            if (!quotes || quotes.length === 0) {
-                container.innerHTML = '<div class="empty-state">No quotes yet</div>';
-                return;
-            }
-
-            container.innerHTML = quotes.map(quote => {
-                const isDraft = quote.status === 'draft';
-                const statusClass = quote.status === 'approved' ? 'status-approved' :
-                                    quote.status === 'sent' ? 'status-sent' :
-                                    isDraft ? '' : 'status-scheduled';
-                const T = window._portalT || {};
-                const pendingLabel = T.pendingBadge || 'PENDING REVIEW';
-                const isApproved = quote.status === 'approved' || quote.status === 'in_review';
-                const approvedWhen = quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('en-US',{month:'numeric',day:'numeric',year:'2-digit',hour:'numeric',minute:'2-digit'}) : '';
-                const approvedLabel = 'APPROVED' + (quote.approverName ? ': ' + quote.approverName : '') + (approvedWhen ? ' · ' + approvedWhen : '');
-                const statusLabel = isDraft ? pendingLabel : isApproved ? approvedLabel : quote.status.replace(/_/g,' ').toUpperCase();
-                const statusStyle = isDraft ? 'background:#e9d8fd;color:#553c9a;' : '';
-
-                const validUntil = quote.validUntil ? new Date(quote.validUntil) : null;
-                const isExpired = validUntil && validUntil < new Date() && quote.status === 'sent';
-
-                return `
-                    <div class="quote-card">
-                        ${buildWorkflowStepper(getQuoteStages(quote))}
-                        <h3>${quote.title}</h3>
-                        <p><strong>${T.quoteNum || 'Quote #:'}</strong> ${quote.quoteNumber}</p>
-                        ${!isDraft ? `<p><strong>Total:</strong> $${parseFloat(quote.total || 0).toFixed(2)}</p>` : ''}
-                        ${validUntil && !isDraft ? `<p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>` : ''}
-                        <p><span class="status-badge ${statusClass}" style="${statusStyle}">${statusLabel}</span></p>
-                        ${isDraft ? `<button class="btn btn-primary" onclick="viewSubmission('${quote.id}')" style="margin-top:0.5rem;">${T.viewSubmitBtn || 'View Submission'}</button>` : ''}
-                        ${!isDraft && !isExpired ? `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">${T.viewBtn || 'View Quote'}</a>` : ''}
-                        ${isExpired ? '<p style="color:#e53e3e;">Expired</p>' : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderJobs(jobs) {
-            const container = document.getElementById('jobsList');
-
-            if (!jobs || jobs.length === 0) {
-                container.innerHTML = '<div class="empty-state">No jobs yet</div>';
-                return;
-            }
-
-            container.innerHTML = jobs.map(job => {
-                const statusClass = job.status === 'completed' ? 'status-completed' : 'status-scheduled';
-                const date = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString() : 'TBD';
-
-                return `
-                    <div class="job-card">
-                        ${buildWorkflowStepper(getJobStages(job))}
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">
-                            <div>
-                                <h3 style="margin:0 0 0.25rem;">${job.title}</h3>
-                                <p style="font-size:0.85rem;color:#718096;margin:0;"><strong>Date:</strong> ${date} ${job.scheduledTime || ''}</p>
-                                <p style="margin:0.4rem 0 0;"><span class="status-badge ${statusClass}">${job.status.replace(/_/g, ' ').toUpperCase()}</span></p>
-                            </div>
-                            <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;">
-                                <button class="btn btn-primary" onclick="viewJobDetail('${job.id}')" style="font-size:0.78rem;padding:0.3rem 0.85rem;white-space:nowrap;">View Details</button>
-                                ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.85rem;text-align:center;">View Invoice</a>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderInvoices(invoices) {
-            const container = document.getElementById('invoicesList');
-            if (!invoices || invoices.length === 0) {
-                container.innerHTML = '<div class="empty-state">No invoices yet</div>';
-                return;
-            }
-            container.innerHTML = invoices.map(inv => {
-                const date = inv.date ? new Date(inv.date).toLocaleDateString() : '';
-                const statusLabel = inv.status === 'paid' ? 'PAID' : inv.status === 'partial' ? 'PARTIAL' : 'OUTSTANDING';
-                const statusClass = `status-${inv.status}`;
-                return `
-                    <div class="invoice-card">
-                        <div class="invoice-info">
-                            <h3>${inv.jobTitle}</h3>
-                            <p style="color:#718096;font-size:0.85rem;">${inv.invoiceNumber}${date ? ' &nbsp;·&nbsp; ' + date : ''}</p>
-                            <span class="status-badge ${statusClass}">${statusLabel}</span>
-                        </div>
-                        <div class="invoice-amounts">
-                            <div style="font-size:1.25rem;font-weight:700;color:#2d3748;">$${inv.total.toFixed(2)}</div>
-                            ${inv.due > 0 ? `<div style="font-size:0.85rem;color:#e53e3e;font-weight:600;">$${inv.due.toFixed(2)} due</div>` : ''}
-                            <a href="/invoice/${inv.id}" target="_blank" class="btn btn-primary" style="margin-top:0.5rem;font-size:0.85rem;">View Invoice</a>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function setupMessageForm() {
-            const subjectSelect = document.getElementById('messageSubject');
-            const quoteJobSelect = document.getElementById('quoteJobSelect');
-
-            subjectSelect.addEventListener('change', () => {
-                const subject = subjectSelect.value;
-                quoteJobSelect.style.display = (subject === 'quote' || subject === 'job') ? 'block' : 'none';
-                quoteJobSelect.innerHTML = '<option value="">Select...</option>';
-
-                if (subject === 'quote' && clientData.quotes) {
-                    clientData.quotes.forEach(quote => {
-                        const option = document.createElement('option');
-                        option.value = quote.quoteNumber;
-                        option.textContent = `${quote.quoteNumber} - ${quote.title}`;
-                        quoteJobSelect.appendChild(option);
-                    });
-                } else if (subject === 'job' && clientData.jobs) {
-                    clientData.jobs.forEach(job => {
-                        const option = document.createElement('option');
-                        option.value = job.id;
-                        option.textContent = job.title;
-                        quoteJobSelect.appendChild(option);
-                    });
-                }
-            });
-        }
-
-        async function sendMessage(event) {
-            event.preventDefault();
-
-            const subject = document.getElementById('messageSubject').value;
-            const quoteJobRef = document.getElementById('quoteJobSelect').value;
-            const message = document.getElementById('messageText').value;
-
-            let messagePrefix = '';
-            if (subject === 'quote' && quoteJobRef) {
-                messagePrefix = `Re: Quote ${quoteJobRef}\n\n`;
-            } else if (subject === 'job' && quoteJobRef) {
-                const job = clientData.jobs.find(j => j.id === quoteJobRef);
-                messagePrefix = `Re: Job "${job?.title || 'Job'}"\n\n`;
-            }
-
-            try {
-                const response = await fetch('/api/client-portal/message', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: messagePrefix + message,
-                        subject: subject,
-                        reference: quoteJobRef
-                    })
-                });
-
-                if (response.ok) {
-                    alert('✅ Message sent! We\'ll get back to you soon.');
-                    document.getElementById('messageText').value = '';
-                    document.getElementById('messageSubject').value = '';
-                    document.getElementById('quoteJobSelect').style.display = 'none';
-                } else {
-                    alert('❌ Failed to send message. Please try again.');
-                }
-            } catch (error) {
-                alert('❌ Error: ' + error.message);
-            }
-        }
-
-        async function logout() {
-            try {
-                await fetch('/api/client-portal/logout', { method: 'POST' });
-                window.location.href = '/client-login';
-            } catch (error) {
-                console.error('Logout error:', error);
-                window.location.href = '/client-login';
-            }
-        }
-
-        // ── Quote Request ─────────────────────────────────────────────────────
-
-        function setupAddressPicker(addresses) {
-            const group = document.getElementById('qrAddressGroup');
-            const select = document.getElementById('qrAddressId');
-            if (!addresses || addresses.length <= 1) {
-                // Only one address — hide picker, value will be 'primary' by default
-                group.style.display = 'none';
-                select.innerHTML = '<option value="primary">Primary Address</option>';
-                return;
-            }
-            select.innerHTML = addresses.map(a => `<option value="${a.id}">${a.label}${a.address !== a.label ? ' — ' + a.address : ''}</option>`).join('');
-            group.style.display = 'block';
-        }
-
-        async function compressImage(file) {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const MAX = 1200;
-                        let w = img.width, h = img.height;
-                        if (w > MAX || h > MAX) {
-                            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-                            else { w = Math.round(w * MAX / h); h = MAX; }
-                        }
-                        const canvas = document.createElement('canvas');
-                        canvas.width = w; canvas.height = h;
-                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        canvas.toBlob((blob) => {
-                            const reader2 = new FileReader();
-                            reader2.onload = (e2) => resolve(e2.target.result);
-                            reader2.readAsDataURL(blob);
-                        }, 'image/jpeg', 0.82);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function handlePriorityChange(val) {
-            document.getElementById('urgentWarning').style.display = val === 'urgent' ? 'block' : 'none';
-            document.getElementById('shortNoticeWarning').style.display = (val === '1_day' || val === '3_days') ? 'block' : 'none';
-        }
-
-        function renderQrPhotos() {
-            const grid = document.getElementById('qrPhotoGrid');
-            const area = document.getElementById('qrUploadArea');
-            grid.innerHTML = qrPhotos.map((p, i) => `
-                <div class="photo-thumb">
-                    <img src="${p.dataUrl}" alt="Photo ${i+1}">
-                    <button class="remove-photo" onclick="removeQrPhoto(${i})" type="button">&times;</button>
-                </div>
-            `).join('');
-            area.style.display = qrPhotos.length >= 5 ? 'none' : 'flex';
-            area.style.flexDirection = 'column';
-            area.style.alignItems = 'center';
-        }
-
-        function removeQrPhoto(index) {
-            qrPhotos.splice(index, 1);
-            renderQrPhotos();
-        }
-
-        async function handleQrPhotos(event) {
-            const files = Array.from(event.target.files).slice(0, 5 - qrPhotos.length);
-            for (const file of files) {
-                if (qrPhotos.length >= 5) break;
-                const dataUrl = await compressImage(file);
-                qrPhotos.push({ dataUrl });
-            }
-            event.target.value = '';
-            renderQrPhotos();
-        }
-
-        async function submitPortalQuoteRequest(event) {
-            event.preventDefault();
-            const service = document.getElementById('qrService').value;
-            const addressId = document.getElementById('qrAddressId').value || 'primary';
-            const priority = document.getElementById('qrPriority').value;
-            const description = document.getElementById('qrDescription').value.trim();
-            const btn = document.getElementById('qrSubmitBtn');
-
-            btn.textContent = 'Submitting...'; btn.disabled = true;
-            try {
-                const res = await fetch('/api/client-portal/quote-request', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ service, priority, addressId, description, photos: qrPhotos.map(p => p.dataUrl) })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Submission failed');
-
-                const T = window._portalT || {};
-                document.getElementById('qrSuccessMsg').textContent = '✅ ' + (T.successMsg || 'Request submitted!');
-                document.getElementById('qrTicketLabel').textContent = (T.ticketLabel || 'Your quote number is') + ' ';
-                document.getElementById('newTicketNumber').textContent = data.quoteNumber;
-                document.getElementById('qrTicketSuffix').textContent = T.ticketSuffix || '. We\'ll be in touch soon with pricing.';
-                document.getElementById('quoteRequestSuccess').style.display = 'block';
-                document.getElementById('quoteRequestForm').reset();
-                qrPhotos = [];
-                renderQrPhotos();
-                document.getElementById('quoteRequestSuccess').scrollIntoView({ behavior: 'smooth' });
-
-                // Add to My Quotes list immediately
-                if (clientData) {
-                    clientData.quotes = [{ id: data.id || '', title: service, quoteNumber: data.quoteNumber, status: 'draft', total: 0 }, ...(clientData.quotes || [])];
-                    renderQuotes(clientData.quotes);
-                }
-            } catch (e) {
-                alert('Failed to submit: ' + e.message);
-            } finally {
-                btn.textContent = (window._portalT && window._portalT.requestBtn) || 'Submit Request'; btn.disabled = false;
-            }
-        }
-
-        // ── End Quote Request ─────────────────────────────────────────────────
-
-        // ── Work Order Detail Modal ───────────────────────────────────────────
-
-        async function viewSubmission(quoteId) {
-            const modal = document.getElementById('submissionModal');
-            const body  = document.getElementById('submissionModalBody');
-            body.innerHTML = '<p style="color:#718096;padding:1rem 0;">Loading...</p>';
-            modal.style.display = 'flex';
-
-            try {
-                const res = await fetch(`/api/client-portal/quote/${quoteId}`);
-                const q   = await res.json();
-                if (!res.ok) throw new Error(q.error || 'Failed to load');
-
-                const T = window._portalT || {};
-                const statusLabel = q.status === 'draft' ? (T.pendingBadge || 'PENDING REVIEW') : q.status.toUpperCase();
-                const statusStyle = q.status === 'draft' ? 'background:#e9d8fd;color:#553c9a;' : '';
-                const photoHtml   = q.photos.length
-                    ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:0.5rem;">${q.photos.map(p => `<img src="${p}" style="width:100px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open(this.src,'_blank')">`).join('')}</div>`
-                    : '';
-
-                body.innerHTML = `
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
-                        <div>
-                            <div style="font-size:1.15rem;font-weight:700;color:#2d3748;">${q.title}</div>
-                            <div style="font-size:0.85rem;color:#718096;margin-top:0.2rem;">${T.quoteNum || 'Quote #:'} ${q.quoteNumber}</div>
-                        </div>
-                        <span class="status-badge" style="${statusStyle}white-space:nowrap;">${statusLabel}</span>
-                    </div>
-                    <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
-                        ${q.priorityLabel ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;width:110px;">Priority</td><td>${q.priorityLabel}</td></tr>` : ''}
-                        ${q.serviceAddress ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Address</td><td>${q.serviceAddress}</td></tr>` : ''}
-                        ${q.description ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;vertical-align:top;">Details</td><td style="white-space:pre-wrap;">${q.description}</td></tr>` : ''}
-                        <tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Submitted</td><td>${new Date(q.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</td></tr>
-                    </table>
-                    ${photoHtml ? `<div style="margin-top:0.75rem;"><div style="font-weight:600;color:#4a5568;font-size:0.9rem;margin-bottom:0.25rem;">Photos</div>${photoHtml}</div>` : ''}
-                    ${q.status === 'draft' ? `<p style="margin-top:1rem;font-size:0.85rem;color:#718096;">Your submission is under review. We'll be in touch shortly.</p>` : ''}
-                `;
-            } catch (e) {
-                body.innerHTML = `<p style="color:#e53e3e;">Failed to load: ${e.message}</p>`;
-            }
-        }
-
-        function closeSubmissionModal() {
-            document.getElementById('submissionModal').style.display = 'none';
-        }
-
-        async function viewJobDetail(jobId) {
-            const job = (clientData.jobs || []).find(j => j.id === jobId || j._id === jobId);
-            if (!job) return;
-
-            // Pull approval info from linked source quote
-            const srcId = job.sourceQuoteId ? String(job.sourceQuoteId) : null;
-            const srcQuote = srcId ? (clientData.quotes || []).find(q => q.id === srcId || String(q._id) === srcId) : null;
-            const approverName  = srcQuote?.approverName  || job.approverName  || '';
-            const approverTitle = srcQuote?.approverTitle || job.approverTitle || '';
-            const approvedAt    = srcQuote?.approvedAt    || job.approvedAt    || null;
-            const approvedWhen  = approvedAt ? new Date(approvedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '';
-
-            const date = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
-            const time = job.scheduledTime || '';
-            const statusLabel = job.status.replace(/_/g,' ').toUpperCase();
-            const rawDesc = (srcQuote?.description || job.description || '').replace(/^Converted from Quote[^\n]*\n+Needs scheduling review\.\n*/i,'').trim();
-
-            const row = (label, val) => val ? `<tr><td style="padding:7px 0;font-weight:600;color:#4a5568;width:115px;vertical-align:top;font-size:0.85rem;">${label}</td><td style="padding:7px 0;font-size:0.9rem;">${val}</td></tr>` : '';
-
-            document.getElementById('jobDetailBody').innerHTML = `
-                <h3 style="margin:0 0 0.75rem;color:#2d3748;padding-right:2rem;">${job.title}</h3>
-                ${buildWorkflowStepper(getJobStages(job))}
-                <table style="width:100%;border-collapse:collapse;margin-top:0.5rem;">
-                    ${row('Status', `<span class="status-badge">${statusLabel}</span>`)}
-                    ${row('Scheduled', date + (time ? ' · ' + time : ''))}
-                    ${rawDesc ? row('Description', `<span style="white-space:pre-wrap;color:#2d3748;">${rawDesc}</span>`) : ''}
-                    ${approverName ? row('Approved By', `${approverName}${approverTitle ? `<br><span style="font-size:0.8rem;color:#718096;">${approverTitle}</span>` : ''}`) : ''}
-                    ${approvedWhen ? row('Approved On', `<span style="color:#718096;">${approvedWhen}</span>`) : ''}
-                </table>
-                <div id="jobPhotoStrip" style="margin-top:1rem;"></div>
-                ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="margin-top:1rem;display:inline-block;">View Invoice</a>` : ''}
-            `;
-            document.getElementById('jobDetailModal').style.display = 'flex';
-
-            // Async: fetch signed photo URLs
-            const hasPhotos = Array.isArray(job.photos) && job.photos.length > 0;
-            if (hasPhotos) {
-                try {
-                    const r = await fetch(`/api/client-portal/job/${jobId}/photos`);
-                    const d = await r.json();
-                    if (d.photos && d.photos.length) {
-                        document.getElementById('jobPhotoStrip').innerHTML =
-                            `<div style="font-weight:600;color:#4a5568;font-size:0.85rem;margin-bottom:0.5rem;">Photos</div>` +
-                            `<div style="display:flex;flex-wrap:wrap;gap:8px;">${d.photos.map(p =>
-                                `<img src="${p}" style="width:90px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open('${p}','_blank')">`
-                            ).join('')}</div>`;
-                    }
-                } catch(e) {}
-            }
-        }
-
-        function closeJobDetail() {
-            document.getElementById('jobDetailModal').style.display = 'none';
-        }
-
-        function toggleUrgentPopover() {
-            const p = document.getElementById('urgentPopover');
-            p.style.display = p.style.display === 'none' ? 'block' : 'none';
-        }
-        document.addEventListener('click', e => {
-            if (!document.getElementById('urgentBtn').contains(e.target) &&
-                !document.getElementById('urgentPopover').contains(e.target)) {
-                document.getElementById('urgentPopover').style.display = 'none';
-            }
+    if (subject === 'quote') {
+        (clientData.quotes || []).forEach(q => {
+            const opt = new Option(`${q.quoteNumber} - ${q.title}`, q.quoteNumber);
+            if (q.quoteNumber === ref) opt.selected = true;
+            selectEl.appendChild(opt);
         });
+    } else if (subject === 'job') {
+        (clientData.jobs || []).forEach(j => {
+            const opt = new Option(j.title, j.id);
+            if (j.id === ref) opt.selected = true;
+            selectEl.appendChild(opt);
+        });
+    }
 
-        // Load data on page load
-        loadClientData();
-    </script>
+    document.getElementById('messageText').value = '';
+    document.getElementById('messageModal').style.display = 'flex';
+}
 
-    <!-- Job Detail Modal -->
-    <div id="jobDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeJobDetail()">
-        <div style="background:white;border-radius:12px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;padding:1.5rem;position:relative;">
-            <button onclick="closeJobDetail()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#718096;">✕</button>
-            <div id="jobDetailBody"></div>
+function closeMessageModal() { document.getElementById('messageModal').style.display = 'none'; }
+
+function handleMessageSubjectChange(v) {
+    const group  = document.getElementById('quoteJobSelectGroup');
+    const sel    = document.getElementById('quoteJobSelect');
+    group.style.display = (v === 'quote' || v === 'job') ? 'block' : 'none';
+    sel.innerHTML = '<option value="">Select...</option>';
+    if (v === 'quote' && clientData && clientData.quotes) {
+        clientData.quotes.forEach(q => sel.appendChild(new Option(`${q.quoteNumber} - ${q.title}`, q.quoteNumber)));
+    } else if (v === 'job' && clientData && clientData.jobs) {
+        clientData.jobs.forEach(j => sel.appendChild(new Option(j.title, j.id)));
+    }
+}
+
+async function sendMessage(event) {
+    event.preventDefault();
+    const subject     = document.getElementById('messageSubject').value;
+    const quoteJobRef = document.getElementById('quoteJobSelect').value;
+    const message     = document.getElementById('messageText').value;
+
+    let prefix = '';
+    if (subject === 'quote' && quoteJobRef) {
+        prefix = `Re: Quote ${quoteJobRef}\n\n`;
+    } else if (subject === 'job' && quoteJobRef) {
+        const job = (clientData.jobs || []).find(j => j.id === quoteJobRef);
+        prefix = `Re: Job "${job?.title || 'Job'}"\n\n`;
+    }
+
+    try {
+        const res = await fetch('/api/client-portal/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: prefix + message, subject, reference: quoteJobRef })
+        });
+        if (res.ok) {
+            closeMessageModal();
+            alert('✅ Message sent! We\'ll get back to you soon.');
+        } else {
+            alert('❌ Failed to send message. Please try again.');
+        }
+    } catch (e) {
+        alert('❌ Error: ' + e.message);
+    }
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+
+async function viewSubmission(quoteId) {
+    const modal = document.getElementById('submissionModal');
+    const body  = document.getElementById('submissionModalBody');
+    body.innerHTML = '<p style="color:#718096;padding:1rem 0;">Loading...</p>';
+    modal.style.display = 'flex';
+
+    try {
+        const res = await fetch(`/api/client-portal/quote/${quoteId}`);
+        const q   = await res.json();
+        if (!res.ok) throw new Error(q.error || 'Failed to load');
+
+        const T          = window._portalT || {};
+        const statusLabel = q.status === 'draft' ? (T.pendingBadge || 'PENDING REVIEW') : q.status.toUpperCase();
+        const statusStyle = q.status === 'draft' ? 'background:#e9d8fd;color:#553c9a;' : '';
+        const photoHtml   = q.photos && q.photos.length
+            ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:0.5rem;">${q.photos.map(p => `<img src="${p}" style="width:100px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open(this.src,'_blank')">`).join('')}</div>`
+            : '';
+
+        body.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
+                <div>
+                    <div style="font-size:1.15rem;font-weight:700;color:#2d3748;">${q.title}</div>
+                    <div style="font-size:0.85rem;color:#718096;margin-top:0.2rem;">${T.quoteNum || 'Quote #:'} ${q.quoteNumber}</div>
+                </div>
+                <span class="status-badge" style="${statusStyle}white-space:nowrap;">${statusLabel}</span>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                ${q.priorityLabel ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;width:110px;">Priority</td><td>${q.priorityLabel}</td></tr>` : ''}
+                ${q.serviceAddress ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Address</td><td>${q.serviceAddress}</td></tr>` : ''}
+                ${q.description ? `<tr><td style="padding:6px 0;font-weight:600;color:#4a5568;vertical-align:top;">Details</td><td style="white-space:pre-wrap;">${q.description}</td></tr>` : ''}
+                <tr><td style="padding:6px 0;font-weight:600;color:#4a5568;">Submitted</td><td>${new Date(q.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</td></tr>
+            </table>
+            ${photoHtml ? `<div style="margin-top:0.75rem;"><div style="font-weight:600;color:#4a5568;font-size:0.9rem;margin-bottom:0.25rem;">Photos</div>${photoHtml}</div>` : ''}
+            ${q.status === 'draft' ? `<p style="margin-top:1rem;font-size:0.85rem;color:#718096;">Your submission is under review. We'll be in touch shortly.</p>` : ''}
+        `;
+    } catch (e) {
+        body.innerHTML = `<p style="color:#e53e3e;">Failed to load: ${e.message}</p>`;
+    }
+}
+
+function closeSubmissionModal() { document.getElementById('submissionModal').style.display = 'none'; }
+
+async function viewJobDetail(jobId) {
+    const job = (clientData.jobs || []).find(j => j.id === jobId || j._id === jobId);
+    if (!job) return;
+
+    const srcId    = job.sourceQuoteId ? String(job.sourceQuoteId) : null;
+    const srcQuote = srcId ? (clientData.quotes || []).find(q => q.id === srcId || String(q._id) === srcId) : null;
+    const approverName  = srcQuote?.approverName  || job.approverName  || '';
+    const approverTitle = srcQuote?.approverTitle || job.approverTitle || '';
+    const approvedAt    = srcQuote?.approvedAt    || job.approvedAt    || null;
+    const approvedWhen  = approvedAt ? new Date(approvedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    const date          = job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : 'TBD';
+    const time          = job.scheduledTime || '';
+    const statusLabel   = job.status.replace(/_/g,' ').toUpperCase();
+    const rawDesc       = (srcQuote?.description || job.description || '').replace(/^Converted from Quote[^\n]*\n+Needs scheduling review\.\n*/i,'').trim();
+    const row = (label, val) => val ? `<tr><td style="padding:7px 0;font-weight:600;color:#4a5568;width:115px;vertical-align:top;font-size:0.85rem;">${label}</td><td style="padding:7px 0;font-size:0.9rem;">${val}</td></tr>` : '';
+
+    document.getElementById('jobDetailBody').innerHTML = `
+        <h3 style="margin:0 0 0.75rem;color:#2d3748;padding-right:2rem;">${job.title}</h3>
+        ${buildWorkflowStepper(getJobStages(job))}
+        <table style="width:100%;border-collapse:collapse;margin-top:0.5rem;">
+            ${row('Status',      `<span class="status-badge">${statusLabel}</span>`)}
+            ${row('Scheduled',   date + (time ? ' · ' + time : ''))}
+            ${rawDesc ? row('Description', `<span style="white-space:pre-wrap;color:#2d3748;">${rawDesc}</span>`) : ''}
+            ${approverName  ? row('Approved By', `${approverName}${approverTitle ? `<br><span style="font-size:0.8rem;color:#718096;">${approverTitle}</span>` : ''}`) : ''}
+            ${approvedWhen  ? row('Approved On', `<span style="color:#718096;">${approvedWhen}</span>`) : ''}
+        </table>
+        <div id="jobPhotoStrip" style="margin-top:1rem;"></div>
+        ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-primary" style="margin-top:1rem;display:inline-block;">View Invoice</a>` : ''}
+    `;
+    document.getElementById('jobDetailModal').style.display = 'flex';
+
+    if (Array.isArray(job.photos) && job.photos.length) {
+        try {
+            const r = await fetch(`/api/client-portal/job/${jobId}/photos`);
+            const d = await r.json();
+            if (d.photos && d.photos.length) {
+                document.getElementById('jobPhotoStrip').innerHTML =
+                    `<div style="font-weight:600;color:#4a5568;font-size:0.85rem;margin-bottom:0.5rem;">Photos</div>` +
+                    `<div style="display:flex;flex-wrap:wrap;gap:8px;">${d.photos.map(p =>
+                        `<img src="${p}" style="width:90px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open('${p}','_blank')">`
+                    ).join('')}</div>`;
+            }
+        } catch(e) {}
+    }
+}
+
+function closeJobDetail() { document.getElementById('jobDetailModal').style.display = 'none'; }
+
+// ── Quote Request Form ────────────────────────────────────────────────────────
+
+function setupAddressPicker(addresses) {
+    const group  = document.getElementById('qrAddressGroup');
+    const select = document.getElementById('qrAddressId');
+    if (!addresses || addresses.length <= 1) {
+        group.style.display = 'none';
+        select.innerHTML = '<option value="primary">Primary Address</option>';
+        return;
+    }
+    select.innerHTML = addresses.map(a => `<option value="${a.id}">${a.label}${a.address !== a.label ? ' — ' + a.address : ''}</option>`).join('');
+    group.style.display = 'block';
+}
+
+function handlePriorityChange(val) {
+    document.getElementById('urgentWarning').style.display      = val === 'urgent' ? 'block' : 'none';
+    document.getElementById('shortNoticeWarning').style.display = (val === '1_day' || val === '3_days') ? 'block' : 'none';
+}
+
+async function compressImage(file) {
+    return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                const MAX = 1200;
+                let w = img.width, h = img.height;
+                if (w > MAX || h > MAX) {
+                    if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                    else       { w = Math.round(w * MAX / h); h = MAX; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                canvas.toBlob(blob => {
+                    const r2 = new FileReader();
+                    r2.onload = e2 => resolve(e2.target.result);
+                    r2.readAsDataURL(blob);
+                }, 'image/jpeg', 0.82);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function renderQrPhotos() {
+    const grid = document.getElementById('qrPhotoGrid');
+    const area = document.getElementById('qrUploadArea');
+    grid.innerHTML = qrPhotos.map((p, i) => `
+        <div class="photo-thumb">
+            <img src="${p.dataUrl}" alt="Photo ${i+1}">
+            <button class="remove-photo" onclick="removeQrPhoto(${i})" type="button">&times;</button>
         </div>
-    </div>
+    `).join('');
+    area.style.display = qrPhotos.length >= 5 ? 'none' : 'flex';
+    area.style.flexDirection = 'column';
+    area.style.alignItems = 'center';
+}
 
-    <!-- Work Order / Quote Detail Modal -->
-    <div id="submissionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeSubmissionModal()">
-        <div style="background:white;border-radius:12px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:1.5rem;position:relative;">
-            <button onclick="closeSubmissionModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#718096;">✕</button>
-            <h3 style="margin:0 0 1rem;color:#2d3748;" id="submissionModalTitle">Submission Details</h3>
-            <div id="submissionModalBody"></div>
-        </div>
-    </div>
+function removeQrPhoto(i) { qrPhotos.splice(i, 1); renderQrPhotos(); }
+
+async function handleQrPhotos(event) {
+    const files = Array.from(event.target.files).slice(0, 5 - qrPhotos.length);
+    for (const file of files) {
+        if (qrPhotos.length >= 5) break;
+        qrPhotos.push({ dataUrl: await compressImage(file) });
+    }
+    event.target.value = '';
+    renderQrPhotos();
+}
+
+async function submitPortalQuoteRequest(event) {
+    event.preventDefault();
+    const service     = document.getElementById('qrService').value;
+    const addressId   = document.getElementById('qrAddressId').value || 'primary';
+    const priority    = document.getElementById('qrPriority').value;
+    const description = document.getElementById('qrDescription').value.trim();
+    const btn         = document.getElementById('qrSubmitBtn');
+    btn.textContent = 'Submitting...'; btn.disabled = true;
+
+    try {
+        const res  = await fetch('/api/client-portal/quote-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service, priority, addressId, description, photos: qrPhotos.map(p => p.dataUrl) })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Submission failed');
+
+        const T = window._portalT || {};
+        document.getElementById('qrSuccessMsg').textContent    = '✅ ' + (T.successMsg || 'Request submitted!');
+        document.getElementById('qrTicketLabel').textContent   = (T.ticketLabel || 'Your quote number is') + ' ';
+        document.getElementById('newTicketNumber').textContent = data.quoteNumber;
+        document.getElementById('qrTicketSuffix').textContent  = T.ticketSuffix || '. We\'ll be in touch soon with pricing.';
+        document.getElementById('quoteRequestSuccess').style.display = 'block';
+        document.getElementById('quoteRequestForm').style.display    = 'none';
+        qrPhotos = [];
+        renderQrPhotos();
+
+        if (clientData) {
+            clientData.quotes = [{ id: data.id || '', title: service, quoteNumber: data.quoteNumber, status: 'draft', total: 0 }, ...(clientData.quotes || [])];
+            const allItems = buildUnifiedItems(clientData);
+            renderActivityList(allItems.filter(i => !isArchived(i)), 'activityList');
+        }
+    } catch (e) {
+        alert('Failed to submit: ' + e.message);
+    } finally {
+        btn.textContent = (window._portalT && window._portalT.requestBtn) || 'Submit Request';
+        btn.disabled = false;
+    }
+}
+
+// ── Misc ──────────────────────────────────────────────────────────────────────
+
+function toggleUrgentPopover() {
+    const p = document.getElementById('urgentPopover');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', e => {
+    const btn = document.getElementById('urgentBtn');
+    const pop = document.getElementById('urgentPopover');
+    if (btn && pop && !btn.contains(e.target) && !pop.contains(e.target)) {
+        pop.style.display = 'none';
+    }
+});
+
+async function logout() {
+    try { await fetch('/api/client-portal/logout', { method: 'POST' }); } catch(e) {}
+    window.location.href = '/client-login';
+}
+
+loadClientData();
+</script>
 </body>
 </html>
