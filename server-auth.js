@@ -6085,8 +6085,6 @@ app.get('/quote-view/:token', async (req, res) => {
             <thead>
                 <tr>
                     <th>Description</th>
-                    <th style="text-align: center;">Hours</th>
-                    <th style="text-align: right;">Rate</th>
                     <th style="text-align: right;">Amount</th>
                 </tr>
             </thead>
@@ -6094,8 +6092,6 @@ app.get('/quote-view/:token', async (req, res) => {
                 ${quote.laborItems.map(item => `
                 <tr>
                     <td>${item.description}</td>
-                    <td style="text-align: center;">${item.hours}</td>
-                    <td style="text-align: right;">$${parseFloat(item.rate).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td style="text-align: right;">$${(item.hours * item.rate).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
                 `).join('')}
