@@ -22,7 +22,7 @@ const emailService = require('./email-service');
 const calendarService = require('./calendar-service');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const fetch = require('node-fetch');
+// fetch is available as a global in Node 18+ — no import needed
 const Anthropic = require('@anthropic-ai/sdk');
 
 const PORT = process.env.PORT || 3000;
