@@ -511,11 +511,11 @@ function buildUnifiedItems(data) {
         }
     });
 
-    // Jobs — show as invoice card if an invoice exists for this job
+    // Jobs — show as invoice card only if invoice has a real total
     jobs.forEach(job => {
         const jid = String(job.id || job._id);
         const inv = invoiceByJobId[jid];
-        if (inv) {
+        if (inv && inv.total > 0) {
             items.push({ type: 'invoice', data: inv, job, sortDate: inv.date || job.updatedAt });
         } else {
             items.push({ type: 'job', data: job, sortDate: job.updatedAt || job.scheduledDate || job.createdAt });
