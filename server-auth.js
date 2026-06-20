@@ -6602,9 +6602,9 @@ app.get('/api/client-portal/me', async (req, res) => {
             .map(j => {
                 const total = parseFloat(j.totalWithTax || j.total) || 0;
                 const paid = parseFloat(j.totalPaid) || 0;
-                const due = Math.max(0, total - paid);
+                const due = Math.round(Math.max(0, total - paid) * 100) / 100;
                 // If admin marked job completed, treat as paid — admin is source of truth
-                const status = (j.status === 'completed' || due <= 0) ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
+                const status = (j.status === 'completed' || due < 0.01) ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
                 const invoiceNumber = j.invoiceNumber || `INV-${j._id.toString().slice(-8).toUpperCase()}`;
                 return {
                     id: j._id.toString(),

@@ -648,7 +648,7 @@ function renderInvoiceCard(inv, job, T) {
         ${stages ? buildWorkflowStepper(stages) : ''}
         <div class="amount-row">
             <span class="amount-total">$${inv.total.toFixed(2)}</span>
-            ${inv.due > 0 ? `<span class="amount-due">$${inv.due.toFixed(2)} due</span>` : ''}
+            ${inv.due >= 0.01 ? `<span class="amount-due">$${inv.due.toFixed(2)} due</span>` : ''}
         </div>
         <div class="card-actions">
             <span class="status-badge ${statusClass}">${statusLabel}</span>
