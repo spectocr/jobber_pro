@@ -6594,9 +6594,11 @@ app.get('/api/client-portal/me', async (req, res) => {
             if (loc.address) addresses.push({ id: String(loc.id), label: loc.name || loc.address, address: loc.address });
         });
 
-        // Invoices = jobs that have been invoiced or completed with a total
+        // Invoices = jobs that have been invoiced or completed WITH a real total or payment
+        // (zero-total completed jobs fall back to a job card with no amount row)
         const invoices = jobs
-            .filter(j => j.invoiceSentAt || j.status === 'invoiced' || j.status === 'completed')
+            .filter(j => (j.invoiceSentAt || j.status === 'invoiced' || j.status === 'completed')
+                      && (parseFloat(j.totalWithTax || j.total) > 0 || parseFloat(j.totalPaid) > 0))
             .map(j => {
                 const total = parseFloat(j.totalWithTax || j.total) || 0;
                 const paid = parseFloat(j.totalPaid) || 0;
