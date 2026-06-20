@@ -8293,6 +8293,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function saveQuote(opts = {}) {
             const silent = opts.silent === true;
+            if (isSavingQuote) return;
+            isSavingQuote = true;
+            const saveQuoteBtn = document.querySelector('#quoteModal .btn-primary[onclick="saveQuote()"]');
+            if (saveQuoteBtn) { saveQuoteBtn.disabled = true; saveQuoteBtn.textContent = 'Saving…'; }
             const form = document.getElementById('quoteForm');
             const formData = new FormData(form);
             const quote = Object.fromEntries(formData);
@@ -8300,6 +8304,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Require a title before saving
             if (!quote.title || !quote.title.trim()) {
                 if (!silent) alert('Please enter a quote title before saving.');
+                isSavingQuote = false;
+                if (saveQuoteBtn) { saveQuoteBtn.disabled = false; saveQuoteBtn.textContent = 'Save Quote'; }
                 return;
             }
 
@@ -8348,6 +8354,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (error) {
                 if (!silent) alert('Failed to save quote: ' + error.message);
                 throw error;
+            } finally {
+                isSavingQuote = false;
+                if (saveQuoteBtn) { saveQuoteBtn.disabled = false; saveQuoteBtn.textContent = 'Save Quote'; }
             }
         }
 
