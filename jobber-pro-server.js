@@ -4193,6 +4193,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let hasUnsavedChanges = false;
         let autoSaveContext = null; // 'job' | 'quote'
         let autoSaveTimer   = null;
+        let isSavingJob     = false;
+        let isSavingQuote   = false;
         let _complianceDocs = [];
         let _sendCompClientId = null;
         let _compDocFileData = null;
@@ -6575,6 +6577,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function saveJob(opts = {}) {
             const silent = opts.silent === true;
+            if (isSavingJob) return; // prevent concurrent saves from racing on new-job ID
+            isSavingJob = true;
+            const saveBtn = document.querySelector('#jobModal .btn-primary[onclick="saveJob()"]');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
             const form = document.getElementById('jobForm');
             const formData = new FormData(form);
             const job = Object.fromEntries(formData);
@@ -6582,6 +6588,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Require a title before saving (avoids persisting blank new records)
             if (!job.title || !job.title.trim()) {
                 if (!silent) alert('Please enter a job title before saving.');
+                isSavingJob = false;
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Job'; }
                 return;
             }
 
@@ -6698,6 +6706,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (error) {
                 if (!silent) alert('Failed to save job: ' + error.message);
                 throw error;
+            } finally {
+                isSavingJob = false;
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Job'; }
             }
         }
 
