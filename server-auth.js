@@ -105,6 +105,19 @@ async function connectDB() {
         await db.collection('jobs').createIndex({ 'deposit.token': 1 }, { sparse: true });
         await db.collection('quotes').createIndex({ status: 1 });
         await db.collection('quotes').createIndex({ secureToken: 1 }, { sparse: true });
+        await db.collection('quotes').createIndex({ quoteNumber: 1 }, { unique: true, sparse: true });
+
+        // Seed the atomic quote number counter from existing data (safe to run on every boot)
+        const currentYear = new Date().getFullYear();
+        const existingYearCount = await db.collection('quotes').countDocuments({
+            quoteNumber: { $regex: `^Q-${currentYear}-` }
+        });
+        await db.collection('counters').updateOne(
+            { _id: `quoteNumber_${currentYear}` },
+            { $setOnInsert: { seq: existingYearCount } },
+            { upsert: true }
+        );
+
         await db.collection('leads').createIndex({ status: 1 });
         await db.collection('team').createIndex({ name: 1 });
 
@@ -3234,6 +3247,17 @@ app.get('/api/email-track/:id', async (req, res) => {
     res.end(TRACKING_PIXEL);
 });
 
+// Atomic quote number generator — avoids duplicate numbers under concurrent saves
+async function nextQuoteNumber() {
+    const year = new Date().getFullYear();
+    const counter = await db.collection('counters').findOneAndUpdate(
+        { _id: `quoteNumber_${year}` },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: 'after' }
+    );
+    return `Q-${year}-${String(counter.seq).padStart(3, '0')}`;
+}
+
 // Quotes API
 app.get('/api/quotes', isAuthenticated, async (req, res) => {
     const quotes = await db.collection('quotes').find().sort({ createdAt: -1 }).toArray();
@@ -3249,18 +3273,13 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
     const quote = req.body;
     const isUpdate = !!quote._id;
 
-    // Generate quote number if new
+    // Generate quote number and token only when creating
     if (!isUpdate) {
-        const year = new Date().getFullYear();
-        const count = await db.collection('quotes').countDocuments({}) + 1;
-        quote.quoteNumber = `Q-${year}-${String(count).padStart(3, '0')}`;
-    }
-
-    // Generate secure token only when creating — never regenerate on update
-    // (regenerating breaks any email links already sent to clients)
-    if (!isUpdate) {
+        quote.quoteNumber = await nextQuoteNumber();
         const crypto = require('crypto');
         quote.secureToken = quote.secureToken || crypto.randomUUID();
+        quote.createdByName = req.session.userName;
+        quote.createdBy = new ObjectId(req.session.userId);
     }
 
     // Convert clientId to ObjectId
@@ -3274,13 +3293,9 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
         quote.clientName = client ? client.name : '';
     }
 
-    // Set created/updated timestamps and user
-    quote.createdByName = req.session.userName;
-    quote.createdBy = new ObjectId(req.session.userId);
-
     if (quote._id) {
-        // Exclude secureToken from updates — the token is write-once and must never change
-        const { _id, secureToken: _discardToken, ...updateData } = quote;
+        // Write-once fields: never overwrite secureToken, quoteNumber, or original creator
+        const { _id, secureToken: _t, quoteNumber: _qn, createdByName: _cn, createdBy: _cb, createdAt: _ca, ...updateData } = quote;
 
         // Get existing quote to check for status change
         const existingQuote = await db.collection('quotes').findOne({ _id: new ObjectId(_id) });
@@ -6757,9 +6772,7 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
 
         // Generate quote number and secure token
         const crypto = require('crypto');
-        const year = new Date().getFullYear();
-        const count = await db.collection('quotes').countDocuments({}) + 1;
-        const quoteNumber = `Q-${year}-${String(count).padStart(3, '0')}`;
+        const quoteNumber = await nextQuoteNumber();
         const secureToken = crypto.randomUUID();
 
         const validUntilDate = new Date();
