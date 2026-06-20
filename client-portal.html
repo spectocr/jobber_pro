@@ -151,6 +151,26 @@
             font-size: 0.95rem;
         }
 
+        .activity-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            align-items: start;
+        }
+        .activity-col-header {
+            font-weight: 700;
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.85);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid rgba(255,255,255,0.2);
+            margin-bottom: 0.75rem;
+        }
+        @media (max-width: 580px) {
+            .activity-columns { grid-template-columns: 1fr; }
+        }
+
         .archive-label {
             font-size: 0.78rem;
             font-weight: 700;
@@ -245,7 +265,16 @@
 
     <!-- Activity -->
     <div class="tab-panel active" id="tab-activity">
-        <div id="activityList"></div>
+        <div class="activity-columns">
+            <div>
+                <div class="activity-col-header">💳 Payment Pending</div>
+                <div id="paymentPendingList"></div>
+            </div>
+            <div>
+                <div class="activity-col-header">🔧 Pending Work Orders</div>
+                <div id="workOrdersList"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Archive -->
@@ -499,11 +528,12 @@ function isArchived(item) {
     return false;
 }
 
-function renderActivityList(items, containerId) {
+function renderActivityList(items, containerId, emptyMsg) {
     const container = document.getElementById(containerId);
     const T = window._portalT || {};
     if (!items.length) {
-        container.innerHTML = `<div class="empty-state">${containerId === 'archiveList' ? 'No archived items yet.' : 'No active items.'}</div>`;
+        const msg = emptyMsg || (containerId === 'archiveList' ? 'No archived items yet.' : 'No active items.');
+        container.innerHTML = `<div class="empty-state">${msg}</div>`;
         return;
     }
     container.innerHTML = items.map(item => renderCard(item, T)).join('');
@@ -659,12 +689,15 @@ async function loadClientData() {
             document.getElementById('urgentBtn').style.display = '';
         }
 
-        const allItems = buildUnifiedItems(clientData);
-        const active   = allItems.filter(i => !isArchived(i));
-        const archived = allItems.filter(i =>  isArchived(i));
+        const allItems    = buildUnifiedItems(clientData);
+        const active      = allItems.filter(i => !isArchived(i));
+        const archived    = allItems.filter(i =>  isArchived(i));
+        const paymentDue  = active.filter(i => i.type === 'invoice');
+        const workOrders  = active.filter(i => i.type === 'job' || i.type === 'quote');
 
-        renderActivityList(active,   'activityList');
-        renderActivityList(archived, 'archiveList');
+        renderActivityList(paymentDue,  'paymentPendingList', 'No pending payments.');
+        renderActivityList(workOrders,  'workOrdersList',     'No pending work orders.');
+        renderActivityList(archived,    'archiveList');
 
         if (archived.length) {
             document.getElementById('tab-btn-archive').textContent = `Archive (${archived.length})`;
@@ -961,8 +994,10 @@ async function submitPortalQuoteRequest(event) {
 
         if (clientData) {
             clientData.quotes = [{ id: data.id || '', title: service, quoteNumber: data.quoteNumber, status: 'draft', total: 0 }, ...(clientData.quotes || [])];
-            const allItems = buildUnifiedItems(clientData);
-            renderActivityList(allItems.filter(i => !isArchived(i)), 'activityList');
+            const allItems   = buildUnifiedItems(clientData);
+            const active     = allItems.filter(i => !isArchived(i));
+            renderActivityList(active.filter(i => i.type === 'invoice'),                    'paymentPendingList', 'No pending payments.');
+            renderActivityList(active.filter(i => i.type === 'job' || i.type === 'quote'), 'workOrdersList',     'No pending work orders.');
         }
     } catch (e) {
         alert('Failed to submit: ' + e.message);
