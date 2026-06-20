@@ -564,6 +564,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             background: #e2e8f0;
             color: #4a5568;
         }
+        .status-archived {
+            background: #e2e8f0;
+            color: #718096;
+        }
 
         .status-to_be_scheduled {
             background: #fefcbf;
@@ -1616,6 +1620,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
                             <option value="expired">Expired</option>
+                            <option value="archived">Archived</option>
                         </select>
                         <input type="text" id="filter-quote-client" placeholder="🔍 Search client..." oninput="filterQuotes()" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 180px;">
                         <button class="btn btn-secondary" onclick="clearQuoteFilters()">Clear Filters</button>
@@ -3734,6 +3739,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
                             <option value="expired">Expired</option>
+                            <option value="archived">Archived</option>
                         </select>
                     </div>
 
@@ -7766,6 +7772,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                        q.status === 'pending_pricing' ? 'status-to_be_scheduled' :
                                        q.status === 'rejected' ? 'status-bid_lost' :
                                        q.status === 'expired' ? 'status-bid_lost' :
+                                       q.status === 'archived' ? 'status-archived' :
                                        q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
                     const validUntil = new Date(q.validUntil);
                     const isExpired = validUntil < new Date() && q.status === 'sent';
@@ -7808,6 +7815,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                        q.status === 'pending_pricing' ? 'status-to_be_scheduled' :
                                        q.status === 'rejected' ? 'status-bid_lost' :
                                        q.status === 'expired' ? 'status-bid_lost' :
+                                       q.status === 'archived' ? 'status-archived' :
                                        q.status === 'sent' ? 'status-in_progress' : 'status-prospecting';
 
                     const validUntil = new Date(q.validUntil);

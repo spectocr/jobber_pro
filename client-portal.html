@@ -525,6 +525,7 @@ function buildUnifiedItems(data) {
 function isArchived(item) {
     if (item.type === 'invoice') return item.data.status === 'paid';
     if (item.type === 'job')     return item.data.status === 'completed';
+    if (item.type === 'quote')   return item.data.status === 'archived';
     return false;
 }
 
