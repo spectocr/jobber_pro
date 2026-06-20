@@ -5992,15 +5992,21 @@ app.get('/quote-view/:token', async (req, res) => {
         // Track view — skip if admin is viewing, but count client portal views
         if (!req.session.userId || req.session.isClientPortal) {
             const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+            const ua = req.headers['user-agent'] || '';
             const now = new Date();
-            await db.collection('quotes').updateOne(
-                { _id: quote._id },
-                {
-                    $inc: { viewCount: 1 },
-                    $set: { lastViewedAt: now, ...(!quote.firstViewedAt ? { firstViewedAt: now } : {}) },
-                    $push: { viewLog: { at: now, ip } }
-                }
-            );
+
+            // If another view was logged within 90 seconds, this is an email security
+            // scanner hitting the link from multiple nodes simultaneously (Safe Links etc.).
+            // Still log it for diagnostics but don't count it as a real human view.
+            const recentViews = (quote.viewLog || []).filter(v => now - new Date(v.at) < 90000);
+            const isLikelyScan = recentViews.length > 0;
+
+            const update = {
+                $set: { lastViewedAt: now, ...(!quote.firstViewedAt && !isLikelyScan ? { firstViewedAt: now } : {}) },
+                $push: { viewLog: { at: now, ip, ua, ...(isLikelyScan ? { scan: true } : {}) } }
+            };
+            if (!isLikelyScan) update.$inc = { viewCount: 1 };
+            await db.collection('quotes').updateOne({ _id: quote._id }, update);
         }
 
         const client = await db.collection('clients').findOne({ _id: quote.clientId });

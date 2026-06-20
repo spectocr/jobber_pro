@@ -7902,6 +7902,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">No detailed view history available.<br><small>Views recorded before this feature was added only show a count.</small></p>';
                     return;
                 }
+                let humanCount = 0;
                 content.innerHTML = \`
                     <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
                         <thead>
@@ -7909,15 +7910,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">#</th>
                                 <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Date & Time</th>
                                 <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">IP Address</th>
+                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Note</th>
                             </tr>
                         </thead>
                         <tbody>
-                            \${log.map((v, i) => \`
-                                <tr style="border-bottom:1px solid #f0f0f0;">
-                                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${i + 1}</td>
-                                    <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
+                            \${log.map((v) => {
+                                const isScan = v.scan === true;
+                                if (!isScan) humanCount++;
+                                const rowStyle = isScan ? 'border-bottom:1px solid #f0f0f0;opacity:0.55;' : 'border-bottom:1px solid #f0f0f0;';
+                                return \`<tr style="\${rowStyle}">
+                                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${isScan ? '—' : humanCount}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:\${isScan ? '#9ca3af' : '#2d3748'};">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
                                     <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}</td>
-                                </tr>\`).join('')}
+                                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;font-size:0.8rem;">\${isScan ? '📧 Email scanner' : ''}</td>
+                                </tr>\`;
+                            }).join('')}
                         </tbody>
                     </table>\`;
             } catch (e) {
