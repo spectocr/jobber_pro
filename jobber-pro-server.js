@@ -10903,15 +10903,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Daily sessions sparkline (last 30 days)
             const maxSessions = Math.max(...rows.map(r => parseInt(r.metricValues[0].value)), 1);
-            const bars = rows.slice(-30).map(r => {
+            const barData = rows.slice(-30).map(r => {
                 const date = r.dimensionValues[0].value;
                 const s = parseInt(r.metricValues[0].value);
                 const h = Math.max(4, Math.round((s / maxSessions) * 80));
                 const label = date.slice(4, 6) + '/' + date.slice(6, 8);
-                return \`<div title="\${label}: \${s} sessions" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;cursor:default;">
-                    <div style="width:100%;background:#667eea;border-radius:2px 2px 0 0;height:\${h}px;min-height:4px;"></div>
-                </div>\`;
-            }).join('');
+                return { s, h, label };
+            });
+            const numRow  = barData.map(d => \`<div style="flex:1;text-align:center;font-size:0.6rem;font-weight:700;color:#4a5568;overflow:hidden;">\${d.s > 0 ? d.s : ''}</div>\`).join('');
+            const barRow  = barData.map(d => \`<div title="\${d.label}: \${d.s} sessions" style="flex:1;background:#667eea;border-radius:2px 2px 0 0;height:\${d.h}px;min-height:4px;"></div>\`).join('');
+            const dateRow = barData.map(d => \`<div style="flex:1;text-align:center;font-size:0.55rem;color:#9ca3af;overflow:hidden;">\${d.label}</div>\`).join('');
+            const bars = \`
+                <div style="display:flex;gap:2px;align-items:flex-end;height:16px;">\${numRow}</div>
+                <div style="display:flex;gap:2px;align-items:flex-end;height:80px;">\${barRow}</div>
+                <div style="display:flex;gap:2px;align-items:flex-start;height:18px;border-top:1px solid #e2e8f0;margin-top:2px;">\${dateRow}</div>
+            \`;
 
             body.innerHTML = \`
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
@@ -10930,7 +10936,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
                 <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;margin-bottom:1.5rem;">
                     <div style="font-weight:600;color:#2d3748;margin-bottom:0.75rem;">Daily Sessions — Last 30 Days</div>
-                    <div style="display:flex;align-items:flex-end;gap:2px;height:90px;">\${bars}</div>
+                    <div>\${bars}</div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                     <div style="background:#f7fafc;padding:1.25rem;border-radius:10px;">
