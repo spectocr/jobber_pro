@@ -129,6 +129,17 @@
         .amount-total { font-size: 1.15rem; font-weight: 700; color: #2d3748; }
         .amount-due   { font-size: 0.9rem; font-weight: 600; color: #e53e3e; }
 
+        .card-desc {
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.65);
+            margin: 0.2rem 0 0.5rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.45;
+        }
+
         .status-badge {
             display: inline-block;
             padding: 0.2rem 0.65rem;
@@ -577,10 +588,13 @@ function renderQuoteCard(quote, T) {
         cta = `<a href="/quote-view/${quote.secureToken}" target="_blank" class="btn btn-primary">${T.viewBtn || 'View Quote'}</a>`;
     }
 
+    const descSnippet = (quote.description || '').trim();
+
     return `
     <div class="card${isArchived ? ' card-archived' : ''}">
         <span class="card-type-badge badge-quote">${typeLabel}</span>
         <div class="card-title">${quote.title}</div>
+        ${descSnippet ? `<div class="card-desc">${descSnippet}</div>` : ''}
         <div class="card-meta">${meta}</div>
         ${buildWorkflowStepper(getQuoteStages(quote))}
         <div class="card-actions">
@@ -598,10 +612,13 @@ function renderJobCard(job, T) {
     const statusLabel = job.status.replace(/_/g,' ').toUpperCase();
     const statusClass = job.status === 'completed' ? 'status-completed' : 'status-scheduled';
 
+    const jobDesc = (job.description || job.notes || '').trim();
+
     return `
     <div class="card">
         <span class="card-type-badge badge-job">Job</span>
         <div class="card-title">${job.title}</div>
+        ${jobDesc ? `<div class="card-desc">${jobDesc}</div>` : ''}
         <div class="card-meta">Scheduled: ${date}${time ? ' · ' + time : ''}</div>
         ${buildWorkflowStepper(getJobStages(job))}
         <div class="card-actions">
@@ -620,10 +637,13 @@ function renderInvoiceCard(inv, job, T) {
     const statusClass = `status-${inv.status}`;
     const stages    = job ? getJobStages(job) : null;
 
+    const invDesc = (job?.description || job?.notes || '').trim();
+
     return `
     <div class="card ${isPaid ? 'card-invoice card-archived' : 'card-invoice'}">
         <span class="card-type-badge badge-invoice">Invoice</span>
         <div class="card-title">${inv.jobTitle}</div>
+        ${invDesc ? `<div class="card-desc">${invDesc}</div>` : ''}
         <div class="card-meta">${inv.invoiceNumber}${date ? ' · ' + date : ''}</div>
         ${stages ? buildWorkflowStepper(stages) : ''}
         <div class="amount-row">
