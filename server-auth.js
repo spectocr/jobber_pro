@@ -3256,10 +3256,11 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
         quote.quoteNumber = `Q-${year}-${String(count).padStart(3, '0')}`;
     }
 
-    // Generate secure token for public viewing
-    if (!quote.secureToken) {
+    // Generate secure token only when creating — never regenerate on update
+    // (regenerating breaks any email links already sent to clients)
+    if (!isUpdate) {
         const crypto = require('crypto');
-        quote.secureToken = crypto.randomUUID();
+        quote.secureToken = quote.secureToken || crypto.randomUUID();
     }
 
     // Convert clientId to ObjectId
@@ -3278,7 +3279,8 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
     quote.createdBy = new ObjectId(req.session.userId);
 
     if (quote._id) {
-        const { _id, ...updateData } = quote;
+        // Exclude secureToken from updates — the token is write-once and must never change
+        const { _id, secureToken: _discardToken, ...updateData } = quote;
 
         // Get existing quote to check for status change
         const existingQuote = await db.collection('quotes').findOne({ _id: new ObjectId(_id) });
