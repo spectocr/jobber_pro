@@ -6601,7 +6601,8 @@ app.get('/api/client-portal/me', async (req, res) => {
                 const total = parseFloat(j.totalWithTax || j.total) || 0;
                 const paid = parseFloat(j.totalPaid) || 0;
                 const due = Math.max(0, total - paid);
-                const status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
+                // If admin marked job completed, treat as paid — admin is source of truth
+                const status = (j.status === 'completed' || due <= 0) ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
                 const invoiceNumber = j.invoiceNumber || `INV-${j._id.toString().slice(-8).toUpperCase()}`;
                 return {
                     id: j._id.toString(),
@@ -8353,7 +8354,7 @@ app.post('/api/deposit/pay', async (req, res) => {
 
         const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
         const newTotalPaid = existingPaid + amount;
-        const jobTotal = parseFloat(job.total) || 0;
+        const jobTotal = parseFloat(job.totalWithTax || job.total) || 0;
         const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
 
         const depositSetFields = {
