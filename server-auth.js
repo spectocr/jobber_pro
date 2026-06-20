@@ -105,7 +105,12 @@ async function connectDB() {
         await db.collection('jobs').createIndex({ 'deposit.token': 1 }, { sparse: true });
         await db.collection('quotes').createIndex({ status: 1 });
         await db.collection('quotes').createIndex({ secureToken: 1 }, { sparse: true });
-        await db.collection('quotes').createIndex({ quoteNumber: 1 }, { unique: true, sparse: true });
+        // unique constraint may fail if pre-existing duplicates exist from before atomic counter fix — non-fatal
+        try {
+            await db.collection('quotes').createIndex({ quoteNumber: 1 }, { unique: true, sparse: true });
+        } catch (idxErr) {
+            console.warn('[startup] quoteNumber unique index skipped (duplicate data exists):', idxErr.message);
+        }
 
         // Seed the atomic quote number counter from existing data (safe to run on every boot)
         const currentYear = new Date().getFullYear();
