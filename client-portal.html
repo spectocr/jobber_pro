@@ -550,6 +550,7 @@ function renderCard(item, T) {
 function esc(str) { return String(str || '').replace(/'/g, "\\'"); }
 
 function renderQuoteCard(quote, T) {
+    const isArchived  = quote.status === 'archived';
     const isDraft     = quote.status === 'draft';
     const isApproved  = quote.status === 'approved' || quote.status === 'in_review';
     const pendingLabel = T.pendingBadge || 'PENDING REVIEW';
@@ -577,7 +578,7 @@ function renderQuoteCard(quote, T) {
     }
 
     return `
-    <div class="card">
+    <div class="card${isArchived ? ' card-archived' : ''}">
         <span class="card-type-badge badge-quote">${typeLabel}</span>
         <div class="card-title">${quote.title}</div>
         <div class="card-meta">${meta}</div>
