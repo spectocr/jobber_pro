@@ -2927,7 +2927,7 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         // Don't fail the job save if SMS fails
     }
 
-    res.json({ success: true });
+    res.json({ success: true, id: job._id.toString(), _id: job._id.toString() });
 });
 
 app.get('/api/jobs/:id', isAuthenticated, async (req, res) => {
