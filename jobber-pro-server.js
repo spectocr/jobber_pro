@@ -10936,15 +10936,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const s = parseInt(r.metricValues[0].value);
                 const h = Math.max(4, Math.round((s / maxSessions) * 80));
                 const label = date.slice(4, 6) + '/' + date.slice(6, 8);
-                return { s, h, label };
+                const dow = new Date(date.slice(0,4) + '-' + date.slice(4,6) + '-' + date.slice(6,8) + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                return { s, h, label, dow };
             });
             const numRow  = barData.map(d => \`<div style="flex:1;text-align:center;font-size:0.6rem;font-weight:700;color:#4a5568;overflow:hidden;">\${d.s > 0 ? d.s : ''}</div>\`).join('');
             const barRow  = barData.map(d => \`<div title="\${d.label}: \${d.s} sessions" style="flex:1;background:#667eea;border-radius:2px 2px 0 0;height:\${d.h}px;min-height:4px;"></div>\`).join('');
-            const dateRow = barData.map(d => \`<div style="flex:1;text-align:center;font-size:0.55rem;color:#9ca3af;overflow:hidden;">\${d.label}</div>\`).join('');
+            const dateRow = barData.map(d => \`<div style="flex:1;text-align:center;font-size:0.55rem;color:#9ca3af;overflow:hidden;line-height:1.4;">\${d.label}<br><span style="color:#b0b8c4;">\${d.dow}</span></div>\`).join('');
             const bars = \`
                 <div style="display:flex;gap:2px;align-items:flex-end;height:16px;">\${numRow}</div>
                 <div style="display:flex;gap:2px;align-items:flex-end;height:80px;">\${barRow}</div>
-                <div style="display:flex;gap:2px;align-items:flex-start;height:18px;border-top:1px solid #e2e8f0;margin-top:2px;">\${dateRow}</div>
+                <div style="display:flex;gap:2px;align-items:flex-start;height:30px;border-top:1px solid #e2e8f0;margin-top:2px;">\${dateRow}</div>
             \`;
 
             body.innerHTML = \`
