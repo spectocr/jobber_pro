@@ -5872,6 +5872,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 size: file.size,
                                 s3Key: result.s3Key, // Will be set if using S3
                                 data: result.data, // Will be set if using MongoDB fallback
+                                previewUrl: isImage ? e.target.result : undefined,
                                 uploadedAt: new Date().toISOString(),
                                 comment: comment.trim() // Add comment field
                             };
@@ -5901,17 +5902,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             container.innerHTML = attachments.map(att => {
-                const isImage = att.type.startsWith('image/');
+                const isImage = att.type && att.type.startsWith('image/');
                 const sizeKB = (att.size / 1024).toFixed(1);
-                const icon = isImage ? '🖼️' : '📄';
+                const thumbSrc = att.previewUrl || att.data || '';
+                const thumbHtml = isImage
+                    ? \`<img id="att-thumb-\${att.id}" src="\${thumbSrc}" style="width:72px;height:54px;object-fit:cover;border-radius:6px;border:1.5px solid #e2e8f0;flex-shrink:0;background:#f0f4f8;">\`
+                    : \`<span style="font-size:1.5rem;flex-shrink:0;">📄</span>\`;
 
                 return \`
-                    <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem; background: #f7fafc; border-radius: 8px; margin-bottom: 0.5rem;">
-                        <span style="font-size: 1.5rem;">\${icon}</span>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; color: #2d3748;">\${att.name}</div>
-                            <div style="font-size: 0.85rem; color: #718096;">\${sizeKB} KB</div>
-                            \${att.comment ? \`<div style="font-size: 0.9rem; color: #4a5568; margin-top: 0.25rem; font-style: italic;">"\${att.comment}"</div>\` : ''}
+                    <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem;background:#f7fafc;border-radius:8px;margin-bottom:0.5rem;">
+                        \${thumbHtml}
+                        <div style="flex:1;">
+                            <div style="font-weight:600;color:#2d3748;">\${att.name}</div>
+                            <div style="font-size:0.85rem;color:#718096;">\${sizeKB} KB</div>
+                            \${att.comment ? \`<div style="font-size:0.9rem;color:#4a5568;margin-top:0.25rem;font-style:italic;">"\${att.comment}"</div>\` : ''}
                         </div>
                         \${isImage ? \`<button type="button" class="btn btn-secondary btn-small" onclick="viewAttachment('\${att.id}')">View</button>\` : ''}
                         <button type="button" class="btn btn-secondary btn-small" onclick="downloadAttachment('\${att.id}')">Download</button>
@@ -5919,6 +5923,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 \`;
             }).join('');
+
+            // Lazy-load presigned URLs for S3 images that have no local preview
+            attachments.forEach(att => {
+                if (att.type && att.type.startsWith('image/') && att.s3Key && !att.previewUrl && !att.data) {
+                    const img = document.getElementById(\`att-thumb-\${att.id}\`);
+                    if (img) {
+                        fetch(\`/api/file/\${att.s3Key}\`)
+                            .then(r => r.json())
+                            .then(d => { if (d.url && img) img.src = d.url; })
+                            .catch(() => {});
+                    }
+                }
+            });
         }
 
         async function removeAttachment(id) {
