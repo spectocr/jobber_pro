@@ -15816,7 +15816,7 @@ function formatDuration(seconds) {
 
             cards += '</div>';
 
-            const totalDue  = data.quarters.reduce((s, q) => s + (q.adjustedDue !== undefined ? q.adjustedDue : q.totalDue), 0);
+            const totalDue  = data.quarters.reduce((s, q) => s + q.totalDue, 0);
             const totalPaid = data.quarters.reduce((s, q) => s + q.paidAmount, 0);
             const remaining = Math.max(0, totalDue - totalPaid);
 
