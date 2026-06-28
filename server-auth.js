@@ -6017,8 +6017,12 @@ app.get('/quote-view/:token', async (req, res) => {
         const client = await db.collection('clients').findOne({ _id: quote.clientId });
         const settings = await db.collection('settings').findOne({});
 
-        const companyName = settings?.companyName || 'Your Company';
-        const companyLogo = settings?.companyLogo || '';
+        const companyName    = settings?.companyName    || 'Your Company';
+        const companyLogo    = settings?.companyLogo    || '';
+        const companyAddress = settings?.companyAddress || '';
+        const companyPhone   = settings?.companyPhone   || '';
+        const companyEmail   = settings?.companyEmail   || '';
+        const companyLicense = settings?.companyLicense || '';
 
         const subtotal = quote.subtotal || 0;
         const taxAmount = quote.taxAmount || 0;
@@ -6080,7 +6084,12 @@ app.get('/quote-view/:token', async (req, res) => {
         <div class="header">
             ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" class="logo">` : ''}
             <h1>${companyName}</h1>
-            <h2>${viewLabel} #${quote.quoteNumber}</h2>
+            <div style="color:#718096;font-size:0.9rem;margin-top:0.4rem;line-height:1.7;">
+                ${companyAddress ? `<span>${companyAddress.replace(/\n/g, ', ')}</span><br>` : ''}
+                ${companyPhone ? `<span>${companyPhone}</span>` : ''}${companyPhone && companyEmail ? ' &nbsp;·&nbsp; ' : ''}${companyEmail ? `<span>${companyEmail}</span>` : ''}
+                ${companyLicense ? `<br><span style="font-size:0.82rem;">License #${companyLicense}</span>` : ''}
+            </div>
+            <h2 style="margin-top:1rem;">${viewLabel} #${quote.quoteNumber}</h2>
         </div>
 
         <div class="status">

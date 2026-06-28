@@ -2496,6 +2496,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Email</label>
                         <input type="email" name="companyEmail">
                     </div>
+                    <div class="form-group">
+                        <label>Contractor License #</label>
+                        <input type="text" name="companyLicense" placeholder="e.g. 13VH12345600">
+                    </div>
 
                     <h3 style="margin: 2rem 0 1rem 0; color: #667eea;">Billing Settings</h3>
                     <div class="form-group">
@@ -11253,6 +11257,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             form.elements.companyZip.value = settings.companyZip || '';
             form.elements.companyPhone.value = settings.companyPhone || '';
             form.elements.companyEmail.value = settings.companyEmail || '';
+            form.elements.companyLicense.value = settings.companyLicense || '';
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
             form.elements.taxRatePercent.value = ((settings.taxRate || 0.06625) * 100).toFixed(3);
             form.elements.contractTerms.value = settings.contractTerms || '';
@@ -11532,6 +11537,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 companyZip: form.elements.companyZip.value,
                 companyPhone: form.elements.companyPhone.value,
                 companyEmail: form.elements.companyEmail.value,
+                companyLicense: form.elements.companyLicense.value,
                 hourlyRate: parseFloat(form.elements.hourlyRate.value),
                 taxRate: parseFloat(form.elements.taxRatePercent.value) / 100,
                 companyLogo: document.getElementById('companyLogo').value || null,
