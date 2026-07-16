@@ -8431,6 +8431,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 quote._id = currentEditingQuoteId;
             }
 
+            if (window._pendingLeadId && !currentEditingQuoteId) {
+                quote.sourceLeadId = window._pendingLeadId;
+            }
+
             quote.laborItems = quoteLaborItems;
             quote.materialItems = quoteMaterialItems;
             quote.taxWaived = document.getElementById('quoteTaxWaivedCheckbox').checked;
@@ -8456,19 +8460,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Capture ID for new quotes so subsequent autosaves update the same record
                 if (!currentEditingQuoteId && result && (result.id || result._id)) {
                     currentEditingQuoteId = result.id || result._id;
+                    // Import lead photos the moment the quote is first created in the DB
+                    if (window._pendingLeadId) {
+                        fetch(`/api/quotes/${currentEditingQuoteId}/import-lead-photos`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ leadId: window._pendingLeadId })
+                        }).catch(() => {});
+                        window._pendingLeadId = null;
+                    }
                 }
 
                 if (silent) markFormClean();
-
-                // Import lead photos on manual save of a new quote only
-                if (!silent && window._pendingLeadId && result && result.id && !quote._id) {
-                    fetch(`/api/quotes/${result.id}/import-lead-photos`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ leadId: window._pendingLeadId })
-                    }).catch(() => {});
-                    window._pendingLeadId = null;
-                }
             } catch (error) {
                 if (!silent) alert('Failed to save quote: ' + error.message);
                 throw error;

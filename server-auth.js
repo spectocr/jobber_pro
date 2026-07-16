@@ -3722,6 +3722,20 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
                 : `Quote #${quote.quoteNumber} converted to job by ${req.session.userName}`
         };
 
+        // Resolve photos: use quote's own photos; fall back to source lead's photos if none
+        let jobPhotos = Array.isArray(quote.photos) && quote.photos.length ? quote.photos : [];
+        if (!jobPhotos.length && quote.sourceLeadId) {
+            try {
+                const sourceLead = await db.collection('leads').findOne(
+                    { _id: new ObjectId(quote.sourceLeadId) },
+                    { projection: { photos: 1 } }
+                );
+                if (sourceLead && Array.isArray(sourceLead.photos)) {
+                    jobPhotos = sourceLead.photos.filter(p => typeof p === 'string' && !p.startsWith('data:'));
+                }
+            } catch (e) { /* non-fatal */ }
+        }
+
         // Create job from quote
         const job = {
             clientId: quote.clientId,
@@ -3737,7 +3751,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             scheduledDate: '',
             payments: [],
             touchPoints: (quote.touchPoints || []).map(tp => ({ ...tp, fromQuote: true })),
-            photos: quote.photos || [],
+            photos: jobPhotos,
             attachments: [],
             createdAt: new Date(),
             notes: `Converted from Quote #${quote.quoteNumber}\n\nNeeds scheduling review.\n\n${quote.notes || ''}`,
