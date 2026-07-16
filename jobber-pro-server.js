@@ -12949,7 +12949,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const contacted = allLeads.filter(l => l.status === 'contacted').length;
             const quoted = allLeads.filter(l => l.status === 'quoted').length;
             const won = allLeads.filter(l => l.status === 'won').length;
-            const lost = allLeads.filter(l => l.status === 'lost' || l.status === 'rejected').length;
+            const lost = allLeads.filter(l => l.status === 'lost').length;
             const decided = won + lost;
             const winRate = decided > 0 ? Math.round(won / decided * 100) : null;
 
