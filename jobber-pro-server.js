@@ -1627,6 +1627,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="btn btn-primary" onclick="showAddQuoteModal()">+ New Quote</button>
                     </div>
                 </div>
+                <div id="quotes-stats"></div>
                 <div id="quotes-list"></div>
             </div>
         </div>
@@ -7746,11 +7747,106 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let quoteTouchPoints = [];
         let currentEditingQuoteId = null;
 
+        function renderQuotesStats() {
+            const el = document.getElementById('quotes-stats');
+            if (!el) return;
+            if (!quotes.length) { el.innerHTML = ''; return; }
+
+            const fmt = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            const now = new Date();
+            const thisMonthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+            const lastMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+            const lastMonthKey = lastMonthDate.getFullYear() + '-' + String(lastMonthDate.getMonth()+1).padStart(2,'0');
+
+            const total = quotes.length;
+            const approved  = quotes.filter(q => q.status === 'approved').length;
+            const rejected  = quotes.filter(q => q.status === 'rejected').length;
+            const decided   = approved + rejected;
+            const approvalRate = decided > 0 ? Math.round(approved / decided * 100) : null;
+
+            const draft     = quotes.filter(q => q.status === 'draft').length;
+            const sent      = quotes.filter(q => q.status === 'sent').length;
+            const inReview  = quotes.filter(q => q.status === 'in_review').length;
+            const converted = quotes.filter(q => q.convertedToJobId).length;
+
+            const totalVal   = q => parseFloat(q.total || 0);
+            const pendingVal = quotes.filter(q => ['sent','in_review'].includes(q.status)).reduce((s,q) => s+totalVal(q), 0);
+            const wonVal     = quotes.filter(q => q.status === 'approved').reduce((s,q) => s+totalVal(q), 0);
+            const allVals    = quotes.filter(q => !['draft','archived'].includes(q.status));
+            const avgVal     = allVals.length ? allVals.reduce((s,q) => s+totalVal(q), 0) / allVals.length : 0;
+
+            const thisMonth  = quotes.filter(q => (q.createdAt||'').slice(0,7) === thisMonthKey).length;
+            const lastMonth  = quotes.filter(q => (q.createdAt||'').slice(0,7) === lastMonthKey).length;
+            const trend = thisMonth - lastMonth;
+            const trendHtml = trend > 0 ? \`<span style="color:#10b981;">▲ \${trend} vs last mo</span>\`
+                : trend < 0 ? \`<span style="color:#ef4444;">▼ \${Math.abs(trend)} vs last mo</span>\`
+                : \`<span style="color:#a0aec0;">same as last mo</span>\`;
+
+            const pipeline = [
+                { label:'Draft',      count:draft,    color:'#a0aec0' },
+                { label:'Sent',       count:sent,     color:'#667eea' },
+                { label:'In Review',  count:inReview, color:'#f59e0b' },
+                { label:'Approved',   count:approved, color:'#10b981' },
+            ];
+            const pipeMax = Math.max(...pipeline.map(s=>s.count), 1);
+
+            const tile = (icon, label, value, sub, valueColor='#2d3748') =>
+                \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;min-width:0;">
+                    <div style="font-size:0.7rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;">\${icon}&nbsp;\${label}</div>
+                    <div style="font-size:1.45rem;font-weight:800;color:\${valueColor};line-height:1.1;">\${value}</div>
+                    \${sub ? \`<div style="font-size:0.75rem;color:#718096;margin-top:0.25rem;">\${sub}</div>\` : ''}
+                </div>\`;
+
+            const bar = (pct, color) =>
+                \`<div style="background:#f1f5f9;border-radius:4px;height:7px;overflow:hidden;">
+                    <div style="height:7px;border-radius:4px;background:\${color};width:\${Math.max(pct>0?5:0,pct)}%;"></div>
+                </div>\`;
+
+            el.innerHTML = \`<div style="margin-bottom:1.25rem;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.65rem;margin-bottom:0.75rem;">
+                    \${tile('📋','Total Quotes', total, 'all time')}
+                    \${tile('✅','Approval Rate', approvalRate!==null ? approvalRate+'%' : '—', decided>0 ? \`\${approved} approved · \${rejected} rejected\` : 'no decisions yet', approvalRate>=60?'#10b981':approvalRate!==null?'#f59e0b':'#a0aec0')}
+                    \${tile('💰','Pending Value', fmt(pendingVal), \`\${sent+inReview} quote\${sent+inReview!==1?'s':''} out there\`, '#667eea')}
+                    \${tile('🏆','Won Value', fmt(wonVal), \`\${approved} approved\`, '#10b981')}
+                    \${tile('📊','Avg Quote', fmt(avgVal), 'excl. drafts & archived')}
+                    \${tile('📈','This Month', thisMonth, trendHtml)}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+                    <div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;">
+                        <div style="font-size:0.7rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.7rem;">📊 Pipeline</div>
+                        \${pipeline.map(s => \`<div style="margin-bottom:0.55rem;">
+                            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.2rem;">
+                                <span style="color:#4a5568;font-weight:600;">\${s.label}</span>
+                                <span style="font-weight:800;color:\${s.color};">\${s.count}</span>
+                            </div>
+                            \${bar(Math.round(s.count/pipeMax*100), s.color)}
+                        </div>\`).join('')}
+                    </div>
+                    <div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;">
+                        <div style="font-size:0.7rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.7rem;">⚡ Quick Facts</div>
+                        \${[
+                            ['Converted to Jobs', converted, '#667eea'],
+                            ['Awaiting Response', sent+inReview, '#f59e0b'],
+                            ['Expired / Archived', quotes.filter(q=>['expired','archived'].includes(q.status)).length, '#a0aec0'],
+                            ['Pending Pricing', quotes.filter(q=>q.status==='pending_pricing').length, '#ed8936'],
+                        ].map(([label,count,color]) => \`<div style="margin-bottom:0.55rem;">
+                            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.2rem;">
+                                <span style="color:#4a5568;font-weight:600;">\${label}</span>
+                                <span style="font-weight:800;color:\${color};">\${count}</span>
+                            </div>
+                            \${bar(Math.round(count/total*100), color)}
+                        </div>\`).join('')}
+                    </div>
+                </div>
+            </div>\`;
+        }
+
         async function loadQuotes() {
             try {
                 const response = await fetch('/api/quotes');
                 quotes = await response.json();
 
+                renderQuotesStats();
                 renderQuotesTable();
             } catch (error) {
                 console.error('Failed to load quotes:', error);
