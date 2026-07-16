@@ -2064,6 +2064,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </select>
                     </div>
                 </div>
+                <div id="leads-stats"></div>
                 <div id="leads-list"></div>
             </div>
         </div>
@@ -12933,10 +12934,101 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             lb.style.display = 'flex';
         }
 
+        function renderLeadsStats() {
+            const el = document.getElementById('leads-stats');
+            if (!el) return;
+            if (!allLeads.length) { el.innerHTML = ''; return; }
+
+            const now = new Date();
+            const thisMonthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+            const lastMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+            const lastMonthKey = lastMonthDate.getFullYear() + '-' + String(lastMonthDate.getMonth()+1).padStart(2,'0');
+
+            const total = allLeads.length;
+            const newCount = allLeads.filter(l => l.status === 'new').length;
+            const contacted = allLeads.filter(l => l.status === 'contacted').length;
+            const quoted = allLeads.filter(l => l.status === 'quoted').length;
+            const won = allLeads.filter(l => l.status === 'won').length;
+            const lost = allLeads.filter(l => l.status === 'lost' || l.status === 'rejected').length;
+            const decided = won + lost;
+            const winRate = decided > 0 ? Math.round(won / decided * 100) : null;
+
+            const thisMonth = allLeads.filter(l => (l.createdAt||'').slice(0,7) === thisMonthKey).length;
+            const lastMonth = allLeads.filter(l => (l.createdAt||'').slice(0,7) === lastMonthKey).length;
+            const trend = thisMonth - lastMonth;
+            const trendHtml = trend > 0 ? \`<span style="color:#10b981;">▲ \${trend} vs last mo</span>\`
+                : trend < 0 ? \`<span style="color:#ef4444;">▼ \${Math.abs(trend)} vs last mo</span>\`
+                : \`<span style="color:#a0aec0;">same as last mo</span>\`;
+
+            const tally = (field) => {
+                const m = {};
+                allLeads.forEach(l => { const v = l[field]; if(v) m[v] = (m[v]||0)+1; });
+                return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+            };
+            const topService = tally('service')[0];
+            const topCity = tally('city')[0];
+            const foundUs = tally('foundUs').slice(0,5);
+            const foundUsMax = foundUs[0]?.[1] || 1;
+
+            const pipeline = [
+                { label:'New',       count:newCount,   color:'#3b82f6' },
+                { label:'Contacted', count:contacted,  color:'#f59e0b' },
+                { label:'Quoted',    count:quoted,     color:'#8b5cf6' },
+                { label:'Won',       count:won,        color:'#10b981' },
+            ];
+            const pipeMax = Math.max(...pipeline.map(s=>s.count), 1);
+
+            const tile = (icon, label, value, sub, valueColor='#2d3748') =>
+                \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;min-width:0;">
+                    <div style="font-size:0.7rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;">\${icon}&nbsp;\${label}</div>
+                    <div style="font-size:1.45rem;font-weight:800;color:\${valueColor};line-height:1.1;">\${value}</div>
+                    \${sub ? \`<div style="font-size:0.75rem;color:#718096;margin-top:0.25rem;">\${sub}</div>\` : ''}
+                </div>\`;
+
+            const bar = (pct, color) =>
+                \`<div style="background:#f1f5f9;border-radius:4px;height:7px;overflow:hidden;">
+                    <div style="height:7px;border-radius:4px;background:\${color};width:\${Math.max(pct>0?5:0,pct)}%;"></div>
+                </div>\`;
+
+            el.innerHTML = \`<div style="margin-bottom:1.25rem;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.65rem;margin-bottom:0.75rem;">
+                    \${tile('🎯','All Time',  total,  'leads received')}
+                    \${tile('📥','Need Reply', newCount, newCount===0?'all caught up!':'awaiting contact', newCount>0?'#ef4444':'#10b981')}
+                    \${tile('✅','Win Rate',  winRate!==null ? winRate+'%' : '—', decided>0 ? \`\${won} won · \${lost} lost\` : 'no closed leads yet', winRate>=50?'#10b981':winRate!==null?'#f59e0b':'#a0aec0')}
+                    \${tile('📈','This Month', thisMonth, trendHtml)}
+                    \${topService ? tile('🔧','Top Request', topService[0].length>18?topService[0].slice(0,16)+'…':topService[0], topService[1]+' lead'+(topService[1]>1?'s':'')) : ''}
+                    \${topCity    ? tile('📍','Top City',    topCity[0], topCity[1]+' lead'+(topCity[1]>1?'s':''))    : ''}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+                    <div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;">
+                        <div style="font-size:0.7rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.7rem;">📊 Pipeline</div>
+                        \${pipeline.map(s => \`<div style="margin-bottom:0.55rem;">
+                            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.2rem;">
+                                <span style="color:#4a5568;font-weight:600;">\${s.label}</span>
+                                <span style="font-weight:800;color:\${s.color};">\${s.count}</span>
+                            </div>
+                            \${bar(Math.round(s.count/pipeMax*100), s.color)}
+                        </div>\`).join('')}
+                    </div>
+                    <div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;">
+                        <div style="font-size:0.7rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.7rem;">🗺 How They Found You</div>
+                        \${foundUs.length ? foundUs.map(([src,cnt]) => \`<div style="margin-bottom:0.55rem;">
+                            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.2rem;">
+                                <span style="color:#4a5568;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:74%;">\${src}</span>
+                                <span style="font-weight:800;color:#667eea;">\${cnt}</span>
+                            </div>
+                            \${bar(Math.round(cnt/foundUsMax*100), '#667eea')}
+                        </div>\`).join('') : '<div style="color:#a0aec0;font-size:0.82rem;padding:0.3rem 0;">No referral data yet</div>'}
+                    </div>
+                </div>
+            </div>\`;
+        }
+
         async function loadLeads() {
             const response = await fetch('/api/leads');
             allLeads = await response.json();
             updateLeadsBadge();
+            renderLeadsStats();
             renderLeads();
         }
 
