@@ -6209,7 +6209,7 @@ app.get('/quote-view/:token', async (req, res) => {
                 ${quote.description ? `<p style="white-space:pre-wrap;margin-bottom:0.75rem;">${quote.description}</p>` : ''}
                 ${quote.laborItems && quote.laborItems.length > 0 ? `
                 <p style="font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:#718096;margin:0.75rem 0 0.3rem;">Labor</p>
-                ${quote.laborItems.map(item => `<p style="margin:0.2rem 0;">• ${item.description} — ${item.hours} hr${item.hours != 1 ? 's' : ''} @ $${parseFloat(item.rate).toFixed(2)}/hr</p>`).join('')}` : ''}
+                ${quote.laborItems.map(item => `<p style="margin:0.2rem 0;">• ${item.description} — $${parseFloat(item.rate * item.hours).toFixed(2)}</p>`).join('')}` : ''}
                 ${quote.materialItems && quote.materialItems.length > 0 ? `
                 <p style="font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:#718096;margin:0.75rem 0 0.3rem;">Materials</p>
                 ${quote.materialItems.map(item => `<p style="margin:0.2rem 0;">• ${item.description} — qty ${item.quantity} @ $${parseFloat(item.price).toFixed(2)}</p>`).join('')}` : ''}
