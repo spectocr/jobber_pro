@@ -8372,12 +8372,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function renderQuoteLaborItems() {
             const container = document.getElementById('quoteLaborItems');
-            container.innerHTML = quoteLaborItems.map((item, index) => \`
-                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
-                    <input type="text" placeholder="Description" value="\${item.description}" onchange="quoteLaborItems[\${index}].description = this.value; updateQuoteTotal()" style="padding: 0.5rem;">
-                    <input type="number" placeholder="Hours" value="\${item.hours}" oninput="quoteLaborItems[\${index}].hours = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteLaborItems[\${index}].hours * quoteLaborItems[\${index}].rate).toFixed(2)" step="0.25" style="padding: 0.5rem;">
-                    <input type="number" placeholder="Rate" value="\${item.rate}" oninput="quoteLaborItems[\${index}].rate = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteLaborItems[\${index}].hours * quoteLaborItems[\${index}].rate).toFixed(2)" step="0.01" style="padding: 0.5rem;">
-                    <span class="line-total" style="font-weight:700;color:#2d3748;white-space:nowrap;min-width:60px;text-align:right;">$\${(item.hours * item.rate).toFixed(2)}</span>
+            const header = quoteLaborItems.length ? \`
+                <div style="display:grid;grid-template-columns:1fr 70px 80px 70px 64px;gap:0.5rem;margin-bottom:2px;padding:0 0.25rem;">
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;">Description</span>
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;">Hrs</span>
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;">Rate</span>
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;text-align:right;">Total</span>
+                    <span></span>
+                </div>\` : '';
+            container.innerHTML = header + quoteLaborItems.map((item, index) => \`
+                <div style="display:grid;grid-template-columns:1fr 70px 80px 70px 64px;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
+                    <input type="text" placeholder="Description" value="\${item.description}" onchange="quoteLaborItems[\${index}].description = this.value; updateQuoteTotal()" style="padding:0.4rem 0.5rem;">
+                    <input type="number" placeholder="0" value="\${item.hours}" oninput="quoteLaborItems[\${index}].hours = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteLaborItems[\${index}].hours * quoteLaborItems[\${index}].rate).toFixed(2)" step="0.25" style="padding:0.4rem 0.5rem;">
+                    <input type="number" placeholder="0.00" value="\${item.rate}" oninput="quoteLaborItems[\${index}].rate = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteLaborItems[\${index}].hours * quoteLaborItems[\${index}].rate).toFixed(2)" step="0.01" style="padding:0.4rem 0.5rem;">
+                    <span class="line-total" style="font-weight:700;color:#2d3748;white-space:nowrap;text-align:right;font-size:0.95rem;">$\${(item.hours * item.rate).toFixed(2)}</span>
                     <button type="button" class="btn btn-danger btn-small" onclick="quoteLaborItems.splice(\${index}, 1); renderQuoteLaborItems(); updateQuoteTotal()">Remove</button>
                 </div>
             \`).join('');
@@ -8385,12 +8393,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         function renderQuoteMaterialItems() {
             const container = document.getElementById('quoteMaterialItems');
-            container.innerHTML = quoteMaterialItems.map((item, index) => \`
-                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
-                    <input type="text" placeholder="Description" value="\${item.description}" onchange="quoteMaterialItems[\${index}].description = this.value; updateQuoteTotal()" style="padding: 0.5rem;">
-                    <input type="number" placeholder="Qty" value="\${item.quantity}" oninput="quoteMaterialItems[\${index}].quantity = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteMaterialItems[\${index}].quantity * quoteMaterialItems[\${index}].price).toFixed(2)" step="1" style="padding: 0.5rem;">
-                    <input type="number" placeholder="Price" value="\${item.price}" oninput="quoteMaterialItems[\${index}].price = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteMaterialItems[\${index}].quantity * quoteMaterialItems[\${index}].price).toFixed(2)" step="0.01" style="padding: 0.5rem;">
-                    <span class="line-total" style="font-weight:700;color:#2d3748;white-space:nowrap;min-width:60px;text-align:right;">$\${(item.quantity * item.price).toFixed(2)}</span>
+            const header = quoteMaterialItems.length ? \`
+                <div style="display:grid;grid-template-columns:1fr 70px 80px 70px 64px;gap:0.5rem;margin-bottom:2px;padding:0 0.25rem;">
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;">Description</span>
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;">Qty</span>
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;">Price</span>
+                    <span style="font-size:0.72rem;color:#718096;font-weight:600;text-transform:uppercase;text-align:right;">Total</span>
+                    <span></span>
+                </div>\` : '';
+            container.innerHTML = header + quoteMaterialItems.map((item, index) => \`
+                <div style="display:grid;grid-template-columns:1fr 70px 80px 70px 64px;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
+                    <input type="text" placeholder="Description" value="\${item.description}" onchange="quoteMaterialItems[\${index}].description = this.value; updateQuoteTotal()" style="padding:0.4rem 0.5rem;">
+                    <input type="number" placeholder="0" value="\${item.quantity}" oninput="quoteMaterialItems[\${index}].quantity = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteMaterialItems[\${index}].quantity * quoteMaterialItems[\${index}].price).toFixed(2)" step="1" style="padding:0.4rem 0.5rem;">
+                    <input type="number" placeholder="0.00" value="\${item.price}" oninput="quoteMaterialItems[\${index}].price = parseFloat(this.value) || 0; updateQuoteTotal(); this.closest('div').querySelector('.line-total').textContent = '$' + (quoteMaterialItems[\${index}].quantity * quoteMaterialItems[\${index}].price).toFixed(2)" step="0.01" style="padding:0.4rem 0.5rem;">
+                    <span class="line-total" style="font-weight:700;color:#2d3748;white-space:nowrap;text-align:right;font-size:0.95rem;">$\${(item.quantity * item.price).toFixed(2)}</span>
                     <button type="button" class="btn btn-danger btn-small" onclick="quoteMaterialItems.splice(\${index}, 1); renderQuoteMaterialItems(); updateQuoteTotal()">Remove</button>
                 </div>
             \`).join('');
