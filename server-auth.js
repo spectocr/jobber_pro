@@ -8914,7 +8914,8 @@ footer a:hover{color:white}
 <div id="lightbox" onclick="closeLb()"><span id="lb-close" onclick="closeLb()">×</span><img id="lb-img" src="" alt=""></div>
 <footer>
   <p style="margin-bottom:.5rem;"><strong style="color:white;">GSD Home Improvement &amp; Property Services</strong><br>Mount Laurel, NJ · Serving South Jersey</p>
-  <p><a href="tel:+18568724636">856-872-4636</a> &nbsp;·&nbsp; <a href="/">Home</a> &nbsp;·&nbsp; <a href="/#quote">Get a Quote</a></p>
+  <p><a href="tel:+18568724636">856-872-4636</a> &nbsp;·&nbsp; <a href="mailto:info@gsdhandymanservice.com">info@gsdhandymanservice.com</a></p>
+  <p style="margin-top:.35rem;"><a href="/">Home</a> &nbsp;·&nbsp; <a href="/#quote">Get a Quote</a></p>
   <p style="margin-top:.75rem;font-size:.8rem;opacity:.6;">© 2025 GSD Home Improvement &amp; Property Services. All rights reserved.</p>
 </footer>
 <script>

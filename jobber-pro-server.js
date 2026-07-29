@@ -13420,8 +13420,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Stash lead ID so saveQuote can copy photos after the quote is created
             window._pendingLeadId = leadId;
 
-            // Mark lead as quoted
-            updateLeadStatus(leadId, 'quoted');
+            // Mark lead as won and push to archive section
+            updateLeadStatus(leadId, 'won');
         }
 
         async function updateLeadStatus(id, status) {
