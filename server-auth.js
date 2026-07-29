@@ -2898,20 +2898,38 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 return s === 'Invalid Date' ? 'TBD' : s;
             };
 
-            // New job scheduled
-            if (!isUpdate && job.status === 'scheduled') {
+            const statusBecameScheduled = isUpdate && oldJob && oldJob.status !== job.status && job.status === 'scheduled';
+            const dateWasAdded = isUpdate && oldJob && job.status === 'scheduled' && job.scheduledDate && !oldJob.scheduledDate;
+            const dateChanged = isUpdate && oldJob && job.status === 'scheduled' && job.scheduledDate && oldJob.scheduledDate && oldJob.scheduledDate !== job.scheduledDate;
+
+            // New job created already scheduled with a date
+            if (!isUpdate && job.status === 'scheduled' && job.scheduledDate) {
                 const date = fmtDate(job.scheduledDate);
                 const time = job.scheduledTime || 'TBD';
                 await sendSMS(client.phone,
                     companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
             }
 
-            // Status changed SMS
+            // Status flipped to scheduled — only fire if date is already set
+            if (statusBecameScheduled && job.scheduledDate) {
+                const date = fmtDate(job.scheduledDate);
+                const time = job.scheduledTime || 'TBD';
+                await sendSMS(client.phone,
+                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
+            }
+
+            // Date added or changed on an already-scheduled job (catches "set status first, date second" flow)
+            if ((dateWasAdded || dateChanged) && !statusBecameScheduled) {
+                const date = fmtDate(job.scheduledDate);
+                const time = job.scheduledTime || 'TBD';
+                await sendSMS(client.phone,
+                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
+            }
+
+            // Status changed SMS (non-scheduled transitions)
             if (isUpdate && oldJob && oldJob.status !== job.status) {
                 if (job.status === 'scheduled') {
-                    const date = fmtDate(job.scheduledDate);
-                    await sendSMS(client.phone,
-                        companyName + ': Job "' + job.title + '" scheduled for ' + date + '.');
+                    // handled above
                 } else if (job.status === 'in_progress') {
                     await sendSMS(client.phone,
                         companyName + ': We\'re starting work on "' + job.title + '" now.');
