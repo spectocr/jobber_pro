@@ -4938,6 +4938,41 @@ app.get('/api/email-logs', isAuthenticated, async (req, res) => {
 
 app.get('/api/sms-logs', isAuthenticated, async (req, res) => {
     try {
+        // Pull directly from Twilio if available — source of truth for everything sent
+        if (twilioClient) {
+            const messages = await twilioClient.messages.list({ limit: 200 });
+            const outbound = messages
+                .filter(m => m.direction === 'outbound-api' || m.direction === 'outbound-reply')
+                .map(m => {
+                    // Try to match against our DB log to get enriched metadata (clientName, type, trigger)
+                    return {
+                        id: m.sid,
+                        sid: m.sid,
+                        to: m.to,
+                        message: m.body,
+                        sentAt: m.dateCreated,
+                        success: !['failed', 'undelivered'].includes(m.status),
+                        twilioStatus: m.status,
+                        type: 'system',
+                        clientName: null,
+                        trigger: null,
+                        source: 'twilio'
+                    };
+                });
+
+            // Overlay our DB log metadata (clientName, type, trigger) matched by sid
+            const dbLogs = await db.collection('sms_log').find({ sid: { $in: outbound.map(m => m.sid) } }).toArray();
+            const dbBySid = {};
+            dbLogs.forEach(l => { dbBySid[l.sid] = l; });
+            outbound.forEach(m => {
+                const db = dbBySid[m.sid];
+                if (db) { m.clientName = db.clientName; m.type = db.type || 'system'; m.trigger = db.trigger; }
+            });
+
+            return res.json(outbound);
+        }
+
+        // Fallback: our DB log only
         const logs = await db.collection('sms_log')
             .find()
             .sort({ sentAt: -1 })

@@ -12463,7 +12463,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <tbody>
                         \${logs.map(log => {
                             const cfg = typeConfig[log.type] || typeConfig.system;
-                            const statusBadge = log.success
+                            const twStatus = log.twilioStatus;
+                            const statusBadge = twStatus === 'delivered'
+                                ? \`<span style="background:#c6f6d5;color:#22543d;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">✓ Delivered</span>\`
+                                : twStatus === 'sent' || twStatus === 'queued' || twStatus === 'sending'
+                                ? \`<span style="background:#bee3f8;color:#2a4365;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">⏳ \${twStatus}</span>\`
+                                : twStatus === 'failed' || twStatus === 'undelivered'
+                                ? \`<span style="background:#fed7d7;color:#742a2a;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;" title="\${log.error || ''}">✗ \${twStatus}</span>\`
+                                : log.success
                                 ? \`<span style="background:#c6f6d5;color:#22543d;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">✓ Sent</span>\`
                                 : \`<span style="background:#fed7d7;color:#742a2a;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;" title="\${log.error || ''}">✗ Failed</span>\`;
                             return \`<tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
