@@ -2039,6 +2039,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div style="display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0;">
                 <button id="msg-tab-inbound" onclick="switchMessagesTab('inbound')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid #667eea; color: #667eea; font-weight: 600; cursor: pointer; font-size: 1rem; margin-bottom: -2px;">💬 Client Messages</button>
                 <button id="msg-tab-outbound" onclick="switchMessagesTab('outbound')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid transparent; color: #718096; font-weight: 600; cursor: pointer; font-size: 1rem; margin-bottom: -2px;">📤 Email History</button>
+                <button id="msg-tab-sms" onclick="switchMessagesTab('sms')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid transparent; color: #718096; font-weight: 600; cursor: pointer; font-size: 1rem; margin-bottom: -2px;">📱 SMS Log</button>
             </div>
 
             <!-- Inbound client messages -->
@@ -2073,6 +2074,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="text" id="email-log-search" placeholder="🔍 Search recipient or subject..." oninput="filterEmailLogs()" style="flex: 1; min-width: 200px; padding: 0.5rem 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;">
                     </div>
                     <div id="email-logs-list"></div>
+                </div>
+            </div>
+
+            <!-- SMS log -->
+            <div id="msg-panel-sms" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>SMS Log</h2>
+                        <button class="btn btn-secondary" onclick="loadSmsLogs()">🔄 Refresh</button>
+                    </div>
+                    <div style="margin-bottom: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                        <select id="sms-log-filter" onchange="filterSmsLogs()" style="padding: 0.5rem 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                            <option value="">All Types</option>
+                            <option value="job_scheduled">Scheduling</option>
+                            <option value="job_update">Job Updates</option>
+                            <option value="invoice">Invoices</option>
+                            <option value="reminder">Reminders</option>
+                            <option value="system">System</option>
+                        </select>
+                        <input type="text" id="sms-log-search" placeholder="🔍 Search number, client, or message..." oninput="filterSmsLogs()" style="flex: 1; min-width: 200px; padding: 0.5rem 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                    </div>
+                    <div id="sms-logs-list"></div>
                 </div>
             </div>
         </div>
@@ -12375,27 +12398,89 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         let allEmailLogs = [];
 
         function switchMessagesTab(tab) {
-            const inboundPanel = document.getElementById('msg-panel-inbound');
-            const outboundPanel = document.getElementById('msg-panel-outbound');
-            const inboundBtn = document.getElementById('msg-tab-inbound');
-            const outboundBtn = document.getElementById('msg-tab-outbound');
+            const panels = { inbound: 'msg-panel-inbound', outbound: 'msg-panel-outbound', sms: 'msg-panel-sms' };
+            const btns   = { inbound: 'msg-tab-inbound',   outbound: 'msg-tab-outbound',   sms: 'msg-tab-sms' };
+            Object.keys(panels).forEach(t => {
+                document.getElementById(panels[t]).style.display = t === tab ? '' : 'none';
+                document.getElementById(btns[t]).style.borderBottomColor = t === tab ? '#667eea' : 'transparent';
+                document.getElementById(btns[t]).style.color = t === tab ? '#667eea' : '#718096';
+            });
+            if (tab === 'outbound') loadEmailLogs();
+            if (tab === 'sms') loadSmsLogs();
+        }
 
-            if (tab === 'inbound') {
-                inboundPanel.style.display = '';
-                outboundPanel.style.display = 'none';
-                inboundBtn.style.borderBottomColor = '#667eea';
-                inboundBtn.style.color = '#667eea';
-                outboundBtn.style.borderBottomColor = 'transparent';
-                outboundBtn.style.color = '#718096';
-            } else {
-                inboundPanel.style.display = 'none';
-                outboundPanel.style.display = '';
-                outboundBtn.style.borderBottomColor = '#667eea';
-                outboundBtn.style.color = '#667eea';
-                inboundBtn.style.borderBottomColor = 'transparent';
-                inboundBtn.style.color = '#718096';
-                loadEmailLogs();
+        let allSmsLogs = [];
+
+        async function loadSmsLogs() {
+            try {
+                const response = await fetch('/api/sms-logs');
+                allSmsLogs = await response.json();
+                filterSmsLogs();
+            } catch (e) {
+                document.getElementById('sms-logs-list').innerHTML = '<p style="color:#e53e3e;padding:1rem;">Failed to load SMS log</p>';
             }
+        }
+
+        function filterSmsLogs() {
+            const typeFilter = document.getElementById('sms-log-filter').value;
+            const searchVal = (document.getElementById('sms-log-search').value || '').toLowerCase();
+            const filtered = allSmsLogs.filter(l => {
+                const matchType = !typeFilter || l.type === typeFilter;
+                const matchSearch = !searchVal ||
+                    (l.to || '').includes(searchVal) ||
+                    (l.clientName || '').toLowerCase().includes(searchVal) ||
+                    (l.message || '').toLowerCase().includes(searchVal) ||
+                    (l.trigger || '').toLowerCase().includes(searchVal);
+                return matchType && matchSearch;
+            });
+            renderSmsLogs(filtered);
+        }
+
+        function renderSmsLogs(logs) {
+            const container = document.getElementById('sms-logs-list');
+            if (!logs.length) {
+                container.innerHTML = '<div style="text-align:center;padding:3rem;color:#718096;"><p>No SMS messages yet</p><p style="font-size:0.9rem;margin-top:0.5rem;">Texts sent from the app will appear here</p></div>';
+                return;
+            }
+            const typeConfig = {
+                job_scheduled: { icon: '📅', label: 'Scheduling', color: '#2b6cb0', bg: '#ebf8ff' },
+                job_update:    { icon: '🔄', label: 'Job Update',  color: '#276749', bg: '#f0fff4' },
+                invoice:       { icon: '🧾', label: 'Invoice',     color: '#667eea', bg: '#ebf4ff' },
+                reminder:      { icon: '⏰', label: 'Reminder',    color: '#c05621', bg: '#fffaf0' },
+                system:        { icon: '⚙️', label: 'System',      color: '#718096', bg: '#f7fafc' },
+            };
+            container.innerHTML = \`
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f8f9fa;border-bottom:2px solid #e2e8f0;">
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:110px;">Type</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">To</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Message</th>
+                            <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;color:#4a5568;width:80px;">Status</th>
+                            <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;width:160px;">Sent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${logs.map(log => {
+                            const cfg = typeConfig[log.type] || typeConfig.system;
+                            const statusBadge = log.success
+                                ? \`<span style="background:#c6f6d5;color:#22543d;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">✓ Sent</span>\`
+                                : \`<span style="background:#fed7d7;color:#742a2a;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;" title="\${log.error || ''}">✗ Failed</span>\`;
+                            return \`<tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+                                <td style="padding:0.85rem 1rem;">
+                                    <span style="background:\${cfg.bg};color:\${cfg.color};padding:0.25rem 0.6rem;border-radius:20px;font-size:0.8rem;font-weight:600;white-space:nowrap;">\${cfg.icon} \${cfg.label}</span>
+                                </td>
+                                <td style="padding:0.85rem 1rem;">
+                                    <div style="font-weight:500;color:#2d3748;">\${log.clientName || ''}</div>
+                                    <div style="font-size:0.82rem;color:#718096;">\${log.to || ''}</div>
+                                </td>
+                                <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.88rem;max-width:340px;">\${log.message || ''}</td>
+                                <td style="padding:0.85rem 1rem;text-align:center;">\${statusBadge}</td>
+                                <td style="padding:0.85rem 1rem;color:#718096;font-size:0.85rem;text-align:right;white-space:nowrap;">\${new Date(log.sentAt).toLocaleString()}</td>
+                            </tr>\`;
+                        }).join('')}
+                    </tbody>
+                </table>\`;
         }
 
         async function loadEmailLogs() {

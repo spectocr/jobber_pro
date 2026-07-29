@@ -189,9 +189,23 @@ function isAdmin(req, res, next) {
 }
 
 // SMS Helper Function
-async function sendSMS(to, message) {
+async function sendSMS(to, message, meta = {}) {
+    const logEntry = {
+        to,
+        message,
+        type: meta.type || 'system',
+        clientName: meta.clientName || null,
+        trigger: meta.trigger || null,
+        sentAt: new Date(),
+        success: false,
+        sid: null,
+        error: null
+    };
+
     if (!twilioClient) {
         console.log('SMS not sent (Twilio not configured):', to, message);
+        logEntry.error = 'Twilio not configured';
+        if (db) db.collection('sms_log').insertOne(logEntry).catch(() => {});
         return { success: false, error: 'Twilio not configured' };
     }
 
@@ -213,9 +227,15 @@ async function sendSMS(to, message) {
         });
 
         console.log('✅ SMS sent to', phoneNumber, '- SID:', result.sid);
+        logEntry.success = true;
+        logEntry.sid = result.sid;
+        logEntry.to = phoneNumber;
+        if (db) db.collection('sms_log').insertOne(logEntry).catch(() => {});
         return { success: true, sid: result.sid };
     } catch (error) {
         console.error('❌ SMS error:', error.message);
+        logEntry.error = error.message;
+        if (db) db.collection('sms_log').insertOne(logEntry).catch(() => {});
         return { success: false, error: error.message };
     }
 }
@@ -2902,12 +2922,15 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             const dateWasAdded = isUpdate && oldJob && job.status === 'scheduled' && job.scheduledDate && !oldJob.scheduledDate;
             const dateChanged = isUpdate && oldJob && job.status === 'scheduled' && job.scheduledDate && oldJob.scheduledDate && oldJob.scheduledDate !== job.scheduledDate;
 
+            const smsMeta = { clientName: client.name };
+
             // New job created already scheduled with a date
             if (!isUpdate && job.status === 'scheduled' && job.scheduledDate) {
                 const date = fmtDate(job.scheduledDate);
                 const time = job.scheduledTime || 'TBD';
                 await sendSMS(client.phone,
-                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
+                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.',
+                    { ...smsMeta, type: 'job_scheduled', trigger: job.title });
             }
 
             // Status flipped to scheduled — only fire if date is already set
@@ -2915,7 +2938,8 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 const date = fmtDate(job.scheduledDate);
                 const time = job.scheduledTime || 'TBD';
                 await sendSMS(client.phone,
-                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
+                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.',
+                    { ...smsMeta, type: 'job_scheduled', trigger: job.title });
             }
 
             // Date added or changed on an already-scheduled job (catches "set status first, date second" flow)
@@ -2923,7 +2947,8 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                 const date = fmtDate(job.scheduledDate);
                 const time = job.scheduledTime || 'TBD';
                 await sendSMS(client.phone,
-                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
+                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.',
+                    { ...smsMeta, type: 'job_scheduled', trigger: job.title });
             }
 
             // Status changed SMS (non-scheduled transitions)
@@ -2932,13 +2957,16 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                     // handled above
                 } else if (job.status === 'in_progress') {
                     await sendSMS(client.phone,
-                        companyName + ': We\'re starting work on "' + job.title + '" now.');
+                        companyName + ': We\'re starting work on "' + job.title + '" now.',
+                        { ...smsMeta, type: 'job_update', trigger: job.title });
                 } else if (job.status === 'completed') {
                     await sendSMS(client.phone,
-                        companyName + ': Job "' + job.title + '" is complete! Invoice will follow shortly.');
+                        companyName + ': Job "' + job.title + '" is complete! Invoice will follow shortly.',
+                        { ...smsMeta, type: 'job_update', trigger: job.title });
                 } else if (job.status === 'invoiced') {
                     await sendSMS(client.phone,
-                        companyName + ': Invoice ready for "' + job.title + '". Total: $' + (job.total || 0).toFixed(2) + '.');
+                        companyName + ': Invoice ready for "' + job.title + '". Total: $' + (job.total || 0).toFixed(2) + '.',
+                        { ...smsMeta, type: 'invoice', trigger: job.title });
                 }
             }
         }
@@ -4890,6 +4918,19 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
 app.get('/api/email-logs', isAuthenticated, async (req, res) => {
     try {
         const logs = await db.collection('email_logs')
+            .find()
+            .sort({ sentAt: -1 })
+            .limit(500)
+            .toArray();
+        res.json(logs.map(l => ({ ...l, id: l._id.toString(), _id: l._id.toString() })));
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/sms-logs', isAuthenticated, async (req, res) => {
+    try {
+        const logs = await db.collection('sms_log')
             .find()
             .sort({ sentAt: -1 })
             .limit(500)
