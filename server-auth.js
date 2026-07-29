@@ -2891,9 +2891,16 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         const companyName = settings?.companyName || 'Jobber Pro';
 
         if (client && client.phone) {
+            const fmtDate = (d) => {
+                if (!d) return 'TBD';
+                const parsed = new Date(d);
+                const s = parsed.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                return s === 'Invalid Date' ? 'TBD' : s;
+            };
+
             // New job scheduled
             if (!isUpdate && job.status === 'scheduled') {
-                const date = new Date(job.scheduledDate).toLocaleDateString();
+                const date = fmtDate(job.scheduledDate);
                 const time = job.scheduledTime || 'TBD';
                 await sendSMS(client.phone,
                     companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.');
@@ -2902,7 +2909,7 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             // Status changed SMS
             if (isUpdate && oldJob && oldJob.status !== job.status) {
                 if (job.status === 'scheduled') {
-                    const date = new Date(job.scheduledDate).toLocaleDateString();
+                    const date = fmtDate(job.scheduledDate);
                     await sendSMS(client.phone,
                         companyName + ': Job "' + job.title + '" scheduled for ' + date + '.');
                 } else if (job.status === 'in_progress') {
