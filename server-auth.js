@@ -202,10 +202,18 @@ async function sendSMS(to, message, meta = {}) {
         error: null
     };
 
+    const writeLog = async () => {
+        try {
+            if (db) await db.collection('sms_log').insertOne({ ...logEntry });
+        } catch (e) {
+            console.error('SMS log write failed:', e.message);
+        }
+    };
+
     if (!twilioClient) {
         console.log('SMS not sent (Twilio not configured):', to, message);
         logEntry.error = 'Twilio not configured';
-        if (db) db.collection('sms_log').insertOne(logEntry).catch(() => {});
+        await writeLog();
         return { success: false, error: 'Twilio not configured' };
     }
 
@@ -230,12 +238,12 @@ async function sendSMS(to, message, meta = {}) {
         logEntry.success = true;
         logEntry.sid = result.sid;
         logEntry.to = phoneNumber;
-        if (db) db.collection('sms_log').insertOne(logEntry).catch(() => {});
+        await writeLog();
         return { success: true, sid: result.sid };
     } catch (error) {
         console.error('❌ SMS error:', error.message);
         logEntry.error = error.message;
-        if (db) db.collection('sms_log').insertOne(logEntry).catch(() => {});
+        await writeLog();
         return { success: false, error: error.message };
     }
 }
