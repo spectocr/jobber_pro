@@ -12652,21 +12652,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
             const typeConfig = {
-                job_scheduled: { icon: '📅', label: 'Scheduling', color: '#2b6cb0', bg: '#ebf8ff' },
-                job_update:    { icon: '🔄', label: 'Job Update',  color: '#276749', bg: '#f0fff4' },
-                invoice:       { icon: '🧾', label: 'Invoice',     color: '#667eea', bg: '#ebf4ff' },
-                reminder:      { icon: '⏰', label: 'Reminder',    color: '#c05621', bg: '#fffaf0' },
-                system:        { icon: '⚙️', label: 'System',      color: '#718096', bg: '#f7fafc' },
+                job_scheduled: { icon: '📅', label: 'Scheduling', color: '#fff',    bg: '#3182ce' },
+                job_update:    { icon: '🔧', label: 'Job Update',  color: '#fff',    bg: '#38a169' },
+                invoice:       { icon: '🧾', label: 'Invoice',     color: '#fff',    bg: '#667eea' },
+                reminder:      { icon: '⏰', label: 'Reminder',    color: '#fff',    bg: '#dd6b20' },
+                system:        { icon: '⚙️', label: 'System',      color: '#4a5568', bg: '#e2e8f0' },
             };
+            const pillStyle = 'display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.65rem;border-radius:999px;font-size:0.73rem;font-weight:700;letter-spacing:0.02em;white-space:nowrap;';
+            const badgeStyle = 'display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.73rem;font-weight:700;letter-spacing:0.02em;white-space:nowrap;';
             container.innerHTML = \`
                 <table style="width:100%;border-collapse:collapse;">
                     <thead>
                         <tr style="background:#f8f9fa;border-bottom:2px solid #e2e8f0;">
-                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:110px;">Type</th>
-                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">To</th>
-                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">Message</th>
-                            <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;color:#4a5568;width:80px;">Status</th>
-                            <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;width:160px;">Sent</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;width:120px;">TYPE</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">TO</th>
+                            <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:#4a5568;">MESSAGE</th>
+                            <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;color:#4a5568;width:110px;">STATUS</th>
+                            <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:#4a5568;width:160px;">SENT</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -12674,17 +12676,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             const cfg = typeConfig[log.type] || typeConfig.system;
                             const twStatus = log.twilioStatus;
                             const statusBadge = twStatus === 'delivered'
-                                ? \`<span style="background:#c6f6d5;color:#22543d;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">✓ Delivered</span>\`
+                                ? \`<span style="\${badgeStyle}background:#22543d;color:#fff;">✓ Delivered</span>\`
                                 : twStatus === 'sent' || twStatus === 'queued' || twStatus === 'sending'
-                                ? \`<span style="background:#bee3f8;color:#2a4365;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">⏳ \${twStatus}</span>\`
+                                ? \`<span style="\${badgeStyle}background:#2b6cb0;color:#fff;">⏳ Sending</span>\`
                                 : twStatus === 'failed' || twStatus === 'undelivered'
-                                ? \`<span style="background:#fed7d7;color:#742a2a;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;" title="\${log.error || ''}">✗ \${twStatus}</span>\`
+                                ? \`<span style="\${badgeStyle}background:#c53030;color:#fff;" title="\${log.error || ''}">✗ Failed</span>\`
                                 : log.success
-                                ? \`<span style="background:#c6f6d5;color:#22543d;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;">✓ Sent</span>\`
-                                : \`<span style="background:#fed7d7;color:#742a2a;padding:0.2rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:700;" title="\${log.error || ''}">✗ Failed</span>\`;
+                                ? \`<span style="\${badgeStyle}background:#22543d;color:#fff;">✓ Sent</span>\`
+                                : \`<span style="\${badgeStyle}background:#c53030;color:#fff;" title="\${log.error || ''}">✗ Failed</span>\`;
                             return \`<tr style="border-bottom:1px solid #e2e8f0;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
                                 <td style="padding:0.85rem 1rem;">
-                                    <span style="background:\${cfg.bg};color:\${cfg.color};padding:0.25rem 0.6rem;border-radius:20px;font-size:0.8rem;font-weight:600;white-space:nowrap;">\${cfg.icon} \${cfg.label}</span>
+                                    <span style="\${pillStyle}background:\${cfg.bg};color:\${cfg.color};">\${cfg.icon} \${cfg.label}</span>
                                 </td>
                                 <td style="padding:0.85rem 1rem;">
                                     <div style="font-weight:500;color:#2d3748;">\${log.clientName || ''}</div>
