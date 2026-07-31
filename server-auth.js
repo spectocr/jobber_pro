@@ -5733,6 +5733,18 @@ app.get('/invoice/:jobId', async (req, res) => {
         );
     }
 
+    // Generate signed URLs for job photos
+    let photoUrls = [];
+    if (Array.isArray(job.photos) && job.photos.length && s3Client) {
+        photoUrls = (await Promise.all(
+            job.photos.map(p =>
+                typeof p === 'string' && !p.startsWith('data:')
+                    ? getS3SignedUrl(p, 3600).catch(() => null)
+                    : Promise.resolve(p || null)
+            )
+        )).filter(Boolean);
+    }
+
     // Calculate tax (0 if waived)
     const taxWaived = job.taxWaived || false;
     const tax = taxWaived ? 0 : subtotal * (settings.taxRate || 0.06625);
@@ -6157,6 +6169,50 @@ app.get('/invoice/:jobId', async (req, res) => {
             </div>
         </div>
     </div>
+
+    ${photoUrls.length ? `
+    <div style="margin-top:40px;">
+        <h3 style="color:#667eea;margin-bottom:16px;font-size:1.1em;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">Job Photos</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">
+            ${photoUrls.map((url, i) => `
+            <div style="aspect-ratio:1;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;"
+                 onclick="openLightbox(${i})">
+                <img src="${url}" alt="Job photo ${i+1}"
+                     style="width:100%;height:100%;object-fit:cover;transition:transform 0.2s;"
+                     onmouseover="this.style.transform='scale(1.05)'"
+                     onmouseout="this.style.transform='scale(1)'" />
+            </div>`).join('')}
+        </div>
+    </div>
+
+    <div id="lb-overlay" onclick="closeLightbox()"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;cursor:pointer;align-items:center;justify-content:center;">
+        <span style="position:absolute;top:18px;right:24px;color:#fff;font-size:2rem;line-height:1;user-select:none;">&times;</span>
+        <img id="lb-img" src="" style="max-width:92vw;max-height:88vh;border-radius:6px;box-shadow:0 4px 32px rgba(0,0,0,0.5);" />
+        <button onclick="event.stopPropagation();lbPrev()" style="position:absolute;left:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:2rem;padding:8px 14px;border-radius:6px;cursor:pointer;">&#8249;</button>
+        <button onclick="event.stopPropagation();lbNext()" style="position:absolute;right:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:2rem;padding:8px 14px;border-radius:6px;cursor:pointer;">&#8250;</button>
+    </div>
+    <script>
+        var lbUrls = ${JSON.stringify(photoUrls)};
+        var lbIdx = 0;
+        function openLightbox(i) {
+            lbIdx = i;
+            document.getElementById('lb-img').src = lbUrls[i];
+            var ov = document.getElementById('lb-overlay');
+            ov.style.display = 'flex';
+        }
+        function closeLightbox() { document.getElementById('lb-overlay').style.display = 'none'; }
+        function lbPrev() { lbIdx = (lbIdx - 1 + lbUrls.length) % lbUrls.length; document.getElementById('lb-img').src = lbUrls[lbIdx]; }
+        function lbNext() { lbIdx = (lbIdx + 1) % lbUrls.length; document.getElementById('lb-img').src = lbUrls[lbIdx]; }
+        document.addEventListener('keydown', function(e) {
+            if (document.getElementById('lb-overlay').style.display === 'flex') {
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') lbPrev();
+                if (e.key === 'ArrowRight') lbNext();
+            }
+        });
+    </script>
+    ` : ''}
 
     <div class="footer" style="margin-top: 40px;">
         <p>Thank you for your business!</p>
