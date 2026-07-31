@@ -2225,6 +2225,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <option value="general">General</option>
                     </select>
                 </div>
+                <div id="portfolio-stats-bar" style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1rem;padding:0.6rem 0.85rem;background:#f8f9fa;border-radius:8px;font-size:0.82rem;color:#4a5568;"></div>
                 <div id="portfolio-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.25rem;"></div>
             </div>
         </div>
@@ -9729,6 +9730,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const grid = document.getElementById('portfolio-grid');
             const search = (document.getElementById('portfolio-search')?.value || '').toLowerCase();
             const cat = document.getElementById('portfolio-category-filter')?.value || '';
+
+            // Stats bar (always based on full data set)
+            const statsBar = document.getElementById('portfolio-stats-bar');
+            if (statsBar && allPortfolioItems.length) {
+                const totalPhotos = allPortfolioItems.reduce((s, i) => s + _pfPhotos(i).length, 0);
+                const commercial = allPortfolioItems.filter(i => i.commercial).length;
+                const catCounts = {};
+                allPortfolioItems.forEach(i => { const c = i.category || 'general'; catCounts[c] = (catCounts[c] || 0) + 1; });
+                const topCats = Object.entries(catCounts).sort((a,b) => b[1]-a[1]).slice(0,4)
+                    .map(([c,n]) => `<span><strong>${n}</strong> ${_pfCatLabel[c] || c}</span>`).join('<span style="color:#cbd5e0;">·</span>');
+                statsBar.innerHTML = `<span><strong>${allPortfolioItems.length}</strong> items</span><span style="color:#cbd5e0;">·</span><span><strong>${totalPhotos}</strong> photos</span><span style="color:#cbd5e0;">·</span><span><strong>${allPortfolioItems.length - commercial}</strong> residential / <strong>${commercial}</strong> commercial</span><span style="color:#cbd5e0;">·</span>${topCats}`;
+            }
 
             let items = allPortfolioItems;
             if (search) items = items.filter(i => (i.title + i.caption + i.category).toLowerCase().includes(search));
