@@ -3488,6 +3488,68 @@ app.get('/api/jobs/:id/photos', isAuthenticated, async (req, res) => {
     }
 });
 
+// ── Callbacks ────────────────────────────────────────────────────────────────
+app.get('/api/jobs/:id/callbacks', isAuthenticated, async (req, res) => {
+    try {
+        const callbacks = await db.collection('callbacks')
+            .find({ jobId: new ObjectId(req.params.id) })
+            .sort({ date: -1 })
+            .toArray();
+        res.json(callbacks.map(c => ({ ...c, id: c._id.toString(), _id: c._id.toString() })));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/jobs/:id/callbacks', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const { date, hours, category, issue, charged, chargeAmount, resolved } = req.body;
+        const doc = {
+            jobId: new ObjectId(req.params.id),
+            jobTitle: job.title || '',
+            clientId: job.clientId,
+            date: date || new Date().toISOString().slice(0, 10),
+            hours: parseFloat(hours) || 0,
+            category: category || 'workmanship',
+            issue: issue || '',
+            charged: !!charged,
+            chargeAmount: charged ? (parseFloat(chargeAmount) || 0) : 0,
+            resolved: !!resolved,
+            createdAt: new Date()
+        };
+        const result = await db.collection('callbacks').insertOne(doc);
+        res.json({ success: true, id: result.insertedId.toString() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/callbacks/:id', isAuthenticated, async (req, res) => {
+    try {
+        const { resolved } = req.body;
+        await db.collection('callbacks').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { resolved: !!resolved } }
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/callbacks/:id', isAdmin, async (req, res) => {
+    try {
+        await db.collection('callbacks').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/clients/:id/callbacks', isAuthenticated, async (req, res) => {
+    try {
+        const callbacks = await db.collection('callbacks')
+            .find({ clientId: new ObjectId(req.params.id) })
+            .sort({ date: -1 })
+            .toArray();
+        res.json(callbacks.map(c => ({ ...c, id: c._id.toString(), _id: c._id.toString() })));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/jobs/:id/signoff-attachment', isAuthenticated, async (req, res) => {
     try {
         const { imageDataUrl, signerName } = req.body;

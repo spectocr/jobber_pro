@@ -1619,6 +1619,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <h3>Outstanding</h3>
                             <div class="value" id="client-stat-outstanding">$0</div>
                         </div>
+                        <div class="stat-card" id="client-stat-callbacks-card" style="border-left-color: #f97316;">
+                            <h3>Callbacks</h3>
+                            <div class="value" id="client-stat-callbacks">0</div>
+                            <div id="client-stat-callbacks-flag" style="display:none;font-size:0.7rem;font-weight:700;color:#c2410c;margin-top:0.25rem;">⚠️ Review pattern</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1630,6 +1635,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div>
                         <h3 style="margin-bottom: 1rem; color: #667eea;">Jobs</h3>
                         <div id="client-detail-jobs"></div>
+                        <div id="client-callbacks-section" style="margin-top:2rem;display:none;">
+                            <h3 style="margin-bottom:1rem;color:#f97316;">📞 Callback History</h3>
+                            <div id="client-callbacks-list"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3535,6 +3544,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="job-tab-btn active" onclick="showJobTab('Details')">📋 Details</button>
                 <button class="job-tab-btn" onclick="showJobTab('Billing')">💰 Billing</button>
                 <button class="job-tab-btn" onclick="showJobTab('Files')">📎 Files</button>
+                <button class="job-tab-btn" id="jobTabCallbacksBtn" onclick="showJobTab('Callbacks')" style="display:none;">📞 Callbacks</button>
             </div>
             <div class="modal-body">
                 <form id="jobForm">
@@ -3710,6 +3720,53 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
                             <div id="jobAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
                         </div>
+                    </div>
+
+                    <!-- ── TAB: CALLBACKS ── -->
+                    <div id="jobTabCallbacks" class="job-tab-content">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                            <h3 style="color:#667eea;margin:0;">Callback / Warranty Log</h3>
+                            <button type="button" class="btn btn-secondary btn-small" onclick="showCallbackForm()">+ Log Callback</button>
+                        </div>
+                        <div id="callbackForm" style="display:none;background:#f8f9fa;border-radius:8px;padding:1rem;margin-bottom:1rem;border:1.5px solid #e2e8f0;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                                <div>
+                                    <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:0.25rem;">Date</label>
+                                    <input type="date" id="cb-date" style="width:100%;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:0.25rem;">Hours Spent</label>
+                                    <input type="number" id="cb-hours" placeholder="0.5" step="0.25" min="0" style="width:100%;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;">
+                                </div>
+                            </div>
+                            <div style="margin-bottom:0.75rem;">
+                                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:0.25rem;">Category</label>
+                                <select id="cb-category" style="width:100%;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;">
+                                    <option value="workmanship">🔧 My Workmanship</option>
+                                    <option value="material">📦 Material / Product Failure</option>
+                                    <option value="complaint">😤 Client Complaint</option>
+                                    <option value="gray_area">❓ Gray Area</option>
+                                </select>
+                            </div>
+                            <div style="margin-bottom:0.75rem;">
+                                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:0.25rem;">Issue</label>
+                                <textarea id="cb-issue" placeholder="What was the problem?" rows="2" style="width:100%;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;resize:vertical;font-family:inherit;"></textarea>
+                            </div>
+                            <div style="display:flex;gap:1.5rem;margin-bottom:0.75rem;align-items:center;flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;cursor:pointer;">
+                                    <input type="checkbox" id="cb-charged" onchange="document.getElementById('cb-charge-amt').style.display=this.checked?'block':'none'"> Charged client
+                                </label>
+                                <input type="number" id="cb-charge-amt" placeholder="Amount $" step="0.01" min="0" style="display:none;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;width:120px;">
+                                <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;cursor:pointer;">
+                                    <input type="checkbox" id="cb-resolved" checked> Resolved
+                                </label>
+                            </div>
+                            <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+                                <button type="button" class="btn btn-secondary btn-small" onclick="hideCallbackForm()">Cancel</button>
+                                <button type="button" class="btn btn-primary btn-small" onclick="saveCallback()">Save</button>
+                            </div>
+                        </div>
+                        <div id="callbacksList"></div>
                     </div>
 
                 </form>
@@ -5415,6 +5472,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('jobAuditLogSection').style.display = 'none';
             }
 
+            // Callbacks tab — only visible on existing jobs
+            const _cbBtn = document.getElementById('jobTabCallbacksBtn');
+            const _jobIdForCb = job && (job._id || job.id);
+            if (_cbBtn) _cbBtn.style.display = _jobIdForCb ? '' : 'none';
+            document.getElementById('callbackForm').style.display = 'none';
+            document.getElementById('cb-date').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('callbacksList').innerHTML = '';
+            if (_jobIdForCb) loadCallbacks(_jobIdForCb);
+
             showJobTab('Details');
             document.getElementById('jobModal').classList.add('active');
             autoSaveContext = 'job';
@@ -5536,6 +5602,96 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (btn) btn.classList.add('active');
             const body = document.querySelector('#jobModal .modal-body');
             if (body) body.scrollTop = 0;
+        }
+
+        // ── Callbacks ────────────────────────────────────────────────────────
+        const CB_CATS = {
+            workmanship: { label: 'My Workmanship', color: '#e53e3e', bg: '#fff5f5' },
+            material:    { label: 'Material Failure', color: '#d97706', bg: '#fffbeb' },
+            complaint:   { label: 'Client Complaint', color: '#7c3aed', bg: '#faf5ff' },
+            gray_area:   { label: 'Gray Area',        color: '#718096', bg: '#f7fafc' }
+        };
+
+        function showCallbackForm() { document.getElementById('callbackForm').style.display = 'block'; }
+        function hideCallbackForm() { document.getElementById('callbackForm').style.display = 'none'; }
+
+        async function loadCallbacks(jobId) {
+            try {
+                const data = await fetch(\`/api/jobs/\${jobId}/callbacks\`).then(r => r.json());
+                renderCallbacks(data, jobId);
+            } catch (e) {
+                document.getElementById('callbacksList').innerHTML = '<p style="color:#e53e3e;">Failed to load callbacks</p>';
+            }
+        }
+
+        function renderCallbacks(callbacks, jobId) {
+            const container = document.getElementById('callbacksList');
+            if (!callbacks.length) {
+                container.innerHTML = '<p style="color:#a0aec0;font-size:0.9rem;text-align:center;padding:1.5rem 0;">No callbacks logged for this job</p>';
+                return;
+            }
+            container.innerHTML = callbacks.map(cb => {
+                const cat = CB_CATS[cb.category] || CB_CATS.gray_area;
+                const resolvedBadge = cb.resolved
+                    ? '<span style="background:#c6f6d5;color:#22543d;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.72rem;font-weight:700;">✓ Resolved</span>'
+                    : '<span style="background:#fed7d7;color:#742a2a;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.72rem;font-weight:700;">Open</span>';
+                const chargeInfo = cb.charged && cb.chargeAmount > 0
+                    ? \`<span style="color:#38a169;font-size:0.8rem;">Charged \$\${parseFloat(cb.chargeAmount).toFixed(2)}</span>\`
+                    : '<span style="color:#e53e3e;font-size:0.8rem;">Not charged</span>';
+                return \`<div style="background:\${cat.bg};border-left:4px solid \${cat.color};border-radius:6px;padding:0.85rem 1rem;margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;flex-wrap:wrap;">
+                        <div>
+                            <span style="background:\${cat.bg};color:\${cat.color};font-size:0.75rem;font-weight:700;border:1px solid \${cat.color};border-radius:10px;padding:0.15rem 0.5rem;">\${cat.label}</span>
+                            <span style="color:#718096;font-size:0.8rem;margin-left:0.5rem;">\${cb.date} · \${cb.hours}h</span>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            \${resolvedBadge}
+                            <button onclick="toggleCallbackResolved('\${cb.id}', \${!cb.resolved}, '\${jobId}')" style="background:none;border:none;cursor:pointer;color:#718096;font-size:0.8rem;text-decoration:underline;">\${cb.resolved ? 'Reopen' : 'Resolve'}</button>
+                            <button onclick="deleteCallback('\${cb.id}', '\${jobId}')" style="background:none;border:none;cursor:pointer;color:#e53e3e;font-size:0.8rem;">✕</button>
+                        </div>
+                    </div>
+                    \${cb.issue ? \`<div style="margin-top:0.5rem;color:#4a5568;font-size:0.88rem;">\${cb.issue}</div>\` : ''}
+                    <div style="margin-top:0.4rem;">\${chargeInfo}</div>
+                </div>\`;
+            }).join('');
+        }
+
+        async function saveCallback() {
+            if (!currentEditingJobId) return;
+            const payload = {
+                date: document.getElementById('cb-date').value,
+                hours: document.getElementById('cb-hours').value,
+                category: document.getElementById('cb-category').value,
+                issue: document.getElementById('cb-issue').value,
+                charged: document.getElementById('cb-charged').checked,
+                chargeAmount: document.getElementById('cb-charge-amt').value,
+                resolved: document.getElementById('cb-resolved').checked
+            };
+            await fetch(\`/api/jobs/\${currentEditingJobId}/callbacks\`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            // Reset form fields
+            document.getElementById('cb-hours').value = '';
+            document.getElementById('cb-issue').value = '';
+            document.getElementById('cb-charged').checked = false;
+            document.getElementById('cb-charge-amt').value = '';
+            document.getElementById('cb-charge-amt').style.display = 'none';
+            document.getElementById('cb-resolved').checked = true;
+            hideCallbackForm();
+            loadCallbacks(currentEditingJobId);
+        }
+
+        async function toggleCallbackResolved(cbId, resolved, jobId) {
+            await fetch(\`/api/callbacks/\${cbId}\`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolved })
+            });
+            loadCallbacks(jobId);
+        }
+
+        async function deleteCallback(cbId, jobId) {
+            if (!confirm('Delete this callback entry?')) return;
+            await fetch(\`/api/callbacks/\${cbId}\`, { method: 'DELETE' });
+            loadCallbacks(jobId);
         }
 
         function closeModal(modalId) {
@@ -7746,6 +7902,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('client-stat-avg-job').textContent = formatMoney(avgJobValue);
             document.getElementById('client-stat-total-paid').textContent = formatMoney(totalPaid);
             document.getElementById('client-stat-outstanding').textContent = formatMoney(outstanding);
+
+            // Load callbacks for this client
+            fetch(\`/api/clients/\${clientId}/callbacks\`)
+                .then(r => r.json())
+                .then(cbs => {
+                    document.getElementById('client-stat-callbacks').textContent = cbs.length;
+                    const flagEl = document.getElementById('client-stat-callbacks-flag');
+                    const cardEl = document.getElementById('client-stat-callbacks-card');
+                    if (cbs.length >= 3) {
+                        flagEl.style.display = 'block';
+                        cardEl.style.borderLeftColor = '#e53e3e';
+                        cardEl.style.background = '#fff5f5';
+                    } else {
+                        flagEl.style.display = 'none';
+                        cardEl.style.borderLeftColor = '#f97316';
+                        cardEl.style.background = '';
+                    }
+                    const section = document.getElementById('client-callbacks-section');
+                    const list = document.getElementById('client-callbacks-list');
+                    if (cbs.length > 0) {
+                        section.style.display = 'block';
+                        list.innerHTML = cbs.map(cb => {
+                            const cat = CB_CATS[cb.category] || CB_CATS.gray_area;
+                            return \`<div style="background:\${cat.bg};border-left:3px solid \${cat.color};border-radius:6px;padding:0.7rem 0.85rem;margin-bottom:0.5rem;font-size:0.875rem;">
+                                <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.25rem;">
+                                    <span><strong>\${cat.label}</strong> — \${cb.jobTitle || 'Job'}</span>
+                                    <span style="color:#718096;">\${cb.date} · \${cb.hours}h</span>
+                                </div>
+                                \${cb.issue ? \`<div style="color:#4a5568;margin-top:0.25rem;">\${cb.issue}</div>\` : ''}
+                                <div style="margin-top:0.25rem;">\${cb.resolved ? '<span style="color:#38a169;font-size:0.8rem;">✓ Resolved</span>' : '<span style="color:#e53e3e;font-size:0.8rem;">Open</span>'}\${cb.charged ? \` · <span style="color:#718096;font-size:0.8rem;">Charged \$\${parseFloat(cb.chargeAmount||0).toFixed(2)}</span>\` : ' · <span style="color:#e53e3e;font-size:0.8rem;">Not charged</span>'}</div>
+                            </div>\`;
+                        }).join('');
+                    } else {
+                        section.style.display = 'none';
+                    }
+                }).catch(() => {});
 
             if (clientJobs.length === 0) {
                 renderEmptyState(jobsContainer, 'No jobs yet', 'Create a job for this client');
