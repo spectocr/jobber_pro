@@ -2281,7 +2281,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <label style="font-weight:600;">Photos</label>
                             <button onclick="document.getElementById('portfolioFileInput').click()" style="background:#667eea;color:#fff;border:none;border-radius:7px;padding:0.3rem 0.85rem;font-size:0.82rem;cursor:pointer;font-weight:600;">+ Add Photo</button>
                         </div>
-                        <input type="file" id="portfolioFileInput" accept="image/*" style="display:none;" onchange="handlePortfolioPhotoAdd(this)">
+                        <input type="file" id="portfolioFileInput" accept="image/*" multiple style="display:none;" onchange="handlePortfolioPhotoAdd(this)">
                         <div id="portfolio-photo-list" style="max-height:260px;overflow-y:auto;"></div>
                     </div>
                     <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.25rem;">
@@ -9958,28 +9958,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function handlePortfolioPhotoAdd(input) {
-            const file = input.files[0];
-            if (!file) return;
+            const files = Array.from(input.files);
+            if (!files.length) return;
             input.value = '';
             const btn = document.querySelector('#portfolioModal button[onclick*="portfolioFileInput"]');
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ Processing...'; }
-            try {
-                const compressed = await compressPortfolioImage(file);
-                await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        _portfolioState.stagedPhotos.push({ dataUrl: e.target.result, type: 'after', fileType: compressed.type, name: compressed.name });
-                        _renderPortfolioPhotoList();
-                        resolve();
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(compressed);
-                });
-            } catch (err) {
-                alert('Could not process image: ' + err.message);
-            } finally {
-                if (btn) { btn.disabled = false; btn.textContent = '+ Add Photo'; }
+            if (btn) { btn.disabled = true; btn.textContent = `⏳ Processing...`; }
+            let errors = [];
+            for (let i = 0; i < files.length; i++) {
+                if (btn) btn.textContent = `⏳ ${i + 1}/${files.length}...`;
+                try {
+                    const compressed = await compressPortfolioImage(files[i]);
+                    await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            _portfolioState.stagedPhotos.push({ dataUrl: e.target.result, type: 'after', fileType: compressed.type, name: compressed.name });
+                            _renderPortfolioPhotoList();
+                            resolve();
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(compressed);
+                    });
+                } catch (err) {
+                    errors.push(files[i].name + ': ' + err.message);
+                }
             }
+            if (btn) { btn.disabled = false; btn.textContent = '+ Add Photo'; }
+            if (errors.length) alert('Could not process:\n' + errors.join('\n'));
         }
 
         async function savePortfolioItem() {
