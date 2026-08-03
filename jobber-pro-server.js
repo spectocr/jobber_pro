@@ -12281,6 +12281,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         const EMAIL_TPL_DEFS = {
             invoice: {
                 label: '🧾 Invoice Email',
+                fires: 'Sent manually via "Send Invoice" on a job',
                 hasSubject: true,
                 subjectKey: 'invoiceSubject',
                 bodyKey: 'invoiceBody',
@@ -12291,6 +12292,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             },
             quote: {
                 label: '📋 Quote Email',
+                fires: 'Sent manually via "Send Quote" on a quote',
                 hasSubject: false,
                 bodyKey: 'quoteBody',
                 defaultBody: 'Thank you for your interest! Here is your quote for: {jobTitle}',
@@ -12299,6 +12301,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             },
             survey: {
                 label: '⭐ Survey / Review Request',
+                fires: 'Auto-fires when a residential job is marked Completed',
                 hasSubject: true,
                 subjectKey: 'surveySubject',
                 bodyKey: 'surveyBody',
@@ -12309,6 +12312,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             },
             credentials: {
                 label: '🔑 User Credentials',
+                fires: 'Sent when a team member login is created or reset',
                 hasSubject: true,
                 subjectKey: 'credentialsSubject',
                 bodyKey: 'credentialsBody',
@@ -12331,7 +12335,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
             document.getElementById('emailTplEditor').style.display = '';
             document.getElementById('emailTplPlaceholder').style.display = 'none';
-            document.getElementById('emailTplEditorTitle').textContent = def.label;
+            document.getElementById('emailTplEditorTitle').innerHTML = \`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">\${def.label}<span style="font-size:0.72rem;font-weight:600;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:6px;padding:0.2rem 0.6rem;white-space:nowrap;">⚡ \${def.fires}</span></div>\`;
             document.getElementById('emailTplBodyLabel').textContent = def.bodyLabel;
             document.getElementById('emailTplSaveStatus').style.display = 'none';
             const subjectGroup = document.getElementById('emailTplSubjectGroup');
@@ -12374,26 +12378,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         const SMS_TPL_DEFS = {
             scheduled: {
                 label: '📅 Job Scheduled',
+                fires: 'Auto-fires when a job is scheduled with a date set (new job, status change, or date added)',
                 defaultBody: '{companyName}: Your job "{jobTitle}" is scheduled for {date} at {time}.',
                 vars: '{companyName}, {jobTitle}, {date}, {time}'
             },
             in_progress: {
                 label: '🔧 Job In Progress',
+                fires: 'Auto-fires when job status changes to In Progress',
                 defaultBody: '{companyName}: We\'re starting work on "{jobTitle}" now.',
                 vars: '{companyName}, {jobTitle}'
             },
             completed: {
                 label: '✅ Job Completed',
+                fires: 'Auto-fires when job status changes to Completed',
                 defaultBody: '{companyName}: Job "{jobTitle}" is complete! Invoice will follow shortly.',
                 vars: '{companyName}, {jobTitle}'
             },
             invoiced: {
                 label: '🧾 Job Invoiced',
+                fires: 'Auto-fires when job status changes to Invoiced',
                 defaultBody: '{companyName}: Invoice ready for "{jobTitle}". Total: \${total}.',
                 vars: '{companyName}, {jobTitle}, {total}'
             },
             reminder: {
                 label: '⏰ Day-Before Reminder',
+                fires: 'Sent manually via "Send Tomorrow\'s Reminders" in SMS settings',
                 defaultBody: '{companyName} Reminder: Your appointment "{jobTitle}" is tomorrow at {time}. Reply CONFIRM or call us if you need to reschedule.',
                 vars: '{companyName}, {jobTitle}, {time}'
             }
@@ -12411,7 +12420,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
             document.getElementById('smsTplEditor').style.display = '';
             document.getElementById('smsTplPlaceholder').style.display = 'none';
-            document.getElementById('smsTplEditorTitle').textContent = def.label;
+            document.getElementById('smsTplEditorTitle').innerHTML = \`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">\${def.label}<span style="font-size:0.72rem;font-weight:600;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:6px;padding:0.2rem 0.6rem;white-space:nowrap;">⚡ \${def.fires}</span></div>\`;
             document.getElementById('smsTplSaveStatus').style.display = 'none';
             document.getElementById('smsTplBody').value = _smsTplData[key] || def.defaultBody;
             document.getElementById('smsTplVars').innerHTML = \`<strong>Variables:</strong> <code>\${def.vars}</code>\`;
