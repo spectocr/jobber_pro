@@ -3805,11 +3805,27 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
             note: `Quote emailed to ${toEmail}`
         };
 
+        const sentSnapshot = {
+            sentAt: new Date(),
+            sentTo: toEmail,
+            sentBy: req.session.userName || 'admin',
+            quoteNumber: quote.quoteNumber,
+            title: quote.title,
+            validUntil: quote.validUntil,
+            notes: quote.notes || '',
+            laborItems: quote.laborItems || [],
+            materialItems: quote.materialItems || [],
+            subtotal: quote.subtotal || 0,
+            tax: quote.tax || 0,
+            total: quote.total || 0,
+            taxWaived: quote.taxWaived || false,
+        };
+
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(quoteId) },
             {
                 $set: { status: 'sent', sentAt: new Date() },
-                $push: { auditLog: auditEntry }
+                $push: { auditLog: auditEntry, sentVersions: sentSnapshot }
             }
         );
 
