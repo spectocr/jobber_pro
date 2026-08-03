@@ -188,6 +188,10 @@ function isAdmin(req, res, next) {
     res.status(403).json({ error: 'Forbidden - Admin access required' });
 }
 
+function interpolate(template, vars) {
+    return template.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? vars[k] : `{${k}}`));
+}
+
 // SMS Helper Function
 async function sendSMS(to, message, meta = {}) {
     const logEntry = {
@@ -2931,31 +2935,29 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             const dateChanged = isUpdate && oldJob && job.status === 'scheduled' && job.scheduledDate && oldJob.scheduledDate && oldJob.scheduledDate !== job.scheduledDate;
 
             const smsMeta = { clientName: client.name };
+            const smsT = settings?.smsTemplates || {};
+            const smsVars = { companyName, jobTitle: job.title, title: job.title, total: (job.total || 0).toFixed(2) };
+
+            const scheduledMsg = (date, time) => interpolate(
+                smsT.scheduled || '{companyName}: Your job "{jobTitle}" is scheduled for {date} at {time}.',
+                { ...smsVars, date, time }
+            );
 
             // New job created already scheduled with a date
             if (!isUpdate && job.status === 'scheduled' && job.scheduledDate) {
-                const date = fmtDate(job.scheduledDate);
-                const time = job.scheduledTime || 'TBD';
-                await sendSMS(client.phone,
-                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.',
+                await sendSMS(client.phone, scheduledMsg(fmtDate(job.scheduledDate), job.scheduledTime || 'TBD'),
                     { ...smsMeta, type: 'job_scheduled', trigger: job.title });
             }
 
             // Status flipped to scheduled — only fire if date is already set
             if (statusBecameScheduled && job.scheduledDate) {
-                const date = fmtDate(job.scheduledDate);
-                const time = job.scheduledTime || 'TBD';
-                await sendSMS(client.phone,
-                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.',
+                await sendSMS(client.phone, scheduledMsg(fmtDate(job.scheduledDate), job.scheduledTime || 'TBD'),
                     { ...smsMeta, type: 'job_scheduled', trigger: job.title });
             }
 
             // Date added or changed on an already-scheduled job (catches "set status first, date second" flow)
             if ((dateWasAdded || dateChanged) && !statusBecameScheduled) {
-                const date = fmtDate(job.scheduledDate);
-                const time = job.scheduledTime || 'TBD';
-                await sendSMS(client.phone,
-                    companyName + ': Your job "' + job.title + '" is scheduled for ' + date + ' at ' + time + '.',
+                await sendSMS(client.phone, scheduledMsg(fmtDate(job.scheduledDate), job.scheduledTime || 'TBD'),
                     { ...smsMeta, type: 'job_scheduled', trigger: job.title });
             }
 
@@ -2965,15 +2967,15 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
                     // handled above
                 } else if (job.status === 'in_progress') {
                     await sendSMS(client.phone,
-                        companyName + ': We\'re starting work on "' + job.title + '" now.',
+                        interpolate(smsT.in_progress || '{companyName}: We\'re starting work on "{jobTitle}" now.', smsVars),
                         { ...smsMeta, type: 'job_update', trigger: job.title });
                 } else if (job.status === 'completed') {
                     await sendSMS(client.phone,
-                        companyName + ': Job "' + job.title + '" is complete! Invoice will follow shortly.',
+                        interpolate(smsT.completed || '{companyName}: Job "{jobTitle}" is complete! Invoice will follow shortly.', smsVars),
                         { ...smsMeta, type: 'job_update', trigger: job.title });
                 } else if (job.status === 'invoiced') {
                     await sendSMS(client.phone,
-                        companyName + ': Invoice ready for "' + job.title + '". Total: $' + (job.total || 0).toFixed(2) + '.',
+                        interpolate(smsT.invoiced || '{companyName}: Invoice ready for "{jobTitle}". Total: ${total}.', smsVars),
                         { ...smsMeta, type: 'invoice', trigger: job.title });
                 }
             }
@@ -3026,7 +3028,14 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
         { $set: { surveyToken: token, surveyTokenSentAt: new Date() } }
     );
     const clientName = client.contactName || client.name || 'there';
-    const subject = `How did we do? — ${companyName}`;
+    const surveySettings = await db.collection('settings').findOne({}, { projection: { emailTemplates: 1 } });
+    const surveyTpl = surveySettings?.emailTemplates || {};
+    const subject = surveyTpl.surveySubject
+        ? interpolate(surveyTpl.surveySubject, { companyName, jobTitle, clientName })
+        : `How did we do? — ${companyName}`;
+    const surveyBodyLine = surveyTpl.surveyBody
+        ? `<p>${interpolate(surveyTpl.surveyBody, { companyName, jobTitle, clientName })}</p>`
+        : `<p>We just wrapped up <strong>${jobTitle}</strong>. We'd love to know how we did — it takes 30 seconds.</p>`;
     const _surveyLogId = new ObjectId();
     const _surveyTrackUrl = `${appUrl}/api/email-track/${_surveyLogId}`;
     const _surveyHtml = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem;color:#1a202c;">
@@ -3036,7 +3045,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
                 <p style="color:#718096;margin:0;">Your feedback helps us grow.</p>
             </div>
             <p>Hi ${clientName},</p>
-            <p>We just wrapped up <strong>${jobTitle}</strong>. We'd love to know how we did — it takes 30 seconds.</p>
+            ${surveyBodyLine}
             <div style="text-align:center;margin:2rem 0;">
                 <a href="${surveyUrl}" style="display:inline-block;background:#0f1c2e;color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem;">Leave Feedback</a>
             </div>
@@ -3753,7 +3762,11 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         </div>
         <div class="content">
             <p>Dear ${toName},</p>
-            <p>${isPortalQuote ? 'Your submission has been reviewed and priced.' : 'Thank you for your interest!'} Here is your ${quoteLabel.toLowerCase()} for: <strong>${quote.title}</strong></p>
+            <p>${(() => {
+                const raw = settings?.emailTemplates?.quoteBody;
+                if (raw) return interpolate(raw, { clientName: toName, jobTitle: quote.title, total: fmt$(parseFloat(quote.total || 0)), validUntil: quote.validUntil, companyName });
+                return (isPortalQuote ? 'Your submission has been reviewed and priced.' : 'Thank you for your interest!') + ' Here is your ' + quoteLabel.toLowerCase() + ' for: <strong>' + quote.title + '</strong>';
+            })()}</p>
             <p><strong>${quoteLabel} Total:</strong> ${fmt$(parseFloat(quote.total || 0))}</p>
             <p><strong>Valid Until:</strong> ${quote.validUntil}</p>
             <a href="${quoteUrl}" class="button">View ${quoteLabel} & Approve</a>
@@ -4758,6 +4771,7 @@ app.get('/api/email/config', isAuthenticated, async (req, res) => {
             fromName: process.env.SES_FROM_NAME || 'GSD Property Services',
             provider: 'AWS SES',
             templates: settings?.emailTemplates || {},
+            smsTemplates: settings?.smsTemplates || {},
             calendar: settings?.calendarSettings || {}
         });
     } catch (error) {
@@ -4804,6 +4818,19 @@ app.post('/api/email/templates', isAuthenticated, async (req, res) => {
         res.json({ success: true, message: 'Email templates updated' });
     } catch (error) {
         console.error('Email templates save error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/sms/templates', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('settings').updateOne(
+            {},
+            { $set: { smsTemplates: req.body } },
+            { upsert: true }
+        );
+        res.json({ success: true });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
@@ -5662,8 +5689,11 @@ app.post('/api/sms/reminders', isAuthenticated, async (req, res) => {
                 const client = await db.collection('clients').findOne({ _id: job.clientId });
                 if (client && client.phone) {
                     const time = job.scheduledTime || 'TBD';
-                    const message = companyName + ' Reminder: Your appointment "' + job.title +
-                        '" is tomorrow at ' + time + '. Reply CONFIRM or call us if you need to reschedule.';
+                    const smsT2 = settings?.smsTemplates || {};
+                    const message = interpolate(
+                        smsT2.reminder || '{companyName} Reminder: Your appointment "{jobTitle}" is tomorrow at {time}. Reply CONFIRM or call us if you need to reschedule.',
+                        { companyName, jobTitle: job.title, time }
+                    );
 
                     const result = await sendSMS(client.phone, message);
                     if (result.success) {

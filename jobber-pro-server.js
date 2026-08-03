@@ -2599,26 +2599,52 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
                 <!-- SMS Messaging Tab -->
                 <div id="messagingTab" class="settings-tab-content" style="display: none;">
-                    <div style="max-width: 600px;">
-                    <h3 style="margin-bottom: 1rem; color: #667eea;">SMS / Text Messaging</h3>
-                    <div id="smsConfigStatus" style="padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                        <p style="margin: 0;">Loading SMS status...</p>
+                    <h3 style="margin-bottom:0.25rem;color:#667eea;">SMS / Text Messaging</h3>
+                    <p style="color:#718096;margin-bottom:1.25rem;font-size:0.9rem;">Click a template to edit its wording. Variables in <code>{curly braces}</code> are filled in automatically when sent.</p>
+
+                    <div style="display:grid;grid-template-columns:220px 1fr;gap:1.5rem;align-items:start;">
+                        <!-- Template list -->
+                        <div style="border:2px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                            <div id="smsTplList">
+                                <button class="sms-tpl-btn" data-key="scheduled" onclick="loadSmsTpl('scheduled')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">📅 Job Scheduled</button>
+                                <button class="sms-tpl-btn" data-key="in_progress" onclick="loadSmsTpl('in_progress')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">🔧 Job In Progress</button>
+                                <button class="sms-tpl-btn" data-key="completed" onclick="loadSmsTpl('completed')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">✅ Job Completed</button>
+                                <button class="sms-tpl-btn" data-key="invoiced" onclick="loadSmsTpl('invoiced')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">🧾 Job Invoiced</button>
+                                <button class="sms-tpl-btn" data-key="reminder" onclick="loadSmsTpl('reminder')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;background:white;cursor:pointer;font-size:0.9rem;">⏰ Day-Before Reminder</button>
+                            </div>
+                        </div>
+
+                        <!-- Editor panel -->
+                        <div id="smsTplEditor" style="display:none;border:2px solid #e2e8f0;border-radius:10px;padding:1.25rem;">
+                            <div style="font-weight:700;font-size:1rem;margin-bottom:0.75rem;" id="smsTplEditorTitle"></div>
+                            <div class="form-group" style="margin-bottom:0.75rem;">
+                                <label style="font-size:0.82rem;font-weight:600;color:#4a5568;text-transform:uppercase;letter-spacing:0.04em;">Message</label>
+                                <textarea id="smsTplBody" rows="4" style="width:100%;padding:0.65rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
+                            </div>
+                            <div id="smsTplVars" style="margin-bottom:1rem;font-size:0.78rem;color:#718096;"></div>
+                            <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="saveSmsTpl()">💾 Save Template</button>
+                                <button class="btn btn-secondary" onclick="resetSmsTpl()">↩ Reset to Default</button>
+                                <span id="smsTplSaveStatus" style="font-size:0.82rem;color:#48bb78;display:none;">Saved!</span>
+                            </div>
+                        </div>
+                        <div id="smsTplPlaceholder" style="border:2px dashed #e2e8f0;border-radius:10px;padding:2rem;text-align:center;color:#a0aec0;font-size:0.9rem;">
+                            Select a template to edit
+                        </div>
                     </div>
-                    <div style="margin-bottom: 1rem;">
-                        <button type="button" class="btn btn-secondary" onclick="previewAppointmentReminders()">👁️ Preview Tomorrow's Reminders</button>
-                        <button type="button" class="btn btn-primary" onclick="sendAppointmentReminders()" style="margin-left: 0.5rem;">📱 Send Tomorrow's Appointment Reminders</button>
-                    </div>
-                    <div id="reminderPreview" style="display: none; padding: 1rem; background: #f7fafc; border-radius: 8px; border: 1px solid #cbd5e0; margin-bottom: 1rem;">
-                        <h4 style="margin: 0 0 0.5rem 0; color: #2d3748;">Reminders Preview</h4>
-                        <div id="reminderPreviewList"></div>
-                    </div>
-                    <small style="color: #718096; display: block;">
-                        SMS automatically sends when:<br>
-                        • Job is scheduled (appointment confirmation)<br>
-                        • Status changes (in progress, completed, invoiced)<br>
-                        • Payment is recorded (receipt confirmation)<br>
-                        Use the 📱 button next to clients to send custom messages.
-                    </small>
+
+                    <div style="margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e2e8f0;">
+                        <div id="smsConfigStatus" style="padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem;">
+                            <p style="margin:0;">Loading SMS status...</p>
+                        </div>
+                        <div style="margin-bottom:1rem;">
+                            <button type="button" class="btn btn-secondary" onclick="previewAppointmentReminders()">👁️ Preview Tomorrow's Reminders</button>
+                            <button type="button" class="btn btn-primary" onclick="sendAppointmentReminders()" style="margin-left:0.5rem;">📱 Send Tomorrow's Reminders</button>
+                        </div>
+                        <div id="reminderPreview" style="display:none;padding:1rem;background:#f7fafc;border-radius:8px;border:1px solid #cbd5e0;">
+                            <h4 style="margin:0 0 0.5rem 0;color:#2d3748;">Reminders Preview</h4>
+                            <div id="reminderPreviewList"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -2673,43 +2699,47 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
 
                     <!-- Email Templates Section -->
-                    <div style="margin-bottom: 3rem;">
-                        <h3 style="margin-bottom: 1rem; color: #667eea;">✉️ Email Templates</h3>
-                        <p style="color: #718096; margin-bottom: 1.5rem;">Customize the email templates sent to clients and team members.</p>
+                    <div style="margin-bottom:3rem;">
+                        <h3 style="margin-bottom:0.25rem;color:#667eea;">✉️ Email Templates</h3>
+                        <p style="color:#718096;margin-bottom:1.25rem;font-size:0.9rem;">Click a template to edit its wording. The email chrome (header, button, footer) stays consistent — you control the message body.</p>
 
-                        <div class="form-group">
-                            <label style="font-weight: 600; font-size: 1rem;">Invoice Email Subject</label>
-                            <input type="text" id="invoiceEmailSubject" placeholder="Invoice #{invoiceNumber} from {companyName}">
-                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
-                                Variables: {invoiceNumber}, {companyName}, {clientName}, {total}
-                            </small>
+                        <!-- Hidden inputs kept for backward-compat save path -->
+                        <input type="hidden" id="invoiceEmailSubject">
+                        <input type="hidden" id="invoiceEmailBody">
+                        <input type="hidden" id="credentialsEmailSubject">
+                        <input type="hidden" id="credentialsEmailBody">
+
+                        <div style="display:grid;grid-template-columns:220px 1fr;gap:1.5rem;align-items:start;">
+                            <!-- Template list -->
+                            <div style="border:2px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                                <button class="email-tpl-btn" data-key="invoice" onclick="loadEmailTpl('invoice')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">🧾 Invoice Email</button>
+                                <button class="email-tpl-btn" data-key="quote" onclick="loadEmailTpl('quote')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">📋 Quote Email</button>
+                                <button class="email-tpl-btn" data-key="survey" onclick="loadEmailTpl('survey')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;border-bottom:1px solid #e2e8f0;background:white;cursor:pointer;font-size:0.9rem;">⭐ Survey / Review Request</button>
+                                <button class="email-tpl-btn" data-key="credentials" onclick="loadEmailTpl('credentials')" style="display:block;width:100%;text-align:left;padding:0.75rem 1rem;border:none;background:white;cursor:pointer;font-size:0.9rem;">🔑 User Credentials</button>
+                            </div>
+
+                            <!-- Editor panel -->
+                            <div id="emailTplEditor" style="display:none;border:2px solid #e2e8f0;border-radius:10px;padding:1.25rem;">
+                                <div style="font-weight:700;font-size:1rem;margin-bottom:0.75rem;" id="emailTplEditorTitle"></div>
+                                <div id="emailTplSubjectGroup" class="form-group" style="margin-bottom:0.75rem;">
+                                    <label style="font-size:0.82rem;font-weight:600;color:#4a5568;text-transform:uppercase;letter-spacing:0.04em;">Subject</label>
+                                    <input type="text" id="emailTplSubject" style="width:100%;padding:0.65rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;box-sizing:border-box;">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0.75rem;">
+                                    <label style="font-size:0.82rem;font-weight:600;color:#4a5568;text-transform:uppercase;letter-spacing:0.04em;" id="emailTplBodyLabel">Message Body</label>
+                                    <textarea id="emailTplBody" rows="6" style="width:100%;padding:0.65rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
+                                </div>
+                                <div id="emailTplVars" style="margin-bottom:1rem;font-size:0.78rem;color:#718096;"></div>
+                                <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" onclick="saveEmailTpl()">💾 Save Template</button>
+                                    <button class="btn btn-secondary" onclick="resetEmailTpl()">↩ Reset to Default</button>
+                                    <span id="emailTplSaveStatus" style="font-size:0.82rem;color:#48bb78;display:none;">Saved!</span>
+                                </div>
+                            </div>
+                            <div id="emailTplPlaceholder" style="border:2px dashed #e2e8f0;border-radius:10px;padding:2rem;text-align:center;color:#a0aec0;font-size:0.9rem;">
+                                Select a template to edit
+                            </div>
                         </div>
-
-                        <div class="form-group">
-                            <label style="font-weight: 600; font-size: 1rem;">Invoice Email Body</label>
-                            <textarea id="invoiceEmailBody" rows="8" placeholder="Dear {clientName},&#10;&#10;Thank you for your business! Your invoice is ready for review.&#10;&#10;Invoice #{invoiceNumber}&#10;Job: {jobTitle}&#10;Total: ${total}&#10;&#10;View your invoice: {invoiceUrl}"></textarea>
-                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
-                                Variables: {clientName}, {invoiceNumber}, {jobTitle}, {total}, {invoiceUrl}, {companyName}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label style="font-weight: 600; font-size: 1rem;">User Credentials Email Subject</label>
-                            <input type="text" id="credentialsEmailSubject" placeholder="Your {companyName} Account Credentials">
-                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
-                                Variables: {companyName}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label style="font-weight: 600; font-size: 1rem;">User Credentials Email Body</label>
-                            <textarea id="credentialsEmailBody" rows="8" placeholder="Hi {name},&#10;&#10;Your account has been created!&#10;&#10;Email: {email}&#10;Temporary Password: {tempPassword}&#10;&#10;Login at: {loginUrl}&#10;&#10;Please change your password after logging in."></textarea>
-                            <small style="color: #718096; display: block; margin-top: 0.5rem;">
-                                Variables: {name}, {email}, {tempPassword}, {loginUrl}, {companyName}
-                            </small>
-                        </div>
-
-                        <button type="button" class="btn btn-primary" onclick="saveEmailTemplates()">💾 Save Email Templates</button>
                     </div>
 
                     <!-- Collapsible Gmail API Configuration -->
@@ -12064,11 +12094,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     document.getElementById('gmailUser').value = config.gmailUser;
                 }
 
-                // Load email templates
-                document.getElementById('invoiceEmailSubject').value = config.templates?.invoiceSubject || 'Invoice #{invoiceNumber} from {companyName}';
-                document.getElementById('invoiceEmailBody').value = config.templates?.invoiceBody || 'Dear {clientName},\n\nThank you for your business! Your invoice is ready for review.\n\nInvoice #{invoiceNumber}\nJob: {jobTitle}\nTotal: ${total}\n\nView your invoice: {invoiceUrl}\n\nThank you for choosing {companyName}!';
-                document.getElementById('credentialsEmailSubject').value = config.templates?.credentialsSubject || 'Your {companyName} Account Credentials';
-                document.getElementById('credentialsEmailBody').value = config.templates?.credentialsBody || 'Hi {name},\n\nYour account has been created!\n\nEmail: {email}\nTemporary Password: {tempPassword}\n\nLogin at: {loginUrl}\n\nPlease change your password after logging in.';
+                // Load template data into editor state
+                _emailTplData = config.templates || {};
+                _smsTplData = config.smsTemplates || {};
+                // Keep hidden inputs in sync for any legacy path
+                document.getElementById('invoiceEmailSubject').value = _emailTplData.invoiceSubject || '';
+                document.getElementById('invoiceEmailBody').value = _emailTplData.invoiceBody || '';
+                document.getElementById('credentialsEmailSubject').value = _emailTplData.credentialsSubject || '';
+                document.getElementById('credentialsEmailBody').value = _emailTplData.credentialsBody || '';
+                // Reset active selection
+                _emailTplCurrent = null;
+                _smsTplCurrent = null;
+                document.getElementById('emailTplEditor').style.display = 'none';
+                document.getElementById('emailTplPlaceholder').style.display = '';
+                document.getElementById('smsTplEditor').style.display = 'none';
+                document.getElementById('smsTplPlaceholder').style.display = '';
+                document.querySelectorAll('.email-tpl-btn,.sms-tpl-btn').forEach(b => { b.style.background = 'white'; b.style.fontWeight = 'normal'; b.style.color = ''; });
 
                 // Load calendar settings
                 document.getElementById('calendarAutoSync').checked = config.calendar?.autoSync || false;
@@ -12234,31 +12275,164 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
-        async function saveEmailTemplates() {
-            const templates = {
-                invoiceSubject: document.getElementById('invoiceEmailSubject').value,
-                invoiceBody: document.getElementById('invoiceEmailBody').value,
-                credentialsSubject: document.getElementById('credentialsEmailSubject').value,
-                credentialsBody: document.getElementById('credentialsEmailBody').value
-            };
+        async function saveEmailTemplates() { /* legacy no-op — handled by saveEmailTpl() */ }
 
-            try {
-                const response = await fetch('/api/email/templates', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(templates)
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    alert('✅ Email templates saved successfully!');
-                } else {
-                    alert('❌ Failed to save email templates:\n' + (data.error || 'Unknown error'));
-                }
-            } catch (error) {
-                alert('❌ Error saving email templates:\n' + error.message);
+        // ── Email template editor ─────────────────────────────────────────────
+        const EMAIL_TPL_DEFS = {
+            invoice: {
+                label: '🧾 Invoice Email',
+                hasSubject: true,
+                subjectKey: 'invoiceSubject',
+                bodyKey: 'invoiceBody',
+                defaultSubject: 'Invoice #{invoiceNumber} from {companyName}',
+                defaultBody: 'Dear {clientName},\n\nThank you for your business! Your invoice is ready for review.\n\nInvoice #{invoiceNumber}\nJob: {jobTitle}\nTotal: {total}\n\nView your invoice: {invoiceUrl}\n\nThank you for choosing {companyName}!',
+                vars: '{clientName}, {invoiceNumber}, {jobTitle}, {total}, {invoiceUrl}, {companyName}',
+                bodyLabel: 'Email Body'
+            },
+            quote: {
+                label: '📋 Quote Email',
+                hasSubject: false,
+                bodyKey: 'quoteBody',
+                defaultBody: 'Thank you for your interest! Here is your quote for: {jobTitle}',
+                vars: '{clientName}, {jobTitle}, {total}, {validUntil}, {companyName}',
+                bodyLabel: 'Intro Paragraph (shown between the greeting and the quote total)'
+            },
+            survey: {
+                label: '⭐ Survey / Review Request',
+                hasSubject: true,
+                subjectKey: 'surveySubject',
+                bodyKey: 'surveyBody',
+                defaultSubject: 'How did we do? — {companyName}',
+                defaultBody: 'We just wrapped up {jobTitle}. We\'d love to know how we did — it takes 30 seconds.',
+                vars: '{clientName}, {jobTitle}, {companyName}',
+                bodyLabel: 'Intro Paragraph'
+            },
+            credentials: {
+                label: '🔑 User Credentials',
+                hasSubject: true,
+                subjectKey: 'credentialsSubject',
+                bodyKey: 'credentialsBody',
+                defaultSubject: 'Your {companyName} Account Credentials',
+                defaultBody: 'Hi {name},\n\nYour account has been created!\n\nEmail: {email}\nTemporary Password: {tempPassword}\n\nLogin at: {loginUrl}\n\nPlease change your password after logging in.',
+                vars: '{name}, {email}, {tempPassword}, {loginUrl}, {companyName}',
+                bodyLabel: 'Email Body'
             }
+        };
+        let _emailTplCurrent = null;
+        let _emailTplData = {};
+
+        function loadEmailTpl(key) {
+            _emailTplCurrent = key;
+            const def = EMAIL_TPL_DEFS[key];
+            document.querySelectorAll('.email-tpl-btn').forEach(b => {
+                b.style.background = b.dataset.key === key ? '#ede9fe' : 'white';
+                b.style.fontWeight = b.dataset.key === key ? '700' : 'normal';
+                b.style.color = b.dataset.key === key ? '#5b21b6' : '';
+            });
+            document.getElementById('emailTplEditor').style.display = '';
+            document.getElementById('emailTplPlaceholder').style.display = 'none';
+            document.getElementById('emailTplEditorTitle').textContent = def.label;
+            document.getElementById('emailTplBodyLabel').textContent = def.bodyLabel;
+            document.getElementById('emailTplSaveStatus').style.display = 'none';
+            const subjectGroup = document.getElementById('emailTplSubjectGroup');
+            subjectGroup.style.display = def.hasSubject ? '' : 'none';
+            if (def.hasSubject) {
+                document.getElementById('emailTplSubject').value = _emailTplData[def.subjectKey] || def.defaultSubject;
+            }
+            document.getElementById('emailTplBody').value = _emailTplData[def.bodyKey] || def.defaultBody;
+            document.getElementById('emailTplVars').innerHTML = \`<strong>Variables:</strong> <code>\${def.vars}</code>\`;
+        }
+
+        async function saveEmailTpl() {
+            if (!_emailTplCurrent) return;
+            const def = EMAIL_TPL_DEFS[_emailTplCurrent];
+            if (def.hasSubject) _emailTplData[def.subjectKey] = document.getElementById('emailTplSubject').value;
+            _emailTplData[def.bodyKey] = document.getElementById('emailTplBody').value;
+            // Also keep hidden inputs in sync for any legacy path
+            if (_emailTplData.invoiceSubject !== undefined) document.getElementById('invoiceEmailSubject').value = _emailTplData.invoiceSubject || '';
+            if (_emailTplData.invoiceBody !== undefined) document.getElementById('invoiceEmailBody').value = _emailTplData.invoiceBody || '';
+            if (_emailTplData.credentialsSubject !== undefined) document.getElementById('credentialsEmailSubject').value = _emailTplData.credentialsSubject || '';
+            if (_emailTplData.credentialsBody !== undefined) document.getElementById('credentialsEmailBody').value = _emailTplData.credentialsBody || '';
+            try {
+                const r = await fetch('/api/email/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_emailTplData) });
+                if (r.ok) {
+                    const s = document.getElementById('emailTplSaveStatus');
+                    s.style.display = '';
+                    setTimeout(() => s.style.display = 'none', 2500);
+                } else alert('Failed to save template.');
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        function resetEmailTpl() {
+            if (!_emailTplCurrent) return;
+            const def = EMAIL_TPL_DEFS[_emailTplCurrent];
+            if (def.hasSubject) document.getElementById('emailTplSubject').value = def.defaultSubject;
+            document.getElementById('emailTplBody').value = def.defaultBody;
+        }
+
+        // ── SMS template editor ───────────────────────────────────────────────
+        const SMS_TPL_DEFS = {
+            scheduled: {
+                label: '📅 Job Scheduled',
+                defaultBody: '{companyName}: Your job "{jobTitle}" is scheduled for {date} at {time}.',
+                vars: '{companyName}, {jobTitle}, {date}, {time}'
+            },
+            in_progress: {
+                label: '🔧 Job In Progress',
+                defaultBody: '{companyName}: We\'re starting work on "{jobTitle}" now.',
+                vars: '{companyName}, {jobTitle}'
+            },
+            completed: {
+                label: '✅ Job Completed',
+                defaultBody: '{companyName}: Job "{jobTitle}" is complete! Invoice will follow shortly.',
+                vars: '{companyName}, {jobTitle}'
+            },
+            invoiced: {
+                label: '🧾 Job Invoiced',
+                defaultBody: '{companyName}: Invoice ready for "{jobTitle}". Total: \${total}.',
+                vars: '{companyName}, {jobTitle}, {total}'
+            },
+            reminder: {
+                label: '⏰ Day-Before Reminder',
+                defaultBody: '{companyName} Reminder: Your appointment "{jobTitle}" is tomorrow at {time}. Reply CONFIRM or call us if you need to reschedule.',
+                vars: '{companyName}, {jobTitle}, {time}'
+            }
+        };
+        let _smsTplCurrent = null;
+        let _smsTplData = {};
+
+        function loadSmsTpl(key) {
+            _smsTplCurrent = key;
+            const def = SMS_TPL_DEFS[key];
+            document.querySelectorAll('.sms-tpl-btn').forEach(b => {
+                b.style.background = b.dataset.key === key ? '#ede9fe' : 'white';
+                b.style.fontWeight = b.dataset.key === key ? '700' : 'normal';
+                b.style.color = b.dataset.key === key ? '#5b21b6' : '';
+            });
+            document.getElementById('smsTplEditor').style.display = '';
+            document.getElementById('smsTplPlaceholder').style.display = 'none';
+            document.getElementById('smsTplEditorTitle').textContent = def.label;
+            document.getElementById('smsTplSaveStatus').style.display = 'none';
+            document.getElementById('smsTplBody').value = _smsTplData[key] || def.defaultBody;
+            document.getElementById('smsTplVars').innerHTML = \`<strong>Variables:</strong> <code>\${def.vars}</code>\`;
+        }
+
+        async function saveSmsTpl() {
+            if (!_smsTplCurrent) return;
+            _smsTplData[_smsTplCurrent] = document.getElementById('smsTplBody').value;
+            try {
+                const r = await fetch('/api/sms/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_smsTplData) });
+                if (r.ok) {
+                    const s = document.getElementById('smsTplSaveStatus');
+                    s.style.display = '';
+                    setTimeout(() => s.style.display = 'none', 2500);
+                } else alert('Failed to save template.');
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        function resetSmsTpl() {
+            if (!_smsTplCurrent) return;
+            document.getElementById('smsTplBody').value = SMS_TPL_DEFS[_smsTplCurrent].defaultBody;
         }
 
         // User management
