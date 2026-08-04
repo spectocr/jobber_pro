@@ -9968,6 +9968,39 @@ async function rebuildHomePage() {
                 "I'm Cris. GSD serves homeowners, property managers, landlords, and commercial facilities across South Jersey — reliable repairs, clear communication, and no chasing required. Based in Mount Laurel, serving Cherry Hill, Moorestown, Marlton, Medford, and surrounding towns."
             );
         }
+        // ── Trust / SEO enhancements (idempotent) ──────────────────────────
+        const rvRating = Number(reviewsCache?.rating || 5).toFixed(1);
+        const rvCount = reviewsCache?.total || 27;
+
+        // 1) aggregateRating in JSON-LD — surfaces ⭐ star rating in Google results
+        if (!html.includes('"aggregateRating"')) {
+            html = html.replace('"priceRange": "$$",',
+                `"priceRange": "$$",\n      "aggregateRating": {\n        "@type": "AggregateRating",\n        "ratingValue": "${rvRating}",\n        "reviewCount": "${rvCount}"\n      },`);
+        }
+
+        // 2) NJ Home Improvement Contractor license in footer
+        if (!html.includes('13VH13491700')) {
+            html = html.replace('<p class="footer-copy">',
+                `<p class="footer-copy" style="margin-bottom:0.5rem;">NJ Licensed &amp; Insured &nbsp;·&nbsp; HIC Lic# 13VH13491700</p>\n    <p class="footer-copy">`);
+        }
+
+        // 3) Surface actual review count in hero stat
+        if (!html.includes('Google Reviews')) {
+            html = html.replace('<div class="num">5★</div>', `<div class="num">${rvRating}★</div>`)
+                       .replace('<div class="label">Google Rating</div>', `<div class="label">${rvCount} Google Reviews</div>`);
+        }
+
+        // 4) Favicon (was missing — blank tab icon)
+        if (!html.includes('rel="icon"')) {
+            html = html.replace('<meta charset="UTF-8">',
+                '<meta charset="UTF-8">\n    <link rel="icon" type="image/png" href="/images/logo.png">\n    <link rel="apple-touch-icon" href="/images/logo.png">');
+        }
+
+        // 5) og:image → real hero photo instead of logo-on-blank
+        html = html.replace(
+            '<meta property="og:image" content="https://gsdhandymanservice.com/images/logo.png">',
+            '<meta property="og:image" content="https://gsdhandymanservice.com/images/hero-photo.png">');
+
         html = _withOOOSnippet(html);
         await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'index.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
         console.log('✅ index.html homepage portfolio updated');
