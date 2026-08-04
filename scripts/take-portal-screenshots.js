@@ -33,18 +33,20 @@ const CF_DIST_ID    = process.env.CLOUDFRONT_DISTRIBUTION_ID;
 
 // Demo data injected over any real PII before screenshotting
 const DEMO_CLIENT_NAME = 'Maple Ridge Properties';
-const DEMO_JOBS = [
-    { title: 'Drywall Repair — Unit 4B',          date: '5/28/2026', status: 'SCHEDULED',   statusClass: 'status-scheduled'  },
-    { title: 'Door Hardware — Building A Entry',   date: '5/15/2026', status: 'COMPLETED',   statusClass: 'status-completed'  },
-    { title: 'Fixture Install — Common Area Bath', date: '5/22/2026', status: 'IN PROGRESS', statusClass: 'status-scheduled'  },
+// Pending Work Orders column (jobs + quotes)
+const DEMO_WORK_ORDERS = [
+    { kind: 'job',   badge: 'Job',   badgeClass: 'badge-job',   title: 'Drywall Repair — Unit 4B',           desc: 'Common-area hallway patch and paint near the Unit 8 stairwell, approx 2ft × 2ft.', meta: 'Scheduled: May 28, 2026', status: 'SCHEDULED',   statusClass: 'status-scheduled' },
+    { kind: 'job',   badge: 'Job',   badgeClass: 'badge-job',   title: 'Fixture Install — Common Area Bath',  desc: '', meta: 'Scheduled: May 22, 2026', status: 'IN PROGRESS', statusClass: 'status-scheduled' },
+    { kind: 'quote', badge: 'Quote', badgeClass: 'badge-quote', title: 'Kitchen Faucet Replacement — Unit 12A', desc: '', meta: 'Quote #: Q-1042 · $285.00 · Valid until 6/15/2026', status: 'PENDING REVIEW', statusClass: '' },
 ];
-const DEMO_QUOTES = [
-    { title: 'Kitchen Faucet Replacement — Unit 12A', status: 'New', statusStyle: 'background:#ebf8ff;color:#2b6cb0;' },
-    { title: 'Pressure Wash — Parking Area',          status: 'Quoted', statusStyle: 'background:#fef3c7;color:#92400e;' },
+// Payment Pending column (outstanding invoices — amounts masked for the public demo)
+const DEMO_PAYMENTS = [
+    { title: 'Exterior Door Repair — Building A', meta: 'Invoiced: May 20, 2026', amount: '$ ●●●.●●', status: 'OUTSTANDING' },
 ];
-const DEMO_INVOICES = [
-    { title: 'Drywall Repair — Unit 7C', amount: '$ ●●●.●●', status: 'Paid',    statusStyle: 'background:#f0fff4;color:#276749;' },
-    { title: 'Exterior Door Repair',     amount: '$ ●●●.●●', status: 'Pending', statusStyle: 'background:#fff5f5;color:#c53030;' },
+// Archive tab (completed & paid)
+const DEMO_ARCHIVE = [
+    { badge: 'Job', badgeClass: 'badge-job', title: 'Door Hardware — Building A Entry', meta: 'Completed: May 15, 2026', status: 'COMPLETED', statusClass: 'status-completed' },
+    { badge: 'Job', badgeClass: 'badge-job', title: 'Drywall Repair — Unit 7C',        meta: 'Completed: May 8, 2026',  status: 'COMPLETED', statusClass: 'status-completed' },
 ];
 
 if (!DEMO_EMAIL || !DEMO_PASS || !S3_BUCKET || !S3_KEY_ID || !S3_KEY_SECRET) {
@@ -75,7 +77,7 @@ async function uploadScreenshot(buffer, key) {
 
 // ── NPI masking + demo data injection ───────────────────────────────────────
 async function injectDemoData(page) {
-    await page.evaluate((demoName, demoJobs, demoQuotes, demoInvoices) => {
+    await page.evaluate((demoName, demoWorkOrders, demoPayments, demoArchive) => {
         // Portal header title (shows client company name)
         const title = document.getElementById('portalTitle');
         if (title) title.textContent = demoName;
@@ -90,42 +92,49 @@ async function injectDemoData(page) {
             }
         });
 
-        // ── Jobs list ──
-        const jobsList = document.getElementById('jobsList');
-        if (jobsList) {
-            jobsList.innerHTML = demoJobs.map(j => `
-                <div class="job-card" style="display:flex;align-items:flex-start;gap:1rem;padding:0.75rem 0;border-bottom:1px solid #e2e8f0;">
-                    <div style="flex:1;">
-                        <p style="margin:0 0 0.2rem;font-size:0.78rem;color:#718096;">${j.date}</p>
-                        <h3 style="margin:0 0 0.25rem;font-size:0.95rem;font-weight:600;color:#1a202c;">${j.title}</h3>
-                        <p style="margin:0.35rem 0 0;"><span class="status-badge ${j.statusClass}" style="font-size:0.72rem;padding:2px 8px;border-radius:4px;font-weight:700;">${j.status}</span></p>
+        // ── Pending Work Orders column (jobs + quotes) ──
+        const wo = document.getElementById('workOrdersList');
+        if (wo) {
+            wo.innerHTML = demoWorkOrders.map(c => `
+                <div class="card">
+                    <span class="card-type-badge ${c.badgeClass}">${c.badge}</span>
+                    <div class="card-title">${c.title}</div>
+                    ${c.desc ? `<div class="card-desc">${c.desc}</div>` : ''}
+                    <div class="card-meta">${c.meta}</div>
+                    <div class="card-actions">
+                        <span class="status-badge ${c.statusClass}">${c.status}</span>
+                        <button class="btn btn-primary" style="opacity:0.75;">${c.kind === 'quote' ? 'View Quote' : 'View Details'}</button>
+                        <button class="btn btn-ghost" style="opacity:0.75;">Message</button>
                     </div>
-                    <button class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.85rem;white-space:nowrap;opacity:0.7;">View Details</button>
                 </div>`).join('');
         }
 
-        // ── Quotes list ──
-        const quotesList = document.getElementById('quotesList');
-        if (quotesList) {
-            quotesList.innerHTML = demoQuotes.map(q => `
-                <div class="quote-card" style="padding:0.75rem 0;border-bottom:1px solid #e2e8f0;">
-                    <h3 style="margin:0 0 0.25rem;font-size:0.92rem;font-weight:600;color:#1a202c;">${q.title}</h3>
-                    <span class="status-badge" style="${q.statusStyle}font-size:0.72rem;padding:2px 8px;border-radius:4px;font-weight:700;">${q.status}</span>
+        // ── Payment Pending column (outstanding invoices) ──
+        const pay = document.getElementById('paymentPendingList');
+        if (pay) {
+            pay.innerHTML = demoPayments.map(c => `
+                <div class="card">
+                    <span class="card-type-badge badge-job">Invoice</span>
+                    <div class="card-title">${c.title}</div>
+                    <div class="card-meta">${c.meta}</div>
+                    <div class="card-actions">
+                        <span class="status-badge" style="background:#fff5f5;color:#c53030;">${c.status}</span>
+                        <span style="font-weight:700;color:#1a202c;letter-spacing:0.02em;">${c.amount}</span>
+                        <button class="btn btn-primary" style="opacity:0.75;">Pay / View</button>
+                    </div>
                 </div>`).join('');
         }
 
-        // ── Invoices list ──
-        const invList = document.getElementById('invoicesList');
-        if (invList) {
-            invList.innerHTML = demoInvoices.map(inv => `
-                <div class="invoice-card" style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid #e2e8f0;">
-                    <div class="invoice-info">
-                        <h3 style="margin:0 0 0.2rem;font-size:0.92rem;font-weight:600;color:#1a202c;">${inv.title}</h3>
-                        <span class="status-badge" style="${inv.statusStyle}font-size:0.72rem;padding:2px 8px;border-radius:4px;font-weight:700;">${inv.status}</span>
-                    </div>
-                    <div style="text-align:right;">
-                        <div style="font-size:1.05rem;font-weight:700;color:#1a202c;letter-spacing:0.02em;">${inv.amount}</div>
-                        <button class="btn btn-primary" style="font-size:0.78rem;padding:0.25rem 0.7rem;margin-top:0.35rem;opacity:0.7;">View Invoice</button>
+        // ── Archive tab (completed & paid) ──
+        const arch = document.getElementById('archiveList');
+        if (arch) {
+            arch.innerHTML = demoArchive.map(c => `
+                <div class="card card-archived">
+                    <span class="card-type-badge ${c.badgeClass}">${c.badge}</span>
+                    <div class="card-title">${c.title}</div>
+                    <div class="card-meta">${c.meta}</div>
+                    <div class="card-actions">
+                        <span class="status-badge ${c.statusClass}">${c.status}</span>
                     </div>
                 </div>`).join('');
         }
@@ -153,7 +162,7 @@ async function injectDemoData(page) {
                 form.style.display = 'none';
             }
         };
-    }, DEMO_CLIENT_NAME, DEMO_JOBS, DEMO_QUOTES, DEMO_INVOICES);
+    }, DEMO_CLIENT_NAME, DEMO_WORK_ORDERS, DEMO_PAYMENTS, DEMO_ARCHIVE);
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -231,21 +240,27 @@ async function main() {
             : await page.screenshot({ type: 'jpeg', quality: 88, fullPage: false });
         await uploadScreenshot(shot3, 'portal-screenshots/03-ticket-confirmed.jpg');
 
-        // ── Screenshot 4: Invoice list ──
-        console.log('  → Shot 4: Invoices...');
-        await page.evaluate(() => {
-            const invCard = document.getElementById('invoicesList');
-            if (invCard) invCard.closest('.card').scrollIntoView({ behavior: 'instant', block: 'start' });
-        });
-        await new Promise(r => setTimeout(r, 300));
-        const invCard = await page.$('#invoicesList');
-        let shot4;
-        if (invCard) {
-            const parent = await page.evaluateHandle(el => el.closest('.card'), invCard);
-            shot4 = await parent.screenshot({ type: 'jpeg', quality: 88 });
-        } else {
-            shot4 = await page.screenshot({ type: 'jpeg', quality: 88, fullPage: false });
-        }
+        // ── Screenshot 4: Archive (completed & paid) ──
+        console.log('  → Shot 4: Archive...');
+        await page.evaluate((demoArchive) => {
+            if (window.switchTab) window.switchTab('archive');
+            else { const b = document.getElementById('tab-btn-archive'); if (b) b.click(); }
+            // Re-inject after the tab switch so any re-render can't blank it
+            const arch = document.getElementById('archiveList');
+            if (arch) arch.innerHTML = demoArchive.map(c => `
+                <div class="card card-archived">
+                    <span class="card-type-badge ${c.badgeClass}">${c.badge}</span>
+                    <div class="card-title">${c.title}</div>
+                    <div class="card-meta">${c.meta}</div>
+                    <div class="card-actions"><span class="status-badge ${c.statusClass}">${c.status}</span></div>
+                </div>`).join('');
+            window.scrollTo(0, 0);
+        }, DEMO_ARCHIVE);
+        await new Promise(r => setTimeout(r, 400));
+        const archPanel = await page.$('#tab-archive');
+        const shot4 = archPanel
+            ? await archPanel.screenshot({ type: 'jpeg', quality: 88 })
+            : await page.screenshot({ type: 'jpeg', quality: 88, fullPage: false });
         await uploadScreenshot(shot4, 'portal-screenshots/04-invoices.jpg');
 
         // ── Write timestamp ──
