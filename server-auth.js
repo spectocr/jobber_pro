@@ -1739,6 +1739,42 @@ app.get('/api/public/reviews', async (req, res) => {
     }
 });
 
+// Admin-only: force a LIVE Google reviews call (bypasses cache) for real-time testing.
+// On success it also refreshes the cache, so a passing test instantly updates the site.
+app.get('/api/reviews/test', isAuthenticated, async (req, res) => {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const placeId = process.env.GOOGLE_PLACE_ID;
+    if (!apiKey || !placeId) {
+        return res.json({ ok: false, reason: 'Not configured', hasKey: !!apiKey, hasPlaceId: !!placeId });
+    }
+    try {
+        const https = require('https');
+        const url = `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount,reviews&key=${apiKey}&languageCode=en`;
+        const started = Date.now();
+        const data = await new Promise((resolve, reject) => {
+            https.get(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } }, (r) => {
+                let body = ''; r.on('data', c => body += c); r.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+            }).on('error', reject);
+        });
+        const ms = Date.now() - started;
+        if (data.error) {
+            return res.json({ ok: false, liveCall: true, ms, googleStatus: data.error.status, googleCode: data.error.code, googleMessage: data.error.message });
+        }
+        const reviews = (data.reviews || []).filter(r => r.rating >= 4).map(r => ({
+            author: r.authorAttribution?.displayName || 'Anonymous', rating: r.rating, time: r.relativePublishTimeDescription || ''
+        }));
+        // Refresh both caches so a successful test lights up the live site immediately
+        reviewsCache = { rating: data.rating, total: data.userRatingCount, reviews };
+        reviewsCachedAt = Date.now();
+        try {
+            await db.collection('reviews_cache').updateOne({ _id: 'google' }, { $set: { data: reviewsCache, cachedAt: new Date() } }, { upsert: true });
+        } catch (e) { /* non-fatal */ }
+        return res.json({ ok: true, liveCall: true, ms, rating: data.rating, totalRatings: data.userRatingCount, reviewsReturned: reviews.length, cacheRefreshed: true });
+    } catch (err) {
+        return res.json({ ok: false, error: err.message });
+    }
+});
+
 // Leads API
 // ── Vendors ──────────────────────────────────────────────────────────────────
 app.get('/api/vendors', isAuthenticated, async (req, res) => {
