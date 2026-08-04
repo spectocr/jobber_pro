@@ -10001,6 +10001,36 @@ async function rebuildHomePage() {
             '<meta property="og:image" content="https://gsdhandymanservice.com/images/logo.png">',
             '<meta property="og:image" content="https://gsdhandymanservice.com/images/hero-photo.png">');
 
+        // 6) "How It Works" section — sets expectations + pricing transparency before the quote form
+        if (!html.includes('id="how-it-works"')) {
+            const steps = [
+                ['1', 'Reach Out', 'Call, text, or request a free estimate online. Tell us what you need done — no job too small.'],
+                ['2', 'Free Estimate', 'We review the work and give you a clear, upfront price. No obligation, no pressure.'],
+                ['3', 'We Get It Done', 'Scheduled work, on time, done right the first time — and we clean up when we\'re finished.'],
+                ['4', "Pay When It's Right", 'Simple invoice, easy payment, and backed by our "done right or we fix it" promise.']
+            ];
+            const stepCards = steps.map(function(s){
+                return '<div style="background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:2rem 1.5rem 1.5rem;text-align:center;">'
+                    + '<div style="width:46px;height:46px;line-height:46px;margin:0 auto 1.1rem;background:#0f1c2e;color:#fff;border-radius:50%;font-weight:800;font-size:1.15rem;">'+s[0]+'</div>'
+                    + '<h4 style="margin:0 0 0.55rem;font-size:1.08rem;color:#0f1c2e;">'+s[1]+'</h4>'
+                    + '<p style="margin:0;color:#6b7280;font-size:0.93rem;line-height:1.55;">'+s[2]+'</p>'
+                    + '</div>';
+            }).join('');
+            const pricingItems = ['Free, no-pressure estimates', 'Upfront pricing — approved before we start', 'No hidden fees or surprise charges']
+                .map(function(t){ return '<div style="display:flex;align-items:center;gap:0.6rem;color:#e6edf5;font-size:0.98rem;font-weight:600;"><span style="color:#4ade80;font-size:1.2rem;">✓</span>'+t+'</div>'; }).join('');
+            const howItWorks = '\n<!-- HOW IT WORKS -->\n'
+                + '<section id="how-it-works" style="padding:5rem 1.5rem;background:#ffffff;">\n'
+                + '  <div class="section-inner" style="max-width:1100px;margin:0 auto;">\n'
+                + '    <div class="section-tag" style="text-align:center;">Simple &amp; Straightforward</div>\n'
+                + '    <h2 class="section-title" style="text-align:center;">How It Works</h2>\n'
+                + '    <p class="section-sub" style="text-align:center;margin:0 auto 3rem;">From first call to finished job — no runaround, no surprises. Here\'s exactly what to expect.</p>\n'
+                + '    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;">'+stepCards+'</div>\n'
+                + '    <div style="margin-top:2.5rem;background:#0f1c2e;border-radius:14px;padding:1.9rem 2rem;display:flex;flex-wrap:wrap;gap:1.1rem 3rem;align-items:center;justify-content:center;">'+pricingItems+'</div>\n'
+                + '  </div>\n'
+                + '</section>\n';
+            html = html.replace('<!-- QUOTE -->', howItWorks + '\n<!-- QUOTE -->');
+        }
+
         html = _withOOOSnippet(html);
         await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'index.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
         console.log('✅ index.html homepage portfolio updated');
