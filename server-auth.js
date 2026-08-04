@@ -9976,6 +9976,12 @@ async function rebuildHomePage() {
             );
         }
         // ── Trust / SEO enhancements (idempotent) ──────────────────────────
+        // Ensure the 1200x630 social-share cover (shipped as a repo asset) is on S3.
+        try {
+            const ogBuf = fs.readFileSync(path.join(__dirname, 'og-cover.jpg'));
+            await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'images/og-cover.jpg', Body: ogBuf, ContentType: 'image/jpeg', CacheControl: 'public, max-age=86400' }));
+        } catch (e) { console.warn('og-cover upload skipped:', e.message); }
+
         // Pull live review figures from our own public endpoint (reviewsCache is
         // scoped to the route registration block and not visible here).
         let rvRating = '5.0', rvCount = 27;
@@ -10013,10 +10019,15 @@ async function rebuildHomePage() {
                 '<meta charset="UTF-8">\n    <link rel="icon" type="image/png" href="/images/logo.png">\n    <link rel="apple-touch-icon" href="/images/logo.png">');
         }
 
-        // 5) og:image → real hero photo instead of logo-on-blank
-        html = html.replace(
-            '<meta property="og:image" content="https://gsdhandymanservice.com/images/logo.png">',
-            '<meta property="og:image" content="https://gsdhandymanservice.com/images/hero-photo.png">');
+        // 5) og:image / twitter:image → purpose-built 1200x630 cover (crop-safe on all platforms)
+        html = html
+            .replace(/<meta property="og:image" content="[^"]*">/, '<meta property="og:image" content="https://gsdhandymanservice.com/images/og-cover.jpg">')
+            .replace(/<meta name="twitter:image" content="[^"]*">/, '<meta name="twitter:image" content="https://gsdhandymanservice.com/images/og-cover.jpg">');
+        if (!html.includes('og:image:width')) {
+            html = html.replace(
+                '<meta property="og:image" content="https://gsdhandymanservice.com/images/og-cover.jpg">',
+                '<meta property="og:image" content="https://gsdhandymanservice.com/images/og-cover.jpg">\n    <meta property="og:image:width" content="1200">\n    <meta property="og:image:height" content="630">');
+        }
 
         // 6) "How It Works" section — sets expectations + pricing transparency before the quote form
         if (!html.includes('id="how-it-works"')) {
