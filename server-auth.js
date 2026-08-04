@@ -1657,10 +1657,22 @@ app.get('/api/public/reviews', async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Cache-Control', 'no-store');
 
-    const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+    const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+    // L1: in-memory cache (fastest)
     if (reviewsCache && Date.now() - reviewsCachedAt < CACHE_TTL) {
         return res.json(reviewsCache);
     }
+
+    // L2: MongoDB cache — survives dyno restarts/deploys so those don't trigger Google calls
+    try {
+        const doc = await db.collection('reviews_cache').findOne({ _id: 'google' });
+        if (doc && doc.data && Date.now() - new Date(doc.cachedAt).getTime() < CACHE_TTL) {
+            reviewsCache = doc.data;
+            reviewsCachedAt = new Date(doc.cachedAt).getTime();
+            return res.json(reviewsCache);
+        }
+    } catch (e) { /* fall through to Google */ }
 
     const apiKey = process.env.GOOGLE_API_KEY;
     const placeId = process.env.GOOGLE_PLACE_ID;
@@ -1686,8 +1698,12 @@ app.get('/api/public/reviews', async (req, res) => {
         if (data.error) {
             console.error('Google Places error:', data.error.status, data.error.message);
             // Degrade gracefully instead of 502 (which spams the browser console):
-            // serve last-known-good reviews if we have them, otherwise an empty 200.
+            // serve last-known-good reviews (memory, then DB) if we have them.
             if (reviewsCache) return res.json({ ...reviewsCache, stale: true });
+            try {
+                const doc = await db.collection('reviews_cache').findOne({ _id: 'google' });
+                if (doc && doc.data) return res.json({ ...doc.data, stale: true });
+            } catch (e) { /* ignore */ }
             return res.json({ rating: null, total: 0, reviews: [], unavailable: true });
         }
 
@@ -1708,6 +1724,14 @@ app.get('/api/public/reviews', async (req, res) => {
 
         reviewsCache = { rating: data.rating, total: data.userRatingCount, reviews };
         reviewsCachedAt = Date.now();
+        // Persist so restarts/deploys read from DB instead of re-calling Google
+        try {
+            await db.collection('reviews_cache').updateOne(
+                { _id: 'google' },
+                { $set: { data: reviewsCache, cachedAt: new Date() } },
+                { upsert: true }
+            );
+        } catch (e) { /* non-fatal */ }
         res.json(reviewsCache);
     } catch (err) {
         console.error('Reviews fetch error:', err);
