@@ -1684,8 +1684,8 @@ app.get('/api/public/reviews', async (req, res) => {
         });
 
         if (data.error) {
-            console.error('Google Places error:', data.error.message);
-            return res.status(502).json({ error: 'Could not fetch reviews' });
+            console.error('Google Places error:', data.error.status, data.error.message);
+            return res.status(502).json({ error: 'Could not fetch reviews', detail: data.error.message, status: data.error.status, code: data.error.code });
         }
 
         const reviews = (data.reviews || [])
