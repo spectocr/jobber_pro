@@ -1658,16 +1658,19 @@ app.get('/api/public/reviews', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
 
     const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+    // Only serve cache that has the full review shape (must include `text`);
+    // rejects any stale/partial shape so it re-fetches Google instead of blanking the site.
+    const cacheUsable = (c) => c && Array.isArray(c.reviews) && (c.reviews.length === 0 || typeof c.reviews[0].text === 'string');
 
     // L1: in-memory cache (fastest)
-    if (reviewsCache && Date.now() - reviewsCachedAt < CACHE_TTL) {
+    if (reviewsCache && cacheUsable(reviewsCache) && Date.now() - reviewsCachedAt < CACHE_TTL) {
         return res.json(reviewsCache);
     }
 
     // L2: MongoDB cache — survives dyno restarts/deploys so those don't trigger Google calls
     try {
         const doc = await db.collection('reviews_cache').findOne({ _id: 'google' });
-        if (doc && doc.data && Date.now() - new Date(doc.cachedAt).getTime() < CACHE_TTL) {
+        if (doc && doc.data && cacheUsable(doc.data) && Date.now() - new Date(doc.cachedAt).getTime() < CACHE_TTL) {
             reviewsCache = doc.data;
             reviewsCachedAt = new Date(doc.cachedAt).getTime();
             return res.json(reviewsCache);
@@ -1770,8 +1773,18 @@ app.get('/api/reviews/test', isAuthenticated, async (req, res) => {
                 rawDetails: data.error.details || null
             });
         }
+        // Build the SAME full shape the public endpoint uses, so refreshing the
+        // cache here can't blank the homepage (which needs review.text).
         const reviews = (data.reviews || []).filter(r => r.rating >= 4).map(r => ({
-            author: r.authorAttribution?.displayName || 'Anonymous', rating: r.rating, time: r.relativePublishTimeDescription || ''
+            author: (() => {
+                const name = r.authorAttribution?.displayName || 'Anonymous';
+                const parts = name.trim().split(/\s+/);
+                return parts.length > 1 ? parts[0] + ' ' + parts[parts.length - 1][0] + '.' : name;
+            })(),
+            rating: r.rating,
+            text: r.text?.text || '',
+            time: r.relativePublishTimeDescription || '',
+            photoUrl: r.authorAttribution?.photoUri || null
         }));
         // Refresh both caches so a successful test lights up the live site immediately
         reviewsCache = { rating: data.rating, total: data.userRatingCount, reviews };
