@@ -2587,8 +2587,15 @@ app.get('/api/portfolio', async (req, res) => {
 
 // Create entry — metadata only in MongoDB, no photo data
 app.post('/api/portfolio/rebuild', isAdmin, async (req, res) => {
-    res.json({ success: true, message: 'Rebuild queued' });
-    rebuildPublicPortfolio().catch(e => console.error('Manual portfolio rebuild failed:', e.message));
+    try {
+        // Other public pages (portfolio.html, PM, locations) rebuild via this call.
+        rebuildPublicPortfolio().catch(e => console.error('Portfolio/PM/location rebuild failed:', e.message));
+        // Await the homepage explicitly so we can surface its exact result.
+        const home = await rebuildHomePage();
+        res.json({ success: true, home });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 app.post('/api/portfolio', isAuthenticated, async (req, res) => {
@@ -9944,15 +9951,15 @@ const HOME_PORTFOLIO_NEW = `(function(){
         .catch(function(){ var s=document.getElementById('homepage-portfolio'); if(s)s.closest('section').style.display='none'; })`;
 
 async function rebuildHomePage() {
-    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return { page:'index.html', ok:false, error:'public S3 not configured' };
     try {
         const res = await fetch('https://gsdhandymanservice.com/');
         if (!res.ok) throw new Error(`HTTP ${res.status} fetching index.html`);
         let html = await res.text();
         const idx = html.indexOf(HOME_PORTFOLIO_OLD);
-        if (idx === -1) { console.warn('⚠️  index.html: homepage portfolio marker not found, skipping'); return; }
+        if (idx === -1) { console.warn('⚠️  index.html: homepage portfolio marker not found, skipping'); return { page:'index.html', ok:false, skipped:'portfolio marker not found' }; }
         const end = html.indexOf('})();', idx);
-        if (end === -1) { console.warn('⚠️  index.html: portfolio IIFE closing not found, skipping'); return; }
+        if (end === -1) { console.warn('⚠️  index.html: portfolio IIFE closing not found, skipping'); return { page:'index.html', ok:false, skipped:'IIFE close not found' }; }
         html = html.slice(0, idx) + HOME_PORTFOLIO_NEW + html.slice(end);
         // Add Property Managers nav link (idempotent — check for the specific nav text, not just the href)
         if (!html.includes('>Property Managers</a>')) {
@@ -10040,8 +10047,10 @@ async function rebuildHomePage() {
             await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 2, Items: ['/index.html', '/'] } } }));
             console.log('✅ CloudFront cache invalidated for /index.html');
         }
+        return { page:'index.html', ok:true, wrote:true, bytes: html.length };
     } catch (err) {
         console.error('❌ index.html rebuild failed:', err.message);
+        return { page:'index.html', ok:false, error: err.message, stack: (err.stack||'').split('\n').slice(0,3).join(' | ') };
     }
 }
 

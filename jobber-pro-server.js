@@ -9812,16 +9812,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             btn.textContent = '⏳ Rebuilding...';
             try {
                 const res = await fetch('/api/portfolio/rebuild', { method: 'POST' });
-                if (!res.ok) throw new Error('Request failed');
-                btn.textContent = '✅ Rebuild queued';
-                setTimeout(() => {
-                    alert('Public site rebuild started.\n\nThe homepage, portfolio, and location pages are regenerating and pushing live. Changes appear within ~60 seconds (CloudFront cache clear).');
-                }, 100);
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Request failed');
+                const h = data.home || {};
+                if (h.ok) {
+                    btn.textContent = '✅ Rebuilt';
+                    alert('Homepage rebuilt successfully (' + (h.bytes || '?') + ' bytes) and pushed live.\n\nOther pages (portfolio, PM, locations) are regenerating too. Changes appear within ~60 seconds.');
+                } else {
+                    btn.textContent = '⚠️ Home skipped';
+                    alert('Portfolio/PM/location pages rebuilt, but the HOMEPAGE did NOT update:\n\n' +
+                          (h.skipped ? ('Skipped: ' + h.skipped) : ('Error: ' + (h.error || 'unknown'))) +
+                          (h.stack ? ('\n\n' + h.stack) : ''));
+                }
             } catch (err) {
                 btn.textContent = '❌ Failed';
-                alert('Rebuild failed to start: ' + err.message);
+                alert('Rebuild failed: ' + err.message);
             } finally {
-                setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 4000);
+                setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 5000);
             }
         }
 
