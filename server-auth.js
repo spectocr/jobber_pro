@@ -1657,7 +1657,7 @@ app.get('/api/public/reviews', async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Cache-Control', 'no-store');
 
-    const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
     // L1: in-memory cache (fastest)
     if (reviewsCache && Date.now() - reviewsCachedAt < CACHE_TTL) {
