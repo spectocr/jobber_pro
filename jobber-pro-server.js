@@ -2207,7 +2207,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <div class="card">
                 <div class="card-header">
                     <h2>🖼️ Portfolio</h2>
-                    <button class="btn btn-primary" onclick="openPortfolioModal()">+ Add Work</button>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-secondary" id="rebuildSiteBtn" onclick="rebuildPublicSite()" title="Regenerate the public marketing site (homepage, portfolio, PM & location pages) and push live">🔄 Rebuild Site</button>
+                        <button class="btn btn-primary" onclick="openPortfolioModal()">+ Add Work</button>
+                    </div>
                 </div>
                 <div style="margin-bottom:1rem;display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
                     <input type="text" id="portfolio-search" placeholder="🔍 Search..." oninput="filterPortfolio()" style="padding:0.5rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;min-width:180px;">
@@ -9800,6 +9803,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const res = await fetch('/api/portfolio');
             allPortfolioItems = await res.json();
             renderPortfolio();
+        }
+
+        async function rebuildPublicSite() {
+            const btn = document.getElementById('rebuildSiteBtn');
+            const original = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Rebuilding...';
+            try {
+                const res = await fetch('/api/portfolio/rebuild', { method: 'POST' });
+                if (!res.ok) throw new Error('Request failed');
+                btn.textContent = '✅ Rebuild queued';
+                setTimeout(() => {
+                    alert('Public site rebuild started.\n\nThe homepage, portfolio, and location pages are regenerating and pushing live. Changes appear within ~60 seconds (CloudFront cache clear).');
+                }, 100);
+            } catch (err) {
+                btn.textContent = '❌ Failed';
+                alert('Rebuild failed to start: ' + err.message);
+            } finally {
+                setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 4000);
+            }
         }
 
         function filterPortfolio() { renderPortfolio(); }
