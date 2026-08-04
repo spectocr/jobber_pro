@@ -1758,7 +1758,17 @@ app.get('/api/reviews/test', isAuthenticated, async (req, res) => {
         });
         const ms = Date.now() - started;
         if (data.error) {
-            return res.json({ ok: false, liveCall: true, ms, googleStatus: data.error.status, googleCode: data.error.code, googleMessage: data.error.message });
+            // Dig out the precise reason (SERVICE_DISABLED, BILLING_DISABLED, etc.) + any activation URL
+            const info = (data.error.details || []).find(d => d.reason || (d['@type'] || '').includes('ErrorInfo')) || {};
+            const help = (data.error.details || []).find(d => (d['@type'] || '').includes('Help'));
+            return res.json({
+                ok: false, liveCall: true, ms,
+                googleStatus: data.error.status, googleCode: data.error.code, googleMessage: data.error.message,
+                reason: info.reason || null,
+                service: info.metadata?.service || info.metadata?.serviceTitle || null,
+                activationUrl: info.metadata?.activationUrl || help?.links?.[0]?.url || null,
+                rawDetails: data.error.details || null
+            });
         }
         const reviews = (data.reviews || []).filter(r => r.rating >= 4).map(r => ({
             author: r.authorAttribution?.displayName || 'Anonymous', rating: r.rating, time: r.relativePublishTimeDescription || ''
