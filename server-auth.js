@@ -1685,7 +1685,10 @@ app.get('/api/public/reviews', async (req, res) => {
 
         if (data.error) {
             console.error('Google Places error:', data.error.status, data.error.message);
-            return res.status(502).json({ error: 'Could not fetch reviews', detail: data.error.message, status: data.error.status, code: data.error.code });
+            // Degrade gracefully instead of 502 (which spams the browser console):
+            // serve last-known-good reviews if we have them, otherwise an empty 200.
+            if (reviewsCache) return res.json({ ...reviewsCache, stale: true });
+            return res.json({ rating: null, total: 0, reviews: [], unavailable: true });
         }
 
         const reviews = (data.reviews || [])
