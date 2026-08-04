@@ -10000,8 +10000,9 @@ async function rebuildHomePage() {
                 `<p class="footer-copy" style="margin-bottom:0.5rem;">NJ Licensed &amp; Insured &nbsp;·&nbsp; HIC Lic# 13VH13491700</p>\n    <p class="footer-copy">`);
         }
 
-        // 3) Surface actual review count in hero stat
-        if (!html.includes('Google Reviews')) {
+        // 3) Surface actual review count in hero stat (guard on the old label so an
+        //    unrelated "Google Reviews" elsewhere on the page doesn't skip this)
+        if (html.includes('<div class="label">Google Rating</div>')) {
             html = html.replace('<div class="num">5★</div>', `<div class="num">${rvRating}★</div>`)
                        .replace('<div class="label">Google Rating</div>', `<div class="label">${rvCount} Google Reviews</div>`);
         }
