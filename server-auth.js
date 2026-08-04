@@ -9976,8 +9976,17 @@ async function rebuildHomePage() {
             );
         }
         // ── Trust / SEO enhancements (idempotent) ──────────────────────────
-        const rvRating = Number(reviewsCache?.rating || 5).toFixed(1);
-        const rvCount = reviewsCache?.total || 27;
+        // Pull live review figures from our own public endpoint (reviewsCache is
+        // scoped to the route registration block and not visible here).
+        let rvRating = '5.0', rvCount = 27;
+        try {
+            const rvRes = await fetch('https://app.gsdhandymanservice.com/api/public/reviews');
+            if (rvRes.ok) {
+                const rv = await rvRes.json();
+                if (rv && rv.rating) rvRating = Number(rv.rating).toFixed(1);
+                if (rv && rv.total)  rvCount  = rv.total;
+            }
+        } catch (e) { /* keep sensible defaults */ }
 
         // 1) aggregateRating in JSON-LD — surfaces ⭐ star rating in Google results
         if (!html.includes('"aggregateRating"')) {
