@@ -5977,16 +5977,23 @@ app.get('/invoice/:jobId', async (req, res) => {
         );
     }
 
-    // Generate signed URLs for job photos
-    let photoUrls = [];
-    if (Array.isArray(job.photos) && job.photos.length && s3Client) {
-        photoUrls = (await Promise.all(
-            job.photos.map(p =>
-                typeof p === 'string' && !p.startsWith('data:')
-                    ? getS3SignedUrl(p, 3600).catch(() => null)
-                    : Promise.resolve(p || null)
-            )
-        )).filter(Boolean);
+    // Generate signed URLs for job photos — from BOTH job.photos (quote/lead-carried)
+    // and image attachments added on the job (Before/After), which live in job.attachments.
+    let photoData = []; // [{ url, label }]
+    if (s3Client) {
+        const signKey = async (key) => { try { return await getS3SignedUrl(key, 3600); } catch (e) { return null; } };
+        // 1) quote/lead-carried photos (no labels)
+        for (const p of (Array.isArray(job.photos) ? job.photos : [])) {
+            if (typeof p === 'string' && p.startsWith('data:')) { photoData.push({ url: p, label: '' }); }
+            else if (typeof p === 'string' && p) { const u = await signKey(p); if (u) photoData.push({ url: u, label: '' }); }
+        }
+        // 2) image attachments (Before/After etc.), excluding the sign-off signature
+        for (const a of (Array.isArray(job.attachments) ? job.attachments : [])) {
+            if (!a || !a.s3Key || !String(a.type || '').startsWith('image/')) continue;
+            if (a.name === 'Business Sign-Off' || String(a.comment || '').startsWith('Signed by')) continue;
+            const u = await signKey(a.s3Key);
+            if (u) photoData.push({ url: u, label: a.comment || '' });
+        }
     }
 
     // Calculate tax (0 if waived)
@@ -6414,17 +6421,19 @@ app.get('/invoice/:jobId', async (req, res) => {
         </div>
     </div>
 
-    ${photoUrls.length ? `
+    ${photoData.length ? `
     <div style="margin-top:40px;">
         <h3 style="color:#667eea;margin-bottom:16px;font-size:1.1em;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">Job Photos</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">
-            ${photoUrls.map((url, i) => `
-            <div style="aspect-ratio:1;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;"
-                 onclick="openLightbox(${i})">
-                <img src="${url}" alt="Job photo ${i+1}"
-                     style="width:100%;height:100%;object-fit:cover;transition:transform 0.2s;"
-                     onmouseover="this.style.transform='scale(1.05)'"
-                     onmouseout="this.style.transform='scale(1)'" />
+            ${photoData.map((ph, i) => `
+            <div style="cursor:pointer;" onclick="openLightbox(${i})">
+                <div style="aspect-ratio:1;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;">
+                    <img src="${ph.url}" alt="Job photo ${i+1}${ph.label ? ' — ' + ph.label : ''}"
+                         style="width:100%;height:100%;object-fit:cover;transition:transform 0.2s;"
+                         onmouseover="this.style.transform='scale(1.05)'"
+                         onmouseout="this.style.transform='scale(1)'" />
+                </div>
+                ${ph.label ? `<div style="text-align:center;font-size:0.78em;color:#718096;margin-top:4px;font-weight:600;">${ph.label}</div>` : ''}
             </div>`).join('')}
         </div>
     </div>
@@ -6437,7 +6446,7 @@ app.get('/invoice/:jobId', async (req, res) => {
         <button onclick="event.stopPropagation();lbNext()" style="position:absolute;right:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:2rem;padding:8px 14px;border-radius:6px;cursor:pointer;">&#8250;</button>
     </div>
     <script>
-        var lbUrls = ${JSON.stringify(photoUrls)};
+        var lbUrls = ${JSON.stringify(photoData.map(p => p.url))};
         var lbIdx = 0;
         function openLightbox(i) {
             lbIdx = i;
