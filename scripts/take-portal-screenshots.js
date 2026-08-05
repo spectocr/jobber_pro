@@ -257,10 +257,9 @@ async function main() {
             window.scrollTo(0, 0);
         }, DEMO_ARCHIVE);
         await new Promise(r => setTimeout(r, 400));
-        const archPanel = await page.$('#tab-archive');
-        const shot4 = archPanel
-            ? await archPanel.screenshot({ type: 'jpeg', quality: 88 })
-            : await page.screenshot({ type: 'jpeg', quality: 88, fullPage: false });
+        // Capture the full portal viewport (header + tabs + Archive) so this shot
+        // frames consistently with the other three, instead of a cropped panel.
+        const shot4 = await page.screenshot({ type: 'jpeg', quality: 88, fullPage: false });
         await uploadScreenshot(shot4, 'portal-screenshots/04-invoices.jpg');
 
         // ── Write timestamp ──
