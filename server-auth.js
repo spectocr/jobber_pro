@@ -3614,6 +3614,36 @@ app.get('/api/jobs/:id/photos', isAuthenticated, async (req, res) => {
     }
 });
 
+// Debug: inspect the raw shape of a job's stored photos (admin only)
+app.get('/api/jobs/:id/photos-debug', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { photos: 1 } });
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        const photos = Array.isArray(job.photos) ? job.photos : [];
+        const s3ok = !!s3Client;
+        const items = await Promise.all(photos.map(async (p, i) => {
+            const info = { i, type: typeof p, isString: typeof p === 'string' };
+            if (typeof p === 'string') {
+                info.isDataUrl = p.startsWith('data:');
+                info.isHttp = p.startsWith('http');
+                info.preview = p.slice(0, 60);
+                info.length = p.length;
+                if (!info.isDataUrl && !info.isHttp && s3ok) {
+                    try { await getS3SignedUrl(p, 60); info.signs = true; }
+                    catch (e) { info.signs = false; info.signError = e.message; }
+                }
+            } else {
+                info.keys = p && typeof p === 'object' ? Object.keys(p) : null;
+                info.preview = JSON.stringify(p).slice(0, 120);
+            }
+            return info;
+        }));
+        res.json({ count: photos.length, s3Configured: s3ok, items });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Callbacks ────────────────────────────────────────────────────────────────
 app.get('/api/jobs/:id/callbacks', isAuthenticated, async (req, res) => {
     try {
