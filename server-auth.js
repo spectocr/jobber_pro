@@ -2186,39 +2186,19 @@ app.get('/', (req, res) => {
 // Network-first with cache fallback. GET-only. Only intercepts the admin shell
 // ('/') and admin read APIs; everything else (portal, invoices, auth, POSTs)
 // passes straight through to the network untouched.
+// KILL-SWITCH: any previously-installed worker updates to this, which clears all
+// caches, unregisters itself, and reloads open tabs — restoring normal network.
 const SERVICE_WORKER_JS = `
-const CACHE = 'gsd-admin-v1';
 self.addEventListener('install', function(){ self.skipWaiting(); });
 self.addEventListener('activate', function(e){
   e.waitUntil(
-    caches.keys().then(function(keys){
-      return Promise.all(keys.map(function(k){ return k === CACHE ? null : caches.delete(k); }));
-    }).then(function(){ return self.clients.claim(); })
+    caches.keys().then(function(keys){ return Promise.all(keys.map(function(k){ return caches.delete(k); })); })
+      .then(function(){ return self.registration.unregister(); })
+      .then(function(){ return self.clients.matchAll({ type: 'window' }); })
+      .then(function(clients){ clients.forEach(function(c){ try { c.navigate(c.url); } catch(e){} }); })
   );
 });
-self.addEventListener('fetch', function(event){
-  var req = event.request;
-  if (req.method !== 'GET') return;                         // never touch writes
-  var url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;          // same-origin only
-  var isShell = req.mode === 'navigate' && url.pathname === '/';
-  var isAdminApi = url.pathname.indexOf('/api/') === 0
-    && url.pathname.indexOf('/api/auth') !== 0
-    && url.pathname.indexOf('/api/client-portal') !== 0;
-  if (!isShell && !isAdminApi) return;                      // passthrough everything else
-  var key = isShell ? '/' : req;
-  event.respondWith(
-    fetch(req).then(function(res){
-      if (res && res.ok && !res.redirected) {               // don't cache login redirects
-        var copy = res.clone();
-        caches.open(CACHE).then(function(c){ c.put(key, copy); }).catch(function(){});
-      }
-      return res;
-    }).catch(function(){
-      return caches.match(key).then(function(c){ return c || Response.error(); });
-    })
-  );
-});
+// No fetch handler — all requests go straight to the network.
 `;
 app.get('/sw.js', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');

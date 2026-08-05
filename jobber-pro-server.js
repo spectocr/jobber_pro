@@ -17204,19 +17204,14 @@ function formatDuration(seconds) {
   </div>
 </div>
 
-<div id="offlineBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#742a2a;color:#fff;text-align:center;padding:0.55rem 1rem;font-size:0.85rem;font-weight:600;z-index:99999;box-shadow:0 -2px 8px rgba(0,0,0,0.2);">📴 You're offline — showing your last synced data. Saving is paused until you reconnect.</div>
 <script>
+/* Actively remove any previously-installed service worker (Phase 1 rollback). */
 (function(){
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function(){
-      navigator.serviceWorker.register('/sw.js').catch(function(e){ console.warn('SW register failed', e); });
-    });
+  if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+    navigator.serviceWorker.getRegistrations().then(function(rs){
+      rs.forEach(function(r){ r.unregister(); });
+    }).catch(function(){});
   }
-  var b = document.getElementById('offlineBanner');
-  function updOffline(){ if (b) b.style.display = navigator.onLine ? 'none' : 'block'; }
-  window.addEventListener('online', updOffline);
-  window.addEventListener('offline', updOffline);
-  updOffline();
 })();
 </script>
 
