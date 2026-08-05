@@ -14035,17 +14035,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 ? clients.find(c => c.phone && c.phone.replace(/\D/g,'') === l.phone.replace(/\D/g,''))
                 : null;
 
+            // Carry the lead's texting preference through to the client profile.
+            // Only act on an explicit choice (true/false); undefined = leave default.
+            const leadStated = (l.smsConsent === true || l.smsConsent === false);
+            const leadOptOut = l.smsConsent === false;
+
             if (!client) {
-                // Auto-create client from lead data
+                // Auto-create client from lead data (carry SMS preference)
                 const r = await fetch('/api/clients', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: l.name, phone: l.phone || '', email: l.email || '', address: l.city || '' })
+                    body: JSON.stringify({ name: l.name, phone: l.phone || '', email: l.email || '', address: l.city || '', smsOptOut: leadOptOut })
                 });
                 const data = await r.json();
                 if (!data.id) { alert('Failed to create client.'); return; }
-                client = { id: data.id, _id: data.id, name: l.name, phone: l.phone || '', email: l.email || '' };
+                client = { id: data.id, _id: data.id, name: l.name, phone: l.phone || '', email: l.email || '', smsOptOut: leadOptOut };
                 clients.push(client);
+            } else if (leadStated && client.smsOptOut !== leadOptOut) {
+                // Update existing client's texting preference to match the lead's stated choice
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ _id: client._id || client.id, smsOptOut: leadOptOut })
+                }).catch(() => {});
+                client.smsOptOut = leadOptOut;
             }
 
             closeLeadModal();
