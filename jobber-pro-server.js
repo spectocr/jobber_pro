@@ -1633,11 +1633,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="client-detail-info" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;"></div>
                     </div>
                     <div>
-                        <h3 style="margin-bottom: 1rem; color: #667eea;">Jobs</h3>
-                        <div id="client-detail-jobs"></div>
-                        <div id="client-callbacks-section" style="margin-top:2rem;display:none;">
-                            <h3 style="margin-bottom:1rem;color:#f97316;">📞 Callback History</h3>
-                            <div id="client-callbacks-list"></div>
+                        <div class="client-detail-tabs" style="display:flex;gap:0.25rem;border-bottom:2px solid #e2e8f0;margin-bottom:1rem;flex-wrap:wrap;">
+                            <button type="button" class="cd-tab" data-cdtab="jobs" onclick="switchClientTab('jobs')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid #667eea;font-weight:600;color:#667eea;cursor:pointer;font-size:0.95rem;">🔧 Jobs</button>
+                            <button type="button" class="cd-tab" data-cdtab="quotes" onclick="switchClientTab('quotes')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📄 Quotes</button>
+                            <button type="button" class="cd-tab" data-cdtab="callbacks" onclick="switchClientTab('callbacks')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📞 Callbacks</button>
+                        </div>
+                        <div id="cd-panel-jobs">
+                            <div id="client-detail-jobs"></div>
+                        </div>
+                        <div id="cd-panel-quotes" style="display:none;">
+                            <div id="client-detail-quotes"></div>
+                        </div>
+                        <div id="cd-panel-callbacks" style="display:none;">
+                            <div id="client-callbacks-section" style="display:none;">
+                                <div id="client-callbacks-list"></div>
+                            </div>
+                            <div id="client-callbacks-empty" style="color:#718096;font-size:0.9rem;padding:0.5rem 0;">No callbacks recorded for this client.</div>
                         </div>
                     </div>
                 </div>
@@ -3407,6 +3418,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label>Phone *</label>
                         <input type="tel" name="phone" required placeholder="(555)555-5555" oninput="maskPhoneInput(this)">
                     </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:normal;">
+                            <input type="checkbox" name="smsOptOut" id="clientSmsOptOut" style="width:auto;cursor:pointer;">
+                            <span>🚫 Do not text this client (SMS opt-out)</span>
+                        </label>
+                        <small style="color:#718096;display:block;margin-top:0.25rem;margin-left:1.6rem;">No automated texts (scheduling, updates, reminders) will be sent to this client.</small>
+                    </div>
                     <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Address</h3>
                     <div class="form-group">
                         <label>Street Line 1</label>
@@ -4859,6 +4877,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const pmCheckbox = document.getElementById('isPropertyManagementCheckbox');
                 pmCheckbox.checked = client.isPropertyManagement || false;
 
+                // SMS opt-out checkbox
+                document.getElementById('clientSmsOptOut').checked = client.smsOptOut || false;
+
                 // Load service locations
                 serviceLocations = client.serviceLocations || [];
                 togglePropertyManagementFields();
@@ -5898,6 +5919,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Convert checkbox to boolean
             client.isPropertyManagement = document.getElementById('isPropertyManagementCheckbox').checked;
+            client.smsOptOut = document.getElementById('clientSmsOptOut').checked;
 
             // Add service locations if property management is enabled
             if (client.isPropertyManagement) {
@@ -7872,7 +7894,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Notes:</strong><br>\${client.notes || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem; color: #718096; font-size: 0.875rem;"><strong>Added:</strong> \${new Date(client.createdAt).toLocaleDateString()}</p>
+                \${client.smsOptOut ? '<p style="margin-bottom:0.75rem;"><span style="background:#fed7d7;color:#742a2a;padding:2px 10px;border-radius:6px;font-size:0.8rem;font-weight:700;">🚫 SMS opt-out</span></p>' : ''}
             \`;
+
+            // Reset to Jobs tab and load this client's quote history
+            switchClientTab('jobs');
+            loadClientQuotes(client.id);
 
             // Load client jobs
             const clientJobs = jobs.filter(j => j.clientId == client.id || String(j.clientId) === String(client.id));
@@ -7961,6 +7988,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     }
                     const section = document.getElementById('client-callbacks-section');
                     const list = document.getElementById('client-callbacks-list');
+                    const cbEmpty = document.getElementById('client-callbacks-empty');
+                    if (cbEmpty) cbEmpty.style.display = cbs.length > 0 ? 'none' : '';
                     if (cbs.length > 0) {
                         section.style.display = 'block';
                         list.innerHTML = cbs.map(cb => {
@@ -8781,6 +8810,50 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } finally {
                 isSavingQuote = false;
                 if (saveQuoteBtn) { saveQuoteBtn.disabled = false; saveQuoteBtn.textContent = 'Save Quote'; }
+            }
+        }
+
+        function switchClientTab(tab) {
+            ['jobs','quotes','callbacks'].forEach(function(t){
+                var panel = document.getElementById('cd-panel-'+t);
+                if (panel) panel.style.display = t === tab ? '' : 'none';
+            });
+            document.querySelectorAll('.cd-tab').forEach(function(b){
+                var on = b.dataset.cdtab === tab;
+                b.style.borderBottomColor = on ? '#667eea' : 'transparent';
+                b.style.color = on ? '#667eea' : '#718096';
+            });
+        }
+
+        async function loadClientQuotes(clientId) {
+            var container = document.getElementById('client-detail-quotes');
+            if (!container) return;
+            container.innerHTML = '<div style="color:#718096;padding:0.5rem 0;">Loading…</div>';
+            try {
+                var res = await fetch('/api/clients/' + clientId + '/quotes');
+                var qs = res.ok ? await res.json() : [];
+                qs.forEach(function(q){ if (!quotes.find(function(x){ return String(x.id||x._id) === String(q.id); })) quotes.push(q); });
+                if (!qs.length) {
+                    container.innerHTML = '<div style="color:#718096;padding:0.75rem 0;">No quotes for this client yet.</div>';
+                    return;
+                }
+                var badge = { draft:'#718096', pending_pricing:'#d69e2e', sent:'#3182ce', in_review:'#805ad5', approved:'#38a169', rejected:'#e53e3e', expired:'#a0aec0', archived:'#a0aec0' };
+                container.innerHTML = qs.map(function(q){
+                    var color = badge[q.status] || '#718096';
+                    var d = q.createdAt ? new Date(q.createdAt).toLocaleDateString() : '';
+                    var total = q.total ? ' · $' + parseFloat(q.total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+                    var conv = q.convertedToJobId ? ' · <span style="color:#9f7aea;font-weight:600;">→ converted to job</span>' : '';
+                    return '<div style="border:1.5px solid #e2e8f0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.6rem;">'
+                        + '<div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;align-items:center;">'
+                        + '<div style="font-weight:600;color:#1a202c;">#' + (q.quoteNumber||'') + ' — ' + (q.title||'Untitled') + '</div>'
+                        + '<span style="background:' + color + ';color:#fff;padding:2px 9px;border-radius:6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;white-space:nowrap;">' + String(q.status||'').replace(/_/g,' ') + '</span>'
+                        + '</div>'
+                        + '<div style="color:#718096;font-size:0.85rem;margin-top:0.3rem;">' + d + total + conv + '</div>'
+                        + '<div style="margin-top:0.5rem;"><button onclick="editQuote(\'' + q.id + '\')" style="padding:0.35rem 0.85rem;background:#ebf4ff;color:#3182ce;border:1.5px solid #bee3f8;border-radius:7px;font-size:0.82rem;font-weight:600;cursor:pointer;">View Quote</button></div>'
+                        + '</div>';
+                }).join('');
+            } catch (e) {
+                container.innerHTML = '<div style="color:#e53e3e;padding:0.5rem 0;">Failed to load quotes.</div>';
             }
         }
 

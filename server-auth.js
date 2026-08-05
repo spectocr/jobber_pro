@@ -193,6 +193,18 @@ function interpolate(template, vars) {
 }
 
 // SMS Helper Function
+// True if a client with this phone number has opted out of SMS.
+async function isSmsOptedOut(to) {
+    try {
+        if (!db) return false;
+        const norm = (to || '').replace(/\D/g, '').slice(-10);
+        if (!norm) return false;
+        const optedOut = await db.collection('clients')
+            .find({ smsOptOut: true }, { projection: { phone: 1 } }).toArray();
+        return optedOut.some(c => (c.phone || '').replace(/\D/g, '').slice(-10) === norm);
+    } catch (e) { return false; }
+}
+
 async function sendSMS(to, message, meta = {}) {
     const logEntry = {
         to,
@@ -213,6 +225,15 @@ async function sendSMS(to, message, meta = {}) {
             console.error('SMS log write failed:', e.message);
         }
     };
+
+    // Respect per-client SMS opt-out — blocks every automated text path centrally
+    if (await isSmsOptedOut(to)) {
+        console.log('SMS skipped (client opted out):', to);
+        logEntry.error = 'Client opted out of SMS';
+        logEntry.skipped = true;
+        await writeLog();
+        return { success: false, skipped: true, error: 'Client opted out of SMS' };
+    }
 
     if (!twilioClient) {
         console.log('SMS not sent (Twilio not configured):', to, message);
@@ -3703,6 +3724,24 @@ app.get('/api/clients/:id/callbacks', isAuthenticated, async (req, res) => {
             .sort({ date: -1 })
             .toArray();
         res.json(callbacks.map(c => ({ ...c, id: c._id.toString(), _id: c._id.toString() })));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/clients/:id/quotes', isAuthenticated, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const or = [{ clientId: id }];
+        try { or.push({ clientId: new ObjectId(id) }); } catch (e) {}
+        const quotes = await db.collection('quotes')
+            .find({ $or: or })
+            .sort({ createdAt: -1 })
+            .toArray();
+        res.json(quotes.map(q => ({
+            ...q,
+            id: q._id.toString(),
+            _id: q._id.toString(),
+            convertedToJobId: q.convertedToJobId ? q.convertedToJobId.toString() : null
+        })));
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
