@@ -9669,7 +9669,8 @@ function generateCapabilitiesSheet() {
 <title>GSD Property Services — Capabilities Sheet</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a202c;background:#e9edf2;padding:1.5rem;}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a202c;background:#e9edf2;padding:1.5rem;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  header,.lic-bar,.trust,footer{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .toolbar{max-width:8.5in;margin:0 auto .9rem;display:flex;justify-content:flex-end;}
   .print-btn{background:#0f1c2e;color:#fff;border:none;border-radius:8px;padding:.6rem 1.2rem;font-size:.9rem;font-weight:700;cursor:pointer;}
   .sheet{max-width:8.5in;margin:0 auto;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.12);}
@@ -9696,7 +9697,7 @@ function generateCapabilitiesSheet() {
   footer{background:#0f1c2e;color:#fff;padding:1rem 2rem;text-align:center;}
   footer .big{font-size:1.02rem;font-weight:700;}
   footer a{color:#fff;text-decoration:none;}
-  @media print{body{background:#fff;padding:0;}.toolbar{display:none;}.sheet{box-shadow:none;max-width:100%;}@page{margin:.4in;}}
+  @media print{body{background:#fff;padding:0;}.toolbar{display:none;}.sheet{box-shadow:none;max-width:100%;border:1px solid #cbd5e0;}@page{margin:.4in;}}
 </style>
 </head>
 <body>
