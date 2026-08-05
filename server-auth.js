@@ -9713,8 +9713,8 @@ function generateCapabilitiesSheet() {
       <div class="services">
         <div class="service"><strong>General Handyman &amp; Repairs</strong><span>Drywall, doors, fixtures, mounting, punch lists</span></div>
         <div class="service"><strong>Carpentry &amp; Wood Rot</strong><span>Trim, framing, fences, decks, repairs</span></div>
-        <div class="service"><strong>Electrical (non-licensed)</strong><span>Fixtures, outlets, switches, detectors</span></div>
-        <div class="service"><strong>Plumbing (fixtures)</strong><span>Faucets, toilets, leaks, fixture swaps</span></div>
+        <div class="service"><strong>Electrical</strong><span>Fixtures, outlets, switches, detectors</span></div>
+        <div class="service"><strong>Plumbing</strong><span>Faucets, toilets, leaks, fixture swaps</span></div>
         <div class="service"><strong>Pressure Washing</strong><span>Building exteriors, walkways, lots</span></div>
         <div class="service"><strong>Turnovers &amp; Make-Readies</strong><span>Unit prep between tenants</span></div>
       </div>
