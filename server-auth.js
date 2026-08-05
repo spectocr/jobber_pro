@@ -3189,7 +3189,11 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
             </div>
             <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">Or paste this link: <a href="${surveyUrl}" style="color:#667eea;">${surveyUrl}</a></p>
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
-            <p style="font-size:0.8rem;color:#a0aec0;text-align:center;">${companyName} · South Jersey</p>
+            <div style="text-align:center;">
+                <img src="https://gsdhandymanservice.com/images/hero-photo.png" alt="Cris and Maddox" style="width:120px;height:120px;object-fit:cover;border-radius:50%;margin:0 auto 0.75rem;display:block;box-shadow:0 3px 12px rgba(0,0,0,0.12);">
+                <p style="font-size:0.9rem;color:#4a5568;margin:0 0 0.25rem;font-style:italic;">Thanks for trusting us with your home. It really does mean the world to us.</p>
+                <p style="font-size:0.85rem;color:#718096;margin:0;">— Cris &amp; Maddox 🐕 · ${companyName}, South Jersey</p>
+            </div>
         </div>`;
     await emailService.sendEmail({
         to: surveyEmail,
@@ -3308,6 +3312,13 @@ textarea:focus{border-color:#553c9a;}
     <h2>Thank you!</h2>
     <p>We really appreciate your feedback.<br>It helps us keep getting better.</p>
   </div>
+  <div class="thanks" id="googleMsg" style="display:none;">
+    <img src="https://gsdhandymanservice.com/images/hero-photo.png" alt="Cris and Maddox" style="width:150px;height:150px;object-fit:cover;border-radius:50%;margin:0 auto 1rem;display:block;box-shadow:0 4px 16px rgba(0,0,0,0.15);">
+    <h2>You just made our day! 🐾</h2>
+    <p style="margin-bottom:1rem;">Reviews like yours mean the world to me and Maddox — they're how a small local outfit like ours keeps the lights on and the treats coming. If you have 30 seconds, would you share it on Google too? It genuinely helps more than you know.</p>
+    <a href="https://search.google.com/local/writereview?placeid=ChIJobmiZQyj9wcRdQPvKcZ1zQU" target="_blank" rel="noopener" style="display:inline-block;background:#0f1c2e;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem;">⭐ Leave a Google Review</a>
+    <p style="margin-top:1rem;font-size:0.85rem;color:#718096;">Thank you — from Cris &amp; Maddox 🐕</p>
+  </div>
 </div>
 <script>
 let rating = 0, recommend = null;
@@ -3341,7 +3352,7 @@ async function submitSurvey() {
     const d = await r.json();
     if (d.ok) {
       document.getElementById('surveyForm').style.display = 'none';
-      document.getElementById('thanksMsg').style.display = 'block';
+      document.getElementById(d.promptGoogle ? 'googleMsg' : 'thanksMsg').style.display = 'block';
     } else {
       document.getElementById('errMsg').textContent = d.error || 'Something went wrong.';
       btn.disabled = false; btn.textContent = 'Submit Feedback';
@@ -3374,7 +3385,8 @@ app.post('/api/survey/:token', async (req, res) => {
             { _id: job._id },
             { $set: { surveySubmittedAt: now, surveyRating: +rating } }
         );
-        res.json({ ok: true });
+        // Only nudge toward a public Google review on a genuinely great result
+        res.json({ ok: true, promptGoogle: (+rating >= 4) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
