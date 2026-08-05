@@ -9646,10 +9646,121 @@ async function _patchAndUploadPmPage(s3Key, fetchUrl) {
             '<a href="/#quote">Get a Quote</a>\n        <a href="https://app.gsdhandymanservice.com/client-login">Client Portal</a>'
         );
     }
+    // Add "Capabilities Sheet" button to the hero CTAs (idempotent)
+    if (!html.includes('/capabilities.html')) {
+        html = html.replace(
+            '<a class="btn-outline" href="sms:+18568724636">📱 Text Your Property List</a>',
+            '<a class="btn-outline" href="sms:+18568724636">📱 Text Your Property List</a>\n            <a class="btn-outline" href="/capabilities.html" target="_blank">📄 Capabilities Sheet</a>'
+        );
+    }
     html = _withOOOSnippet(html);
     await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: s3Key, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
     console.log(`✅ ${s3Key} commercial gallery updated`);
     return true;
+}
+
+// One-page, print-ready capabilities sheet for PMs to file/forward/print.
+function generateCapabilitiesSheet() {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSD Property Services — Capabilities Sheet</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a202c;background:#e9edf2;padding:1.5rem;}
+  .toolbar{max-width:8.5in;margin:0 auto .9rem;display:flex;justify-content:flex-end;}
+  .print-btn{background:#0f1c2e;color:#fff;border:none;border-radius:8px;padding:.6rem 1.2rem;font-size:.9rem;font-weight:700;cursor:pointer;}
+  .sheet{max-width:8.5in;margin:0 auto;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.12);}
+  header{background:#0f1c2e;color:#fff;padding:1.4rem 2rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;}
+  header .brand h1{font-size:1.5rem;letter-spacing:.02em;}
+  header .brand p{color:#9fb3c8;font-size:.78rem;margin-top:.2rem;text-transform:uppercase;letter-spacing:.08em;}
+  header .contact{text-align:right;font-size:.85rem;line-height:1.55;}
+  header .contact a{color:#fff;text-decoration:none;}
+  .lic-bar{background:#22543d;color:#fff;text-align:center;padding:.4rem;font-size:.8rem;font-weight:700;letter-spacing:.03em;}
+  .body{padding:1.4rem 2rem;}
+  .intro{font-size:.95rem;line-height:1.55;color:#2d3748;margin-bottom:1rem;}
+  h2.sec{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:#0f1c2e;border-bottom:2px solid #e2e8f0;padding-bottom:.3rem;margin:1.1rem 0 .7rem;}
+  .services{display:grid;grid-template-columns:1fr 1fr;gap:.45rem 1.5rem;}
+  .service strong{display:block;color:#0f1c2e;font-size:.9rem;}
+  .service span{color:#718096;font-size:.8rem;}
+  .how{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:.4rem 1.5rem;}
+  .how li{font-size:.86rem;padding-left:1.3rem;position:relative;color:#2d3748;}
+  .how li::before{content:'✓';position:absolute;left:0;color:#22543d;font-weight:800;}
+  .trust{display:flex;gap:1.25rem;flex-wrap:wrap;justify-content:space-between;background:#f8fafc;border-radius:10px;padding:.9rem 1.25rem;}
+  .trust div{text-align:center;flex:1;}
+  .trust .n{font-size:1.25rem;font-weight:800;color:#0f1c2e;}
+  .trust .l{font-size:.68rem;color:#718096;text-transform:uppercase;letter-spacing:.05em;}
+  .area{font-size:.83rem;color:#4a5568;margin-top:.7rem;}
+  footer{background:#0f1c2e;color:#fff;padding:1rem 2rem;text-align:center;}
+  footer .big{font-size:1.02rem;font-weight:700;}
+  footer a{color:#fff;text-decoration:none;}
+  @media print{body{background:#fff;padding:0;}.toolbar{display:none;}.sheet{box-shadow:none;max-width:100%;}@page{margin:.4in;}}
+</style>
+</head>
+<body>
+  <div class="toolbar"><button class="print-btn" onclick="window.print()">🖨 Print / Save as PDF</button></div>
+  <div class="sheet">
+    <header>
+      <div class="brand"><h1>GSD Property Services</h1><p>Commercial &amp; Property Management Services</p></div>
+      <div class="contact"><a href="tel:+18568724636">856-872-4636</a><br><a href="mailto:info@gsdhandymanservice.com">info@gsdhandymanservice.com</a><br>gsdhandymanservice.com</div>
+    </header>
+    <div class="lic-bar">NJ LICENSED &amp; INSURED · HIC LIC# 13VH13491700</div>
+    <div class="body">
+      <p class="intro">One reliable contractor for all your properties across South Jersey. GSD works with property managers, landlords, HOAs, and facility operators — from residential rentals to commercial buildings. We coordinate access directly with tenants, show up when we say we will, and send a clean, itemized invoice when the work is done.</p>
+      <h2 class="sec">Services</h2>
+      <div class="services">
+        <div class="service"><strong>General Handyman &amp; Repairs</strong><span>Drywall, doors, fixtures, mounting, punch lists</span></div>
+        <div class="service"><strong>Carpentry &amp; Wood Rot</strong><span>Trim, framing, fences, decks, repairs</span></div>
+        <div class="service"><strong>Electrical (non-licensed)</strong><span>Fixtures, outlets, switches, detectors</span></div>
+        <div class="service"><strong>Plumbing (fixtures)</strong><span>Faucets, toilets, leaks, fixture swaps</span></div>
+        <div class="service"><strong>Pressure Washing</strong><span>Building exteriors, walkways, lots</span></div>
+        <div class="service"><strong>Turnovers &amp; Make-Readies</strong><span>Unit prep between tenants</span></div>
+      </div>
+      <h2 class="sec">How We Work With Property Managers</h2>
+      <ul class="how">
+        <li>Online work-order portal — submit &amp; track jobs</li>
+        <li>Direct tenant access coordination</li>
+        <li>Clear, itemized invoicing per property</li>
+        <li>Fast response on urgent repairs</li>
+        <li>One point of contact across your portfolio</li>
+        <li>Photo documentation on completed work</li>
+      </ul>
+      <h2 class="sec">Why GSD</h2>
+      <div class="trust">
+        <div><div class="n">5.0&#9733;</div><div class="l">27 Google Reviews</div></div>
+        <div><div class="n">10+ yrs</div><div class="l">Experience</div></div>
+        <div><div class="n">500+</div><div class="l">Jobs Completed</div></div>
+        <div><div class="n">Licensed</div><div class="l">&amp; Insured</div></div>
+      </div>
+      <p class="area"><strong>Service area:</strong> Mount Laurel, Moorestown, Marlton, Cherry Hill, Cinnaminson, Delran, Maple Shade, Medford, Voorhees &amp; surrounding South Jersey communities.</p>
+    </div>
+    <footer>
+      <div class="big">Ready to add a reliable contractor to your vendor list?</div>
+      <div style="margin-top:.35rem;font-size:.9rem;">📞 <a href="tel:+18568724636">856-872-4636</a> &nbsp;·&nbsp; ✉️ <a href="mailto:info@gsdhandymanservice.com">info@gsdhandymanservice.com</a> &nbsp;·&nbsp; gsdhandymanservice.com</div>
+    </footer>
+  </div>
+</body>
+</html>`;
+}
+
+async function rebuildCapabilitiesSheet() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return { page: 'capabilities.html', ok: false, error: 'public S3 not configured' };
+    try {
+        const html = generateCapabilitiesSheet();
+        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'capabilities.html', Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'public, max-age=3600' }));
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 1, Items: ['/capabilities.html'] } } }));
+        }
+        console.log('✅ capabilities.html rebuilt');
+        return { page: 'capabilities.html', ok: true, bytes: html.length };
+    } catch (err) {
+        console.error('❌ capabilities.html rebuild failed:', err.message);
+        return { page: 'capabilities.html', ok: false, error: err.message };
+    }
 }
 
 async function uploadThankYouPage() {
@@ -9938,6 +10049,7 @@ async function rebuildPublicPortfolio() {
         rebuildPropertyManagementPage().catch(() => {});
         rebuildHomePage().catch(() => {});
         rebuildLocationPages().catch(() => {});
+        rebuildCapabilitiesSheet().catch(() => {});
         uploadThankYouPage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
