@@ -831,6 +831,16 @@ async function submitOnboarding(){
 // Start Express app
 const app = express();
 
+// ── Global safety net ────────────────────────────────────────────────────────
+// A stray unhandled rejection / exception would otherwise terminate the whole
+// process (Node default) and crash-loop the app. Log loudly and stay alive.
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️  Unhandled promise rejection (app kept alive):', reason && reason.stack ? reason.stack : reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('⚠️  Uncaught exception (app kept alive):', err && err.stack ? err.stack : err);
+});
+
 // Trust proxy (Heroku uses load balancer)
 app.set('trust proxy', 1);
 
@@ -10725,9 +10735,9 @@ connectDB().then(async () => {
         console.error('❌ Failed to load Google Calendar credentials from database:', error);
     }
 
-    // Initialize email service
-    await emailService.initialize();
-    await calendarService.initialize();
+    // Initialize non-critical services — a failure here must NOT stop the app from serving
+    try { await emailService.initialize(); } catch (e) { console.error('⚠️  emailService init failed (continuing):', e.message); }
+    try { await calendarService.initialize(); } catch (e) { console.error('⚠️  calendarService init failed (continuing):', e.message); }
 
     // Setup session middleware after DB connection
     app.use(session({
@@ -10749,6 +10759,13 @@ connectDB().then(async () => {
 
     // Setup routes after session middleware
     setupRoutes();
+
+    // Express error handler (registered last) — catches synchronous throws / next(err)
+    app.use((err, req, res, next) => {
+        console.error('❌ Route error on', req.method, req.originalUrl, '—', err && err.stack ? err.stack : err);
+        if (res.headersSent) return next(err);
+        res.status(500).json({ error: 'Server error' });
+    });
 
     app.listen(PORT, () => {
         console.log('='.repeat(60));
