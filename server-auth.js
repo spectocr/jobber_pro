@@ -10219,6 +10219,35 @@ const DECK_BODY = `
 })();
 </script>
 
+<section class="services" id="quote">
+    <div class="inner" style="max-width:720px;margin:0 auto;">
+        <div class="section-tag" style="text-align:center;">Free Estimates</div>
+        <h2 class="section-title" style="text-align:center;">Request a Deck Quote</h2>
+        <p style="text-align:center;color:#6b7280;max-width:560px;margin:0 auto 2rem;line-height:1.6;">Tell us about your deck — snap a few photos if you can. We'll get back to you fast with honest options. No obligation.</p>
+        <div style="border-radius:12px;overflow:hidden;border:2px solid #e5e7eb;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+            <iframe id="quoteIframe" src="https://app.gsdhandymanservice.com/request-quote" title="Request a Quote" loading="lazy" scrolling="no" style="width:100%;height:520px;border:none;display:block;transition:height 0.2s;"></iframe>
+        </div>
+    </div>
+</section>
+<script>
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'quoteFormHeight') {
+        var iframe = document.getElementById('quoteIframe');
+        if (iframe) iframe.style.height = (e.data.height + 16) + 'px';
+    }
+});
+(function() {
+    var iframe = document.getElementById('quoteIframe');
+    if (!iframe) return;
+    var src = new URL(iframe.src);
+    var p = new URLSearchParams(window.location.search);
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(function(k){ if (p.has(k)) src.searchParams.set(k, p.get(k)); });
+    if (document.referrer) src.searchParams.set('ref', document.referrer);
+    src.searchParams.set('entry', window.location.pathname + window.location.search);
+    iframe.src = src.toString();
+})();
+</script>
+
 <section class="cta-section">
     <div class="inner">
         <div class="cta-box">
@@ -10251,6 +10280,8 @@ async function rebuildDeckingPage() {
         if (!html.includes('>Decks</a>')) {
             html = html.replace('<a href="/portfolio.html">Our Work</a>', '<a href="/portfolio.html">Our Work</a>\n        <a href="/decks">Decks</a>');
         }
+        // Point the nav "Get a Quote" at this page's own embedded form
+        html = html.replace('<a href="/#quote">Get a Quote</a>', '<a href="#quote">Get a Quote</a>');
         html = _withOOOSnippet(html);
         for (const key of ['decks', 'decks.html']) {
             await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: key, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
