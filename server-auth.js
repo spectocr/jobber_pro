@@ -89,12 +89,26 @@ async function seedDemoPortalAccount() {
 
 // Connect to MongoDB
 async function connectDB() {
-    try {
-        client = new MongoClient(MONGODB_URI);
-        await client.connect();
-        db = client.db(DB_NAME);
-        console.log('✅ Connected to MongoDB');
+    // Connect with retry so a brief Mongo/network blip doesn't crash-loop the whole app
+    for (let attempt = 1; ; attempt++) {
+        try {
+            client = new MongoClient(MONGODB_URI);
+            await client.connect();
+            db = client.db(DB_NAME);
+            console.log('✅ Connected to MongoDB');
+            break;
+        } catch (error) {
+            console.error(`❌ MongoDB connection attempt ${attempt} failed:`, error.message);
+            if (attempt >= 6) {
+                console.error('❌ Giving up after 6 attempts — exiting for a clean restart.');
+                process.exit(1);
+            }
+            await new Promise(r => setTimeout(r, 5000));
+        }
+    }
 
+    // Indexes + seed — NON-FATAL. A data/index hiccup must never take the app down.
+    try {
         // Create indexes
         await db.collection('users').createIndex({ email: 1 }, { unique: true });
         await db.collection('clients').createIndex({ name: 1 });
@@ -167,9 +181,8 @@ async function connectDB() {
         // Seed demo portal account with sample jobs for screenshot capture
         await seedDemoPortalAccount();
 
-    } catch (error) {
-        console.error('❌ MongoDB connection error:', error);
-        process.exit(1);
+    } catch (setupErr) {
+        console.warn('⚠️  Startup DB setup (indexes/seed) had a non-fatal issue — continuing:', setupErr.message);
     }
 }
 
