@@ -3411,6 +3411,46 @@ app.get('/api/surveys', isAuthenticated, async (req, res) => {
     res.json(surveys.map(s => ({ ...s, id: s._id.toString() })));
 });
 
+// Admin: delete a survey (e.g. test entries)
+app.delete('/api/surveys/:id', isAuthenticated, async (req, res) => {
+    try {
+        await db.collection('surveys').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: toggle whether a survey is shown on the public website
+app.patch('/api/surveys/:id', isAuthenticated, async (req, res) => {
+    try {
+        const set = {};
+        if (typeof req.body.hiddenFromSite === 'boolean') set.hiddenFromSite = req.body.hiddenFromSite;
+        if (!Object.keys(set).length) return res.status(400).json({ error: 'Nothing to update' });
+        await db.collection('surveys').updateOne({ _id: new ObjectId(req.params.id) }, { $set: set });
+        res.json({ success: true, ...set });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Public: 5-star survey testimonials for the website widget (sanitized, cached)
+let _pubSurveyCache = null, _pubSurveyAt = 0;
+app.get('/api/public/surveys', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', 'https://gsdhandymanservice.com');
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+        if (_pubSurveyCache && Date.now() - _pubSurveyAt < 5 * 60 * 1000) return res.json(_pubSurveyCache);
+        const surveys = await db.collection('surveys')
+            .find({ rating: 5, hiddenFromSite: { $ne: true }, comment: { $exists: true, $ne: '' } })
+            .sort({ submittedAt: -1 }).limit(30).toArray();
+        const out = surveys.map(s => {
+            const name = (s.clientName || '').trim();
+            const parts = name.split(/\s+/).filter(Boolean);
+            const display = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : (parts[0] || 'A GSD Customer');
+            return { author: display, text: s.comment, service: s.jobTitle || '', rating: 5, submittedAt: s.submittedAt };
+        }).filter(s => s.text && s.text.trim().length > 3);
+        _pubSurveyCache = out; _pubSurveyAt = Date.now();
+        res.json(out);
+    } catch (e) { res.json([]); }
+});
+
 // Admin: resend survey for a job
 app.post('/api/jobs/:id/dismiss-followup', isAuthenticated, async (req, res) => {
     try {

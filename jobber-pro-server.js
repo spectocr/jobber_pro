@@ -11689,6 +11689,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const comment = r.comment
                         ? \`<div style="margin-top:0.4rem;font-size:0.875rem;color:#4a5568;font-style:italic;">" \${r.comment} "</div>\`
                         : '';
+                    var _sid = r.id;
+                    var _tog = '';
+                    if (r.rating === 5 && r.comment) {
+                        _tog = '<button onclick="toggleSurveyHidden(\'' + _sid + '\',' + (!r.hiddenFromSite) + ')" style="background:' + (r.hiddenFromSite ? '#fed7d7' : '#c6f6d5') + ';color:' + (r.hiddenFromSite ? '#9b2c2c' : '#22543d') + ';border:none;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.75rem;font-weight:600;cursor:pointer;">' + (r.hiddenFromSite ? '🚫 Hidden from site' : '🌐 On website') + '</button>';
+                    }
+                    var _actions = '<div style="margin-top:0.55rem;display:flex;gap:0.5rem;flex-wrap:wrap;">' + _tog + '<button onclick="deleteSurvey(\'' + _sid + '\')" style="background:#fff5f5;color:#c53030;border:1px solid #feb2b2;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.75rem;font-weight:600;cursor:pointer;">🗑 Delete</button></div>';
                     return \`
                         <div style="padding:1rem 0;border-bottom:1px solid #f0f0f0;">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
@@ -11703,11 +11709,33 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </div>
                             <div style="margin-top:0.35rem;">\${recBadge}</div>
                             \${comment}
+                            \${_actions}
                         </div>\`;
                 }).join('');
             } catch (e) {
                 list.innerHTML = \`<div style="color:#e53e3e;padding:1rem;">Failed to load: \${e.message}</div>\`;
             }
+        }
+
+        async function deleteSurvey(id) {
+            if (!confirm('Delete this survey? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/api/surveys/' + id, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Failed');
+                loadSurveys();
+            } catch (e) { alert('Failed to delete survey.'); }
+        }
+
+        async function toggleSurveyHidden(id, hide) {
+            try {
+                const res = await fetch('/api/surveys/' + id, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hiddenFromSite: hide })
+                });
+                if (!res.ok) throw new Error('Failed');
+                loadSurveys();
+            } catch (e) { alert('Failed to update.'); }
         }
 
         async function loadReports() {
