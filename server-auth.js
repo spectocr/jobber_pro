@@ -10359,16 +10359,21 @@ const SURVEY_ROTATOR = `<script>
     if(!el) return;
     var col = el.parentNode;
     if(!list || !list.length){ if(col && col.parentNode) col.parentNode.style.gridTemplateColumns='1fr'; if(col) col.style.display='none'; return; }
-    function stars(){ return '<div style="color:#F59E0B;font-size:1.05rem;letter-spacing:3px;margin-bottom:0.6rem;">★★★★★</div>'; }
     var i=0;
     function render(){
       var s=list[i%list.length];
-      var svc = s.service ? '<div style="font-size:0.78rem;color:#a0aec0;margin-top:0.4rem;">'+s.service+'</div>' : '';
-      el.innerHTML='<div class="review-card" style="opacity:0;transition:opacity .5s;">'+stars()+'<div class="review-text" style="font-style:italic;">\\u201c'+s.text+'\\u201d</div><div class="review-author" style="margin-top:0.65rem;font-weight:700;">'+s.author+'</div>'+svc+'</div>';
+      var svc = s.service ? '<div style="font-size:0.82rem;color:#a0aec0;margin-top:0.5rem;">'+s.service+'</div>' : '';
+      el.innerHTML =
+        '<div style="background:#fff;border-radius:16px;box-shadow:0 6px 28px rgba(0,0,0,0.09);padding:2.5rem 2.25rem;position:relative;opacity:0;transition:opacity .5s;">'
+        + '<div style="position:absolute;top:0.5rem;left:1.25rem;font-size:4rem;line-height:1;color:#e2e8f0;font-family:Georgia,serif;">“</div>'
+        + '<div style="color:#F59E0B;font-size:1.2rem;letter-spacing:4px;margin-bottom:1rem;position:relative;">★★★★★</div>'
+        + '<div style="font-style:italic;font-size:1.15rem;line-height:1.65;color:#2d3748;position:relative;">'+s.text+'</div>'
+        + '<div style="margin-top:1.25rem;font-weight:700;font-size:1.02rem;color:#1a202c;">'+s.author+'</div>'
+        + svc + '</div>';
       var card=el.firstChild; requestAnimationFrame(function(){ if(card) card.style.opacity=1; });
     }
     render();
-    if(list.length>1) setInterval(function(){ i++; render(); }, 5000);
+    if(list.length>1) setInterval(function(){ i++; render(); }, 5500);
   }).catch(function(){ var el=document.getElementById('surveyRotator'); if(el&&el.parentNode) el.parentNode.style.display='none'; });
 })();
 </script>`;
@@ -10654,15 +10659,22 @@ async function rebuildHomePage() {
             html = html.replace('<!-- QUOTE -->', howItWorks + '\n<!-- QUOTE -->');
         }
 
-        // 7) Two-column reviews: Google left, rotating 5-star survey testimonials right
-        if (!html.includes('id="surveyRotator"')) {
-            html = html.replace(
-                /<div id="reviewsWidget">\s*<div class="reviews-loading">[^<]*<\/div>\s*<\/div>/,
-                '<div class="reviews-2col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;align-items:start;">'
-                + '<div id="reviewsWidget"><div class="reviews-loading">Loading reviews…</div></div>'
-                + '<div><div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#667eea;margin-bottom:0.9rem;text-align:center;">Straight From Our Customers</div><div id="surveyRotator" style="min-height:160px;"></div></div>'
-                + '</div>' + SURVEY_ROTATOR
-            );
+        // 7) Two-column reviews (re-derivable): Google left, rotating 5-star surveys right.
+        // Always rewrite everything between the section title and the CTA, so styling tweaks re-apply.
+        {
+            const revTitle = '<h2 class="section-title">Real Reviews From Real Neighbors</h2>';
+            const revCta = '<div class="reviews-cta">';
+            const ti = html.indexOf(revTitle);
+            const ci = ti !== -1 ? html.indexOf(revCta, ti) : -1;
+            if (ti !== -1 && ci !== -1) {
+                const body = '\n        <div class="reviews-2col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.75rem;align-items:stretch;margin:1.5rem 0;">'
+                    + '<div id="reviewsWidget"><div class="reviews-loading">Loading reviews…</div></div>'
+                    + '<div style="display:flex;flex-direction:column;justify-content:center;">'
+                    + '<div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#667eea;margin-bottom:1rem;text-align:center;">Straight From Our Customers</div>'
+                    + '<div id="surveyRotator" style="min-height:180px;"></div></div>'
+                    + '</div>\n        ' + SURVEY_ROTATOR + '\n        ';
+                html = html.slice(0, ti + revTitle.length) + body + html.slice(ci);
+            }
         }
 
         html = _withOOOSnippet(html);
