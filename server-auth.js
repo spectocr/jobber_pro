@@ -10352,29 +10352,45 @@ async function rebuildDeckingPage() {
     }
 }
 
-const SURVEY_ROTATOR = `<script>
+const REVIEWS_WIDGET_2X2 = `<script>
 (function(){
-  fetch('https://app.gsdhandymanservice.com/api/public/surveys').then(function(r){return r.json();}).then(function(list){
-    var el = document.getElementById('surveyRotator');
-    if(!el) return;
-    var col = el.parentNode;
-    if(!list || !list.length){ if(col && col.parentNode) col.parentNode.style.gridTemplateColumns='1fr'; if(col) col.style.display='none'; return; }
-    var i=0;
-    function render(){
-      var s=list[i%list.length];
-      var svc = s.service ? '<div style="font-size:0.82rem;color:#a0aec0;margin-top:0.5rem;">'+s.service+'</div>' : '';
-      el.innerHTML =
-        '<div style="background:#fff;border-radius:16px;box-shadow:0 6px 28px rgba(0,0,0,0.09);padding:2.5rem 2.25rem;position:relative;opacity:0;transition:opacity .5s;">'
-        + '<div style="position:absolute;top:0.5rem;left:1.25rem;font-size:4rem;line-height:1;color:#e2e8f0;font-family:Georgia,serif;">“</div>'
-        + '<div style="color:#F59E0B;font-size:1.2rem;letter-spacing:4px;margin-bottom:1rem;position:relative;">★★★★★</div>'
-        + '<div style="font-style:italic;font-size:1.15rem;line-height:1.65;color:#2d3748;position:relative;">'+s.text+'</div>'
-        + '<div style="margin-top:1.25rem;font-weight:700;font-size:1.02rem;color:#1a202c;">'+s.author+'</div>'
-        + svc + '</div>';
-      var card=el.firstChild; requestAnimationFrame(function(){ if(card) card.style.opacity=1; });
+  function card(item){
+    var meta = item.time || item.service || '';
+    var n = item.rating || 5;
+    var stars = '<div style="color:#F59E0B;font-size:1rem;letter-spacing:3px;margin-bottom:0.6rem;">' + '★★★★★'.slice(0, n) + '</div>';
+    return '<div style="background:#fff;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.07);padding:1.6rem 1.5rem;box-sizing:border-box;opacity:0;transition:opacity .6s;">'
+      + stars
+      + '<div style="font-style:italic;font-size:0.98rem;line-height:1.6;color:#2d3748;">' + (item.text||'') + '</div>'
+      + '<div style="margin-top:0.9rem;font-weight:700;color:#1a202c;">' + (item.author||'') + '</div>'
+      + (meta ? '<div style="font-size:0.78rem;color:#a0aec0;margin-top:0.2rem;">'+meta+'</div>' : '')
+      + '</div>';
+  }
+  function mount(id, item){ var el=document.getElementById(id); if(!el) return; if(!item){ el.style.display='none'; return; } el.innerHTML=card(item); var c=el.firstChild; requestAnimationFrame(function(){ if(c) c.style.opacity=1; }); }
+  function rotate(list, s0, s1){
+    if(!list || !list.length){ mount(s0,null); mount(s1,null); return; }
+    var idx=0;
+    function show(){ mount(s0, list[idx%list.length]); mount(s1, list.length>1 ? list[(idx+1)%list.length] : null); }
+    show();
+    if(list.length>2) setInterval(function(){
+      [s0,s1].forEach(function(id){ var e=document.getElementById(id); if(e&&e.firstChild) e.firstChild.style.opacity=0; });
+      setTimeout(function(){ idx=(idx+2)%list.length; show(); }, 400);
+    }, 11000);
+  }
+  Promise.all([
+    fetch('https://app.gsdhandymanservice.com/api/public/reviews').then(function(r){return r.json();}).catch(function(){return {};}),
+    fetch('https://app.gsdhandymanservice.com/api/public/surveys').then(function(r){return r.json();}).catch(function(){return [];})
+  ]).then(function(res){
+    var g=res[0]||{}, s=res[1]||[];
+    var sum=document.getElementById('reviewsSummary');
+    if(sum && g.rating){
+      sum.innerHTML='<span style="font-size:2rem;font-weight:800;color:#1a202c;vertical-align:middle;">'+Number(g.rating).toFixed(1)+'</span>'
+        +'<span style="color:#F59E0B;font-size:1.3rem;letter-spacing:2px;margin:0 0.5rem;vertical-align:middle;">★★★★★</span>'
+        +'<span style="color:#718096;vertical-align:middle;">'+(g.total||'')+' Google reviews</span>';
     }
-    render();
-    if(list.length>1) setInterval(function(){ i++; render(); }, 5500);
-  }).catch(function(){ var el=document.getElementById('surveyRotator'); if(el&&el.parentNode) el.parentNode.style.display='none'; });
+    var greviews=(g.reviews||[]).filter(function(r){return r.text;});
+    rotate(greviews, 'rev-google-0', 'rev-google-1');
+    rotate(s, 'rev-survey-0', 'rev-survey-1');
+  }).catch(function(){});
 })();
 </script>`;
 
@@ -10667,12 +10683,13 @@ async function rebuildHomePage() {
             const ti = html.indexOf(revTitle);
             const ci = ti !== -1 ? html.indexOf(revCta, ti) : -1;
             if (ti !== -1 && ci !== -1) {
-                const body = '\n        <div class="reviews-2col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.75rem;align-items:stretch;margin:1.5rem 0;">'
-                    + '<div id="reviewsWidget"><div class="reviews-loading">Loading reviews…</div></div>'
-                    + '<div style="display:flex;flex-direction:column;justify-content:center;">'
-                    + '<div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#667eea;margin-bottom:1rem;text-align:center;">Straight From Our Customers</div>'
-                    + '<div id="surveyRotator" style="min-height:180px;"></div></div>'
-                    + '</div>\n        ' + SURVEY_ROTATOR + '\n        ';
+                const body = '\n        <div id="reviewsSummary" style="text-align:center;margin:1.25rem 0 2rem;"></div>'
+                    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.75rem;align-items:start;">'
+                    + '<div><div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#4285F4;margin-bottom:1rem;text-align:center;">From Google</div>'
+                    + '<div id="rev-google-0" style="margin-bottom:1.25rem;"></div><div id="rev-google-1"></div></div>'
+                    + '<div><div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#667eea;margin-bottom:1rem;text-align:center;">Straight From Our Customers</div>'
+                    + '<div id="rev-survey-0" style="margin-bottom:1.25rem;"></div><div id="rev-survey-1"></div></div>'
+                    + '</div>\n        ' + REVIEWS_WIDGET_2X2 + '\n        ';
                 html = html.slice(0, ti + revTitle.length) + body + html.slice(ci);
             }
         }
