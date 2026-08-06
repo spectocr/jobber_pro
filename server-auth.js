@@ -10358,11 +10358,11 @@ const REVIEWS_WIDGET_2X2 = `<script>
     var meta = item.time || item.service || '';
     var n = item.rating || 5;
     var stars = '<div style="color:#F59E0B;font-size:1rem;letter-spacing:3px;margin-bottom:0.6rem;">' + '★★★★★'.slice(0, n) + '</div>';
-    return '<div style="background:#fff;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.07);padding:1.6rem 1.5rem;box-sizing:border-box;opacity:0;transition:opacity .6s;">'
+    return '<div style="background:#fff;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.07);padding:1.5rem;box-sizing:border-box;height:230px;display:flex;flex-direction:column;opacity:0;transition:opacity .6s;">'
       + stars
-      + '<div style="font-style:italic;font-size:0.98rem;line-height:1.6;color:#2d3748;">' + (item.text||'') + '</div>'
-      + '<div style="margin-top:0.9rem;font-weight:700;color:#1a202c;">' + (item.author||'') + '</div>'
-      + (meta ? '<div style="font-size:0.78rem;color:#a0aec0;margin-top:0.2rem;">'+meta+'</div>' : '')
+      + '<div style="font-style:italic;font-size:0.95rem;line-height:1.55;color:#2d3748;flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;">' + (item.text||'') + '</div>'
+      + '<div style="margin-top:0.75rem;font-weight:700;color:#1a202c;">' + (item.author||'') + '</div>'
+      + (meta ? '<div style="font-size:0.78rem;color:#a0aec0;margin-top:0.15rem;">'+meta+'</div>' : '')
       + '</div>';
   }
   function mount(id, item){ var el=document.getElementById(id); if(!el) return; if(!item){ el.style.display='none'; return; } el.innerHTML=card(item); var c=el.firstChild; requestAnimationFrame(function(){ if(c) c.style.opacity=1; }); }
