@@ -10078,6 +10078,13 @@ async function rebuildLocationPages() {
                     '<a href="/#quote">Get a Quote</a>\n        <a href="/property-management">Property Managers</a>'
                 );
             }
+            // Add Decks nav link (idempotent)
+            if (!html.includes('>Decks</a>')) {
+                html = html.replace(
+                    '<a href="/portfolio.html">Our Work</a>',
+                    '<a href="/portfolio.html">Our Work</a>\n        <a href="/decks">Decks</a>'
+                );
+            }
             html = _withOOOSnippet(html);
             await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: slug, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
             console.log(`✅ ${slug} portfolio section updated`);
@@ -10098,6 +10105,168 @@ async function rebuildLocationPages() {
     }
 }
 
+
+const DECK_BODY = `
+<div class="hero">
+    <div class="hero-photo">
+        <img src="/images/hero-photo.png" alt="GSD Property Services — deck resurfacing & composite re-decking, South Jersey" loading="lazy">
+    </div>
+    <div class="hero-content">
+        <div class="breadcrumb"><a href="/">GSD Property Services</a> › Decks</div>
+        <div class="hero-badge">Deck Resurfacing &amp; Composite (Trex) Re-Decking · South Jersey</div>
+        <h1>Bring Your Deck<br><span>Back to Life</span></h1>
+        <p>Two honest ways to renew a tired deck — a budget-friendly resurfacing, or a low-maintenance composite (Trex) rebuild that lets us inspect and fix the structure underneath. We'll tell you straight which one your deck actually needs.</p>
+        <div class="hero-ctas">
+            <a class="btn-primary" href="sms:+18568724636">📱 Text Us Deck Photos for a Quote</a>
+            <a class="btn-outline" href="tel:+18568724636">📞 856-872-4636</a>
+        </div>
+    </div>
+</div>
+
+<section class="services">
+    <div class="inner">
+        <div class="section-tag" style="text-align:center;">Two Ways to Renew Your Deck</div>
+        <h2 class="section-title" style="text-align:center;">Pick the Right Fit — We'll Help You Decide</h2>
+        <p style="text-align:center;color:#6b7280;max-width:640px;margin:0 auto 2.5rem;line-height:1.6;">We don't build brand-new decks from the ground up — but if your deck's bones are still there, we've got two great ways to make it look and feel new again.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
+            <div style="background:#fff;border:1px solid #eef2f7;border-radius:14px;padding:1.75rem;box-shadow:0 2px 12px rgba(0,0,0,0.05);">
+                <div style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#2b6cb0;">Option 1 · Budget-Friendly</div>
+                <h3 style="font-size:1.35rem;color:#0f1c2e;margin:0.4rem 0 0.6rem;">Deck Resurfacing</h3>
+                <p style="color:#4a5568;font-size:0.95rem;line-height:1.55;margin-bottom:1.1rem;">A thick, textured resurfacing coating goes over your existing boards — filling small cracks, hiding splinters and gray, and leaving a clean, slip-resistant finish. The fastest, most affordable way to freshen up a deck that's still solid.</p>
+                <div style="font-weight:700;color:#166534;font-size:0.85rem;margin-bottom:0.4rem;">✓ The Upside</div>
+                <ul style="margin:0 0 1.1rem 1.1rem;color:#4a5568;font-size:0.9rem;line-height:1.65;padding:0;">
+                    <li>Lowest price point by far</li>
+                    <li>Quick turnaround</li>
+                    <li>Fills small cracks, hides splinters &amp; weathering</li>
+                    <li>Slip-resistant, uniform finish</li>
+                </ul>
+                <div style="font-weight:700;color:#c53030;font-size:0.85rem;margin-bottom:0.4rem;">△ The Honest Catch</div>
+                <ul style="margin:0;color:#4a5568;font-size:0.9rem;line-height:1.65;padding:0 0 0 1.1rem;">
+                    <li>It coats <strong>over</strong> the existing boards — hidden rot or soft spots underneath aren't fixed, and can telegraph through later</li>
+                    <li>Only right for a structurally sound deck. If yours isn't a good candidate, we'll tell you.</li>
+                </ul>
+            </div>
+            <div style="background:#0f1c2e;color:#fff;border-radius:14px;padding:1.75rem;box-shadow:0 8px 24px rgba(15,28,46,0.25);">
+                <div style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#7fd1a3;">Option 2 · Do It Right</div>
+                <h3 style="font-size:1.35rem;color:#fff;margin:0.4rem 0 0.6rem;">Composite Re-Decking <span style="font-weight:400;font-size:0.9rem;color:#9fb3c8;">(Trex)</span></h3>
+                <p style="color:#cbd9e8;font-size:0.95rem;line-height:1.55;margin-bottom:1.1rem;">We pull up the old deck boards and replace them with low-maintenance Trex composite on your existing frame. Because the boards come off, <strong style="color:#fff;">we get to see and fix the structure underneath</strong> — not hide it.</p>
+                <div style="font-weight:700;color:#7fd1a3;font-size:0.85rem;margin-bottom:0.4rem;">✓ Why It's Worth It</div>
+                <ul style="margin:0 0 1.1rem 1.1rem;color:#e6edf5;font-size:0.9rem;line-height:1.65;padding:0;">
+                    <li><strong>We inspect &amp; repair the substructure</strong> — joists, ledger, fasteners</li>
+                    <li>Virtually no upkeep — never sand, stain, or seal again</li>
+                    <li>25-year fade &amp; stain warranty; outlasts wood 2–3×</li>
+                    <li>Won't rot, warp, splinter, or attract bugs</li>
+                    <li>Splinter-free &amp; barefoot-friendly (paw-approved 🐾)</li>
+                    <li>Great looks &amp; added resale value</li>
+                </ul>
+                <div style="font-weight:700;color:#fbd38d;font-size:0.85rem;margin-bottom:0.4rem;">△ The Trade-off</div>
+                <ul style="margin:0;color:#e6edf5;font-size:0.9rem;line-height:1.65;padding:0 0 0 1.1rem;">
+                    <li>Higher cost than resurfacing — still far less than a full tear-down rebuild</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section style="padding:4rem 1.5rem;background:#f8fafc;">
+    <div class="inner" style="max-width:820px;margin:0 auto;">
+        <div class="section-tag" style="text-align:center;">Side by Side</div>
+        <h2 class="section-title" style="text-align:center;">Which One's Right for You?</h2>
+        <div style="overflow-x:auto;margin-top:1.5rem;">
+            <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.05);min-width:460px;">
+                <thead>
+                    <tr style="background:#0f1c2e;color:#fff;">
+                        <th style="text-align:left;padding:0.9rem 1rem;font-size:0.85rem;"></th>
+                        <th style="padding:0.9rem 1rem;font-size:0.9rem;">Resurfacing</th>
+                        <th style="padding:0.9rem 1rem;font-size:0.9rem;">Composite Re-Deck</th>
+                    </tr>
+                </thead>
+                <tbody style="font-size:0.9rem;color:#2d3748;">
+                    <tr style="border-bottom:1px solid #eef2f7;"><td style="padding:0.8rem 1rem;font-weight:600;">Price</td><td style="text-align:center;">$</td><td style="text-align:center;">$$$</td></tr>
+                    <tr style="border-bottom:1px solid #eef2f7;background:#f8fafc;"><td style="padding:0.8rem 1rem;font-weight:600;">Lifespan</td><td style="text-align:center;">A few years</td><td style="text-align:center;">25+ years</td></tr>
+                    <tr style="border-bottom:1px solid #eef2f7;"><td style="padding:0.8rem 1rem;font-weight:600;">Upkeep</td><td style="text-align:center;">Recoat periodically</td><td style="text-align:center;">Virtually none</td></tr>
+                    <tr style="border-bottom:1px solid #eef2f7;background:#f8fafc;"><td style="padding:0.8rem 1rem;font-weight:600;">Fixes hidden damage</td><td style="text-align:center;color:#c53030;font-weight:700;">✗ No</td><td style="text-align:center;color:#166534;font-weight:700;">✓ Yes</td></tr>
+                    <tr><td style="padding:0.8rem 1rem;font-weight:600;">Look &amp; feel</td><td style="text-align:center;">Fresh coating</td><td style="text-align:center;">Like-new composite</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="text-align:center;color:#6b7280;font-size:0.9rem;margin-top:1.25rem;">Not sure which your deck needs? Text us a few photos — we'll take a look and give it to you straight.</p>
+    </div>
+</section>
+
+<section class="services">
+    <div class="inner">
+        <div class="section-tag" style="text-align:center;">Real Decks, Real Results</div>
+        <h2 class="section-title" style="text-align:center;">Recent Deck Work</h2>
+        <div id="deck-portfolio" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-top:1.5rem;"></div>
+        <div style="text-align:center;margin-top:2rem;"><a class="btn-primary" href="/portfolio.html">See All Our Work →</a></div>
+    </div>
+</section>
+<script>
+(function(){
+  fetch('https://app.gsdhandymanservice.com/api/portfolio').then(function(r){return r.json();}).then(function(items){
+    var decks = (items||[]).filter(function(i){return i.category==='deck';});
+    var grid = document.getElementById('deck-portfolio');
+    if(!grid) return;
+    if(!decks.length){ var s=grid.closest('section'); if(s)s.style.display='none'; return; }
+    grid.innerHTML = decks.slice(0,6).map(function(item){
+      var photos = (item.photos&&item.photos.length)?item.photos:(item.photoUrl?[{url:item.photoUrl}]:[]);
+      var cover = photos.filter(function(p){return p.type==='after';})[0] || photos[0];
+      if(!cover||!cover.url) return '';
+      return '<div style="border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);background:#fff;"><div style="aspect-ratio:4/3;overflow:hidden;background:#e5e7eb;"><img src="'+cover.url+'" alt="'+((item.title||'Deck project').replace(/"/g,''))+'" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"></div>'+(item.title?'<div style="padding:0.6rem 0.85rem;font-weight:600;color:#1f2937;font-size:0.9rem;">'+item.title+'</div>':'')+'</div>';
+    }).join('');
+  }).catch(function(){ var g=document.getElementById('deck-portfolio'); if(g){var s=g.closest('section'); if(s)s.style.display='none';} });
+})();
+</script>
+
+<section class="cta-section">
+    <div class="inner">
+        <div class="cta-box">
+            <h2>Let's Bring Your Deck Back</h2>
+            <p>Text us a few photos of your deck and we'll tell you honestly which option makes sense — and what it'll cost. No pressure, no obligation.</p>
+            <div class="cta-buttons">
+                <a class="btn-primary" href="sms:+18568724636">📱 Text Deck Photos for a Quote</a>
+                <a href="tel:+18568724636" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.875rem 2rem;border-radius:8px;border:2px solid #e5e7eb;color:var(--navy);font-weight:600;font-size:1rem;text-decoration:none;">📞 856-872-4636</a>
+            </div>
+        </div>
+    </div>
+</section>
+`;
+
+async function rebuildDeckingPage() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return { page: 'decks', ok: false, error: 'public S3 not configured' };
+    try {
+        // Reuse a location page as the shell (current CSS, nav, footer)
+        const res = await fetch('https://gsdhandymanservice.com/mount-laurel-handyman');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        let html = await res.text();
+        const navEnd = html.indexOf('</nav>');
+        const footerStart = html.indexOf('<footer');
+        if (navEnd === -1 || footerStart === -1) return { page: 'decks', ok: false, skipped: 'nav/footer markers not found' };
+        html = html.slice(0, navEnd + '</nav>'.length) + '\n' + DECK_BODY + '\n' + html.slice(footerStart);
+        // SEO title + description
+        html = html.replace(/<title>[\s\S]*?<\/title>/, '<title>Deck Resurfacing &amp; Composite (Trex) Re-Decking | GSD Property Services — South Jersey</title>');
+        html = html.replace(/<meta name="description" content="[^"]*">/, '<meta name="description" content="Deck resurfacing and low-maintenance composite (Trex) re-decking across South Jersey. We renew tired decks and inspect the structure underneath. Licensed &amp; insured. Call 856-872-4636.">');
+        // Add "Decks" to the nav (idempotent)
+        if (!html.includes('>Decks</a>')) {
+            html = html.replace('<a href="/portfolio.html">Our Work</a>', '<a href="/portfolio.html">Our Work</a>\n        <a href="/decks">Decks</a>');
+        }
+        html = _withOOOSnippet(html);
+        for (const key of ['decks', 'decks.html']) {
+            await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: key, Body: html, ContentType: 'text/html; charset=utf-8', CacheControl: 'no-cache, must-revalidate' }));
+        }
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 2, Items: ['/decks', '/decks.html'] } } }));
+        }
+        console.log('✅ decks page rebuilt');
+        return { page: 'decks', ok: true, bytes: html.length };
+    } catch (err) {
+        console.error('❌ decks rebuild failed:', err.message);
+        return { page: 'decks', ok: false, error: err.message };
+    }
+}
 
 const OOO_SNIPPET = '<script>\n(function(){fetch(\'https://app.gsdhandymanservice.com/api/ooo-status\').then(function(r){return r.json();}).then(function(d){if(!d.active)return;var msg=d.message||\'We are currently out of the office.\';var ret=d.returnDate?(\' We return on <strong>\'+new Date(d.returnDate+\'T12:00:00\').toLocaleDateString(\'en-US\',{month:\'long\',day:\'numeric\',year:\'numeric\'})+\'</strong>.\'):\'\';var ph=d.phone?(\' For emergencies call <a href="tel:\'+d.phone.replace(/\\D/g,\'\')+\'" style="color:#92400e;font-weight:700;">\'+d.phone+\'</a>.\'):\'\';var el=document.createElement(\'div\');el.style.cssText=\'background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;position:fixed;top:0;left:0;right:0;width:100%;box-sizing:border-box;z-index:1000;\';el.innerHTML=\'⚠️ \'+msg+ret+ph;document.body.prepend(el);var h=el.offsetHeight+\'px\';document.body.style.paddingTop=h;var nav=document.querySelector(\'nav\');if(nav)nav.style.top=h;}).catch(function(){});})();\n</script>';
 function _withOOOSnippet(html) {
@@ -10165,6 +10334,7 @@ async function rebuildPublicPortfolio() {
         rebuildHomePage().catch(() => {});
         rebuildLocationPages().catch(() => {});
         rebuildCapabilitiesSheet().catch(() => {});
+        rebuildDeckingPage().catch(() => {});
         uploadThankYouPage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
@@ -10279,6 +10449,13 @@ async function rebuildHomePage() {
             html = html.replace(
                 '<a href="#portal">Client Portal</a>',
                 '<a href="/property-management">Property Managers</a>\n        <a href="#portal">Client Portal</a>'
+            );
+        }
+        // Add Decks nav link (idempotent)
+        if (!html.includes('>Decks</a>')) {
+            html = html.replace(
+                '<a href="/portfolio.html">Our Work</a>',
+                '<a href="/portfolio.html">Our Work</a>\n        <a href="/decks">Decks</a>'
             );
         }
         // Update hero paragraph to include commercial context (idempotent)
