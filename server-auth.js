@@ -10352,6 +10352,27 @@ async function rebuildDeckingPage() {
     }
 }
 
+const SURVEY_ROTATOR = `<script>
+(function(){
+  fetch('https://app.gsdhandymanservice.com/api/public/surveys').then(function(r){return r.json();}).then(function(list){
+    var el = document.getElementById('surveyRotator');
+    if(!el) return;
+    var col = el.parentNode;
+    if(!list || !list.length){ if(col && col.parentNode) col.parentNode.style.gridTemplateColumns='1fr'; if(col) col.style.display='none'; return; }
+    function stars(){ return '<div style="color:#F59E0B;font-size:1.05rem;letter-spacing:3px;margin-bottom:0.6rem;">★★★★★</div>'; }
+    var i=0;
+    function render(){
+      var s=list[i%list.length];
+      var svc = s.service ? '<div style="font-size:0.78rem;color:#a0aec0;margin-top:0.4rem;">'+s.service+'</div>' : '';
+      el.innerHTML='<div class="review-card" style="opacity:0;transition:opacity .5s;">'+stars()+'<div class="review-text" style="font-style:italic;">\\u201c'+s.text+'\\u201d</div><div class="review-author" style="margin-top:0.65rem;font-weight:700;">'+s.author+'</div>'+svc+'</div>';
+      var card=el.firstChild; requestAnimationFrame(function(){ if(card) card.style.opacity=1; });
+    }
+    render();
+    if(list.length>1) setInterval(function(){ i++; render(); }, 5000);
+  }).catch(function(){ var el=document.getElementById('surveyRotator'); if(el&&el.parentNode) el.parentNode.style.display='none'; });
+})();
+</script>`;
+
 const OOO_SNIPPET = '<script>\n(function(){fetch(\'https://app.gsdhandymanservice.com/api/ooo-status\').then(function(r){return r.json();}).then(function(d){if(!d.active)return;var msg=d.message||\'We are currently out of the office.\';var ret=d.returnDate?(\' We return on <strong>\'+new Date(d.returnDate+\'T12:00:00\').toLocaleDateString(\'en-US\',{month:\'long\',day:\'numeric\',year:\'numeric\'})+\'</strong>.\'):\'\';var ph=d.phone?(\' For emergencies call <a href="tel:\'+d.phone.replace(/\\D/g,\'\')+\'" style="color:#92400e;font-weight:700;">\'+d.phone+\'</a>.\'):\'\';var el=document.createElement(\'div\');el.style.cssText=\'background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0.65rem 1.25rem;text-align:center;font-family:Arial,sans-serif;font-size:0.92rem;color:#78350f;line-height:1.5;position:fixed;top:0;left:0;right:0;width:100%;box-sizing:border-box;z-index:1000;\';el.innerHTML=\'⚠️ \'+msg+ret+ph;document.body.prepend(el);var h=el.offsetHeight+\'px\';document.body.style.paddingTop=h;var nav=document.querySelector(\'nav\');if(nav)nav.style.top=h;}).catch(function(){});})();\n</script>';
 function _withOOOSnippet(html) {
     if (html.includes("d.returnDate+'T12:00:00'") && html.includes('nav.style.top')) return html; // already up to date
@@ -10631,6 +10652,17 @@ async function rebuildHomePage() {
                 + '  </div>\n'
                 + '</section>\n';
             html = html.replace('<!-- QUOTE -->', howItWorks + '\n<!-- QUOTE -->');
+        }
+
+        // 7) Two-column reviews: Google left, rotating 5-star survey testimonials right
+        if (!html.includes('id="surveyRotator"')) {
+            html = html.replace(
+                /<div id="reviewsWidget">\s*<div class="reviews-loading">[^<]*<\/div>\s*<\/div>/,
+                '<div class="reviews-2col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;align-items:start;">'
+                + '<div id="reviewsWidget"><div class="reviews-loading">Loading reviews…</div></div>'
+                + '<div><div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#667eea;margin-bottom:0.9rem;text-align:center;">Straight From Our Customers</div><div id="surveyRotator" style="min-height:160px;"></div></div>'
+                + '</div>' + SURVEY_ROTATOR
+            );
         }
 
         html = _withOOOSnippet(html);
