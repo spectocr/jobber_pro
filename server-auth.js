@@ -10336,9 +10336,13 @@ async function rebuildDeckingPage() {
         const footerStart = html.indexOf('<footer');
         if (navEnd === -1 || footerStart === -1) return { page: 'decks', ok: false, skipped: 'nav/footer markers not found' };
         html = html.slice(0, navEnd + '</nav>'.length) + '\n' + DECK_BODY + '\n' + html.slice(footerStart);
-        // SEO title + description
+        // SEO title + description + canonical + OG (shell was cloned from a location page)
         html = html.replace(/<title>[\s\S]*?<\/title>/, '<title>Deck Resurfacing &amp; Composite (Trex) Re-Decking | GSD Property Services — South Jersey</title>');
         html = html.replace(/<meta name="description" content="[^"]*">/, '<meta name="description" content="Deck resurfacing and low-maintenance composite (Trex) re-decking across South Jersey. We renew tired decks and inspect the structure underneath. Licensed &amp; insured. Call 856-872-4636.">');
+        html = html.replace(/<link rel="canonical"[^>]*>/, '<link rel="canonical" href="https://gsdhandymanservice.com/decks">');
+        html = html.replace(/<meta property="og:url"[^>]*>/, '<meta property="og:url" content="https://gsdhandymanservice.com/decks">');
+        html = html.replace(/<meta property="og:title"[^>]*>/, '<meta property="og:title" content="Deck Resurfacing &amp; Composite (Trex) Re-Decking | GSD Property Services">');
+        html = html.replace(/<meta property="og:description"[^>]*>/, '<meta property="og:description" content="Two honest ways to renew a tired deck in South Jersey — budget resurfacing, or composite (Trex) re-decking that lets us inspect the structure underneath.">');
         // Add "Decks" to the nav (idempotent)
         if (!html.includes('>Decks</a>')) {
             html = html.replace('<a href="/portfolio.html">Our Work</a>', '<a href="/portfolio.html">Our Work</a>\n        <a href="/decks">Decks</a>');
@@ -10412,6 +10416,24 @@ function _withOOOSnippet(html) {
     return html.replace('</body>', OOO_SNIPPET + '\n</body>');
 }
 
+async function rebuildSitemap() {
+    if (!publicS3Client || !PUBLIC_S3_BUCKET) return;
+    try {
+        const base = 'https://gsdhandymanservice.com';
+        const paths = ['/', '/property-management', '/decks', '/portfolio.html'].concat(LOCATION_PAGES.map(s => '/' + s));
+        const now = new Date().toISOString().slice(0, 10);
+        const urls = paths.map(p => `  <url><loc>${base}${p}</loc><lastmod>${now}</lastmod></url>`).join('\n');
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+        await publicS3Client.send(new PutObjectCommand({ Bucket: PUBLIC_S3_BUCKET, Key: 'sitemap.xml', Body: xml, ContentType: 'application/xml', CacheControl: 'public, max-age=3600' }));
+        const distId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+        if (distId) {
+            const cfClient = new CloudFrontClient({ region: 'us-east-1', credentials: { accessKeyId: process.env.PUBLIC_S3_KEY, secretAccessKey: process.env.PUBLIC_S3_SECRET } });
+            await cfClient.send(new CreateInvalidationCommand({ DistributionId: distId, InvalidationBatch: { CallerReference: Date.now().toString(), Paths: { Quantity: 1, Items: ['/sitemap.xml'] } } }));
+        }
+        console.log('✅ sitemap.xml rebuilt (' + paths.length + ' urls)');
+    } catch (err) { console.error('❌ sitemap rebuild failed:', err.message); }
+}
+
 async function rebuildPublicPortfolio() {
     if (!publicS3Client || !PUBLIC_S3_BUCKET) {
         console.warn('⚠️  Public S3 not configured — skipping portfolio.html rebuild');
@@ -10471,6 +10493,7 @@ async function rebuildPublicPortfolio() {
         rebuildLocationPages().catch(() => {});
         rebuildCapabilitiesSheet().catch(() => {});
         rebuildDeckingPage().catch(() => {});
+        rebuildSitemap().catch(() => {});
         uploadThankYouPage().catch(() => {});
     } catch (err) {
         console.error('❌ portfolio.html rebuild failed:', err.message);
