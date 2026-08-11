@@ -16622,14 +16622,17 @@ function formatDuration(seconds) {
                         '<td style="padding:0.12rem 0 0.12rem 0.4rem;text-align:right;color:#86efac;font-weight:600;">' + fm(j.netAmount || 0) + '</td>' +
                     '</tr>';
                 }).join('');
-                const jobsPop = _jl.length ? ('<div class="excl-pop" style="position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#1a202c;color:#e2e8f0;border-radius:8px;padding:0.7rem 0.85rem;box-shadow:0 8px 28px rgba(0,0,0,0.4);z-index:60;font-style:normal;min-width:340px;text-align:left;">' +
-                    '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;margin-bottom:0.4rem;">Jobs this quarter (' + _jl.length + ')</div>' +
-                    '<table style="width:100%;border-collapse:collapse;font-size:0.77rem;">' +
-                        '<tr style="color:#a0aec0;font-size:0.64rem;text-transform:uppercase;letter-spacing:0.04em;"><td></td><td style="text-align:right;padding:0 0.4rem;">Rev</td><td style="text-align:right;padding:0 0.4rem;">Mat</td><td style="text-align:right;">Net</td></tr>' +
+                const jobsPop = _jl.length ? ('<div class="excl-pop" style="position:absolute;top:100%;left:0;margin-top:6px;width:min(380px,86vw);background:#1a202c;color:#e2e8f0;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.4);z-index:60;font-style:normal;text-align:left;overflow:hidden;">' +
+                    '<div style="padding:0.6rem 0.85rem 0.35rem;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;">Jobs this quarter (' + _jl.length + ')</div>' +
+                    '<div style="max-height:230px;overflow-y:auto;padding:0 0.85rem;">' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:0.76rem;">' +
+                        '<tr style="color:#a0aec0;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.04em;"><td></td><td style="text-align:right;padding:0 0.4rem;">Rev</td><td style="text-align:right;padding:0 0.4rem;">Mat</td><td style="text-align:right;">Net</td></tr>' +
                         _jrows +
-                        '<tr style="border-top:1px solid #2d3748;font-weight:700;color:#fff;"><td style="padding-top:0.35rem;">Total</td><td style="text-align:right;padding:0.35rem 0.4rem 0;">' + fm(_jr) + '</td><td style="text-align:right;padding:0.35rem 0.4rem 0;color:#fca5a5;">–' + fm(_jm) + '</td><td style="text-align:right;padding-top:0.35rem;color:#86efac;">' + fm(_jn) + '</td></tr>' +
-                    '</table>' +
-                    '<div style="font-size:0.66rem;color:#718096;margin-top:0.4rem;">"Net" is after materials. Quarter expenses (' + fm(q.expTotal) + ') are subtracted next for Net Income.</div>' +
+                    '</table></div>' +
+                    '<div style="padding:0.4rem 0.85rem 0.6rem;border-top:1px solid #2d3748;">' +
+                    '<div style="display:flex;justify-content:space-between;font-weight:700;color:#fff;font-size:0.8rem;"><span>Total</span><span>' + fm(_jr) + ' rev · <span style="color:#86efac;">' + fm(_jn) + ' net</span></span></div>' +
+                    '<div style="font-size:0.65rem;color:#718096;margin-top:0.3rem;">"Net" is after materials. Quarter expenses (' + fm(q.expTotal) + ') come out next for Net Income.</div>' +
+                    '</div>' +
                 '</div>') : '';
                 const days    = daysUntil(q.due);
                 const dueDate = new Date(q.due + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
