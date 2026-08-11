@@ -16610,6 +16610,27 @@ function formatDuration(seconds) {
             let cards = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem;">';
 
             data.quarters.forEach(q => {
+                // Per-job breakdown popup (revenue / materials / net), shared by the Revenue + Net Income lines
+                const _jl = (q.items && q.items.jobs) || [];
+                let _jr = 0, _jm = 0, _jn = 0;
+                const _jrows = _jl.map(j => {
+                    _jr += j.amount || 0; _jm += j.matCost || 0; _jn += j.netAmount || 0;
+                    return '<tr>' +
+                        '<td style="padding:0.12rem 0.5rem 0.12rem 0;color:#cbd5e0;">' + (j.title || 'Job') + (j.date ? ' <span style="color:#718096;font-size:0.68rem;">' + j.date + '</span>' : '') + '</td>' +
+                        '<td style="padding:0.12rem 0.4rem;text-align:right;color:#fff;">' + fm(j.amount || 0) + '</td>' +
+                        '<td style="padding:0.12rem 0.4rem;text-align:right;color:#fca5a5;">' + (j.matCost ? '–' + fm(j.matCost) : '—') + '</td>' +
+                        '<td style="padding:0.12rem 0 0.12rem 0.4rem;text-align:right;color:#86efac;font-weight:600;">' + fm(j.netAmount || 0) + '</td>' +
+                    '</tr>';
+                }).join('');
+                const jobsPop = _jl.length ? ('<div class="excl-pop" style="position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#1a202c;color:#e2e8f0;border-radius:8px;padding:0.7rem 0.85rem;box-shadow:0 8px 28px rgba(0,0,0,0.4);z-index:60;font-style:normal;min-width:340px;text-align:left;">' +
+                    '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;margin-bottom:0.4rem;">Jobs this quarter (' + _jl.length + ')</div>' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:0.77rem;">' +
+                        '<tr style="color:#a0aec0;font-size:0.64rem;text-transform:uppercase;letter-spacing:0.04em;"><td></td><td style="text-align:right;padding:0 0.4rem;">Rev</td><td style="text-align:right;padding:0 0.4rem;">Mat</td><td style="text-align:right;">Net</td></tr>' +
+                        _jrows +
+                        '<tr style="border-top:1px solid #2d3748;font-weight:700;color:#fff;"><td style="padding-top:0.35rem;">Total</td><td style="text-align:right;padding:0.35rem 0.4rem 0;">' + fm(_jr) + '</td><td style="text-align:right;padding:0.35rem 0.4rem 0;color:#fca5a5;">–' + fm(_jm) + '</td><td style="text-align:right;padding-top:0.35rem;color:#86efac;">' + fm(_jn) + '</td></tr>' +
+                    '</table>' +
+                    '<div style="font-size:0.66rem;color:#718096;margin-top:0.4rem;">"Net" is after materials. Quarter expenses (' + fm(q.expTotal) + ') are subtracted next for Net Income.</div>' +
+                '</div>') : '';
                 const days    = daysUntil(q.due);
                 const dueDate = new Date(q.due + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const isPaid        = q.paidAt !== null;
@@ -16658,7 +16679,7 @@ function formatDuration(seconds) {
                   '</div>' +
 
                   '<div style="background:#f7fafc;border-radius:8px;padding:0.7rem 0.85rem;margin-bottom:0.7rem;">' +
-                    '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Revenue</span><span>' + fm(q.revenue) + '</span></div>' +
+                    '<div class="excl-wrap" style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;' + (_jl.length ? 'cursor:help;' : '') + '"><span' + (_jl.length ? ' style="border-bottom:1px dashed #cbd5e0;"' : '') + '>Revenue</span><span>' + fm(q.revenue) + '</span>' + jobsPop + '</div>' +
                     (q.cashExcluded > 0 ? (function(){
                         var xj = q.cashExcludedJobs || [];
                         var xt = xj.reduce(function(s,j){ return s + (j.total||0); }, 0);
@@ -16680,7 +16701,7 @@ function formatDuration(seconds) {
                     (q.cogsMaterials > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Materials (COGS)</span><span>– ' + fm(q.cogsMaterials) + '</span></div>' : '') +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
                     (q.carryApplied > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#805ad5;margin-bottom:0.2rem;"><span>↩ Prior loss applied</span><span>– ' + fm(q.carryApplied) + '</span></div>' : '') +
-                    '<div style="display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700;color:#2d3748;border-top:1px solid #e2e8f0;padding-top:0.25rem;"><span>Net Income</span><span>' + fm(q.netIncome) + '</span></div>' +
+                    '<div class="excl-wrap" style="display:flex;justify-content:space-between;font-size:0.88rem;font-weight:700;color:#2d3748;border-top:1px solid #e2e8f0;padding-top:0.25rem;' + (_jl.length ? 'cursor:help;' : '') + '"><span' + (_jl.length ? ' style="border-bottom:1px dashed #cbd5e0;"' : '') + '>Net Income</span><span>' + fm(q.netIncome) + '</span>' + jobsPop + '</div>' +
                     (q.lossCarriedForward > 0 ? '<div style="font-size:0.78rem;color:#805ad5;margin-top:0.3rem;">⚠ ' + fm(q.lossCarriedForward) + ' loss carries to next quarter</div>' : '') +
                   '</div>' +
 
