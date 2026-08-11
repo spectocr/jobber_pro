@@ -4711,9 +4711,8 @@ app.get('/api/taxes/summary', isAdmin, async (req, res) => {
             njConfirmKey:  payment?.njConfirmKey  || null, njConfirmName:  payment?.njConfirmName  || null,
             adjustedDue, carryAppliedHere,
             remaining: Math.max(0, adjustedDue - paidAmount),
-            cashExcluded: ts.excludeCash ? jobs.filter(j => {
-                return inQ(j.scheduledDate) && isCashOnly(j);
-            }).length : 0,
+            cashExcluded: ts.excludeCash ? jobs.filter(j => inQ(j.scheduledDate) && isCashOnly(j)).length : 0,
+            cashExcludedJobs: ts.excludeCash ? jobs.filter(j => inQ(j.scheduledDate) && isCashOnly(j)).map(j => ({ title: j.title || 'Job', date: j.scheduledDate || '', total: parseFloat(j.total) || 0 })) : [],
             items: { jobs: jobItems, expenses: expItems }
         });
     }

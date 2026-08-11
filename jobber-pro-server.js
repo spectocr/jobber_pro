@@ -1916,6 +1916,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         <!-- Taxes View -->
         <div id="taxes" class="view">
+            <style>
+                .excl-wrap{position:relative;}
+                .excl-pop{display:none;}
+                .excl-wrap:hover .excl-pop{display:block;}
+            </style>
             <div class="card" style="margin-bottom:1.5rem;">
                 <div class="card-header" style="cursor:pointer;" onclick="toggleTaxSettings()">
                     <h2>⚙️ Tax Settings</h2>
@@ -16654,7 +16659,24 @@ function formatDuration(seconds) {
 
                   '<div style="background:#f7fafc;border-radius:8px;padding:0.7rem 0.85rem;margin-bottom:0.7rem;">' +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Revenue</span><span>' + fm(q.revenue) + '</span></div>' +
-                    (q.cashExcluded > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#718096;margin-bottom:0.2rem;font-style:italic;"><span>💵 ' + q.cashExcluded + ' cash job(s) excluded</span></div>' : '') +
+                    (q.cashExcluded > 0 ? (function(){
+                        var xj = q.cashExcludedJobs || [];
+                        var xt = xj.reduce(function(s,j){ return s + (j.total||0); }, 0);
+                        var rows = xj.map(function(j){
+                            return '<div style="display:flex;justify-content:space-between;gap:1rem;padding:0.18rem 0;font-size:0.8rem;">' +
+                                '<span style="color:#cbd5e0;">' + (j.title||'Job') + (j.date ? ' <span style="color:#718096;font-size:0.72rem;">' + j.date + '</span>' : '') + '</span>' +
+                                '<span style="font-weight:600;color:#fff;white-space:nowrap;">' + fm(j.total||0) + '</span></div>';
+                        }).join('');
+                        return '<div class="excl-wrap" style="display:flex;justify-content:space-between;font-size:0.83rem;color:#718096;margin-bottom:0.2rem;font-style:italic;">' +
+                            '<span style="cursor:help;border-bottom:1px dashed #cbd5e0;">💵 ' + q.cashExcluded + ' cash job(s) excluded</span>' +
+                            '<span>' + fm(xt) + '</span>' +
+                            '<div class="excl-pop" style="position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#1a202c;color:#e2e8f0;border-radius:8px;padding:0.7rem 0.85rem;box-shadow:0 8px 28px rgba(0,0,0,0.35);z-index:60;font-style:normal;">' +
+                                '<div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:#a0aec0;margin-bottom:0.4rem;">Excluded cash jobs</div>' +
+                                rows +
+                                '<div style="display:flex;justify-content:space-between;gap:1rem;border-top:1px solid #2d3748;margin-top:0.35rem;padding-top:0.35rem;font-size:0.82rem;font-weight:700;color:#fff;"><span>Total revenue</span><span>' + fm(xt) + '</span></div>' +
+                            '</div>' +
+                        '</div>';
+                    })() : '') +
                     (q.cogsMaterials > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Materials (COGS)</span><span>– ' + fm(q.cogsMaterials) + '</span></div>' : '') +
                     '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#4a5568;margin-bottom:0.2rem;"><span>Expenses</span><span>– ' + fm(q.expTotal) + '</span></div>' +
                     (q.carryApplied > 0 ? '<div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#805ad5;margin-bottom:0.2rem;"><span>↩ Prior loss applied</span><span>– ' + fm(q.carryApplied) + '</span></div>' : '') +
