@@ -9323,10 +9323,14 @@ function generatePortfolioHtml(rawItems) {
             const imgStyle = show.length === 2
                 ? 'width:100%;height:100%;object-fit:cover;display:block;'
                 : 'width:100%;height:100%;object-fit:cover;display:block;';
-            const cells = show.map((p) => {
+            let cells = show.map((p) => {
                 const typeLabel = p.type === 'before' ? 'Before — ' : p.type === 'after' ? 'After — ' : '';
                 return `<div style="${cellStyle}"><img src="${_pfHe(p.url)}" alt="${_pfHe(typeLabel)}${baseAlt}" loading="lazy" style="${imgStyle}">${_pfBadge(p.type)}</div>`;
             }).join('');
+            // Odd count in a 2x2 grid (3 photos) would leave a blank cell — fill it with a branded GSD tile.
+            if (show.length === 3) {
+                cells += `<div style="position:relative;overflow:hidden;background:#0f1c2e;display:flex;align-items:center;justify-content:center;"><img src="/images/logo.png" alt="" aria-hidden="true" loading="lazy" style="width:62%;height:62%;object-fit:contain;filter:brightness(0) invert(1);opacity:0.88;"></div>`;
+            }
             gridHtml = `<div style="${wrapStyle}">${cells}</div>`;
         }
 
