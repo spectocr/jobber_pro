@@ -6108,72 +6108,60 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         async function handleFileSelect(event) {
-            const files = event.target.files;
+            const files = Array.from(event.target.files);
+            event.target.value = '';
             if (!files.length) return;
 
-            for (let file of files) {
-                // Prompt for comment
-                const comment = prompt(\`Add a description for "\${file.name}":\`, '');
-                if (comment === null) {
-                    // User clicked cancel, skip this file
-                    continue;
-                }
-
-                // Optimize images before upload
-                const isImage = file.type.startsWith('image/');
-                if (isImage) {
-                    try {
-                        file = await optimizeImage(file);
-                    } catch (error) {
-                        console.error('Image optimization failed, uploading original:', error);
-                        // Continue with original file if optimization fails
-                    }
-                }
-
-                // Read file as base64
-                const reader = new FileReader();
-                reader.onload = async function(e) {
-                    try {
-                        // Upload to server (will be stored in S3 or MongoDB)
-                        const response = await fetch('/api/upload', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                fileName: file.name,
-                                fileType: file.type,
-                                fileData: e.target.result
-                            })
-                        });
-
-                        if (response.ok) {
-                            const result = await response.json();
-                            const attachment = {
-                                id: Date.now() + Math.random(),
-                                name: file.name,
-                                type: file.type,
-                                size: file.size,
-                                s3Key: result.s3Key, // Will be set if using S3
-                                data: result.data, // Will be set if using MongoDB fallback
-                                previewUrl: isImage ? e.target.result : undefined,
-                                uploadedAt: new Date().toISOString(),
-                                comment: comment.trim() // Add comment field
-                            };
-                            attachments.push(attachment);
-                            renderAttachments();
-                            markFormDirty();
-                        } else {
-                            alert(\`Failed to upload "\${file.name}"\`);
-                        }
-                    } catch (error) {
-                        console.error('Upload error:', error);
-                        alert(\`Error uploading "\${file.name}"\`);
-                    }
-                };
-                reader.readAsDataURL(file);
+            // 1) Collect a description for each file up front
+            const items = [];
+            for (const f of files) {
+                const comment = prompt('Add a description for "' + f.name + '":', '');
+                if (comment === null) continue; // cancelled — skip this one
+                items.push({ file: f, comment: comment.trim() });
             }
+            if (!items.length) return;
 
-            // Clear the input so the same file can be selected again
-            event.target.value = '';
+            // 2) Optimize + upload each, with a live progress popup
+            photoProgress.open(items.map(function(it){ return it.file; }), 'Uploading attachments');
+            await Promise.all(items.map(async function(it, idx){
+                let file = it.file;
+                const isImage = file.type.startsWith('image/');
+                try {
+                    if (isImage) {
+                        photoProgress.update(idx, 'Optimizing…', 'working');
+                        try { file = await optimizeImage(file); } catch (e) { /* keep original */ }
+                    }
+                    const dataUrl = await new Promise(function(res, rej){
+                        const r = new FileReader();
+                        r.onload = function(e){ res(e.target.result); };
+                        r.onerror = rej;
+                        r.readAsDataURL(file);
+                    });
+                    photoProgress.update(idx, 'Uploading…', 'working');
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: dataUrl })
+                    });
+                    if (!response.ok) throw new Error('Upload failed');
+                    const result = await response.json();
+                    attachments.push({
+                        id: Date.now() + Math.random(),
+                        name: file.name, type: file.type, size: file.size,
+                        s3Key: result.s3Key, data: result.data,
+                        previewUrl: isImage ? dataUrl : undefined,
+                        uploadedAt: new Date().toISOString(),
+                        comment: it.comment
+                    });
+                    renderAttachments();
+                    markFormDirty();
+                    photoProgress.update(idx, 'Added', 'done');
+                } catch (err) {
+                    console.error('Upload error:', err);
+                    photoProgress.update(idx, 'Failed', 'error');
+                }
+            }));
+            photoProgress.close(900);
         }
 
         function renderAttachments() {
@@ -9014,11 +9002,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const files = Array.from(event.target.files);
             event.target.value = '';
             if (!files.length) return;
+            photoProgress.open(files, 'Uploading quote photos');
+            files.forEach(function(f, _i){ photoProgress.update(_i, 'Compressing…', 'working'); });
             const status = document.getElementById('quotePhotoUploadStatus');
             status.style.display = 'block';
             status.textContent = \`Uploading \${files.length} photo\${files.length > 1 ? 's' : ''}...\`;
 
-            const dataUrls = await Promise.all(files.map(f => new Promise(resolve => {
+            const dataUrls = await Promise.all(files.map((f, _i) => new Promise(resolve => {
                 const reader = new FileReader();
                 reader.onload = e => {
                     // Compress via canvas
@@ -9030,6 +9020,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         const canvas = document.createElement('canvas');
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        photoProgress.update(_i, 'Uploading…', 'working');
                         resolve(canvas.toDataURL('image/jpeg', 0.82));
                     };
                     img.src = e.target.result;
@@ -9045,15 +9036,18 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Upload failed');
-                status.textContent = '✓ Uploaded';
-                setTimeout(() => { status.style.display = 'none'; }, 2000);
+                files.forEach(function(f, _i){ photoProgress.update(_i, 'Uploaded', 'done'); });
+                photoProgress.close(900);
+                status.style.display = 'none';
                 loadQuotePhotos(currentEditingQuoteId);
                 // Update local quote object so re-opening shows photos
                 const q = quotes.find(q => q.id == currentEditingQuoteId);
                 if (q) q.photos = (q.photos || []).concat(data.keys || []);
             } catch (e) {
-                status.textContent = 'Upload failed: ' + e.message;
-                status.style.color = '#e53e3e';
+                files.forEach(function(f, _i){ photoProgress.update(_i, 'Failed', 'error'); });
+                photoProgress.close(1600);
+                status.style.display = 'none';
+                setTimeout(function(){ alert('Upload failed: ' + e.message); }, 1650);
             }
         }
 
@@ -10127,6 +10121,53 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             _renderPortfolioPhotoList();
         }
 
+        // ── Reusable photo-upload progress popup (used by every photo add flow) ──
+        const photoProgress = {
+            el: null, total: 0, done: 0,
+            _css: function(){
+                if (document.getElementById('pp-css')) return;
+                var s = document.createElement('style'); s.id = 'pp-css';
+                s.textContent = '@keyframes pp-rot{to{transform:rotate(360deg)}} .pp-spin{display:inline-block;width:14px;height:14px;border:2px solid #cbd5e0;border-top-color:#667eea;border-radius:50%;animation:pp-rot .7s linear infinite;vertical-align:middle;}';
+                document.head.appendChild(s);
+            },
+            open: function(files, title){
+                this._css(); this.close(0);
+                this.total = files.length; this.done = 0;
+                var rows = files.map(function(f,i){
+                    var nm = (f && f.name) ? f.name : ('Photo ' + (i+1));
+                    return '<div class="pp-row" data-i="' + i + '" style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid #f0f2f5;font-size:0.9rem;">' +
+                        '<span class="pp-ico" style="width:18px;text-align:center;color:#cbd5e0;">•</span>' +
+                        '<span style="flex:1;min-width:0;color:#2d3748;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + nm + '</span>' +
+                        '<span class="pp-status" style="font-size:0.8rem;color:#a0aec0;white-space:nowrap;">Waiting</span>' +
+                    '</div>';
+                }).join('');
+                var ov = document.createElement('div');
+                ov.id = 'photoProgressOverlay';
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,28,46,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
+                ov.innerHTML = '<div style="background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,0.4);width:min(430px,92vw);max-height:82vh;padding:1.5rem 1.6rem;display:flex;flex-direction:column;">' +
+                    '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;"><span style="font-size:1.35rem;">📸</span><span style="font-weight:700;font-size:1.05rem;color:#1a202c;">' + (title || 'Adding photos') + '</span></div>' +
+                    '<div style="height:6px;background:#edf2f7;border-radius:99px;overflow:hidden;margin-bottom:1.1rem;flex:none;"><div class="pp-bar" style="height:100%;width:0;background:#667eea;transition:width 0.3s;"></div></div>' +
+                    '<div class="pp-list" style="overflow-y:auto;">' + rows + '</div>' +
+                '</div>';
+                document.body.appendChild(ov); this.el = ov;
+            },
+            update: function(i, label, state){
+                if (!this.el) return;
+                var row = this.el.querySelector('.pp-row[data-i="' + i + '"]'); if (!row) return;
+                var ico = row.querySelector('.pp-ico'), st = row.querySelector('.pp-status');
+                if (label) st.textContent = label;
+                if (state === 'working'){ ico.innerHTML = '<span class="pp-spin"></span>'; st.style.color = '#667eea'; }
+                else if (state === 'done'){ ico.textContent = '✓'; ico.style.color = '#38a169'; st.style.color = '#38a169'; this.done++; this._bar(); }
+                else if (state === 'error'){ ico.textContent = '✗'; ico.style.color = '#e53e3e'; st.style.color = '#e53e3e'; this.done++; this._bar(); }
+            },
+            _bar: function(){ var b = this.el && this.el.querySelector('.pp-bar'); if (b) b.style.width = Math.round(this.done / this.total * 100) + '%'; },
+            close: function(delay){
+                var self = this;
+                if (delay === 0){ if (self.el){ self.el.remove(); self.el = null; } return; }
+                setTimeout(function(){ if (self.el){ self.el.remove(); self.el = null; } }, delay || 800);
+            }
+        };
+
         async function compressPortfolioImage(file) {
             return new Promise((resolve, reject) => {
                 const url = URL.createObjectURL(file);
@@ -10161,12 +10202,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!files.length) return;
             input.value = '';
             const btn = document.querySelector('#portfolioModal button[onclick*="portfolioFileInput"]');
-            if (btn) { btn.disabled = true; btn.textContent = `⏳ Processing...`; }
+            if (btn) btn.disabled = true;
+            photoProgress.open(files, 'Adding portfolio photos');
             let errors = [];
             for (let i = 0; i < files.length; i++) {
-                if (btn) btn.textContent = `⏳ ${i + 1}/${files.length}...`;
                 try {
+                    photoProgress.update(i, 'Compressing…', 'working');
                     const compressed = await compressPortfolioImage(files[i]);
+                    photoProgress.update(i, 'Finishing…', 'working');
                     await new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = (e) => {
@@ -10177,12 +10220,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         reader.onerror = reject;
                         reader.readAsDataURL(compressed);
                     });
+                    photoProgress.update(i, 'Added', 'done');
                 } catch (err) {
+                    photoProgress.update(i, 'Failed', 'error');
                     errors.push(files[i].name + ': ' + err.message);
                 }
             }
-            if (btn) { btn.disabled = false; btn.textContent = '+ Add Photo'; }
-            if (errors.length) alert('Could not process:\n' + errors.join('\n'));
+            photoProgress.close(900);
+            if (btn) btn.disabled = false;
+            if (errors.length) setTimeout(() => alert('Could not process:\n' + errors.join('\n')), 950);
         }
 
         async function savePortfolioItem() {
