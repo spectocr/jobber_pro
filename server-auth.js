@@ -1893,25 +1893,20 @@ function _computeDriveRoute(origin, destination, apiKey) {
     });
 }
 
-app.post('/api/mileage', isAuthenticated, async (req, res) => {
-    const address = ((req.body && req.body.address) || '').replace(/\s+/g, ' ').trim();
-    if (!address) return res.json({ ok: false, reason: 'no_address' });
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) return res.json({ ok: false, reason: 'no_key' });
-
+// Cached round-trip miles for an address (checks cache, else Routes API + stores).
+// Returns { oneWayMiles, roundTripMiles, durationText, origin } or null.
+async function _getMileage(address, apiKey) {
+    address = (address || '').replace(/\s+/g, ' ').trim();
+    if (!address || !apiKey) return null;
     const cacheKey = (MILEAGE_HOME_BASE + '=>' + address).toLowerCase();
     try {
         const cached = await db.collection('mileage_cache').findOne({ _id: cacheKey });
         if (cached && cached.data && (Date.now() - new Date(cached.cachedAt).getTime() < 180 * 24 * 60 * 60 * 1000)) {
-            return res.json({ ok: true, cached: true, ...cached.data });
+            return cached.data;
         }
-    } catch (e) { /* fall through to live call */ }
-
+    } catch (e) { /* fall through */ }
     const r = await _computeDriveRoute(MILEAGE_HOME_BASE, address, apiKey);
-    if (!r.ok) {
-        if (r.detail) console.error('Routes API error:', r.reason, r.detail);
-        return res.json({ ok: false, reason: r.reason, detail: r.detail || null });
-    }
+    if (!r.ok) { if (r.detail) console.error('Routes API error:', r.reason, r.detail); return null; }
     const oneWayMiles = r.meters / 1609.344;
     const result = {
         oneWayMiles: Math.round(oneWayMiles * 10) / 10,
@@ -1919,10 +1914,109 @@ app.post('/api/mileage', isAuthenticated, async (req, res) => {
         durationText: r.durationText,
         origin: MILEAGE_HOME_BASE
     };
+    try { await db.collection('mileage_cache').updateOne({ _id: cacheKey }, { $set: { data: result, cachedAt: new Date() } }, { upsert: true }); } catch (e) { /* non-fatal */ }
+    return result;
+}
+
+// Resolve a job's destination address (service-location address, else client's).
+function _resolveJobAddress(job, client) {
+    if (job.serviceLocationId && client && Array.isArray(client.serviceLocations)) {
+        const loc = client.serviceLocations.find(l => String(l.id || l._id) === String(job.serviceLocationId));
+        if (loc && loc.address) return String(loc.address).replace(/\s+/g, ' ').trim();
+    }
+    if (!client) return '';
+    const structured = [client.addressLine1, client.addressLine2, client.city, client.state, client.zipCode].filter(Boolean).join(', ');
+    return (structured || client.address || '').replace(/\s+/g, ' ').trim();
+}
+
+// Run async fn over items with bounded concurrency (keeps big reports under the request timeout).
+async function _mapPool(items, limit, fn) {
+    const results = new Array(items.length);
+    let i = 0;
+    const workers = new Array(Math.min(limit, items.length || 1)).fill(0).map(async () => {
+        while (i < items.length) { const idx = i++; results[idx] = await fn(items[idx], idx); }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
+app.post('/api/mileage', isAuthenticated, async (req, res) => {
+    const address = ((req.body && req.body.address) || '').replace(/\s+/g, ' ').trim();
+    if (!address) return res.json({ ok: false, reason: 'no_address' });
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) return res.json({ ok: false, reason: 'no_key' });
+    const data = await _getMileage(address, apiKey);
+    if (!data) return res.json({ ok: false, reason: 'lookup_failed' });
+    return res.json({ ok: true, ...data });
+});
+
+// EOY mileage report: itemized per-job driving miles for a tax year + totals.
+app.get('/api/mileage/report', isAuthenticated, async (req, res) => {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const rateQ = parseFloat(req.query.rate);
+    const ratePerMile = (rateQ > 0 && rateQ < 5) ? rateQ : 0.70;
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const start = new Date(year, 0, 1), end = new Date(year + 1, 0, 1);
+    const includeStatuses = ['scheduled', 'in_progress', 'completed', 'invoiced'];
+
+    const tripDate = (job) => {
+        const d = job.completedAt || job.scheduledDate;
+        if (!d) return null;
+        const dt = (typeof d === 'string') ? new Date(d.length <= 10 ? d + 'T12:00:00' : d) : new Date(d);
+        return isNaN(dt.getTime()) ? null : dt;
+    };
+
     try {
-        await db.collection('mileage_cache').updateOne({ _id: cacheKey }, { $set: { data: result, cachedAt: new Date() } }, { upsert: true });
-    } catch (e) { /* non-fatal */ }
-    return res.json({ ok: true, ...result });
+        const [jobs, clients] = await Promise.all([
+            db.collection('jobs').find({}).toArray(),
+            db.collection('clients').find({}).toArray()
+        ]);
+        const clientMap = {};
+        clients.forEach(c => { clientMap[String(c._id)] = c; });
+
+        // Eligible jobs in the year with a resolvable address
+        const eligible = [];
+        let skipped = 0;
+        for (const job of jobs) {
+            if (!includeStatuses.includes(job.status)) continue;
+            const dt = tripDate(job);
+            if (!dt || dt < start || dt >= end) continue;
+            const client = job.clientId ? clientMap[String(job.clientId)] : null;
+            const address = _resolveJobAddress(job, client);
+            if (!address) { skipped++; continue; }
+            eligible.push({ job, client, address, dt });
+        }
+
+        const rows = [];
+        await _mapPool(eligible, 8, async (e) => {
+            const mi = await _getMileage(e.address, apiKey);
+            if (!mi) { skipped++; return; }
+            const visits = Math.max(1, parseInt(e.job.siteVisits) || 1);
+            rows.push({
+                date: e.dt.toISOString().slice(0, 10),
+                client: e.client ? (e.client.name || '') : '',
+                title: e.job.title || '',
+                destination: e.address,
+                oneWayMiles: mi.oneWayMiles,
+                roundTripMiles: mi.roundTripMiles,
+                visits,
+                totalMiles: Math.round(mi.roundTripMiles * visits * 10) / 10
+            });
+        });
+        rows.sort((a, b) => a.date.localeCompare(b.date));
+
+        const totalMiles = Math.round(rows.reduce((s, r) => s + r.totalMiles, 0) * 10) / 10;
+        res.json({
+            year, ratePerMile, base: MILEAGE_HOME_BASE,
+            jobCount: rows.length, skipped,
+            totalMiles,
+            estimatedDeduction: Math.round(totalMiles * ratePerMile * 100) / 100,
+            rows
+        });
+    } catch (err) {
+        console.error('Mileage report error:', err.message);
+        res.status(500).json({ error: 'Failed to build mileage report' });
+    }
 });
 
 // Admin diagnostic: confirm the Routes API is enabled on the key.
@@ -3040,6 +3134,9 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
     let isUpdate = !!job._id;
     let oldJob = null;
+
+    // Normalize site-visit count (drives EOY mileage totals)
+    job.siteVisits = Math.max(1, parseInt(job.siteVisits) || 1);
 
     // Get old job data if updating (for status change detection)
     if (isUpdate) {

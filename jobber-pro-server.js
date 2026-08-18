@@ -2003,6 +2003,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
                 <div id="taxContent"><div class="empty-state"><p>Loading...</p></div></div>
             </div>
+
+            <div class="card" style="margin-top:1.5rem;">
+                <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+                    <h2>🚗 Business Mileage Log</h2>
+                    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <select id="mileageYear" onchange="loadMileageReport()" style="padding:0.5rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;"></select>
+                        <label style="font-size:0.85rem;color:#4a5568;display:flex;align-items:center;gap:0.35rem;">Rate&nbsp;$/mi
+                            <input type="number" id="mileageRate" value="0.70" min="0" max="5" step="0.01" onchange="loadMileageReport()" style="width:78px;padding:0.5rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;">
+                        </label>
+                        <button class="btn btn-secondary" onclick="loadMileageReport()">🔄 Recalculate</button>
+                        <button class="btn btn-secondary" onclick="printMileageReport()">🖨️ Print</button>
+                        <button class="btn btn-secondary" onclick="exportMileageCsv()">⬇️ CSV</button>
+                    </div>
+                </div>
+                <div id="mileageContent"><div class="empty-state"><p>Select a year to build your mileage log.</p></div></div>
+            </div>
         </div>
 
         <div id="team" class="view">
@@ -3658,7 +3674,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </select>
                             <div id="locationInfoDisplay" style="display:none; margin-top:0.5rem; padding:0.6rem 0.85rem; background:#f0f4ff; border-left:3px solid #667eea; border-radius:0 6px 6px 0; font-size:0.875rem; color:#4a5568; line-height:1.5;"></div>
                         </div>
-                        <div id="jobMileageDisplay" style="display:none; margin:-0.25rem 0 1rem; padding:0.6rem 0.85rem; background:#f0fff4; border-left:3px solid #38a169; border-radius:0 6px 6px 0; font-size:0.875rem; color:#276749; line-height:1.5;"></div>
+                        <div id="jobMileageDisplay" style="display:none; margin:-0.25rem 0 0.5rem; padding:0.6rem 0.85rem; background:#f0fff4; border-left:3px solid #38a169; border-radius:0 6px 6px 0; font-size:0.875rem; color:#276749; line-height:1.5;"></div>
+                        <div class="form-group" id="siteVisitsGroup" style="display:none;">
+                            <label>Site visits <span style="font-weight:400;color:#718096;font-size:0.8rem;">— number of trips to this job (drives your mileage totals)</span></label>
+                            <input type="number" name="siteVisits" id="jobSiteVisits" min="1" step="1" value="1" onchange="renderMileageLine(); markFormDirty();" style="max-width:120px;">
+                        </div>
                         <div class="form-group">
                             <label>Job Title *</label>
                             <input type="text" name="title" required>
@@ -4614,7 +4634,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'calendar') loadCalendar();
             if (viewName === 'team') loadTeam();
             if (viewName === 'payroll') { loadPayrollCompliance(); applyPayrollPreset(); }
-            if (viewName === 'taxes') { populateTaxYears(); loadTaxes(); }
+            if (viewName === 'taxes') { populateTaxYears(); loadTaxes(); populateMileageYears(); loadMileageReport(); }
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -5440,6 +5460,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     if (loadedClient) document.getElementById('jobClientInput').value = loadedClient.name;
                 }
 
+                // Site visits + mileage state
+                _lastMileage = null;
+                document.getElementById('jobSiteVisits').value = job.siteVisits || 1;
+
                 // Trigger client change to populate service locations
                 handleClientChange();
 
@@ -5480,7 +5504,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('clientTypeaheadDropdown').style.display = 'none';
                 document.getElementById('serviceLocationGroup').style.display = 'none';
                 document.querySelectorAll('.job-team-cb').forEach(cb => cb.checked = false);
+                _lastMileage = null;
+                document.getElementById('jobSiteVisits').value = 1;
                 const _mi = document.getElementById('jobMileageDisplay'); if (_mi) _mi.style.display = 'none';
+                const _sv = document.getElementById('siteVisitsGroup'); if (_sv) _sv.style.display = 'none';
                 window._origFollowUpDate = null;
             }
 
@@ -6503,12 +6530,38 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         let _mileageReq = 0;
-        async function loadJobMileage() {
+        let _lastMileage = null;
+        function renderMileageLine() {
             const el = document.getElementById('jobMileageDisplay');
             if (!el) return;
+            if (!_lastMileage) { el.style.display = 'none'; return; }
+            const visitsEl = document.getElementById('jobSiteVisits');
+            const visits = Math.max(1, parseInt(visitsEl && visitsEl.value) || 1);
+            const d = _lastMileage;
+            const dur = d.durationText ? ' · ~' + d.durationText + ' each way' : '';
+            let html = '🚗 <strong>' + d.roundTripMiles + ' mi round-trip</strong> ' +
+                '<span style="color:#718096;">(' + d.oneWayMiles + ' mi each way' + dur + ' · from base)</span>';
+            if (visits > 1) {
+                const total = Math.round(d.roundTripMiles * visits * 10) / 10;
+                html += '<div style="margin-top:0.25rem;">× ' + visits + ' visits = <strong>' + total + ' mi</strong> total for this job</div>';
+            }
+            el.innerHTML = html;
+            el.style.display = 'block';
+        }
+        async function loadJobMileage() {
+            const el = document.getElementById('jobMileageDisplay');
+            const grp = document.getElementById('siteVisitsGroup');
+            if (!el) return;
             const address = _jobFormAddress();
-            if (!address) { el.style.display = 'none'; return; }
+            if (!address) {
+                _lastMileage = null;
+                el.style.display = 'none';
+                if (grp) grp.style.display = 'none';
+                return;
+            }
+            if (grp) grp.style.display = 'block'; // visits editable as soon as we have an address
             const reqId = ++_mileageReq;
+            _lastMileage = null;
             el.style.display = 'block';
             el.innerHTML = '<span style="color:#718096;">🚗 Calculating mileage…</span>';
             try {
@@ -6520,9 +6573,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const d = await res.json();
                 if (reqId !== _mileageReq) return; // superseded by a newer lookup
                 if (!d.ok) { el.style.display = 'none'; return; }
-                const dur = d.durationText ? ' · ~' + d.durationText + ' each way' : '';
-                el.innerHTML = '🚗 <strong>' + d.roundTripMiles + ' mi round-trip</strong> ' +
-                    '<span style="color:#718096;">(' + d.oneWayMiles + ' mi each way' + dur + ' · from base)</span>';
+                _lastMileage = { oneWayMiles: d.oneWayMiles, roundTripMiles: d.roundTripMiles, durationText: d.durationText };
+                renderMileageLine();
             } catch (e) {
                 if (reqId === _mileageReq) el.style.display = 'none';
             }
@@ -16656,6 +16708,131 @@ function formatDuration(seconds) {
                 if (y === cur) opt.selected = true;
                 sel.appendChild(opt);
             }
+        }
+
+        // ── Business Mileage Log ──────────────────────────────────────────
+        let _mileageReport = null;
+        function populateMileageYears() {
+            const sel = document.getElementById('mileageYear');
+            if (!sel || sel.options.length > 0) return;
+            const cur = new Date().getFullYear();
+            for (let y = cur; y >= cur - 4; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                if (y === cur) opt.selected = true;
+                sel.appendChild(opt);
+            }
+        }
+
+        async function loadMileageReport() {
+            const box = document.getElementById('mileageContent');
+            if (!box) return;
+            const year = document.getElementById('mileageYear').value || new Date().getFullYear();
+            const rate = document.getElementById('mileageRate').value || '0.70';
+            box.innerHTML = '<div class="empty-state"><p>🚗 Building your ' + year + ' mileage log… (first run of a year may take a few seconds)</p></div>';
+            try {
+                const res = await fetch('/api/mileage/report?year=' + year + '&rate=' + rate);
+                const data = await res.json();
+                if (!res.ok) { box.innerHTML = '<div class="empty-state"><p>' + (data.error || 'Failed to build report') + '</p></div>'; return; }
+                _mileageReport = data;
+                renderMileageReport(data);
+            } catch (e) {
+                box.innerHTML = '<div class="empty-state"><p>Error building report.</p></div>';
+            }
+        }
+
+        function _fmtMiles(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+        function _usd(n) { return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+        function renderMileageReport(data) {
+            const box = document.getElementById('mileageContent');
+            if (!data.rows || !data.rows.length) {
+                box.innerHTML = '<div class="empty-state"><p>No qualifying jobs with an address in ' + data.year + '.' +
+                    (data.skipped ? ' (' + data.skipped + ' skipped — no address on file)' : '') + '</p></div>';
+                return;
+            }
+            const summary =
+                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.25rem;">' +
+                    '<div style="background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:1rem;">' +
+                        '<div style="font-size:0.78rem;color:#276749;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">Total Business Miles</div>' +
+                        '<div style="font-size:1.7rem;font-weight:800;color:#22543d;">' + _fmtMiles(data.totalMiles) + '</div></div>' +
+                    '<div style="background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:1rem;">' +
+                        '<div style="font-size:0.78rem;color:#276749;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">Est. Deduction</div>' +
+                        '<div style="font-size:1.7rem;font-weight:800;color:#22543d;">' + _usd(data.estimatedDeduction) + '</div>' +
+                        '<div style="font-size:0.75rem;color:#718096;">@ ' + _usd(data.ratePerMile) + '/mi</div></div>' +
+                    '<div style="background:#f7fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem;">' +
+                        '<div style="font-size:0.78rem;color:#4a5568;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">Jobs Counted</div>' +
+                        '<div style="font-size:1.7rem;font-weight:800;color:#2d3748;">' + data.jobCount + '</div>' +
+                        (data.skipped ? '<div style="font-size:0.75rem;color:#a0aec0;">' + data.skipped + ' skipped (no address)</div>' : '') + '</div>' +
+                '</div>';
+            let rowsHtml = '';
+            data.rows.forEach(function(r) {
+                rowsHtml += '<tr style="border-bottom:1px solid #edf2f7;">' +
+                    '<td style="padding:0.5rem 0.6rem;white-space:nowrap;">' + r.date + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;">' + (r.client || '') + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;color:#4a5568;">' + (r.title || '') + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;color:#718096;font-size:0.85rem;">' + (r.destination || '') + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;text-align:right;white-space:nowrap;">' + _fmtMiles(r.roundTripMiles) + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;text-align:center;">' + r.visits + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;text-align:right;font-weight:700;white-space:nowrap;">' + _fmtMiles(r.totalMiles) + '</td>' +
+                '</tr>';
+            });
+            const table =
+                '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;">' +
+                    '<thead><tr style="text-align:left;border-bottom:2px solid #e2e8f0;color:#4a5568;font-size:0.8rem;text-transform:uppercase;letter-spacing:.03em;">' +
+                        '<th style="padding:0.5rem 0.6rem;">Date</th><th style="padding:0.5rem 0.6rem;">Client</th>' +
+                        '<th style="padding:0.5rem 0.6rem;">Job</th><th style="padding:0.5rem 0.6rem;">Destination</th>' +
+                        '<th style="padding:0.5rem 0.6rem;text-align:right;">Round-trip</th><th style="padding:0.5rem 0.6rem;text-align:center;">Visits</th>' +
+                        '<th style="padding:0.5rem 0.6rem;text-align:right;">Total mi</th></tr></thead>' +
+                    '<tbody>' + rowsHtml + '</tbody>' +
+                    '<tfoot><tr style="border-top:2px solid #e2e8f0;font-weight:800;"><td colspan="6" style="padding:0.6rem;text-align:right;">Year total</td>' +
+                        '<td style="padding:0.6rem;text-align:right;">' + _fmtMiles(data.totalMiles) + '</td></tr></tfoot>' +
+                '</table></div>' +
+                '<p style="font-size:0.78rem;color:#a0aec0;margin-top:0.75rem;">From base: ' + (data.base || '') + '. Driving distances via Google. Estimate — keep your own log for IRS substantiation.</p>';
+            box.innerHTML = summary + table;
+        }
+
+        function printMileageReport() {
+            if (!_mileageReport || !_mileageReport.rows || !_mileageReport.rows.length) { alert('Nothing to print yet — build the report first.'); return; }
+            const d = _mileageReport;
+            let rows = '';
+            d.rows.forEach(function(r) {
+                rows += '<tr><td>' + r.date + '</td><td>' + (r.client || '') + '</td><td>' + (r.title || '') + '</td><td>' + (r.destination || '') + '</td><td class="r">' + _fmtMiles(r.roundTripMiles) + '</td><td class="c">' + r.visits + '</td><td class="r">' + _fmtMiles(r.totalMiles) + '</td></tr>';
+            });
+            const w = window.open('', '_blank');
+            w.document.write('<html><head><title>' + d.year + ' Business Mileage Log</title><style>' +
+                'body{font-family:Arial,sans-serif;color:#1a202c;padding:24px;}h1{font-size:1.3rem;margin:0 0 0.25rem;}' +
+                '.sub{color:#666;font-size:0.85rem;margin-bottom:1rem;}table{width:100%;border-collapse:collapse;font-size:0.82rem;}' +
+                'th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;}th{background:#f4f4f4;}.r{text-align:right;}.c{text-align:center;}' +
+                'tfoot td{font-weight:bold;border-top:2px solid #333;}</style></head><body>' +
+                '<h1>' + d.year + ' Business Mileage Log</h1>' +
+                '<div class="sub">GSD Home Improvement &amp; Property Services · From base: ' + (d.base || '') + '<br>' +
+                    'Total: ' + _fmtMiles(d.totalMiles) + ' mi × ' + _usd(d.ratePerMile) + '/mi = <strong>' + _usd(d.estimatedDeduction) + '</strong> estimated deduction</div>' +
+                '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Destination</th><th class="r">Round-trip</th><th class="c">Visits</th><th class="r">Total mi</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody>' +
+                '<tfoot><tr><td colspan="6" class="r">Year total</td><td class="r">' + _fmtMiles(d.totalMiles) + '</td></tr></tfoot></table>' +
+                '</body></html>');
+            w.document.close();
+            w.focus();
+            setTimeout(function(){ w.print(); }, 300);
+        }
+
+        function exportMileageCsv() {
+            if (!_mileageReport || !_mileageReport.rows || !_mileageReport.rows.length) { alert('Nothing to export yet — build the report first.'); return; }
+            const d = _mileageReport;
+            const esc = function(s){ s = String(s == null ? '' : s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+            let csv = 'Date,Client,Job,Destination,Round-trip miles,Visits,Total miles\n';
+            d.rows.forEach(function(r){
+                csv += [r.date, esc(r.client), esc(r.title), esc(r.destination), r.roundTripMiles, r.visits, r.totalMiles].join(',') + '\n';
+            });
+            csv += ',,,,,Year total,' + d.totalMiles + '\n';
+            csv += ',,,,,Est. deduction (@' + d.ratePerMile + '/mi),' + d.estimatedDeduction + '\n';
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'mileage-log-' + d.year + '.csv';
+            a.click();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
         }
 
         async function loadTaxes() {
