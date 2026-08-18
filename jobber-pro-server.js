@@ -2519,6 +2519,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <button class="settings-tab" onclick="switchSettingsTab('quotetemplates')" data-tab="quotetemplates">📋 Quote Templates</button>
                         <button class="settings-tab" onclick="switchSettingsTab('ooo')" data-tab="ooo">🏖️ Away / OOO</button>
                         <button class="settings-tab" onclick="switchSettingsTab('backups')" data-tab="backups">💾 Backups</button>
+                        <button class="settings-tab" onclick="switchSettingsTab('maddox')" data-tab="maddox">🐕 Maddox</button>
                     </div>
                 </div>
 
@@ -3077,6 +3078,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                         <div id="backupListContainer">
                             <p style="color:#718096;font-style:italic;font-size:0.9rem;">Loading backups…</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maddox Tab -->
+                <div id="maddoxTab" class="settings-tab-content" style="display:none;">
+                    <div style="max-width:600px;">
+                        <div style="display:flex;align-items:center;gap:0.7rem;margin-bottom:0.4rem;">
+                            <span style="font-size:1.6rem;">🐕</span>
+                            <h3 style="margin:0;color:#667eea;">Maddox</h3>
+                        </div>
+                        <p style="margin:0 0 1.75rem;color:#718096;font-size:0.9rem;">Control your German Shepherd assistant. These preferences are saved to this browser.</p>
+
+                        <!-- Show Maddox -->
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:1rem 1.2rem;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;">
+                            <div>
+                                <div style="font-weight:600;color:#2d3748;">Show Maddox</div>
+                                <div style="font-size:0.85rem;color:#718096;margin-top:0.15rem;">The dog in the bottom-right corner. Turn off to hide him and his chat entirely.</div>
+                            </div>
+                            <label class="mad-switch"><input type="checkbox" id="maddoxShowToggle" onchange="toggleMaddoxShow(this)"><span class="mad-slider"></span></label>
+                        </div>
+
+                        <!-- Proactive nudges -->
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:1rem 1.2rem;border:1.5px solid #e2e8f0;border-radius:12px;">
+                            <div>
+                                <div style="font-weight:600;color:#2d3748;">Proactive nudges</div>
+                                <div style="font-size:0.85rem;color:#718096;margin-top:0.15rem;">The pop-up bubbles &amp; daily heads-up. Turn off to keep the chat but stop the reminders.</div>
+                            </div>
+                            <label class="mad-switch"><input type="checkbox" id="maddoxNudgeToggle" onchange="toggleMaddoxNudges(this)"><span class="mad-slider"></span></label>
                         </div>
                     </div>
                 </div>
@@ -11856,6 +11886,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (tabName === 'compliance') {
                 loadComplianceDocs();
             }
+            if (tabName === 'maddox') {
+                applyMaddoxPrefs();
+            }
             if (tabName === 'quotetemplates') {
                 loadQuoteTemplates();
             }
@@ -13744,12 +13777,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             pollNotificationCounts();
             setInterval(pollNotificationCounts, 30000);
+            applyMaddoxPrefs();
             pollNudges();
             setInterval(pollNudges, 5 * 60 * 1000);
 
             // First load of the day — wag tail as a heads-up indicator
             const todayStr = new Date().toDateString();
-            if (localStorage.getItem('maddoxBriefDate') !== todayStr) {
+            if (!areNudgesOff() && !isMaddoxHidden() && localStorage.getItem('maddoxBriefDate') !== todayStr) {
                 localStorage.setItem('maddoxBriefDate', todayStr);
                 setTimeout(() => {
                     const tail = document.getElementById('rexTail');
@@ -16086,7 +16120,30 @@ function formatDuration(seconds) {
             } catch (e) { /* silent */ }
         }
 
+        // ── Maddox visibility & nudge preferences (saved per browser) ──
+        function isMaddoxHidden() { return localStorage.getItem('maddoxHidden') === '1'; }
+        function areNudgesOff() { return localStorage.getItem('maddoxNudgesOff') === '1'; }
+        function applyMaddoxPrefs() {
+            if (typeof isAdmin !== 'undefined' && !isAdmin) return; // non-admins never see Maddox
+            const wrap = document.getElementById('clippyWrap');
+            if (wrap) wrap.style.display = isMaddoxHidden() ? 'none' : 'flex';
+            const t1 = document.getElementById('maddoxShowToggle');
+            if (t1) t1.checked = !isMaddoxHidden();
+            const t2 = document.getElementById('maddoxNudgeToggle');
+            if (t2) { t2.checked = !areNudgesOff(); t2.disabled = isMaddoxHidden(); }
+        }
+        function toggleMaddoxShow(cb) {
+            localStorage.setItem('maddoxHidden', cb.checked ? '0' : '1');
+            const n = document.getElementById('maddoxNudge'); if (n) n.style.display = 'none';
+            applyMaddoxPrefs();
+        }
+        function toggleMaddoxNudges(cb) {
+            localStorage.setItem('maddoxNudgesOff', cb.checked ? '0' : '1');
+            if (!cb.checked) { const n = document.getElementById('maddoxNudge'); if (n) n.style.display = 'none'; }
+        }
+
         function showNextNudge() {
+            if (areNudgesOff() || isMaddoxHidden()) return;
             if (_nudgeQueue.length === 0) return;
             const panel = document.getElementById('activityBotPanel');
             if (panel && panel.style.display !== 'none') return; // panel open, no need
@@ -17114,6 +17171,13 @@ function formatDuration(seconds) {
         #maddoxNudge { position:absolute;bottom:calc(100% + 10px);right:0;background:white;border:2px solid #fde68a;border-radius:12px 12px 2px 12px;padding:0.55rem 0.8rem 0.55rem 0.75rem;font-size:0.78rem;color:#1a202c;max-width:210px;box-shadow:0 4px 18px rgba(0,0,0,0.13);animation:nudgePop 0.3s cubic-bezier(.36,.07,.19,.97) both;display:flex;gap:0.4rem;align-items:flex-start;line-height:1.45; }
         #maddoxNudgeDismiss { background:none;border:none;color:#a0aec0;cursor:pointer;font-size:0.85rem;line-height:1;padding:0;flex-shrink:0;margin-top:1px; }
         #maddoxNudgeDismiss:hover { color:#e53e3e; }
+        .mad-switch { position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0; }
+        .mad-switch input { opacity:0;width:0;height:0; }
+        .mad-slider { position:absolute;inset:0;cursor:pointer;background:#cbd5e0;border-radius:26px;transition:0.25s; }
+        .mad-slider:before { content:'';position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.25s;box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+        .mad-switch input:checked + .mad-slider { background:#667eea; }
+        .mad-switch input:checked + .mad-slider:before { transform:translateX(20px); }
+        .mad-switch input:disabled + .mad-slider { opacity:0.45;cursor:not-allowed; }
         #clippyWrap { position:fixed;bottom:1.2rem;right:1.4rem;z-index:900;display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem; }
         #clippyChar { width:72px;height:90px;cursor:pointer;animation: clippyAppear 0.7s cubic-bezier(.36,.07,.19,.97) both, clippyIdle 3s ease-in-out 0.7s infinite;position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
         #clippyChar:hover { filter:drop-shadow(0 6px 14px rgba(196,124,48,0.55)); }
