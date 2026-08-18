@@ -1842,6 +1842,90 @@ app.get('/api/reviews/test', isAuthenticated, async (req, res) => {
     }
 });
 
+// ── Mileage: driving distance from home base to a job/client address ──
+// Uses Google Distance Matrix API. Results cached per-address (they rarely change)
+// so repeat jobs at the same address cost nothing.
+const MILEAGE_HOME_BASE = process.env.MILEAGE_HOME_BASE || '123 E Main St, Marlton, NJ 08053';
+app.post('/api/mileage', isAuthenticated, async (req, res) => {
+    const address = ((req.body && req.body.address) || '').replace(/\s+/g, ' ').trim();
+    if (!address) return res.json({ ok: false, reason: 'no_address' });
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) return res.json({ ok: false, reason: 'no_key' });
+
+    const cacheKey = (MILEAGE_HOME_BASE + '=>' + address).toLowerCase();
+    try {
+        const cached = await db.collection('mileage_cache').findOne({ _id: cacheKey });
+        if (cached && cached.data && (Date.now() - new Date(cached.cachedAt).getTime() < 180 * 24 * 60 * 60 * 1000)) {
+            return res.json({ ok: true, cached: true, ...cached.data });
+        }
+    } catch (e) { /* fall through to live call */ }
+
+    try {
+        const https = require('https');
+        const params = new URLSearchParams({
+            origins: MILEAGE_HOME_BASE,
+            destinations: address,
+            units: 'imperial',
+            mode: 'driving',
+            key: apiKey
+        });
+        const url = 'https://maps.googleapis.com/maps/api/distancematrix/json?' + params.toString();
+        const data = await new Promise((resolve, reject) => {
+            https.get(url, (r) => {
+                let b = ''; r.on('data', c => b += c);
+                r.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(e); } });
+            }).on('error', reject);
+        });
+
+        const el = data && data.rows && data.rows[0] && data.rows[0].elements && data.rows[0].elements[0];
+        if (data.error_message) console.error('Distance Matrix error:', data.status, data.error_message);
+        if (!el || el.status !== 'OK') {
+            return res.json({ ok: false, reason: (el && el.status) || data.status || 'no_result', detail: data.error_message || null });
+        }
+        const oneWayMiles = el.distance.value / 1609.344;
+        const result = {
+            oneWayMiles: Math.round(oneWayMiles * 10) / 10,
+            roundTripMiles: Math.round(oneWayMiles * 2 * 10) / 10,
+            durationText: el.duration ? el.duration.text : '',
+            origin: MILEAGE_HOME_BASE
+        };
+        try {
+            await db.collection('mileage_cache').updateOne({ _id: cacheKey }, { $set: { data: result, cachedAt: new Date() } }, { upsert: true });
+        } catch (e) { /* non-fatal */ }
+        return res.json({ ok: true, ...result });
+    } catch (err) {
+        console.error('Mileage lookup error:', err.message);
+        return res.json({ ok: false, reason: 'error' });
+    }
+});
+
+// Admin diagnostic: confirm the Distance Matrix API is enabled on the key.
+// Visit /api/mileage/test while logged in.
+app.get('/api/mileage/test', isAuthenticated, async (req, res) => {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) return res.json({ ok: false, reason: 'no_key' });
+    try {
+        const https = require('https');
+        const params = new URLSearchParams({ origins: MILEAGE_HOME_BASE, destinations: 'Cherry Hill, NJ', units: 'imperial', mode: 'driving', key: apiKey });
+        const url = 'https://maps.googleapis.com/maps/api/distancematrix/json?' + params.toString();
+        const data = await new Promise((resolve, reject) => {
+            https.get(url, (r) => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(e); } }); }).on('error', reject);
+        });
+        const el = data && data.rows && data.rows[0] && data.rows[0].elements && data.rows[0].elements[0];
+        return res.json({
+            ok: !!(el && el.status === 'OK'),
+            base: MILEAGE_HOME_BASE,
+            topStatus: data.status,
+            elementStatus: el ? el.status : null,
+            errorMessage: data.error_message || null,
+            distance: el && el.distance ? el.distance.text : null,
+            duration: el && el.duration ? el.duration.text : null
+        });
+    } catch (err) {
+        return res.json({ ok: false, error: err.message });
+    }
+});
+
 // Leads API
 // ── Vendors ──────────────────────────────────────────────────────────────────
 app.get('/api/vendors', isAuthenticated, async (req, res) => {

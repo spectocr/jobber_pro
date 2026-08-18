@@ -3658,6 +3658,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </select>
                             <div id="locationInfoDisplay" style="display:none; margin-top:0.5rem; padding:0.6rem 0.85rem; background:#f0f4ff; border-left:3px solid #667eea; border-radius:0 6px 6px 0; font-size:0.875rem; color:#4a5568; line-height:1.5;"></div>
                         </div>
+                        <div id="jobMileageDisplay" style="display:none; margin:-0.25rem 0 1rem; padding:0.6rem 0.85rem; background:#f0fff4; border-left:3px solid #38a169; border-radius:0 6px 6px 0; font-size:0.875rem; color:#276749; line-height:1.5;"></div>
                         <div class="form-group">
                             <label>Job Title *</label>
                             <input type="text" name="title" required>
@@ -5479,6 +5480,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('clientTypeaheadDropdown').style.display = 'none';
                 document.getElementById('serviceLocationGroup').style.display = 'none';
                 document.querySelectorAll('.job-team-cb').forEach(cb => cb.checked = false);
+                const _mi = document.getElementById('jobMileageDisplay'); if (_mi) _mi.style.display = 'none';
                 window._origFollowUpDate = null;
             }
 
@@ -6434,6 +6436,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!selectedClientId) {
                 locationGroup.style.display = 'none';
                 locationSelect.innerHTML = '<option value="">Select a location...</option>';
+                const _mi = document.getElementById('jobMileageDisplay'); if (_mi) _mi.style.display = 'none';
                 return;
             }
 
@@ -6450,6 +6453,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 locationGroup.style.display = 'none';
                 locationSelect.innerHTML = '<option value="">Select a location...</option>';
             }
+            loadJobMileage();
         }
 
         function updateLocationDisplay() {
@@ -6479,6 +6483,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 display.style.display = 'block';
             } else {
                 display.style.display = 'none';
+            }
+            loadJobMileage();
+        }
+
+        // ── Job mileage: driving distance from home base to the job address ──
+        function _jobFormAddress() {
+            const clientId = document.getElementById('jobClientSelect').value;
+            const client = clients.find(c => c.id == clientId);
+            if (!client) return '';
+            const sel = document.getElementById('jobServiceLocationSelect');
+            const locId = sel && sel.value;
+            if (locId && client.serviceLocations) {
+                const loc = client.serviceLocations.find(l => String(l.id) === String(locId));
+                if (loc && loc.address) return loc.address.replace(/\n/g, ', ').replace(/,\s*,/g, ',').trim();
+            }
+            const structured = [client.addressLine1, client.addressLine2, client.city, client.state, client.zipCode].filter(Boolean).join(', ');
+            return structured || (client.address ? client.address.replace(/\n/g, ', ').trim() : '');
+        }
+
+        let _mileageReq = 0;
+        async function loadJobMileage() {
+            const el = document.getElementById('jobMileageDisplay');
+            if (!el) return;
+            const address = _jobFormAddress();
+            if (!address) { el.style.display = 'none'; return; }
+            const reqId = ++_mileageReq;
+            el.style.display = 'block';
+            el.innerHTML = '<span style="color:#718096;">🚗 Calculating mileage…</span>';
+            try {
+                const res = await fetch('/api/mileage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: address })
+                });
+                const d = await res.json();
+                if (reqId !== _mileageReq) return; // superseded by a newer lookup
+                if (!d.ok) { el.style.display = 'none'; return; }
+                const dur = d.durationText ? ' · ~' + d.durationText + ' each way' : '';
+                el.innerHTML = '🚗 <strong>' + d.roundTripMiles + ' mi round-trip</strong> ' +
+                    '<span style="color:#718096;">(' + d.oneWayMiles + ' mi each way' + dur + ' · from base)</span>';
+            } catch (e) {
+                if (reqId === _mileageReq) el.style.display = 'none';
             }
         }
 
