@@ -14079,6 +14079,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div>
                             <div style="font-size:1.1rem;font-weight:700;color:#2d3748;">\${l.name}</div>
                             <div style="font-weight:600;color:#4a5568;margin-top:0.1rem;">\${l.service}</div>
+                            \${l.flagged ? \`<div style="display:inline-block;margin-top:0.35rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:2px 9px;border-radius:100px;font-size:0.7rem;font-weight:700;" title="\${(l.flagReasons||[]).join('; ')}">⚠️ Likely spam</div>\` : ''}
                         </div>
                         <span style="background:\${color};color:white;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;white-space:nowrap;margin-left:0.5rem;text-transform:uppercase;letter-spacing:0.03em;">\${l.status}</span>
                     </div>
@@ -14106,7 +14107,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const color = statusColors[l.status] || '#6b7280';
                     return \`<tr>
                         <td style="white-space:nowrap;">\${date}</td>
-                        <td><strong>\${l.name}</strong></td>
+                        <td><strong>\${l.name}</strong>\${l.flagged ? \`<br><span style="display:inline-block;margin-top:0.2rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:1px 7px;border-radius:100px;font-size:0.68rem;font-weight:700;" title="\${(l.flagReasons||[]).join('; ')}">⚠️ Spam?</span>\` : ''}</td>
                         <td>
                             \${l.phone ? \`<a href="tel:\${l.phone}" style="color:#1d6fa4;">\${l.phone}</a>\` : ''}
                             \${l.email ? \`<br><small style="color:#6b7280;">\${l.email}</small>\` : ''}
@@ -14164,6 +14165,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <span style="color:#718096;font-size:0.9rem;">📅 \${date}</span>
                     \${l.city ? \`<span style="color:#718096;font-size:0.9rem;">📍 \${l.city}</span>\` : ''}
                 </div>
+                \${l.flagged ? \`<div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:8px;padding:0.75rem 0.9rem;margin-bottom:1rem;">
+                    <div style="font-weight:700;color:#92400e;font-size:0.9rem;">⚠️ Flagged as likely spam / solicitation</div>
+                    <ul style="margin:0.4rem 0 0 1.1rem;padding:0;color:#92400e;font-size:0.82rem;line-height:1.5;">\${(l.flagReasons||[]).map(r => \`<li>\${r}</li>\`).join('')}</ul>
+                </div>\` : ''}
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
                     <div><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Service</div><div style="font-weight:600;">\${l.service}</div></div>
                     \${l.phone ? \`<div><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Phone</div><div><a href="tel:\${l.phone}" style="color:#1d6fa4;font-weight:600;">\${l.phone}</a></div></div>\` : ''}
@@ -14178,6 +14183,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 \${l.description ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Description</div><div style="background:#f8f9fa;padding:0.75rem;border-radius:8px;color:#374151;line-height:1.6;white-space:pre-wrap;">\${l.description}</div></div>\` : ''}
                 \${l.photos && l.photos.length ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Photos (\${l.photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px;">\${l.photos.map(p => \`<img src="\${p}" style="width:140px;height:105px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">\`).join('')}</div></div>\` : ''}
                 \${l.note ? \`<div style="margin-bottom:1rem;"><div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Note</div><div style="color:#4a5568;font-style:italic;">\${l.note}</div></div>\` : ''}
+                \${(l.meta && (l.meta.ip || l.meta.userAgent)) ? \`<div style="margin-bottom:1rem;font-size:0.72rem;color:#a0aec0;">\${l.meta.ip ? 'IP: '+l.meta.ip : ''}\${l.meta.ip && l.meta.userAgent ? ' · ' : ''}\${l.meta.userAgent ? l.meta.userAgent : ''}</div>\` : ''}
                 <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;">
                     <h4 style="font-size:0.85rem;color:#4a5568;font-weight:700;margin-bottom:0.6rem;">Touch Points</h4>
                     <div id="leadTouchPointsList" style="margin-bottom:0.75rem;">\${

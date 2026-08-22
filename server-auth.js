@@ -1472,6 +1472,11 @@ app.get('/request-quote', (req, res) => {
     <input type="hidden" name="utmCampaign" value="${utm_campaign}">
     <input type="hidden" name="referer" value="${ref}">
     <input type="hidden" name="entryPage" value="${entry}">
+    <!-- Honeypot: hidden from humans, bots fill it and get silently dropped. Do not remove. -->
+    <div aria-hidden="true" style="position:absolute!important;left:-9999px!important;top:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;" tabindex="-1">
+      <label for="companyWebsite">Company Website (leave this field empty)</label>
+      <input type="text" id="companyWebsite" name="companyWebsite" tabindex="-1" autocomplete="off">
+    </div>
     <div class="sms-consent">
       <input type="checkbox" id="smsConsent" name="smsConsent">
       <label for="smsConsent">I agree to receive text messages from GSD Property Services regarding my quote, appointment reminders, and job updates. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out or HELP for help. No mobile information will be shared with third parties. <a href="https://gsdhandymanservice.com/privacy" target="_blank">Privacy Policy</a></label>
@@ -1602,13 +1607,58 @@ document.getElementById('quoteForm').addEventListener('submit', async function(e
 </html>`);
 });
 
+// Heuristic spam/solicitation scoring for inbound leads. Returns { flagged, reasons }.
+// Catches human sales-pitch spam (bots are handled separately by the honeypot).
+function scoreLeadSpam({ name, email, description, city }) {
+    const reasons = [];
+    const desc = (description || '');
+    const descLc = desc.toLowerCase();
+    const blob = [name, description, city].filter(Boolean).join(' ').toLowerCase();
+
+    // Links / bare domains in the message body
+    if (/\b(https?:\/\/|www\.)\S+/i.test(desc) || /\b[a-z0-9][a-z0-9-]*\.(com|net|org|io|co|biz|info|us|shop|site|online)\b/i.test(desc)) {
+        reasons.push('Contains a link / website in the message');
+    }
+    // B2B / sales-pitch keywords
+    const kw = ['referral program', 'referral fee', 'partnership', 'become a partner', 'become a castle',
+        'affiliate', 'commission', 'earn up to', 'anniversary', 'wholesale', 'dropship', 'drop ship',
+        'seo', 'search ranking', 'rank higher', 'first page of google', 'digital marketing',
+        'lead generation', 'guest post', 'backlink', 'bitcoin', 'crypto', 'investment opportunity',
+        'business loan', 'merchant cash', 'increase your sales', 'grow your business'];
+    const hits = kw.filter(k => blob.includes(k) || descLc.includes(k));
+    if (hits.length) reasons.push('Sales-pitch language: ' + hits.slice(0, 4).join(', '));
+
+    // Known solicitation sender domains (extend as more show up)
+    const domainBlock = ['castlewindows.com'];
+    const em = (email || '').toLowerCase();
+    const emDomain = em.includes('@') ? em.split('@')[1].trim() : '';
+    if (emDomain && domainBlock.includes(emDomain)) reasons.push('Known solicitation sender: ' + emDomain);
+
+    // Long message with an embedded phone number — classic cold pitch (e.g. "call me at ...")
+    if (desc.length > 250 && /(?:\d[\s.\-()]?){10,}/.test(desc)) reasons.push('Long message with an embedded phone number');
+
+    return { flagged: reasons.length > 0, reasons };
+}
+
 // Public quote request API
 app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
     try {
         const { firstName, lastName, phone, email, service, description, city, contactPref, photos, foundUs, utmSource, utmMedium, utmCampaign, referer, entryPage, smsConsent } = req.body;
+
+        // Honeypot: real users never see/fill this field. If populated, it's a bot —
+        // pretend success (so it doesn't retry) but save & notify nothing.
+        if (req.body.companyWebsite) {
+            console.warn('Lead honeypot triggered — dropped bot submission from', (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim());
+            return res.json({ success: true });
+        }
+
         if (!firstName || !lastName || !phone || !service) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+
+        const clientIp = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+        const userAgent = (req.headers['user-agent'] || '').slice(0, 400);
+        const spam = scoreLeadSpam({ name: `${firstName} ${lastName}`, email, description, city });
 
         const validPhotos = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 5) : [];
 
@@ -1649,6 +1699,9 @@ app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
             },
             smsConsent: smsConsent === 'on' || smsConsent === true,
             status: 'new',
+            flagged: spam.flagged,
+            flagReasons: spam.reasons,
+            meta: { ip: clientIp, userAgent },
             createdAt: new Date()
         };
 
@@ -1665,7 +1718,7 @@ app.post('/api/public/quote-request', publicApiLimiter, async (req, res) => {
                 : '';
             await emailService.sendEmail({
                 to: 'info@gsdhandymanservice.com',
-                subject: `New Quote Request — ${service} — ${firstName} ${lastName}${validPhotos.length ? ` (${validPhotos.length} photo${validPhotos.length > 1 ? 's' : ''})` : ''}`,
+                subject: `${spam.flagged ? '[Likely spam] ' : ''}New Quote Request — ${service} — ${firstName} ${lastName}${validPhotos.length ? ` (${validPhotos.length} photo${validPhotos.length > 1 ? 's' : ''})` : ''}`,
                 html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                     <h2 style="color:#0f1c2e;">New Quote Request</h2>
                     <table style="width:100%;border-collapse:collapse;">
