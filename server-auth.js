@@ -3420,6 +3420,95 @@ app.get('/api/jobs/:id', isAuthenticated, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Split a job: move selected line items into a brand-new job. Atomic — both
+// the new job and the trimmed original are written together (or nothing changes).
+app.post('/api/jobs/:id/split', isAuthenticated, async (req, res) => {
+    try {
+        const { laborIds = [], materialIds = [], newTitle } = req.body || {};
+        const laborSet = new Set((laborIds || []).map(String));
+        const materialSet = new Set((materialIds || []).map(String));
+        if (laborSet.size === 0 && materialSet.size === 0) {
+            return res.status(400).json({ error: 'No items selected to split' });
+        }
+
+        const orig = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!orig) return res.status(404).json({ error: 'Job not found' });
+
+        const origLabor = Array.isArray(orig.laborItems) ? orig.laborItems : [];
+        const origMaterial = Array.isArray(orig.materialItems) ? orig.materialItems : [];
+        const movedLabor = origLabor.filter(it => laborSet.has(String(it.id)));
+        const keptLabor = origLabor.filter(it => !laborSet.has(String(it.id)));
+        const movedMaterial = origMaterial.filter(it => materialSet.has(String(it.id)));
+        const keptMaterial = origMaterial.filter(it => !materialSet.has(String(it.id)));
+        if (movedLabor.length === 0 && movedMaterial.length === 0) {
+            return res.status(400).json({ error: 'Selected items were not found on this job' });
+        }
+
+        const settings = await db.collection('settings').findOne() || {};
+        const taxRate = settings.taxRate || 0.06625;
+        const calcTotal = (labor, material, taxWaived) => {
+            const sub = labor.reduce((s, i) => s + (parseFloat(i.hours) || 0) * (parseFloat(i.rate) || 0), 0)
+                      + material.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.price) || 0), 0);
+            const tax = taxWaived ? 0 : sub * taxRate;
+            return Math.round((sub + tax) * 100) / 100;
+        };
+
+        const now = new Date();
+        const userName = req.session.userName || 'System';
+        const taxWaived = !!orig.taxWaived;
+
+        // Build the new job (client/location/service/crew/tax copied; money & files do not move)
+        const newTotal = calcTotal(movedLabor, movedMaterial, taxWaived);
+        const newJob = {
+            title: (newTitle && String(newTitle).trim()) || ((orig.title || 'Job') + ' — split'),
+            description: '',
+            serviceLocationId: orig.serviceLocationId || '',
+            serviceType: orig.serviceType || '',
+            status: 'to_be_scheduled',
+            scheduledDate: '',
+            assignedTo: Array.isArray(orig.assignedTo) ? orig.assignedTo : [],
+            taxWaived,
+            siteVisits: 1,
+            laborItems: movedLabor,
+            materialItems: movedMaterial,
+            payments: [],
+            attachments: [],
+            photos: [],
+            touchPoints: [],
+            total: newTotal,
+            totalPaid: 0,
+            balanceOwed: newTotal,
+            auditLog: [{ timestamp: now, userName, action: 'created', note: `Split from job "${orig.title || ''}"` }],
+            createdAt: now
+        };
+        if (orig.clientId) newJob.clientId = orig.clientId;
+
+        const insertRes = await db.collection('jobs').insertOne(newJob);
+        const newId = insertRes.insertedId;
+
+        // Trim the original and relink totals
+        const origTotal = calcTotal(keptLabor, keptMaterial, taxWaived);
+        const origPaid = parseFloat(orig.totalPaid) || 0;
+        const origAudit = Array.isArray(orig.auditLog) ? orig.auditLog : [];
+        origAudit.push({ timestamp: now, userName, action: 'items_split', note: `${movedLabor.length} labor + ${movedMaterial.length} material item(s) split into new job "${newJob.title}"` });
+        await db.collection('jobs').updateOne(
+            { _id: orig._id },
+            { $set: {
+                laborItems: keptLabor,
+                materialItems: keptMaterial,
+                total: origTotal,
+                balanceOwed: Math.round((origTotal - origPaid) * 100) / 100,
+                auditLog: origAudit
+            } }
+        );
+
+        res.json({ success: true, newJobId: newId.toString(), newTitle: newJob.title });
+    } catch (err) {
+        console.error('Job split error:', err.message);
+        res.status(500).json({ error: 'Failed to split job' });
+    }
+});
+
 app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
     await db.collection('jobs').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });

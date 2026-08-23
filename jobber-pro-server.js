@@ -3778,6 +3778,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <div id="materialItems"></div>
                             <button type="button" class="btn btn-secondary" onclick="addMaterialItem()" style="margin-top: 0.5rem;">+ Add Material</button>
                         </div>
+                        <button type="button" id="splitJobBtn" class="btn btn-secondary" onclick="openSplitJobModal()" style="display:none;margin-top:1rem;border-color:#c084fc;color:#7c3aed;">✂️ Split selected items into a new job</button>
                         <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd;">
                             <h3>Total Billed: $<span id="jobTotalDisplay">0.00</span></h3>
                         </div>
@@ -5522,6 +5523,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('laborActualsSection').style.display = 'none';
             }
 
+            // Split button only makes sense on an existing, saved job
+            const _splitBtn = document.getElementById('splitJobBtn');
+            if (_splitBtn) _splitBtn.style.display = (job && (job._id || job.id)) ? '' : 'none';
+
             // Workflow stepper + sign-off button visibility
             const _stepperEl = document.getElementById('jobWorkflowStepper');
             const _signoffBtn = document.getElementById('jobSignoffBtn');
@@ -6856,6 +6861,89 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Update balance color based on payment status
             const balanceElement = document.getElementById('balanceOwedSummary').parentElement;
             balanceElement.style.color = isPaidInFull ? '#48bb78' : '#e53e3e';
+        }
+
+        // ── Split job: move selected line items into a new job ──
+        function openSplitJobModal() {
+            if (!currentEditingJobId) { alert('Save the job first, then split it.'); return; }
+            if (!laborItems.length && !materialItems.length) { alert('There are no line items to split.'); return; }
+            const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const row = (it, kind) => {
+                const right = kind === 'labor'
+                    ? ((parseFloat(it.hours)||0) + 'h × $' + (parseFloat(it.rate)||0))
+                    : ((parseFloat(it.quantity)||0) + ' × $' + (parseFloat(it.price)||0));
+                const amt = kind === 'labor'
+                    ? (parseFloat(it.hours)||0) * (parseFloat(it.rate)||0)
+                    : (parseFloat(it.quantity)||0) * (parseFloat(it.price)||0);
+                return '<label style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.7rem;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.4rem;cursor:pointer;">' +
+                    '<input type="checkbox" class="split-item" data-kind="' + kind + '" data-id="' + esc(it.id) + '" style="width:auto;">' +
+                    '<span style="flex:1;min-width:0;color:#2d3748;">' + (esc(it.description) || '<em style="color:#a0aec0;">(no description)</em>') + '</span>' +
+                    '<span style="color:#718096;font-size:0.82rem;white-space:nowrap;">' + right + '</span>' +
+                    '<span style="font-weight:700;color:#2d3748;white-space:nowrap;min-width:70px;text-align:right;">$' + amt.toFixed(2) + '</span>' +
+                '</label>';
+            };
+            const laborHtml = laborItems.length ? laborItems.map(it => row(it,'labor')).join('') : '<p style="color:#a0aec0;font-size:0.85rem;">No labor items.</p>';
+            const matHtml = materialItems.length ? materialItems.map(it => row(it,'material')).join('') : '<p style="color:#a0aec0;font-size:0.85rem;">No material items.</p>';
+            const curTitle = (document.querySelector('#jobForm [name="title"]') || {}).value || 'Job';
+
+            let ov = document.getElementById('splitJobOverlay');
+            if (ov) ov.remove();
+            ov = document.createElement('div');
+            ov.id = 'splitJobOverlay';
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,28,46,0.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:1rem;';
+            ov.innerHTML =
+                '<div style="background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,0.4);width:min(560px,96vw);max-height:88vh;display:flex;flex-direction:column;">' +
+                    '<div style="padding:1.25rem 1.4rem;border-bottom:1px solid #edf2f7;display:flex;align-items:center;gap:0.6rem;">' +
+                        '<span style="font-size:1.3rem;">✂️</span><span style="font-weight:700;font-size:1.1rem;color:#1a202c;">Split into a new job</span>' +
+                        '<button onclick="closeSplitJobModal()" style="margin-left:auto;background:none;border:none;font-size:1.4rem;color:#a0aec0;cursor:pointer;line-height:1;">×</button>' +
+                    '</div>' +
+                    '<div style="padding:1.25rem 1.4rem;overflow-y:auto;">' +
+                        '<p style="color:#718096;font-size:0.88rem;margin:0 0 1rem;">Check the items to move out of this job and into a brand-new one. Payments and photos stay with the original.</p>' +
+                        '<div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#4a5568;margin:0 0 0.5rem;">Labor</div>' + laborHtml +
+                        '<div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#4a5568;margin:1rem 0 0.5rem;">Materials</div>' + matHtml +
+                        '<div style="margin-top:1.25rem;">' +
+                            '<label style="font-size:0.85rem;font-weight:600;color:#4a5568;">New job title</label>' +
+                            '<input type="text" id="splitNewTitle" value="' + esc(curTitle + ' — split') + '" style="width:100%;margin-top:0.35rem;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.95rem;">' +
+                        '</div>' +
+                    '</div>' +
+                    '<div style="padding:1rem 1.4rem;border-top:1px solid #edf2f7;display:flex;gap:0.6rem;justify-content:flex-end;">' +
+                        '<button onclick="closeSplitJobModal()" class="btn btn-secondary">Cancel</button>' +
+                        '<button id="splitConfirmBtn" onclick="confirmSplitJob()" class="btn btn-primary" style="background:#7c3aed;">✂️ Create split job</button>' +
+                    '</div>' +
+                '</div>';
+            document.body.appendChild(ov);
+        }
+        function closeSplitJobModal() {
+            const ov = document.getElementById('splitJobOverlay');
+            if (ov) ov.remove();
+        }
+        async function confirmSplitJob() {
+            const laborIds = Array.from(document.querySelectorAll('.split-item[data-kind="labor"]:checked')).map(c => c.dataset.id);
+            const materialIds = Array.from(document.querySelectorAll('.split-item[data-kind="material"]:checked')).map(c => c.dataset.id);
+            if (!laborIds.length && !materialIds.length) { alert('Check at least one item to split off.'); return; }
+            const newTitle = (document.getElementById('splitNewTitle').value || '').trim();
+            const btn = document.getElementById('splitConfirmBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Splitting…'; }
+            try {
+                // Persist any unsaved edits first so the server splits the current state
+                await saveJob({ silent: true });
+                const res = await fetch('/api/jobs/' + currentEditingJobId + '/split', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ laborIds, materialIds, newTitle })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Split failed');
+                closeSplitJobModal();
+                closeModal('jobModal');
+                await loadJobs();
+                if (confirm('✅ Created "' + data.newTitle + '".\n\nOpen the new job now?')) {
+                    editJob(data.newJobId);
+                }
+            } catch (e) {
+                alert('Could not split the job: ' + e.message);
+                if (btn) { btn.disabled = false; btn.textContent = '✂️ Create split job'; }
+            }
         }
 
         function addTouchPoint() {
