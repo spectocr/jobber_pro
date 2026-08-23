@@ -6906,13 +6906,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const versions = (job && job.versions) || [];
             if (!versions.length) { section.style.display = 'none'; return; }
             section.style.display = 'block';
-            const milestoneLabel = { completed: '✅ Completed', invoiced: '📄 Invoiced' };
+            const statusLabel = { prospecting:'Prospecting', to_be_scheduled:'To Be Scheduled', scheduled:'Scheduled', in_progress:'In Progress', completed:'✅ Completed', invoiced:'📄 Invoiced', bid_lost:'Bid Lost', cancelled:'Cancelled' };
             list.innerHTML = versions.slice().reverse().map((v, i) => {
                 const vNum = versions.length - i;
                 const laborRows = (v.laborItems || []).map(x => \`<tr><td style="padding:0.2rem 0.5rem;color:#4a5568;">\${x.description || '—'}</td><td style="padding:0.2rem 0.5rem;text-align:right;color:#4a5568;">\${x.hours}h @ $\${parseFloat(x.rate||0).toFixed(2)}</td><td style="padding:0.2rem 0.5rem;text-align:right;font-weight:600;">$\${((x.hours||0)*(x.rate||0)).toFixed(2)}</td></tr>\`).join('');
                 const matRows = (v.materialItems || []).map(x => \`<tr><td style="padding:0.2rem 0.5rem;color:#4a5568;">\${x.description || '—'}</td><td style="padding:0.2rem 0.5rem;text-align:right;color:#4a5568;">\${x.quantity} × $\${parseFloat(x.price||0).toFixed(2)}</td><td style="padding:0.2rem 0.5rem;text-align:right;font-weight:600;">$\${((x.quantity||0)*(x.price||0)).toFixed(2)}</td></tr>\`).join('');
                 const uid = \`jv-\${vNum}\`;
-                const label = milestoneLabel[v.milestone] || (v.milestone || 'Snapshot');
+                const label = statusLabel[v.status] || (v.status || 'Snapshot');
                 return \`
                 <div style="border:1.5px solid #e2e8f0;border-radius:8px;margin-bottom:0.75rem;overflow:hidden;">
                     <div style="background:#f8f9fa;padding:0.65rem 1rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"

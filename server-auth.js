@@ -3190,6 +3190,28 @@ app.delete('/api/file/:s3Key(*)', isAuthenticated, async (req, res) => {
     }
 });
 
+// Canonical fingerprint of a job's billable content — used to decide whether a
+// save actually changed anything worth capturing as a new version.
+function _jobVersionFingerprint(labor, material, total, taxWaived, title) {
+    const L = (labor || []).map(x => [String(x.description || ''), Number(x.hours) || 0, Number(x.rate) || 0]);
+    const M = (material || []).map(x => [String(x.description || ''), Number(x.quantity) || 0, Number(x.price) || 0]);
+    return JSON.stringify({ t: String(title || ''), tw: !!taxWaived, tot: Math.round((Number(total) || 0) * 100), L, M });
+}
+function _buildJobVersion(src, userName) {
+    return {
+        capturedAt: new Date(),
+        capturedBy: userName || 'admin',
+        status: src.status || '',
+        title: src.title || '',
+        laborItems: src.laborItems || [],
+        materialItems: src.materialItems || [],
+        total: parseFloat(src.total) || 0,
+        totalPaid: parseFloat(src.totalPaid) || 0,
+        balanceOwed: parseFloat(src.balanceOwed) || 0,
+        taxWaived: !!src.taxWaived
+    };
+}
+
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
     let isUpdate = !!job._id;
@@ -3261,29 +3283,22 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             updateData.status = 'completed';
         }
 
-        // Capture a version snapshot the first time the job reaches Completed or Invoiced
-        // (mirrors quote sentVersions — a frozen record of what was billed at that milestone).
-        const finalStatus = updateData.status || job.status;
-        let milestone = null;
-        if (oldJob) {
-            if (finalStatus === 'invoiced' && oldJob.status !== 'invoiced') milestone = 'invoiced';
-            else if (finalStatus === 'completed' && oldJob.status !== 'completed') milestone = 'completed';
-        }
+        // Version history: snapshot on save, but only keep it if the billable content
+        // actually changed vs. the most recent version (no duplicate/no-op versions).
         const jobUpdateOps = { $set: { ...updateData, updatedAt: new Date() } };
-        if (milestone) {
-            delete jobUpdateOps.$set.versions; // never overwrite the history array
-            jobUpdateOps.$push = { versions: {
-                capturedAt: new Date(),
-                milestone,
-                capturedBy: req.session.userName || 'admin',
-                title: updateData.title != null ? updateData.title : oldJob.title,
-                laborItems: updateData.laborItems || oldJob.laborItems || [],
-                materialItems: updateData.materialItems || oldJob.materialItems || [],
-                total: parseFloat(updateData.total) || 0,
-                totalPaid: parseFloat(updateData.totalPaid) || 0,
-                balanceOwed: parseFloat(updateData.balanceOwed) || 0,
-                taxWaived: !!updateData.taxWaived
-            } };
+        delete jobUpdateOps.$set.versions; // never overwrite the history array via $set
+        const prevVersions = Array.isArray(oldJob && oldJob.versions) ? oldJob.versions : [];
+        const lastV = prevVersions[prevVersions.length - 1];
+        const newFp = _jobVersionFingerprint(
+            updateData.laborItems || oldJob.laborItems, updateData.materialItems || oldJob.materialItems,
+            updateData.total, updateData.taxWaived, updateData.title != null ? updateData.title : oldJob.title);
+        const lastFp = lastV
+            ? _jobVersionFingerprint(lastV.laborItems, lastV.materialItems, lastV.total, lastV.taxWaived, lastV.title)
+            : null;
+        if (newFp !== lastFp) {
+            jobUpdateOps.$push = { versions: _buildJobVersion(
+                { ...oldJob, ...updateData, title: updateData.title != null ? updateData.title : oldJob.title },
+                req.session.userName) };
         }
 
         await db.collection('jobs').updateOne(
@@ -3354,6 +3369,11 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             newStatus: job.status || 'prospecting',
             note: `Job created with status: ${job.status || 'prospecting'}`
         }];
+
+        // Seed version history with the initial state (only if it has any priced content)
+        if ((job.laborItems && job.laborItems.length) || (job.materialItems && job.materialItems.length)) {
+            job.versions = [_buildJobVersion(job, req.session.userName)];
+        }
 
         await db.collection('jobs').insertOne(job);
     }
