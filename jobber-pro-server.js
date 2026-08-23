@@ -2612,6 +2612,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="number" name="taxRatePercent" step="0.001" min="0" placeholder="e.g., 6.625 for NJ">
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">NJ sales tax is 6.625%</small>
                     </div>
+                    <h3 style="margin: 2rem 0 1rem 0; color: #667eea;">🚚 Truck &amp; Fuel</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div class="form-group">
+                            <label>Diesel Price ($/gal)</label>
+                            <input type="number" name="dieselPrice" step="0.01" min="0" placeholder="3.85">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">Update this as pump prices change</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Truck Fuel Economy (mpg)</label>
+                            <input type="number" name="truckMpg" step="0.1" min="1" placeholder="16">
+                            <small style="color: #718096; display: block; margin-top: 0.5rem;">Used to estimate fuel cost per job</small>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Contract Terms</label>
                         <textarea name="contractTerms" rows="6" placeholder="Enter contract terms and conditions that will appear at the bottom of invoices..."></textarea>
@@ -6546,9 +6559,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const dur = d.durationText ? ' · ~' + d.durationText + ' each way' : '';
             let html = '🚗 <strong>' + d.roundTripMiles + ' mi round-trip</strong> ' +
                 '<span style="color:#718096;">(' + d.oneWayMiles + ' mi each way' + dur + ' · from base)</span>';
+
+            // Fuel cost estimate (diesel price + truck mpg from settings; sensible defaults until set)
+            const mpg = parseFloat(settings.truckMpg) || 16;
+            const price = parseFloat(settings.dieselPrice) || 3.85;
+            const totalMiles = Math.round(d.roundTripMiles * visits * 10) / 10;
+            if (price > 0 && mpg > 0) {
+                const fuelRt = (d.roundTripMiles / mpg) * price;
+                let fuel = '⛽ ~$' + fuelRt.toFixed(2) + ' diesel round-trip <span style="color:#718096;">(' + mpg + ' mpg @ $' + price.toFixed(2) + '/gal)</span>';
+                if (visits > 1) {
+                    fuel += ' · <strong>$' + ((totalMiles / mpg) * price).toFixed(2) + '</strong> for ' + visits + ' visits';
+                }
+                html += '<div style="margin-top:0.3rem;">' + fuel + '</div>';
+            }
             if (visits > 1) {
-                const total = Math.round(d.roundTripMiles * visits * 10) / 10;
-                html += '<div style="margin-top:0.25rem;">× ' + visits + ' visits = <strong>' + total + ' mi</strong> total for this job</div>';
+                html += '<div style="margin-top:0.25rem;">× ' + visits + ' visits = <strong>' + totalMiles + ' mi</strong> total for this job</div>';
             }
             el.innerHTML = html;
             el.style.display = 'block';
@@ -6591,7 +6616,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const teamMember = team.find(t => t.id == checked[0].value);
             if (!teamMember || !teamMember.hourlyRate) return;
 
-            laborItems.forEach(item => { if (!item.rateOverridden) item.rate = parseFloat(teamMember.hourlyRate); });
+            // Only fill in a rate on rows that are still unpriced — never override
+            // rates already entered on an existing/priced job.
+            laborItems.forEach(item => { if (!parseFloat(item.rate)) item.rate = parseFloat(teamMember.hourlyRate); });
             if (laborItems.length === 0) {
                 laborItems.push({ id: Date.now(), description: '', hours: 0, rate: parseFloat(teamMember.hourlyRate) });
             }
@@ -12119,6 +12146,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             form.elements.companyLicense.value = settings.companyLicense || '';
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
             form.elements.taxRatePercent.value = ((settings.taxRate || 0.06625) * 100).toFixed(3);
+            form.elements.dieselPrice.value = settings.dieselPrice != null ? settings.dieselPrice : 3.85;
+            form.elements.truckMpg.value = settings.truckMpg != null ? settings.truckMpg : 16;
             form.elements.contractTerms.value = settings.contractTerms || '';
             form.elements.cloverFeePercent.value = settings.cloverFeePercent != null ? settings.cloverFeePercent : '';
 
@@ -12399,6 +12428,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 companyLicense: form.elements.companyLicense.value,
                 hourlyRate: parseFloat(form.elements.hourlyRate.value),
                 taxRate: parseFloat(form.elements.taxRatePercent.value) / 100,
+                dieselPrice: parseFloat(form.elements.dieselPrice.value) || 0,
+                truckMpg: parseFloat(form.elements.truckMpg.value) || 16,
                 companyLogo: document.getElementById('companyLogo').value || null,
                 contractTerms: form.elements.contractTerms.value
             };
