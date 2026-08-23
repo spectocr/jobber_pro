@@ -16885,6 +16885,10 @@ function formatDuration(seconds) {
                         '<div style="font-size:0.78rem;color:#276749;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">Est. Deduction</div>' +
                         '<div style="font-size:1.7rem;font-weight:800;color:#22543d;">' + _usd(data.estimatedDeduction) + '</div>' +
                         '<div style="font-size:0.75rem;color:#718096;">@ ' + _usd(data.ratePerMile) + '/mi</div></div>' +
+                    '<div style="background:#fffaf0;border:1.5px solid #f6cf9a;border-radius:10px;padding:1rem;">' +
+                        '<div style="font-size:0.78rem;color:#9c4221;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">⛽ Est. Diesel Cost</div>' +
+                        '<div style="font-size:1.7rem;font-weight:800;color:#7b341e;">' + _usd(data.totalFuelCost || 0) + '</div>' +
+                        '<div style="font-size:0.75rem;color:#718096;">' + (data.truckMpg || 16) + ' mpg @ ' + _usd(data.dieselPrice || 0) + '/gal</div></div>' +
                     '<div style="background:#f7fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem;">' +
                         '<div style="font-size:0.78rem;color:#4a5568;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">Jobs Counted</div>' +
                         '<div style="font-size:1.7rem;font-weight:800;color:#2d3748;">' + data.jobCount + '</div>' +
@@ -16900,6 +16904,7 @@ function formatDuration(seconds) {
                     '<td style="padding:0.5rem 0.6rem;text-align:right;white-space:nowrap;">' + _fmtMiles(r.roundTripMiles) + '</td>' +
                     '<td style="padding:0.5rem 0.6rem;text-align:center;">' + r.visits + '</td>' +
                     '<td style="padding:0.5rem 0.6rem;text-align:right;font-weight:700;white-space:nowrap;">' + _fmtMiles(r.totalMiles) + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;text-align:right;white-space:nowrap;color:#7b341e;">' + _usd(r.fuelCost || 0) + '</td>' +
                 '</tr>';
             });
             const table =
@@ -16908,10 +16913,11 @@ function formatDuration(seconds) {
                         '<th style="padding:0.5rem 0.6rem;">Date</th><th style="padding:0.5rem 0.6rem;">Client</th>' +
                         '<th style="padding:0.5rem 0.6rem;">Job</th><th style="padding:0.5rem 0.6rem;">Destination</th>' +
                         '<th style="padding:0.5rem 0.6rem;text-align:right;">Round-trip</th><th style="padding:0.5rem 0.6rem;text-align:center;">Visits</th>' +
-                        '<th style="padding:0.5rem 0.6rem;text-align:right;">Total mi</th></tr></thead>' +
+                        '<th style="padding:0.5rem 0.6rem;text-align:right;">Total mi</th><th style="padding:0.5rem 0.6rem;text-align:right;">⛽ Fuel</th></tr></thead>' +
                     '<tbody>' + rowsHtml + '</tbody>' +
                     '<tfoot><tr style="border-top:2px solid #e2e8f0;font-weight:800;"><td colspan="6" style="padding:0.6rem;text-align:right;">Year total</td>' +
-                        '<td style="padding:0.6rem;text-align:right;">' + _fmtMiles(data.totalMiles) + '</td></tr></tfoot>' +
+                        '<td style="padding:0.6rem;text-align:right;">' + _fmtMiles(data.totalMiles) + '</td>' +
+                        '<td style="padding:0.6rem;text-align:right;color:#7b341e;">' + _usd(data.totalFuelCost || 0) + '</td></tr></tfoot>' +
                 '</table></div>' +
                 '<p style="font-size:0.78rem;color:#a0aec0;margin-top:0.75rem;">From base: ' + (data.base || '') + '. Driving distances via Google. Estimate — keep your own log for IRS substantiation.</p>';
             box.innerHTML = summary + table;
@@ -16922,7 +16928,7 @@ function formatDuration(seconds) {
             const d = _mileageReport;
             let rows = '';
             d.rows.forEach(function(r) {
-                rows += '<tr><td>' + r.date + '</td><td>' + (r.client || '') + '</td><td>' + (r.title || '') + '</td><td>' + (r.destination || '') + '</td><td class="r">' + _fmtMiles(r.roundTripMiles) + '</td><td class="c">' + r.visits + '</td><td class="r">' + _fmtMiles(r.totalMiles) + '</td></tr>';
+                rows += '<tr><td>' + r.date + '</td><td>' + (r.client || '') + '</td><td>' + (r.title || '') + '</td><td>' + (r.destination || '') + '</td><td class="r">' + _fmtMiles(r.roundTripMiles) + '</td><td class="c">' + r.visits + '</td><td class="r">' + _fmtMiles(r.totalMiles) + '</td><td class="r">' + _usd(r.fuelCost || 0) + '</td></tr>';
             });
             const w = window.open('', '_blank');
             w.document.write('<html><head><title>' + d.year + ' Business Mileage Log</title><style>' +
@@ -16932,10 +16938,11 @@ function formatDuration(seconds) {
                 'tfoot td{font-weight:bold;border-top:2px solid #333;}</style></head><body>' +
                 '<h1>' + d.year + ' Business Mileage Log</h1>' +
                 '<div class="sub">GSD Home Improvement &amp; Property Services · From base: ' + (d.base || '') + '<br>' +
-                    'Total: ' + _fmtMiles(d.totalMiles) + ' mi × ' + _usd(d.ratePerMile) + '/mi = <strong>' + _usd(d.estimatedDeduction) + '</strong> estimated deduction</div>' +
-                '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Destination</th><th class="r">Round-trip</th><th class="c">Visits</th><th class="r">Total mi</th></tr></thead>' +
+                    'Total: ' + _fmtMiles(d.totalMiles) + ' mi × ' + _usd(d.ratePerMile) + '/mi = <strong>' + _usd(d.estimatedDeduction) + '</strong> estimated deduction<br>' +
+                    'Est. diesel: <strong>' + _usd(d.totalFuelCost || 0) + '</strong> (' + (d.truckMpg || 16) + ' mpg @ ' + _usd(d.dieselPrice || 0) + '/gal)</div>' +
+                '<table><thead><tr><th>Date</th><th>Client</th><th>Job</th><th>Destination</th><th class="r">Round-trip</th><th class="c">Visits</th><th class="r">Total mi</th><th class="r">Fuel</th></tr></thead>' +
                 '<tbody>' + rows + '</tbody>' +
-                '<tfoot><tr><td colspan="6" class="r">Year total</td><td class="r">' + _fmtMiles(d.totalMiles) + '</td></tr></tfoot></table>' +
+                '<tfoot><tr><td colspan="6" class="r">Year total</td><td class="r">' + _fmtMiles(d.totalMiles) + '</td><td class="r">' + _usd(d.totalFuelCost || 0) + '</td></tr></tfoot></table>' +
                 '</body></html>');
             w.document.close();
             w.focus();
@@ -16946,12 +16953,13 @@ function formatDuration(seconds) {
             if (!_mileageReport || !_mileageReport.rows || !_mileageReport.rows.length) { alert('Nothing to export yet — build the report first.'); return; }
             const d = _mileageReport;
             const esc = function(s){ s = String(s == null ? '' : s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-            let csv = 'Date,Client,Job,Destination,Round-trip miles,Visits,Total miles\n';
+            let csv = 'Date,Client,Job,Destination,Round-trip miles,Visits,Total miles,Fuel cost\n';
             d.rows.forEach(function(r){
-                csv += [r.date, esc(r.client), esc(r.title), esc(r.destination), r.roundTripMiles, r.visits, r.totalMiles].join(',') + '\n';
+                csv += [r.date, esc(r.client), esc(r.title), esc(r.destination), r.roundTripMiles, r.visits, r.totalMiles, r.fuelCost].join(',') + '\n';
             });
-            csv += ',,,,,Year total,' + d.totalMiles + '\n';
-            csv += ',,,,,Est. deduction (@' + d.ratePerMile + '/mi),' + d.estimatedDeduction + '\n';
+            csv += ',,,,,Year total,' + d.totalMiles + ',' + (d.totalFuelCost || 0) + '\n';
+            csv += ',,,,,Est. deduction (@' + d.ratePerMile + '/mi),' + d.estimatedDeduction + ',\n';
+            csv += ',,,,,Est. diesel (' + (d.truckMpg || 16) + 'mpg @ $' + (d.dieselPrice || 0) + '/gal),,' + (d.totalFuelCost || 0) + '\n';
             const blob = new Blob([csv], { type: 'text/csv' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);

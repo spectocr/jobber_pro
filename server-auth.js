@@ -2020,10 +2020,13 @@ app.get('/api/mileage/report', isAuthenticated, async (req, res) => {
     };
 
     try {
-        const [jobs, clients] = await Promise.all([
+        const [jobs, clients, settings] = await Promise.all([
             db.collection('jobs').find({}).toArray(),
-            db.collection('clients').find({}).toArray()
+            db.collection('clients').find({}).toArray(),
+            db.collection('settings').findOne()
         ]);
+        const dieselPrice = parseFloat((settings || {}).dieselPrice) || 3.85;
+        const truckMpg = parseFloat((settings || {}).truckMpg) || 16;
         const clientMap = {};
         clients.forEach(c => { clientMap[String(c._id)] = c; });
 
@@ -2045,6 +2048,7 @@ app.get('/api/mileage/report', isAuthenticated, async (req, res) => {
             const mi = await _getMileage(e.address, apiKey);
             if (!mi) { skipped++; return; }
             const visits = Math.max(1, parseInt(e.job.siteVisits) || 1);
+            const totalMiles = Math.round(mi.roundTripMiles * visits * 10) / 10;
             rows.push({
                 date: e.dt.toISOString().slice(0, 10),
                 client: e.client ? (e.client.name || '') : '',
@@ -2053,17 +2057,20 @@ app.get('/api/mileage/report', isAuthenticated, async (req, res) => {
                 oneWayMiles: mi.oneWayMiles,
                 roundTripMiles: mi.roundTripMiles,
                 visits,
-                totalMiles: Math.round(mi.roundTripMiles * visits * 10) / 10
+                totalMiles,
+                fuelCost: Math.round((totalMiles / truckMpg) * dieselPrice * 100) / 100
             });
         });
         rows.sort((a, b) => a.date.localeCompare(b.date));
 
         const totalMiles = Math.round(rows.reduce((s, r) => s + r.totalMiles, 0) * 10) / 10;
+        const totalFuelCost = Math.round(rows.reduce((s, r) => s + r.fuelCost, 0) * 100) / 100;
         res.json({
             year, ratePerMile, base: MILEAGE_HOME_BASE,
             jobCount: rows.length, skipped,
             totalMiles,
             estimatedDeduction: Math.round(totalMiles * ratePerMile * 100) / 100,
+            dieselPrice, truckMpg, totalFuelCost,
             rows
         });
     } catch (err) {
