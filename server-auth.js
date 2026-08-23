@@ -3261,9 +3261,34 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             updateData.status = 'completed';
         }
 
+        // Capture a version snapshot the first time the job reaches Completed or Invoiced
+        // (mirrors quote sentVersions — a frozen record of what was billed at that milestone).
+        const finalStatus = updateData.status || job.status;
+        let milestone = null;
+        if (oldJob) {
+            if (finalStatus === 'invoiced' && oldJob.status !== 'invoiced') milestone = 'invoiced';
+            else if (finalStatus === 'completed' && oldJob.status !== 'completed') milestone = 'completed';
+        }
+        const jobUpdateOps = { $set: { ...updateData, updatedAt: new Date() } };
+        if (milestone) {
+            delete jobUpdateOps.$set.versions; // never overwrite the history array
+            jobUpdateOps.$push = { versions: {
+                capturedAt: new Date(),
+                milestone,
+                capturedBy: req.session.userName || 'admin',
+                title: updateData.title != null ? updateData.title : oldJob.title,
+                laborItems: updateData.laborItems || oldJob.laborItems || [],
+                materialItems: updateData.materialItems || oldJob.materialItems || [],
+                total: parseFloat(updateData.total) || 0,
+                totalPaid: parseFloat(updateData.totalPaid) || 0,
+                balanceOwed: parseFloat(updateData.balanceOwed) || 0,
+                taxWaived: !!updateData.taxWaived
+            } };
+        }
+
         await db.collection('jobs').updateOne(
             { _id: new ObjectId(_id) },
-            { $set: { ...updateData, updatedAt: new Date() } }
+            jobUpdateOps
         );
 
         // Send cancellation confirmation email when status changes to cancelled
