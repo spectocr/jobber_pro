@@ -2657,7 +2657,8 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
         .reduce((sum, j) => {
             const total = j.totalWithTax || parseFloat(j.total) || 0;
             const paid = parseFloat(j.totalPaid) || 0;
-            return sum + Math.max(0, total - paid);
+            const bal = Math.round((total - paid) * 100) / 100; // whole cents, no fractional crumbs
+            return sum + (bal > 0.009 ? bal : 0); // ignore sub-penny residue
         }, 0);
 
     const accountsReceivableJobs = jobsMapped
@@ -3219,6 +3220,11 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
 
     // Normalize site-visit count (drives EOY mileage totals)
     job.siteVisits = Math.max(1, parseInt(job.siteVisits) || 1);
+
+    // Round money fields to whole cents so tax math never leaves sub-cent crumbs
+    ['total', 'totalWithTax', 'totalPaid', 'balanceOwed'].forEach(f => {
+        if (job[f] != null && job[f] !== '') job[f] = Math.round((parseFloat(job[f]) || 0) * 100) / 100;
+    });
 
     // Get old job data if updating (for status change detection)
     if (isUpdate) {
@@ -8977,9 +8983,9 @@ app.post('/api/client-portal/pay', async (req, res) => {
 
         // Recalculate denormalized totals so dashboard/reports/AR stay current
         const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-        const newTotalPaid = existingPaid + parseFloat(amount);
-        const jobTotal = job.totalWithTax || parseFloat(job.total) || 0;
-        const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
+        const newTotalPaid = Math.round((existingPaid + parseFloat(amount)) * 100) / 100;
+        const jobTotal = Math.round((job.totalWithTax || parseFloat(job.total) || 0) * 100) / 100;
+        const newBalanceOwed = Math.round(Math.max(0, jobTotal - newTotalPaid) * 100) / 100;
 
         const invoiceSetFields = {
             totalPaid: newTotalPaid,
@@ -9310,9 +9316,9 @@ app.post('/api/deposit/pay', async (req, res) => {
         };
 
         const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-        const newTotalPaid = existingPaid + amount;
-        const jobTotal = parseFloat(job.totalWithTax || job.total) || 0;
-        const newBalanceOwed = Math.max(0, jobTotal - newTotalPaid);
+        const newTotalPaid = Math.round((existingPaid + amount) * 100) / 100;
+        const jobTotal = Math.round((parseFloat(job.totalWithTax || job.total) || 0) * 100) / 100;
+        const newBalanceOwed = Math.round(Math.max(0, jobTotal - newTotalPaid) * 100) / 100;
 
         const depositSetFields = {
             'deposit.status': 'paid',

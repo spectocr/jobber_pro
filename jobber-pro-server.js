@@ -7231,11 +7231,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const subtotal = laborTotal + materialTotal;
             const taxRate = settings.taxRate || 0.06625;
             const taxAmount = job.taxWaived ? 0 : subtotal * taxRate;
-            job.total = subtotal + taxAmount;
+            job.total = Math.round((subtotal + taxAmount) * 100) / 100; // whole cents — no sub-cent tax crumbs
 
-            const paymentTotal = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+            const paymentTotal = Math.round(paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0) * 100) / 100;
             job.totalPaid = paymentTotal;
-            job.balanceOwed = job.total - paymentTotal;
+            job.balanceOwed = Math.round((job.total - paymentTotal) * 100) / 100;
 
             if (!silent) console.log('Saving job with attachments:', job.attachments);
 
