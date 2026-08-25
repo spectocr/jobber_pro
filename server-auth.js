@@ -8870,12 +8870,14 @@ app.get('/api/client-messages', isAuthenticated, async (req, res) => {
 
         res.json(messages.map(msg => ({
             id: msg._id.toString(),
-            clientId: msg.clientId.toString(),
+            clientId: msg.clientId ? msg.clientId.toString() : null,
             clientName: msg.clientName,
             clientEmail: msg.clientEmail,
+            clientPhone: msg.clientPhone || '',
             message: msg.message,
             subject: msg.subject || '',
             reference: msg.reference || '',
+            direction: msg.direction || 'inbound',
             createdAt: msg.createdAt,
             read: msg.read || false,
             archived: msg.archived || false
@@ -8900,6 +8902,51 @@ app.post('/api/client-messages/:id/read', isAuthenticated, async (req, res) => {
     } catch (error) {
         console.error('Mark read error:', error);
         res.status(500).json({ error: 'Failed to mark message as read' });
+    }
+});
+
+// Admin Messages API - Send an SMS reply to a client message (two-way texting)
+app.post('/api/client-messages/:id/reply', isAuthenticated, async (req, res) => {
+    try {
+        const text = ((req.body && req.body.message) || '').trim();
+        if (!text) return res.status(400).json({ error: 'Message is required' });
+
+        const msg = await db.collection('client_messages').findOne({ _id: new ObjectId(req.params.id) });
+        if (!msg) return res.status(404).json({ error: 'Message not found' });
+
+        // Figure out the phone to text: stored phone → client record → the reference (inbound "from")
+        let phone = msg.clientPhone || '';
+        if (!phone && msg.clientId) {
+            const cl = await db.collection('clients').findOne({ _id: msg.clientId });
+            phone = (cl && cl.phone) || '';
+        }
+        if (!phone && /\d{7,}/.test(msg.reference || '')) phone = msg.reference;
+        if (!phone) return res.status(400).json({ error: 'No phone number on file for this message' });
+
+        const result = await sendSMS(phone, text, { type: 'reply', clientName: msg.clientName, trigger: 'Manual reply from inbox' });
+        if (!result.success) {
+            return res.status(400).json({ error: result.error || 'SMS failed to send', skipped: result.skipped || false });
+        }
+
+        // Record the sent reply so the thread shows both sides
+        await db.collection('client_messages').insertOne({
+            clientId: msg.clientId || null,
+            clientName: msg.clientName,
+            clientPhone: phone,
+            message: text,
+            subject: 'sms',
+            direction: 'outbound',
+            reference: phone,
+            sentBy: req.session.userName || 'admin',
+            createdAt: new Date(),
+            read: true
+        });
+        await db.collection('client_messages').updateOne({ _id: msg._id }, { $set: { read: true } });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Reply send error:', error);
+        res.status(500).json({ error: 'Failed to send reply' });
     }
 });
 

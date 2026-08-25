@@ -13555,8 +13555,14 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const renderMsg = (msg) => {
                     const date = new Date(msg.createdAt).toLocaleString();
                     const isUnread = !msg.read;
+                    const isSms = msg.subject === 'sms';
+                    const isOutbound = msg.direction === 'outbound';
                     let subjectBadge = '';
-                    if (msg.subject === 'quote' && msg.reference) {
+                    if (isSms) {
+                        subjectBadge = isOutbound
+                            ? \`<span style="background:#3182ce;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">💬 Sent</span>\`
+                            : \`<span style="background:#38a169;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">💬 Text</span>\`;
+                    } else if (msg.subject === 'quote' && msg.reference) {
                         subjectBadge = \`<span style="background:#667eea;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">📋 \${msg.reference}</span>\`;
                     } else if (msg.subject === 'job' && msg.reference) {
                         subjectBadge = \`<span style="background:#48bb78;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">🔨 Job</span>\`;
@@ -13564,27 +13570,37 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         subjectBadge = \`<span style="background:#d97706;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;margin-left:0.5rem;">💳 Deposit</span>\`;
                     }
                     const id = msg.id || msg._id;
-                    return \`<div style="background:\${isUnread ? '#fffacd' : 'white'};border:2px solid \${isUnread ? '#f59e0b' : '#e2e8f0'};border-radius:8px;padding:1.5rem;margin-bottom:1rem;">
+                    const contact = isSms ? (msg.clientPhone || msg.reference || '') : (msg.clientEmail || '');
+                    const accent = isOutbound ? '#3182ce' : '#667eea';
+                    const bg = isOutbound ? '#eff6ff' : (isUnread ? '#fffacd' : 'white');
+                    const border = isOutbound ? '#bee3f8' : (isUnread ? '#f59e0b' : '#e2e8f0');
+                    const replyBox = (isSms && !isOutbound) ? \`
+                        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+                            <input type="text" id="reply-\${id}" placeholder="Text \${msg.clientName} back…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSmsReply('\${id}');}">
+                            <button class="btn btn-primary btn-small" onclick="sendSmsReply('\${id}')">Send Text</button>
+                        </div>\` : '';
+                    return \`<div style="background:\${bg};border:2px solid \${border};border-radius:8px;padding:1.5rem;margin-bottom:1rem;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
                             <div>
-                                <h3 style="margin:0;color:#2d3748;">\${msg.clientName}\${subjectBadge}</h3>
-                                <p style="margin:0.25rem 0 0 0;color:#718096;font-size:0.9rem;">\${msg.clientEmail}</p>
+                                <h3 style="margin:0;color:#2d3748;">\${isOutbound ? 'You → ' : ''}\${msg.clientName}\${subjectBadge}</h3>
+                                <p style="margin:0.25rem 0 0 0;color:#718096;font-size:0.9rem;">\${contact}</p>
                             </div>
                             <div style="text-align:right;">
                                 <p style="margin:0;color:#718096;font-size:0.85rem;">\${date}</p>
                                 \${isUnread ? '<span style="background:#f59e0b;color:white;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;font-weight:600;">NEW</span>' : ''}
                             </div>
                         </div>
-                        <div style="background:#f8fafc;padding:1rem;border-radius:4px;border-left:3px solid #667eea;margin-bottom:1rem;">
+                        <div style="background:\${isOutbound ? '#dbeafe' : '#f8fafc'};padding:1rem;border-radius:4px;border-left:3px solid \${accent};margin-bottom:1rem;">
                             <p style="margin:0;white-space:pre-wrap;line-height:1.6;">\${msg.message}</p>
                         </div>
+                        \${replyBox}
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                             \${isUnread ? \`<button class="btn btn-primary btn-small" onclick="markMessageRead('\${id}')">Mark as Read</button>\` : ''}
                             \${msg.archived
                                 ? \`<button class="btn btn-secondary btn-small" onclick="archiveMessage('\${id}', false)">↩ Unarchive</button>\`
                                 : \`<button class="btn btn-secondary btn-small" onclick="archiveMessage('\${id}', true)">📁 Archive</button>\`
                             }
-                            <a href="mailto:\${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>
+                            \${msg.clientEmail ? \`<a href="mailto:\${msg.clientEmail}" class="btn btn-secondary btn-small">📧 Email</a>\` : ''}
                             <button class="btn btn-danger btn-small" onclick="deleteMessage('\${id}')">Delete</button>
                         </div>
                     </div>\`;
@@ -14069,6 +14085,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadMessages();
             } catch (error) {
                 alert('Failed to mark message as read');
+            }
+        }
+
+        async function sendSmsReply(messageId) {
+            const input = document.getElementById('reply-' + messageId);
+            if (!input) return;
+            const text = (input.value || '').trim();
+            if (!text) return;
+            input.disabled = true;
+            try {
+                const res = await fetch('/api/client-messages/' + messageId + '/reply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to send');
+                input.value = '';
+                loadMessages();
+            } catch (e) {
+                alert('Could not send text: ' + e.message);
+                input.disabled = false;
             }
         }
 
