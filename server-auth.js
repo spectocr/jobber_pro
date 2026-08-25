@@ -5491,6 +5491,79 @@ app.post('/api/sms/templates', isAuthenticated, async (req, res) => {
     }
 });
 
+// ── Inbound SMS webhook (Twilio calls this when a client texts our number) ──
+// Point the number's "A MESSAGE COMES IN" webhook here (POST). Replaces Twilio's
+// default "configure your number" auto-reply with real two-way texting: logs the
+// message into the admin inbox, honors STOP/START/HELP, and stays silent otherwise.
+app.post('/api/sms/inbound', async (req, res) => {
+    const reply = (msg) => {
+        res.set('Content-Type', 'text/xml');
+        res.send('<?xml version="1.0" encoding="UTF-8"?><Response>' +
+            (msg ? '<Message>' + String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</Message>' : '') +
+            '</Response>');
+    };
+    try {
+        // Verify the request really came from Twilio (blocks spoofed inbound messages)
+        if (TWILIO_AUTH_TOKEN) {
+            const sig = req.headers['x-twilio-signature'];
+            const url = 'https://' + req.get('host') + req.originalUrl;
+            const valid = sig && twilio.validateRequest(TWILIO_AUTH_TOKEN, sig, url, req.body || {});
+            if (!valid) { console.warn('Inbound SMS rejected — bad Twilio signature. URL used:', url); return res.status(403).send('Forbidden'); }
+        }
+
+        const from = (req.body.From || '').trim();
+        const body = (req.body.Body || '').trim();
+        const norm = from.replace(/\D/g, '').slice(-10);
+        let client = null;
+        if (norm) {
+            const withPhones = await db.collection('clients').find({ phone: { $exists: true, $ne: '' } }).toArray();
+            client = withPhones.find(c => (c.phone || '').replace(/\D/g, '').slice(-10) === norm) || null;
+        }
+        const clientName = client ? client.name : from;
+
+        // Always log the raw inbound message to the SMS log
+        await db.collection('sms_log').insertOne({
+            direction: 'inbound', from, to: TWILIO_PHONE_NUMBER, message: body,
+            type: 'inbound', clientName: client ? client.name : null,
+            sid: req.body.MessageSid || null, sentAt: new Date(), success: true
+        });
+
+        const kw = body.toUpperCase().replace(/[^A-Z]/g, '');
+        const STOP = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'];
+        const START = ['START', 'YES', 'UNSTOP'];
+
+        if (STOP.includes(kw)) {
+            if (client) await db.collection('clients').updateOne({ _id: client._id }, { $set: { smsOptOut: true } });
+            return reply(''); // Twilio sends the carrier-required opt-out confirmation itself
+        }
+        if (START.includes(kw)) {
+            if (client) await db.collection('clients').updateOne({ _id: client._id }, { $set: { smsOptOut: false } });
+            return reply('');
+        }
+        if (kw === 'HELP' || kw === 'INFO') {
+            const settings = await db.collection('settings').findOne({});
+            const name = (settings && settings.companyName) || 'GSD Property Services';
+            return reply(name + ': For help call 856-872-4636. Reply STOP to unsubscribe.');
+        }
+
+        // Normal reply → drop it in the admin inbox (unread → badge + Maddox nudge) and stay silent
+        await db.collection('client_messages').insertOne({
+            clientId: client ? client._id : null,
+            clientName,
+            clientPhone: from,
+            message: body || '(no text — possible photo/MMS)',
+            subject: 'sms',
+            reference: from,
+            createdAt: new Date(),
+            read: false
+        });
+        return reply(''); // no auto-reply — Cris replies personally from the app
+    } catch (err) {
+        console.error('Inbound SMS error:', err.message);
+        return reply('');
+    }
+});
+
 
 app.post('/api/email/test', isAuthenticated, async (req, res) => {
     try {
