@@ -5491,6 +5491,20 @@ app.post('/api/sms/templates', isAuthenticated, async (req, res) => {
     }
 });
 
+// Resolve an inbound number to a known contact — checks clients, then leads,
+// matching on the last 10 digits so formatting differences don't matter.
+async function resolveSmsContact(rawPhone) {
+    const norm = (rawPhone || '').replace(/\D/g, '').slice(-10);
+    if (!norm) return { client: null, name: rawPhone || 'Unknown' };
+    const clients = await db.collection('clients').find({ phone: { $exists: true, $ne: '' } }).toArray();
+    const client = clients.find(c => (c.phone || '').replace(/\D/g, '').slice(-10) === norm);
+    if (client) return { client, name: client.name };
+    const leads = await db.collection('leads').find({ phone: { $exists: true, $ne: '' } }).toArray();
+    const lead = leads.find(l => (l.phone || '').replace(/\D/g, '').slice(-10) === norm);
+    if (lead) return { client: null, name: ((lead.name || (lead.firstName + ' ' + lead.lastName)).trim() || rawPhone) + ' (lead)' };
+    return { client: null, name: rawPhone };
+}
+
 // ── Inbound SMS webhook (Twilio calls this when a client texts our number) ──
 // Point the number's "A MESSAGE COMES IN" webhook here (POST). Replaces Twilio's
 // default "configure your number" auto-reply with real two-way texting: logs the
@@ -5513,13 +5527,7 @@ app.post('/api/sms/inbound', async (req, res) => {
 
         const from = (req.body.From || '').trim();
         const body = (req.body.Body || '').trim();
-        const norm = from.replace(/\D/g, '').slice(-10);
-        let client = null;
-        if (norm) {
-            const withPhones = await db.collection('clients').find({ phone: { $exists: true, $ne: '' } }).toArray();
-            client = withPhones.find(c => (c.phone || '').replace(/\D/g, '').slice(-10) === norm) || null;
-        }
-        const clientName = client ? client.name : from;
+        const { client, name: clientName } = await resolveSmsContact(from);
 
         // Always log the raw inbound message to the SMS log
         await db.collection('sms_log').insertOne({
@@ -6360,28 +6368,33 @@ app.delete('/api/expenses/:id/comments/:commentId', isAuthenticated, isAdmin, as
 
 // SMS API Endpoints
 app.post('/api/sms/send', isAuthenticated, async (req, res) => {
-    const { to, message, clientId, jobId } = req.body;
+    let { to, message, clientId } = req.body;
+    const text = (message || '').trim();
+    if (!text) return res.status(400).json({ error: 'Message required' });
 
-    if (!to || !message) {
-        return res.status(400).json({ error: 'Phone number and message required' });
-    }
+    // Resolve destination + client from clientId / phone when `to` isn't supplied
+    let client = null;
+    if (clientId) { try { client = await db.collection('clients').findOne({ _id: new ObjectId(clientId) }); } catch (e) {} }
+    if (!to) to = (req.body.phone || (client && client.phone) || '');
+    if (!to) return res.status(400).json({ error: 'No phone number to text' });
+    const name = client ? client.name : (await resolveSmsContact(to)).name;
 
-    const result = await sendSMS(to, message);
+    const result = await sendSMS(to, text, { type: 'reply', clientName: name, trigger: 'Manual text from app' });
+    if (!result.success) return res.status(400).json({ error: result.error || 'SMS failed to send', skipped: result.skipped || false });
 
-    // Log the SMS
-    if (result.success) {
-        await db.collection('sms_log').insertOne({
-            to,
-            message,
-            clientId: clientId ? new ObjectId(clientId) : null,
-            jobId: jobId ? new ObjectId(jobId) : null,
-            sentBy: req.session.userId,
-            sentAt: new Date(),
-            sid: result.sid
-        });
-    }
+    // Thread the sent text into the inbox conversation
+    await db.collection('client_messages').insertOne({
+        clientId: client ? client._id : null, clientName: name, clientPhone: to,
+        message: text, subject: 'sms', direction: 'outbound', reference: to,
+        sentBy: req.session.userName || 'admin', createdAt: new Date(), read: true
+    });
+    // Mark this contact's unread inbound texts as read
+    const norm = to.replace(/\D/g, '').slice(-10);
+    const inbound = await db.collection('client_messages').find({ subject: 'sms', direction: 'inbound', read: false }).toArray();
+    const ids = inbound.filter(m => (m.clientPhone || m.reference || '').replace(/\D/g, '').slice(-10) === norm).map(m => m._id);
+    if (ids.length) await db.collection('client_messages').updateMany({ _id: { $in: ids } }, { $set: { read: true } });
 
-    res.json(result);
+    res.json({ success: true, sid: result.sid });
 });
 
 app.get('/api/sms/status', isAuthenticated, (req, res) => {
@@ -8948,6 +8961,22 @@ app.post('/api/client-messages/:id/reply', isAuthenticated, async (req, res) => 
         console.error('Reply send error:', error);
         res.status(500).json({ error: 'Failed to send reply' });
     }
+});
+
+// All SMS messages for one client (by id or matching phone), oldest first — for the client card.
+app.get('/api/clients/:id/texts', isAuthenticated, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        const norm = (client.phone || '').replace(/\D/g, '').slice(-10);
+        const all = await db.collection('client_messages').find({ subject: 'sms' }).sort({ createdAt: 1 }).toArray();
+        const messages = all.filter(m => {
+            if (m.clientId && String(m.clientId) === String(client._id)) return true;
+            const p = (m.clientPhone || m.reference || '').replace(/\D/g, '').slice(-10);
+            return norm && p === norm;
+        }).map(m => ({ id: m._id.toString(), direction: m.direction || 'inbound', message: m.message, createdAt: m.createdAt, read: m.read }));
+        res.json({ clientId: String(client._id), clientName: client.name, phone: client.phone || '', messages });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Admin Messages API - Archive message

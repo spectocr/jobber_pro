@@ -1637,6 +1637,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button type="button" class="cd-tab" data-cdtab="jobs" onclick="switchClientTab('jobs')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid #667eea;font-weight:600;color:#667eea;cursor:pointer;font-size:0.95rem;">🔧 Jobs</button>
                             <button type="button" class="cd-tab" data-cdtab="quotes" onclick="switchClientTab('quotes')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📄 Quotes</button>
                             <button type="button" class="cd-tab" data-cdtab="callbacks" onclick="switchClientTab('callbacks')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📞 Callbacks</button>
+                            <button type="button" class="cd-tab" data-cdtab="texts" onclick="switchClientTab('texts')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">💬 Texts</button>
                         </div>
                         <div id="cd-panel-jobs">
                             <div id="client-detail-jobs"></div>
@@ -1649,6 +1650,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <div id="client-callbacks-list"></div>
                             </div>
                             <div id="client-callbacks-empty" style="color:#718096;font-size:0.9rem;padding:0.5rem 0;">No callbacks recorded for this client.</div>
+                        </div>
+                        <div id="cd-panel-texts" style="display:none;">
+                            <div id="client-detail-texts"></div>
                         </div>
                     </div>
                 </div>
@@ -9101,7 +9105,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function switchClientTab(tab) {
-            ['jobs','quotes','callbacks'].forEach(function(t){
+            ['jobs','quotes','callbacks','texts'].forEach(function(t){
                 var panel = document.getElementById('cd-panel-'+t);
                 if (panel) panel.style.display = t === tab ? '' : 'none';
             });
@@ -9110,6 +9114,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 b.style.borderBottomColor = on ? '#667eea' : 'transparent';
                 b.style.color = on ? '#667eea' : '#718096';
             });
+            if (tab === 'texts' && _currentClientId) loadClientTexts(_currentClientId);
+        }
+
+        async function loadClientTexts(clientId) {
+            const box = document.getElementById('client-detail-texts');
+            if (!box) return;
+            box.innerHTML = '<div style="color:#718096;padding:0.5rem 0;">Loading…</div>';
+            try {
+                const res = await fetch('/api/clients/' + clientId + '/texts');
+                const data = await res.json();
+                _clientTextCtx = { clientId: clientId, phone: (data.phone || '').replace(/\\D/g, '').slice(-10) };
+                const thread = renderSmsThread(data.messages || []);
+                const noPhone = !data.phone;
+                box.innerHTML =
+                    '<div style="max-height:420px;overflow-y:auto;margin-bottom:0.75rem;border:1px solid #edf2f7;border-radius:10px;padding:1rem;">' + thread + '</div>' +
+                    (noPhone
+                        ? '<div style="color:#a0aec0;font-size:0.85rem;">No phone number on file for this client — add one to text them.</div>'
+                        : '<div style="display:flex;gap:0.5rem;">' +
+                            '<input type="text" id="client-text-input" placeholder="Text ' + escapeSmsText(data.clientName || '') + '…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendClientText();}">' +
+                            '<button class="btn btn-primary btn-small" onclick="sendClientText()">Send Text</button>' +
+                          '</div>');
+            } catch (e) {
+                box.innerHTML = '<div style="color:#e53e3e;padding:0.5rem 0;">Failed to load texts.</div>';
+            }
+        }
+        let _clientTextCtx = null;
+        async function sendClientText() {
+            const input = document.getElementById('client-text-input');
+            if (!input || !_clientTextCtx) return;
+            const text = (input.value || '').trim();
+            if (!text) return;
+            input.disabled = true;
+            try {
+                const res = await fetch('/api/sms/send', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId: _clientTextCtx.clientId, message: text })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Failed to send');
+                input.value = '';
+                loadClientTexts(_clientTextCtx.clientId);
+            } catch (e) { alert('Could not send text: ' + e.message); input.disabled = false; }
         }
 
         async function loadClientQuotes(clientId) {
@@ -13606,29 +13652,128 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>\`;
                 };
 
-                let html = '';
+                // SMS → threaded conversations; everything else stays as notification cards
+                const smsMsgs = messages.filter(m => m.subject === 'sms');
+                const noteActive = messages.filter(m => m.subject !== 'sms' && !m.archived);
+                const noteArchived = messages.filter(m => m.subject !== 'sms' && m.archived);
 
-                if (active.length > 0) {
-                    html += active.map(renderMsg).join('');
-                } else {
+                _convos = {};
+                smsMsgs.forEach(m => {
+                    const digits = (m.clientPhone || m.reference || '').replace(/\\D/g, '').slice(-10);
+                    const cid = String(m.clientId || digits || 'unknown').replace(/[^a-zA-Z0-9]/g, '');
+                    if (!_convos[cid]) _convos[cid] = { cid, clientId: m.clientId || '', clientName: m.clientName || digits, phone: digits, messages: [], unread: 0, lastAt: 0 };
+                    const c = _convos[cid];
+                    c.messages.push(m);
+                    if (!m.read && m.direction !== 'outbound') c.unread++;
+                    if (digits) c.phone = digits;
+                    const t = new Date(m.createdAt).getTime();
+                    if (t >= c.lastAt) { c.lastAt = t; if (m.clientName) c.clientName = m.clientName; }
+                });
+                const convoList = Object.values(_convos).sort((a, b) => (b.unread - a.unread) || (b.lastAt - a.lastAt));
+
+                let html = '';
+                if (convoList.length) {
+                    html += '<h3 style="margin:0 0 0.75rem;color:#2d3748;font-size:1rem;">💬 Text Conversations</h3>';
+                    html += convoList.map(renderConversation).join('');
+                }
+                if (noteActive.length) {
+                    html += '<h3 style="margin:' + (convoList.length ? '1.75rem' : '0') + ' 0 0.75rem;color:#2d3748;font-size:1rem;">🔔 Notifications</h3>';
+                    html += noteActive.map(renderMsg).join('');
+                }
+                if (!convoList.length && !noteActive.length) {
                     html += '<p style="color:#718096;padding:0.75rem 0;">No active messages.</p>';
                 }
-
-                if (archived.length > 0) {
+                if (noteArchived.length) {
                     html += \`<details style="margin-top:1.5rem;">
                         <summary style="cursor:pointer;font-weight:700;color:#4a5568;font-size:0.95rem;padding:0.6rem 0.75rem;background:#f1f5f9;border-radius:8px;list-style:none;display:flex;align-items:center;gap:0.5rem;">
-                            <span style="font-size:0.8rem;">▶</span> Archive <span style="background:#9ca3af;color:white;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;">\${archived.length}</span>
+                            <span style="font-size:0.8rem;">▶</span> Archive <span style="background:#9ca3af;color:white;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;">\${noteArchived.length}</span>
                         </summary>
-                        <div style="margin-top:1rem;">
-                            \${archived.map(renderMsg).join('')}
-                        </div>
+                        <div style="margin-top:1rem;">\${noteArchived.map(renderMsg).join('')}</div>
                     </details>\`;
                 }
-
                 container.innerHTML = html;
             } catch (error) {
                 console.error('Failed to load messages:', error);
             }
+        }
+
+        // ── Threaded SMS conversations ──
+        let _convos = {};
+        function escapeSmsText(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        function _fmtDayLabel(d) {
+            const dt = new Date(d), now = new Date();
+            const ymd = x => x.getFullYear() + '-' + x.getMonth() + '-' + x.getDate();
+            const y = new Date(now); y.setDate(y.getDate() - 1);
+            if (ymd(dt) === ymd(now)) return 'Today';
+            if (ymd(dt) === ymd(y)) return 'Yesterday';
+            return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        }
+        function renderSmsThread(messages) {
+            if (!messages || !messages.length) return '<div style="color:#a0aec0;font-size:0.85rem;padding:0.5rem 0;">No texts yet.</div>';
+            const msgs = messages.slice().sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            let html = '', lastDay = '';
+            msgs.forEach(m => {
+                const day = _fmtDayLabel(m.createdAt);
+                if (day !== lastDay) { html += '<div style="text-align:center;margin:0.75rem 0 0.5rem;"><span style="background:#edf2f7;color:#718096;font-size:0.72rem;font-weight:600;padding:2px 10px;border-radius:999px;">' + day + '</span></div>'; lastDay = day; }
+                const out = m.direction === 'outbound';
+                const time = new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                html += '<div style="display:flex;justify-content:' + (out ? 'flex-end' : 'flex-start') + ';margin-bottom:0.35rem;">' +
+                    '<div style="max-width:78%;background:' + (out ? '#3182ce' : '#edf2f7') + ';color:' + (out ? '#fff' : '#1a202c') + ';padding:0.5rem 0.75rem;border-radius:14px;' + (out ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;') + '">' +
+                        '<div style="white-space:pre-wrap;line-height:1.4;font-size:0.9rem;">' + escapeSmsText(m.message) + '</div>' +
+                        '<div style="font-size:0.66rem;opacity:0.7;text-align:right;margin-top:2px;">' + time + '</div>' +
+                    '</div></div>';
+            });
+            return html;
+        }
+        function renderConversation(c) {
+            const unread = c.unread > 0;
+            const last = c.messages.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || {};
+            const preview = (last.direction === 'outbound' ? 'You: ' : '') + escapeSmsText((last.message || '').slice(0, 64));
+            return '<div style="background:' + (unread ? '#fffacd' : 'white') + ';border:2px solid ' + (unread ? '#f59e0b' : '#e2e8f0') + ';border-radius:10px;margin-bottom:1rem;overflow:hidden;">' +
+                '<div onclick="toggleConvo(\'' + c.cid + '\')" style="padding:1rem 1.25rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;">' +
+                    '<div style="min-width:0;"><div style="font-weight:700;color:#2d3748;">' + escapeSmsText(c.clientName || c.phone) + (unread ? ' <span style="background:#f59e0b;color:#fff;border-radius:999px;padding:1px 8px;font-size:0.7rem;">' + c.unread + ' new</span>' : '') + '</div>' +
+                    '<div style="color:#718096;font-size:0.85rem;margin-top:0.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + preview + '</div></div>' +
+                    '<div style="color:#a0aec0;font-size:0.78rem;white-space:nowrap;">' + new Date(c.lastAt).toLocaleDateString() + '</div>' +
+                '</div>' +
+                '<div id="convo-' + c.cid + '" style="display:' + (unread ? 'block' : 'none') + ';border-top:1px solid #edf2f7;padding:1rem 1.25rem;">' +
+                    '<div style="max-height:360px;overflow-y:auto;margin-bottom:0.75rem;">' + renderSmsThread(c.messages) + '</div>' +
+                    '<div style="display:flex;gap:0.5rem;">' +
+                        '<input type="text" id="cinput-' + c.cid + '" placeholder="Text ' + escapeSmsText(c.clientName || '') + '…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendConvo(\'' + c.cid + '\');}">' +
+                        '<button class="btn btn-primary btn-small" onclick="sendConvo(\'' + c.cid + '\')">Send</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+        async function toggleConvo(cid) {
+            const el = document.getElementById('convo-' + cid);
+            if (!el) return;
+            const opening = el.style.display === 'none';
+            el.style.display = opening ? 'block' : 'none';
+            if (opening && _convos[cid]) {
+                const unreadIds = _convos[cid].messages.filter(m => !m.read && m.direction !== 'outbound').map(m => m.id);
+                if (unreadIds.length) {
+                    await Promise.all(unreadIds.map(id => fetch('/api/client-messages/' + id + '/read', { method: 'POST' }).catch(() => {})));
+                    if (typeof checkUnreadMessages === 'function') checkUnreadMessages();
+                }
+            }
+        }
+        async function sendConvo(cid) {
+            const c = _convos[cid];
+            const input = document.getElementById('cinput-' + cid);
+            if (!c || !input) return;
+            const text = (input.value || '').trim();
+            if (!text) return;
+            input.disabled = true;
+            try {
+                const res = await fetch('/api/sms/send', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId: c.clientId || undefined, phone: c.phone || undefined, message: text })
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Failed to send');
+                input.value = '';
+                loadMessages();
+            } catch (e) { alert('Could not send text: ' + e.message); input.disabled = false; }
         }
 
         async function archiveMessage(messageId, archive) {
