@@ -8963,6 +8963,23 @@ app.post('/api/client-messages/:id/reply', isAuthenticated, async (req, res) => 
     }
 });
 
+// Archive / unarchive a whole conversation (bulk by message ids).
+app.post('/api/client-messages/archive-bulk', isAuthenticated, async (req, res) => {
+    try {
+        const ids = (req.body && req.body.ids) || [];
+        const archived = (req.body && req.body.archived) !== false;
+        const objIds = ids.map(id => { try { return new ObjectId(id); } catch (e) { return null; } }).filter(Boolean);
+        if (!objIds.length) return res.status(400).json({ error: 'No messages specified' });
+        await db.collection('client_messages').updateMany(
+            { _id: { $in: objIds } },
+            { $set: { archived, read: true } }
+        );
+        res.json({ success: true, count: objIds.length });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to archive conversation' });
+    }
+});
+
 // All SMS messages for one client (by id or matching phone), oldest first — for the client card.
 app.get('/api/clients/:id/texts', isAuthenticated, async (req, res) => {
     try {

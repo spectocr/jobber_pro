@@ -13669,12 +13669,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const t = new Date(m.createdAt).getTime();
                     if (t >= c.lastAt) { c.lastAt = t; if (m.clientName) c.clientName = m.clientName; }
                 });
-                const convoList = Object.values(_convos).sort((a, b) => (b.unread - a.unread) || (b.lastAt - a.lastAt));
+                const allConvos = Object.values(_convos);
+                allConvos.forEach(c => { c.archived = c.messages.length > 0 && c.messages.every(m => m.archived); });
+                const convoList = allConvos.filter(c => !c.archived).sort((a, b) => (b.unread - a.unread) || (b.lastAt - a.lastAt));
+                const convoArchived = allConvos.filter(c => c.archived).sort((a, b) => b.lastAt - a.lastAt);
 
                 let html = '';
                 if (convoList.length) {
                     html += '<h3 style="margin:0 0 0.75rem;color:#2d3748;font-size:1rem;">💬 Text Conversations</h3>';
                     html += convoList.map(renderConversation).join('');
+                }
+                if (convoArchived.length) {
+                    html += \`<details style="margin-top:1rem;">
+                        <summary style="cursor:pointer;font-weight:700;color:#4a5568;font-size:0.9rem;padding:0.55rem 0.75rem;background:#f1f5f9;border-radius:8px;list-style:none;display:flex;align-items:center;gap:0.5rem;">
+                            <span style="font-size:0.8rem;">▶</span> 💬 Archived conversations <span style="background:#9ca3af;color:white;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;">\${convoArchived.length}</span>
+                        </summary>
+                        <div style="margin-top:0.75rem;">\${convoArchived.map(renderConversation).join('')}</div>
+                    </details>\`;
                 }
                 if (noteActive.length) {
                     html += '<h3 style="margin:' + (convoList.length ? '1.75rem' : '0') + ' 0 0.75rem;color:#2d3748;font-size:1rem;">🔔 Notifications</h3>';
@@ -13740,6 +13751,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div style="display:flex;gap:0.5rem;">' +
                         '<input type="text" id="cinput-' + c.cid + '" placeholder="Text ' + escapeSmsText(c.clientName || '') + '…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendConvo(\'' + c.cid + '\');}">' +
                         '<button class="btn btn-primary btn-small" onclick="sendConvo(\'' + c.cid + '\')">Send</button>' +
+                        '<button class="btn btn-secondary btn-small" onclick="archiveConvo(\'' + c.cid + '\',' + (c.archived ? 'false' : 'true') + ')">' + (c.archived ? '↩ Unarchive' : '📁 Archive') + '</button>' +
                     '</div>' +
                 '</div>' +
             '</div>';
@@ -13774,6 +13786,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 input.value = '';
                 loadMessages();
             } catch (e) { alert('Could not send text: ' + e.message); input.disabled = false; }
+        }
+        async function archiveConvo(cid, archived) {
+            const c = _convos[cid];
+            if (!c) return;
+            const ids = c.messages.map(m => m.id);
+            try {
+                const res = await fetch('/api/client-messages/archive-bulk', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: ids, archived: archived })
+                });
+                if (!res.ok) throw new Error('Failed');
+                loadMessages();
+            } catch (e) { alert('Could not archive conversation.'); }
         }
 
         async function archiveMessage(messageId, archive) {
