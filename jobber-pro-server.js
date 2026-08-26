@@ -18334,8 +18334,10 @@ const handleRequest = async (req, res) => {
 
     <div class="invoice-header">
         <div class="company-info">
-            ${settings.companyLogo ? `<img src="${settings.companyLogo}" alt="Company Logo" style="max-width: 200px; max-height: 80px; margin-bottom: 1rem;">` : ''}
-            <h1>${settings.companyName || 'Your Company'}</h1>
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 10px;">
+                ${settings.companyLogo ? `<img src="${settings.companyLogo}" alt="Company Logo" style="max-width: 90px; max-height: 70px; flex: none;">` : ''}
+                <h1 style="margin: 0;">${settings.companyName || 'Your Company'}</h1>
+            </div>
             <p>${(settings.companyAddress || 'Add company address in settings').replace(/\n/g, '<br>')}</p>
             <p>Phone: ${settings.companyPhone || 'Add phone'}</p>
             <p>Email: ${settings.companyEmail || 'Add email'}</p>
