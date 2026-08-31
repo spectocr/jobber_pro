@@ -3562,6 +3562,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <span>Property Management?</span>
                         </label>
                     </div>
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="taxExemptCheckbox" onchange="toggleTaxExemptFields()" style="width: auto; cursor: pointer;">
+                            <span>Tax Exempt (ST-5 on file)</span>
+                        </label>
+                    </div>
+                    <div id="taxExemptFields" style="display:none; border-left:3px solid #38a169; padding-left:1rem; margin-top:0.5rem;">
+                        <div class="form-group">
+                            <label>Exemption / ST-5 Number <span style="font-weight:400;color:#718096;font-size:0.8rem;">(optional)</span></label>
+                            <input type="text" name="taxExemptNumber" id="taxExemptNumber" placeholder="ST-5 certificate #">
+                        </div>
+                        <div class="form-group">
+                            <label>ST-5 Certificate</label>
+                            <div id="st5DocDisplay" style="margin-bottom:0.5rem;font-size:0.9rem;"></div>
+                            <input type="file" id="st5FileInput" accept="image/*,.pdf,.doc,.docx" onchange="uploadSt5(this)" style="font-size:0.9rem;">
+                            <input type="hidden" name="taxExemptDoc" id="taxExemptDoc">
+                            <small style="color:#718096;display:block;margin-top:0.35rem;">Upload the exemption certificate (PDF or image) — stored securely.</small>
+                        </div>
+                    </div>
                     <div id="propertyManagementFields" style="display: none; border-left: 3px solid #667eea; padding-left: 1rem; margin-top: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h3 style="margin: 0; color: #667eea;">Service Locations</h3>
@@ -4958,6 +4977,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // SMS opt-out checkbox
                 document.getElementById('clientSmsOptOut').checked = client.smsOptOut || false;
 
+                // Tax exemption
+                document.getElementById('taxExemptCheckbox').checked = client.taxExempt || false;
+                document.getElementById('taxExemptNumber').value = client.taxExemptNumber || '';
+                document.getElementById('taxExemptDoc').value = client.taxExemptDoc || '';
+                toggleTaxExemptFields();
+                _renderSt5Display(client.taxExemptDoc || '');
+
                 // Load service locations
                 serviceLocations = client.serviceLocations || [];
                 togglePropertyManagementFields();
@@ -4980,6 +5006,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('clientModalTitle').textContent = 'Add Client';
                 form.reset();
                 serviceLocations = [];
+                document.getElementById('taxExemptCheckbox').checked = false;
+                document.getElementById('taxExemptDoc').value = '';
+                toggleTaxExemptFields();
+                _renderSt5Display('');
                 document.getElementById('propertyManagementFields').style.display = 'none';
                 document.getElementById('enablePortalAccess').checked = false;
                 document.getElementById('portalPassword').value = '';
@@ -6014,6 +6044,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Convert checkbox to boolean
             client.isPropertyManagement = document.getElementById('isPropertyManagementCheckbox').checked;
             client.smsOptOut = document.getElementById('clientSmsOptOut').checked;
+            client.taxExempt = document.getElementById('taxExemptCheckbox').checked;
 
             // Add service locations if property management is enabled
             if (client.isPropertyManagement) {
@@ -6498,6 +6529,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             const client = clients.find(c => c.id == selectedClientId);
+
+            // Tax-exempt client → auto-check "Tax Exempt" on the job
+            const _twc = document.getElementById('taxWaivedCheckbox');
+            if (_twc && client && client.taxExempt && !_twc.checked) {
+                _twc.checked = true;
+                if (typeof updateJobTotal === 'function') updateJobTotal();
+            }
 
             if (client && client.isPropertyManagement && client.serviceLocations && client.serviceLocations.length > 0) {
                 locationGroup.style.display = 'block';
@@ -7959,6 +7997,53 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             fields.style.display = checkbox.checked ? 'block' : 'none';
         }
 
+        function toggleTaxExemptFields() {
+            const on = document.getElementById('taxExemptCheckbox').checked;
+            document.getElementById('taxExemptFields').style.display = on ? 'block' : 'none';
+        }
+
+        function _renderSt5Display(s3Key) {
+            const disp = document.getElementById('st5DocDisplay');
+            if (!disp) return;
+            disp.innerHTML = s3Key
+                ? '<span style="color:#276749;">📎 Certificate on file</span> · <a href="#" onclick="viewStoredFile(event, \'' + s3Key + '\')" style="color:#3182ce;">View</a> · <a href="#" onclick="clearSt5(event)" style="color:#e53e3e;">Remove</a>'
+                : '';
+        }
+        function clearSt5(e) {
+            if (e) e.preventDefault();
+            document.getElementById('taxExemptDoc').value = '';
+            _renderSt5Display('');
+        }
+        async function viewStoredFile(e, s3Key) {
+            if (e) e.preventDefault();
+            try {
+                const res = await fetch('/api/file/' + s3Key);
+                const d = await res.json();
+                if (d.url) window.open(d.url, '_blank');
+                else alert('Could not open file.');
+            } catch (err) { alert('Could not open file.'); }
+        }
+        async function uploadSt5(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const disp = document.getElementById('st5DocDisplay');
+            if (disp) disp.innerHTML = '<span style="color:#718096;">⏳ Uploading…</span>';
+            try {
+                const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+                const resp = await fetch('/api/upload', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: dataUrl })
+                });
+                const result = await resp.json();
+                if (!resp.ok || !result.s3Key) throw new Error(result.error || 'Upload failed');
+                document.getElementById('taxExemptDoc').value = result.s3Key;
+                _renderSt5Display(result.s3Key);
+            } catch (err) {
+                if (disp) disp.innerHTML = '<span style="color:#e53e3e;">Upload failed.</span>';
+            }
+            input.value = '';
+        }
+
         function addServiceLocation() {
             const id = Date.now();
             serviceLocations.push({
@@ -8186,6 +8271,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <p style="margin-bottom: 0.75rem;"><strong>Notes:</strong><br>\${client.notes || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem; color: #718096; font-size: 0.875rem;"><strong>Added:</strong> \${new Date(client.createdAt).toLocaleDateString()}</p>
                 \${client.smsOptOut ? '<p style="margin-bottom:0.75rem;"><span style="background:#fed7d7;color:#742a2a;padding:2px 10px;border-radius:6px;font-size:0.8rem;font-weight:700;">🚫 SMS opt-out</span></p>' : ''}
+                \${client.taxExempt ? '<p style="margin-bottom:0.75rem;"><span style="background:#c6f6d5;color:#22543d;padding:2px 10px;border-radius:6px;font-size:0.8rem;font-weight:700;">🧾 Tax Exempt' + (client.taxExemptNumber ? ' · ST-5 #' + client.taxExemptNumber : '') + '</span>' + (client.taxExemptDoc ? ' <a href="#" onclick="viewStoredFile(event, \'' + client.taxExemptDoc + '\')" style="color:#3182ce;font-size:0.82rem;margin-left:0.4rem;">View ST-5</a>' : '') + '</p>' : ''}
             \`;
 
             // Reset to Jobs tab and load this client's quote history
@@ -8844,6 +8930,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function handleQuoteClientChange() {
             const clientId = document.getElementById('quoteClientSelect').value;
             const client = clients.find(c => (c.id == clientId || c._id == clientId));
+
+            // Tax-exempt client → auto-check "Tax Exempt" on the quote
+            const _qtw = document.getElementById('quoteTaxWaivedCheckbox');
+            if (_qtw && client && client.taxExempt && !_qtw.checked) {
+                _qtw.checked = true;
+                if (typeof updateQuoteTotal === 'function') updateQuoteTotal();
+            }
 
             const serviceLocationGroup = document.getElementById('quoteServiceLocationGroup');
             const serviceLocationSelect = document.getElementById('quoteServiceLocationSelect');

@@ -2763,11 +2763,38 @@ app.get('/api/clients', isAuthenticated, async (req, res) => {
     res.json(clientsWithId);
 });
 
+// When a client becomes tax-exempt, waive tax on their OPEN (not yet invoiced)
+// jobs & quotes and recompute totals. Invoiced/paid records are left untouched.
+async function applyClientTaxExempt(clientId) {
+    const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+    const sub = (labor, material) =>
+        (labor || []).reduce((s, i) => s + (parseFloat(i.hours) || 0) * (parseFloat(i.rate) || 0), 0) +
+        (material || []).reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.price) || 0), 0);
+    const idMatch = { $in: [clientId, String(clientId)] };
+
+    const openJobStatuses = ['prospecting', 'to_be_scheduled', 'scheduled', 'in_progress'];
+    const jobs = await db.collection('jobs').find({ clientId: idMatch, status: { $in: openJobStatuses }, taxWaived: { $ne: true } }).toArray();
+    for (const j of jobs) {
+        const total = r2(sub(j.laborItems, j.materialItems));
+        const paid = parseFloat(j.totalPaid) || 0;
+        await db.collection('jobs').updateOne({ _id: j._id }, { $set: { taxWaived: true, total, balanceOwed: r2(total - paid), updatedAt: new Date() } });
+    }
+
+    const openQuoteStatuses = ['draft', 'pending_pricing', 'sent', 'in_review'];
+    const quotes = await db.collection('quotes').find({ clientId: idMatch, status: { $in: openQuoteStatuses }, taxWaived: { $ne: true } }).toArray();
+    for (const q of quotes) {
+        const subtotal = r2(sub(q.laborItems, q.materialItems));
+        await db.collection('quotes').updateOne({ _id: q._id }, { $set: { taxWaived: true, subtotal, tax: 0, total: subtotal, updatedAt: new Date() } });
+    }
+    return { jobs: jobs.length, quotes: quotes.length };
+}
+
 app.post('/api/clients', isAuthenticated, async (req, res) => {
     const client = req.body;
 
     // Normalize email so login lookup always matches
     if (client.email) client.email = client.email.toLowerCase().trim();
+    client.taxExempt = client.taxExempt === true || client.taxExempt === 'on' || client.taxExempt === 'true';
 
     // Hash portal password if provided
     if (client.portalPassword) {
@@ -2779,14 +2806,21 @@ app.post('/api/clients', isAuthenticated, async (req, res) => {
 
     if (client._id) {
         const { _id, ...updateData } = client;
+        const before = await db.collection('clients').findOne({ _id: new ObjectId(_id) });
         await db.collection('clients').updateOne(
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
         );
-        res.json({ success: true, id: _id });
+        // Newly tax-exempt → cascade to their open jobs & quotes
+        let cascaded = null;
+        if (updateData.taxExempt && !(before && before.taxExempt)) {
+            cascaded = await applyClientTaxExempt(new ObjectId(_id));
+        }
+        res.json({ success: true, id: _id, cascaded });
     } else {
         client.createdAt = new Date();
         const result = await db.collection('clients').insertOne(client);
+        if (client.taxExempt) { try { await applyClientTaxExempt(result.insertedId); } catch (e) {} }
         res.json({ success: true, id: result.insertedId.toString() });
     }
 });
@@ -6540,8 +6574,8 @@ app.get('/invoice/:jobId', async (req, res) => {
         }
     }
 
-    // Calculate tax (0 if waived)
-    const taxWaived = job.taxWaived || false;
+    // Calculate tax (0 if waived on the job OR the client is tax-exempt)
+    const taxWaived = job.taxWaived || (client && client.taxExempt) || false;
     const tax = taxWaived ? 0 : subtotal * (settings.taxRate || 0.06625);
     const total = subtotal + tax;
 
@@ -6739,7 +6773,7 @@ app.get('/invoice/:jobId', async (req, res) => {
             <span>$${formatMoney(subtotal)}</span>
         </div>
         <div class="totals-row">
-            <span>Tax ${taxWaived ? '(EXEMPT)' : `(${((settings.taxRate || 0.06625) * 100).toFixed(3)}%)`}:</span>
+            <span>Tax ${taxWaived ? ((client && client.taxExempt) ? `(EXEMPT — ST-5${client.taxExemptNumber ? ' #' + client.taxExemptNumber : ''} on file)` : '(EXEMPT)') : `(${((settings.taxRate || 0.06625) * 100).toFixed(3)}%)`}:</span>
             <span>$${formatMoney(tax)}</span>
         </div>
         <div class="totals-row total">
