@@ -2031,7 +2031,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
                     <h2>🎁 Gift Cards</h2>
                     <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-                        <a href="/gift-cards" target="_blank" class="btn btn-secondary">↗ Public purchase page</a>
+                        <a href="/gift-cards" target="_blank" class="btn btn-secondary">↗ Purchase page</a>
+                        <a href="/gift-cards/balance" target="_blank" class="btn btn-secondary">↗ Balance check</a>
                         <button class="btn btn-secondary" onclick="loadGiftCards()">🔄 Refresh</button>
                         <button class="btn btn-primary" onclick="openRedeemGiftCard()">➕ Redeem a card</button>
                     </div>

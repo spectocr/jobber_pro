@@ -9637,7 +9637,7 @@ app.get('/gift-cards', async (req, res) => {
     const wrap = (inner) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Cards — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}.card{background:white;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.2rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:0.9rem 0 0.35rem;}input.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.amts{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;}.amt{flex:1;min-width:70px;padding:0.7rem;border:2px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:700;color:#4a5568;cursor:pointer;text-align:center;}.amt.sel{border-color:#667eea;background:#eef0fb;color:#667eea;}.clover-field{height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;margin-bottom:0.5rem;}.clover-field iframe{width:100%!important;height:46px!important;border:none!important;}.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;}#payError{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin:0.75rem 0;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;cursor:not-allowed;}.secure{text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem;}.roundup{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:0.9rem 1rem;margin-top:1rem;}.rbtns{display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;}.rb{flex:1;min-width:60px;padding:0.5rem;border:1.5px solid #9ae6b4;border-radius:7px;background:#fff;font-weight:700;color:#276749;cursor:pointer;font-size:0.85rem;}.rb.sel{background:#38a169;color:#fff;border-color:#38a169;}</style></head><body><div class="card"><div class="header"><h1>🎁 ${companyName} Gift Card</h1><p>Give the gift of a job well done</p></div><div class="body">${inner}</div></div></body></html>`;
 
     if (!settings.giftCardsEnabled) {
-        return res.send(wrap('<div style="text-align:center;padding:1.5rem 0;"><div style="font-size:2.5rem;">🎁</div><h2 style="color:#1a202c;margin:0.75rem 0;">Coming soon</h2><p style="color:#718096;">Gift cards will be available shortly — check back soon!</p></div>'));
+        return res.send(wrap('<div style="text-align:center;padding:1.5rem 0;"><div style="font-size:2.5rem;">🎁</div><h2 style="color:#1a202c;margin:0.75rem 0;">Coming soon</h2><p style="color:#718096;">Gift cards will be available shortly — check back soon!</p><p style="margin-top:1.25rem;"><a href="/gift-cards/balance" style="color:#667eea;font-weight:600;">Check a gift card balance →</a></p></div>'));
     }
 
     const roundUpOn = !!settings.giftCardRoundUp && !!settings.roundUpCharity;
@@ -9665,6 +9665,7 @@ app.get('/gift-cards', async (req, res) => {
         <label class="fld" style="margin-top:0;">ZIP</label><div id="card-postal-code" class="clover-field"></div>
         <button class="btn" id="payBtn" onclick="submitGift()">Purchase Gift Card</button>
         <div class="secure">🔒 Secure payment via Clover</div>
+        <div style="text-align:center;margin-top:0.5rem;"><a href="/gift-cards/balance" style="color:#667eea;font-size:0.82rem;">Check a gift card balance →</a></div>
         <script src="https://checkout.clover.com/sdk.js"></script>
         <script>
             var clover = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
@@ -9698,6 +9699,45 @@ app.get('/gift-cards', async (req, res) => {
             }
         </script>
     `));
+});
+
+// Public: check a gift card balance (rate-limited to deter code guessing)
+app.post('/api/gift-cards/check', publicApiLimiter, async (req, res) => {
+    const code = (req.body.code || '').toUpperCase().trim();
+    if (!code) return res.json({ found: false });
+    const card = await db.collection('gift_cards').findOne({ code });
+    if (!card || card.status === 'void') return res.json({ found: false });
+    res.json({ found: true, code: card.code, balance: card.balance, initialAmount: card.initialAmount, status: card.status });
+});
+
+// Public: gift card balance-check page (works even when sales are disabled)
+app.get('/gift-cards/balance', async (req, res) => {
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.appName || settings.companyName || 'GSD Property Services';
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Card Balance — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}.card{background:white;border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.25rem;}.body{padding:1.75rem 2rem;}label{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin-bottom:0.4rem;}input{width:100%;padding:0.75rem 0.9rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:1rem;font-family:monospace;letter-spacing:0.06em;text-transform:uppercase;}.btn{width:100%;height:48px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;}#result{margin-top:1.25rem;display:none;}.bal{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:12px;padding:1.5rem;text-align:center;}.bal .amt{font-size:2.5rem;font-weight:800;color:#22543d;}.err{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.75rem;border-radius:8px;font-size:0.9rem;text-align:center;}</style></head><body><div class="card"><div class="header"><h1>🎁 ${companyName}</h1><p style="opacity:0.85;font-size:0.9rem;margin-top:0.2rem;">Gift Card Balance</p></div><div class="body">
+        <label>Gift Card Code</label>
+        <input id="code" placeholder="GSD-XXXX-XXXX" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();checkBal();}">
+        <button class="btn" id="btn" onclick="checkBal()">Check Balance</button>
+        <div id="result"></div>
+        <script>
+            async function checkBal(){
+                var code = document.getElementById('code').value.trim();
+                var out = document.getElementById('result'), btn = document.getElementById('btn');
+                if(!code){ return; }
+                btn.disabled = true; btn.textContent = 'Checking...';
+                out.style.display='none';
+                try{
+                    var resp = await fetch('/api/gift-cards/check', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code }) });
+                    var d = await resp.json();
+                    if(!d.found){ out.innerHTML = '<div class="err">No active gift card found for that code. Double-check and try again.</div>'; }
+                    else if(d.status === 'depleted' || d.balance <= 0){ out.innerHTML = '<div class="bal" style="background:#f7fafc;border-color:#e2e8f0;"><div class="amt" style="color:#718096;">$0.00</div><p style="color:#718096;margin-top:0.5rem;">This card has been fully used.</p></div>'; }
+                    else { out.innerHTML = '<div class="bal"><div style="font-size:0.8rem;color:#276749;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Available Balance</div><div class="amt">$'+Number(d.balance).toFixed(2)+'</div><p style="color:#276749;margin-top:0.5rem;font-size:0.85rem;">Mention this code when you book. Never expires.</p></div>'; }
+                    out.style.display='block';
+                }catch(e){ out.innerHTML = '<div class="err">Something went wrong. Please try again.</div>'; out.style.display='block'; }
+                btn.disabled=false; btn.textContent='Check Balance';
+            }
+        </script>
+    </div></div></body></html>`);
 });
 
 // Purchase (public)
@@ -9747,7 +9787,7 @@ app.post('/api/gift-cards/purchase', async (req, res) => {
                 </div>
                 <p style="color:#374151;margin-top:18px;">Hi ${recipientName}, ${buyerName} sent you a gift card good toward any GSD Property Services work.</p>
                 ${message ? `<p style="background:#f8fafc;border-left:3px solid #667eea;padding:10px 14px;color:#4a5568;font-style:italic;border-radius:0 6px 6px 0;">"${String(message).replace(/</g, '&lt;')}"</p>` : ''}
-                <p style="color:#6b7280;font-size:0.85rem;margin-top:16px;">To redeem, just mention this code when you book. Balance never expires. Questions? Call 856-872-4636.</p>
+                <p style="color:#6b7280;font-size:0.85rem;margin-top:16px;">To redeem, just mention this code when you book. Balance never expires. Check your balance anytime at <a href="${process.env.APP_URL || 'https://app.gsdhandymanservice.com'}/gift-cards/balance" style="color:#667eea;">our balance page</a>. Questions? Call 856-872-4636.</p>
             </div>`;
             emailService.sendEmail({ to: card.recipientEmail, subject: `🎁 You've received a ${companyName} gift card!`, html: cardHtml, text: `You've received a ${companyName} gift card worth ${money(amt)}! Code: ${code}. From: ${buyerName}. ${message || ''}` }).catch(() => {});
             emailService.sendEmail({ to: card.buyerEmail, subject: `Your ${companyName} gift card purchase`, html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#374151;"><h2 style="color:#667eea;">Thank you, ${buyerName}!</h2><p>Your gift card was purchased and emailed to ${recipientName} (${card.recipientEmail}).</p><table style="margin-top:12px;font-size:0.95rem;"><tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Gift card</td><td><strong>${money(amt)}</strong></td></tr>${roundUpAmt ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Round-up (${settings.roundUpCharity})</td><td>${money(roundUpAmt)}</td></tr>` : ''}${feeAmt ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Processing fee</td><td>${money(feeAmt)}</td></tr>` : ''}<tr><td style="padding:8px 12px 4px 0;color:#111;border-top:1px solid #e5e7eb;"><strong>Total charged</strong></td><td style="border-top:1px solid #e5e7eb;padding-top:8px;"><strong>${money(chargeTotal)}</strong></td></tr></table><p style="color:#9ca3af;font-size:0.8rem;margin-top:16px;">Code: ${code}</p></div>`, text: `Thank you ${buyerName}! Gift card ${money(amt)} sent to ${recipientName}. Total charged ${money(chargeTotal)}. Code: ${code}` }).catch(() => {});
