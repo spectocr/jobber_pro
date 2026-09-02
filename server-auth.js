@@ -9610,6 +9610,24 @@ app.post('/api/deposit/pay', async (req, res) => {
 });
 
 // ═══════════════════════ Gift Cards ═══════════════════════
+const GIFT_CARD_TERMS = [
+    ['Redemption', 'This gift card is redeemable toward labor and services provided by GSD Property Services (GSD Home Improvement &amp; Property Services) within our South Jersey service area. Provide your gift card code when you book or pay.'],
+    ['No expiration, no fees', 'Your gift card balance never expires and is never subject to any dormancy, inactivity, or service fees.'],
+    ['Unused balance', 'Any remaining balance stays on the card for future services. You can check your balance anytime at gsdhandymanservice.com/gift-cards/balance.'],
+    ['Not for cash', 'Gift cards are not redeemable or refundable for cash except where required by law, and cannot be used to purchase other gift cards.'],
+    ['Treat it like cash', 'Please protect your gift card code. Lost, stolen, or improperly used balances will not be replaced without valid proof of purchase.'],
+    ['Purchases are final', 'Gift card purchases are non-refundable. The card is transferable to a recipient of the buyer&rsquo;s choosing.'],
+    ['Scheduling', 'Redemption is subject to scheduling availability and the scope of services we offer; a gift card does not guarantee a specific appointment date.'],
+    ['Issuer', 'Gift cards are issued by GSD Property Services, Marlton, NJ. Questions? Call 856-872-4636 or email info@gsdhandymanservice.com.']
+];
+
+app.get('/gift-cards/terms', async (req, res) => {
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.appName || settings.companyName || 'GSD Property Services';
+    const items = GIFT_CARD_TERMS.map((t, i) => `<li style="margin-bottom:0.9rem;line-height:1.55;"><strong>${i + 1}. ${t[0]}.</strong> ${t[1]}</li>`).join('');
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Card Terms — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6fa;color:#2d3748;padding:2rem 1rem;line-height:1.5;}.wrap{max-width:640px;margin:0 auto;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.08);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:1.75rem 2rem;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.25rem;}.body{padding:1.75rem 2rem;}ol{padding-left:1.25rem;color:#4a5568;font-size:0.94rem;}.foot{margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e2e8f0;font-size:0.8rem;color:#a0aec0;}a{color:#667eea;}</style></head><body><div class="wrap"><div class="header"><h1>🎁 Gift Card Terms &amp; Conditions</h1><p>${companyName}</p></div><div class="body"><ol>${items}</ol><div class="foot">Last updated ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. <a href="/gift-cards/balance">Check a balance</a></div></div></div></body></html>`);
+});
+
 function generateGiftCode() {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I/L
     const rand = n => Array.from({ length: n }, () => chars[crypto.randomInt(0, chars.length)]).join('');
@@ -9663,6 +9681,10 @@ app.get('/gift-cards', async (req, res) => {
         <label class="fld" style="margin-top:1.1rem;">Card Number</label><div id="card-number" class="clover-field"></div>
         <div class="pay-row"><div><label class="fld" style="margin-top:0;">Expiry</label><div id="card-date" class="clover-field"></div></div><div><label class="fld" style="margin-top:0;">CVV</label><div id="card-cvv" class="clover-field"></div></div></div>
         <label class="fld" style="margin-top:0;">ZIP</label><div id="card-postal-code" class="clover-field"></div>
+        <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:0.82rem;color:#4a5568;margin-top:1rem;cursor:pointer;line-height:1.4;">
+            <input type="checkbox" id="agreeTerms" style="width:16px;height:16px;margin-top:1px;accent-color:#667eea;flex-shrink:0;">
+            <span>I agree to the <a href="/gift-cards/terms" target="_blank" style="color:#667eea;">Gift Card Terms &amp; Conditions</a> — balance never expires, no fees, not redeemable for cash.</span>
+        </label>
         <button class="btn" id="payBtn" onclick="submitGift()">Purchase Gift Card</button>
         <div class="secure">🔒 Secure payment via Clover</div>
         <div style="text-align:center;margin-top:0.5rem;"><a href="/gift-cards/balance" style="color:#667eea;font-size:0.82rem;">Check a gift card balance →</a></div>
@@ -9687,11 +9709,12 @@ app.get('/gift-cards', async (req, res) => {
                 if (!(amt>=10 && amt<=2000)) { err.textContent='Please choose an amount between $10 and $2000.'; err.style.display='block'; return; }
                 var bn=document.getElementById('buyerName').value.trim(), be=document.getElementById('buyerEmail').value.trim(), rn=document.getElementById('recipientName').value.trim(), re=document.getElementById('recipientEmail').value.trim();
                 if(!bn||!be||!rn||!re){ err.textContent='Please fill in your info and the recipient\\'s name & email.'; err.style.display='block'; return; }
+                if(!document.getElementById('agreeTerms').checked){ err.textContent='Please agree to the Gift Card Terms & Conditions to continue.'; err.style.display='block'; return; }
                 btn.disabled=true; btn.textContent='Processing...';
                 try{
                     var result = await clover.createToken();
                     if(!result.token){ err.textContent='Card error: ' + (result.errors ? Object.values(result.errors).join(', ') : 'check your card details'); err.style.display='block'; btn.disabled=false; updateBtn(); return; }
-                    var resp = await fetch('/api/gift-cards/purchase', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: result.token, amount: amt, roundUp: roundUp, buyerName: bn, buyerEmail: be, recipientName: rn, recipientEmail: re, message: document.getElementById('giftMessage').value.trim() }) });
+                    var resp = await fetch('/api/gift-cards/purchase', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: result.token, amount: amt, roundUp: roundUp, buyerName: bn, buyerEmail: be, recipientName: rn, recipientEmail: re, message: document.getElementById('giftMessage').value.trim(), agreedToTerms: true }) });
                     var data = await resp.json();
                     if(!resp.ok){ err.textContent = data.error || 'Payment failed'; err.style.display='block'; btn.disabled=false; updateBtn(); return; }
                     document.querySelector('.body').innerHTML = '<div style="text-align:center;padding:1.5rem 0;"><div style="font-size:2.8rem;">🎉</div><h2 style="color:#22543d;margin:0.75rem 0;">Gift Card Purchased!</h2><p style="color:#4a5568;">We emailed the card to <strong>'+rn+'</strong> and a receipt to you. Thank you!</p><div style="margin-top:1rem;background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:0.9rem;font-size:0.9rem;color:#276749;">Code: <strong>'+data.code+'</strong></div></div>';
@@ -9719,6 +9742,7 @@ app.get('/gift-cards/balance', async (req, res) => {
         <input id="code" placeholder="GSD-XXXX-XXXX" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();checkBal();}">
         <button class="btn" id="btn" onclick="checkBal()">Check Balance</button>
         <div id="result"></div>
+        <div style="text-align:center;margin-top:1rem;"><a href="/gift-cards/terms" style="color:#94a3b8;font-size:0.8rem;">Gift Card Terms &amp; Conditions</a></div>
         <script>
             async function checkBal(){
                 var code = document.getElementById('code').value.trim();
@@ -9745,7 +9769,8 @@ app.post('/api/gift-cards/purchase', async (req, res) => {
     try {
         const settings = await db.collection('settings').findOne() || {};
         if (!settings.giftCardsEnabled) return res.status(400).json({ error: 'Gift cards are not available right now.' });
-        const { token, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, roundUp } = req.body;
+        const { token, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, roundUp, agreedToTerms } = req.body;
+        if (!agreedToTerms) return res.status(400).json({ error: 'You must agree to the gift card terms to purchase.' });
         const amt = Math.round((parseFloat(amount) || 0) * 100) / 100;
         if (!token) return res.status(400).json({ error: 'Missing payment details' });
         if (!(amt >= 10 && amt <= 2000)) return res.status(400).json({ error: 'Amount must be between $10 and $2000' });
@@ -9771,6 +9796,7 @@ app.post('/api/gift-cards/purchase', async (req, res) => {
             status: 'active', chargeId: charge.id,
             last4: (charge.source && charge.source.last4) || null,
             cardBrand: (charge.source && charge.source.brand) || null,
+            agreedToTerms: true, agreedAt: new Date(),
             redemptions: [], createdAt: new Date()
         };
         await db.collection('gift_cards').insertOne(card);
@@ -9788,6 +9814,7 @@ app.post('/api/gift-cards/purchase', async (req, res) => {
                 <p style="color:#374151;margin-top:18px;">Hi ${recipientName}, ${buyerName} sent you a gift card good toward any GSD Property Services work.</p>
                 ${message ? `<p style="background:#f8fafc;border-left:3px solid #667eea;padding:10px 14px;color:#4a5568;font-style:italic;border-radius:0 6px 6px 0;">"${String(message).replace(/</g, '&lt;')}"</p>` : ''}
                 <p style="color:#6b7280;font-size:0.85rem;margin-top:16px;">To redeem, just mention this code when you book. Balance never expires. Check your balance anytime at <a href="${process.env.APP_URL || 'https://app.gsdhandymanservice.com'}/gift-cards/balance" style="color:#667eea;">our balance page</a>. Questions? Call 856-872-4636.</p>
+                <p style="color:#9ca3af;font-size:0.78rem;margin-top:8px;"><a href="${process.env.APP_URL || 'https://app.gsdhandymanservice.com'}/gift-cards/terms" style="color:#9ca3af;">Gift Card Terms &amp; Conditions</a></p>
             </div>`;
             emailService.sendEmail({ to: card.recipientEmail, subject: `🎁 You've received a ${companyName} gift card!`, html: cardHtml, text: `You've received a ${companyName} gift card worth ${money(amt)}! Code: ${code}. From: ${buyerName}. ${message || ''}` }).catch(() => {});
             emailService.sendEmail({ to: card.buyerEmail, subject: `Your ${companyName} gift card purchase`, html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#374151;"><h2 style="color:#667eea;">Thank you, ${buyerName}!</h2><p>Your gift card was purchased and emailed to ${recipientName} (${card.recipientEmail}).</p><table style="margin-top:12px;font-size:0.95rem;"><tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Gift card</td><td><strong>${money(amt)}</strong></td></tr>${roundUpAmt ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Round-up (${settings.roundUpCharity})</td><td>${money(roundUpAmt)}</td></tr>` : ''}${feeAmt ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Processing fee</td><td>${money(feeAmt)}</td></tr>` : ''}<tr><td style="padding:8px 12px 4px 0;color:#111;border-top:1px solid #e5e7eb;"><strong>Total charged</strong></td><td style="border-top:1px solid #e5e7eb;padding-top:8px;"><strong>${money(chargeTotal)}</strong></td></tr></table><p style="color:#9ca3af;font-size:0.8rem;margin-top:16px;">Code: ${code}</p></div>`, text: `Thank you ${buyerName}! Gift card ${money(amt)} sent to ${recipientName}. Total charged ${money(chargeTotal)}. Code: ${code}` }).catch(() => {});
