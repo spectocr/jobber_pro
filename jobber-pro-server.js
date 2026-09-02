@@ -1405,6 +1405,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <button class="nav-btn" id="admin-menu-btn" onclick="toggleAdminMenu(event)">⚙️ Admin ▾</button>
             <div id="admin-dropdown" class="admin-dropdown" style="display:none;">
                 <button class="nav-btn admin-item" onclick="showView('team')">👷 Team</button>
+                <button class="nav-btn admin-item" onclick="showView('applications')">📝 Applications</button>
                 <button class="nav-btn admin-item" onclick="showView('timeclock')">⏱️ Time Clock</button>
                 <div class="admin-group-label" onclick="toggleAdminGroup('money-group', this)">
                     💰 Money <span id="money-group-icon">▶</span>
@@ -2040,6 +2041,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
                 <div id="giftcards-summary" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;"></div>
                 <div id="giftcards-list"><div class="empty-state"><p>Loading…</p></div></div>
+            </div>
+        </div>
+
+        <div id="applications" class="view">
+            <div class="card">
+                <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+                    <h2>📝 Job Applications</h2>
+                    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <a href="/apply" target="_blank" class="btn btn-secondary">↗ Public apply page</a>
+                        <button class="btn btn-secondary" onclick="loadApplications()">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div id="applications-list"><div class="empty-state"><p>Loading…</p></div></div>
             </div>
         </div>
 
@@ -4720,6 +4734,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'payroll') { loadPayrollCompliance(); applyPayrollPreset(); }
             if (viewName === 'taxes') { populateTaxYears(); loadTaxes(); populateMileageYears(); loadMileageReport(); }
             if (viewName === 'giftcards') loadGiftCards();
+            if (viewName === 'applications') loadApplications();
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -5737,6 +5752,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const form = document.getElementById('teamForm');
             currentEditingTeamId = null;
+            _hiringFromAppId = null; // cleared here; acceptApplication() sets it after this returns
 
             // Reset login section to defaults
             document.getElementById('createUserLogin').checked = false;
@@ -7443,6 +7459,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     alert('Team member saved and user login created!\\n\\nEmail: ' + loginEmail + '\\nThey can now log in to clock in/out.');
                 } else if (member.updateUserLogin) {
                     alert('Team member and login updated successfully!');
+                }
+
+                // Hiring bridge: link the application, then offer onboarding
+                if (_hiringFromAppId && result && result.id) {
+                    const appId = _hiringFromAppId; _hiringFromAppId = null;
+                    try { await fetch('/api/applications/' + appId + '/hire', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamMemberId: result.id }) }); } catch (e) {}
+                    if (typeof loadApplications === 'function') loadApplications();
+                    if (confirm('🎉 Hired! Send them the onboarding paperwork invite now?')) {
+                        if (typeof sendOnboardingInvite === 'function') sendOnboardingInvite(result.id);
+                    }
                 }
             } catch (error) {
                 alert('Error: ' + error.message);
@@ -17430,6 +17456,71 @@ function formatDuration(seconds) {
                 alert('Applied ' + _usd(d.applied) + '. Remaining on card: ' + _usd(d.remaining));
                 loadGiftCards();
             } catch (e) { alert('Redemption failed.'); }
+        }
+
+        // ── Job Applications (admin) ──
+        let _applications = [];
+        let _hiringFromAppId = null;
+        async function loadApplications() {
+            const box = document.getElementById('applications-list');
+            box.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+            try { _applications = await (await fetch('/api/applications')).json(); }
+            catch (e) { box.innerHTML = '<div class="empty-state"><p>Failed to load applications.</p></div>'; return; }
+            renderApplications();
+        }
+        function renderApplications() {
+            const box = document.getElementById('applications-list');
+            if (!_applications.length) { box.innerHTML = '<div class="empty-state"><p>No applications yet. Share your <a href="/apply" target="_blank">apply page</a>.</p></div>'; return; }
+            const active = _applications.filter(a => !['hired', 'rejected'].includes(a.status));
+            const archived = _applications.filter(a => ['hired', 'rejected'].includes(a.status));
+            const statusColor = { new: '#3b82f6', reviewing: '#f59e0b', interview: '#8b5cf6', offer: '#0ea5e9', hired: '#10b981', rejected: '#6b7280' };
+            const yn = v => v ? '✓' : '✗';
+            const card = a => {
+                const date = new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const color = statusColor[a.status] || '#6b7280';
+                return '<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:0.9rem;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">' +
+                        '<div><div style="font-size:1.1rem;font-weight:700;color:#2d3748;">' + escapeSmsText(a.name) + '</div>' +
+                        '<div style="color:#4a5568;font-weight:600;">' + escapeSmsText(a.position) + (a.experienceYears ? ' · ' + escapeSmsText(String(a.experienceYears)) + ' yrs' : '') + '</div></div>' +
+                        '<span style="background:' + color + ';color:#fff;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;text-transform:uppercase;white-space:nowrap;">' + a.status + '</span>' +
+                    '</div>' +
+                    '<div style="color:#718096;font-size:0.85rem;margin-top:0.5rem;">📞 <a href="tel:' + escapeSmsText(a.phone) + '" style="color:#1d6fa4;">' + escapeSmsText(a.phone) + '</a>' + (a.email ? ' · ' + escapeSmsText(a.email) : '') + ' · 📅 ' + date + '</div>' +
+                    (a.trades && a.trades.length ? '<div style="color:#4a5568;font-size:0.85rem;margin-top:0.35rem;">🛠 ' + a.trades.map(escapeSmsText).join(', ') + '</div>' : '') +
+                    '<div style="color:#718096;font-size:0.82rem;margin-top:0.35rem;">Transport ' + yn(a.hasTransportation) + ' · License ' + yn(a.hasLicense) + ' · Tools ' + yn(a.hasTools) + ' · Authorized ' + yn(a.authorizedToWork) + (a.availability ? ' · ' + escapeSmsText(a.availability) : '') + '</div>' +
+                    (a.message ? '<div style="color:#4a5568;font-size:0.85rem;padding:0.5rem 0.6rem;background:#f8f9fa;border-radius:6px;margin-top:0.5rem;font-style:italic;">"' + escapeSmsText(a.message) + '"</div>' : '') +
+                    '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-top:0.75rem;">' +
+                        (a.resumeKey ? '<button onclick="viewStoredFile(event,\'' + a.resumeKey + '\')" class="btn btn-secondary btn-small">📎 Résumé</button>' : '') +
+                        '<select onchange="updateApplicationStatus(\'' + a.id + '\',this.value)" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;background:white;">' +
+                            ['new', 'reviewing', 'interview', 'offer', 'rejected'].map(s => '<option value="' + s + '" ' + (a.status === s ? 'selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>').join('') +
+                        '</select>' +
+                        (a.status !== 'hired' ? '<button onclick="acceptApplication(\'' + a.id + '\')" class="btn btn-primary btn-small">✅ Accept &amp; Hire</button>' : '<span style="color:#10b981;font-weight:700;font-size:0.85rem;">✅ Hired</span>') +
+                        '<button onclick="deleteApplication(\'' + a.id + '\')" class="btn btn-danger btn-small">🗑</button>' +
+                    '</div>' +
+                '</div>';
+            };
+            let html = active.length ? active.map(card).join('') : '<p style="color:#718096;padding:0.75rem 0;">No open applications.</p>';
+            if (archived.length) html += '<details style="margin-top:1.5rem;"><summary style="cursor:pointer;font-weight:700;color:#4a5568;padding:0.6rem 0.75rem;background:#f1f5f9;border-radius:8px;list-style:none;">▶ Hired / Rejected (' + archived.length + ')</summary><div style="margin-top:1rem;">' + archived.map(card).join('') + '</div></details>';
+            box.innerHTML = html;
+        }
+        async function updateApplicationStatus(id, status) {
+            try { await fetch('/api/applications/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status }) }); loadApplications(); }
+            catch (e) { alert('Failed to update status.'); }
+        }
+        async function deleteApplication(id) {
+            if (!confirm('Delete this application permanently?')) return;
+            try { await fetch('/api/applications/' + id, { method: 'DELETE' }); loadApplications(); }
+            catch (e) { alert('Failed to delete.'); }
+        }
+        async function acceptApplication(id) {
+            const a = _applications.find(x => x.id === id);
+            if (!a) return;
+            await openTeamModal();               // fresh new-member form
+            _hiringFromAppId = id;               // set AFTER (openTeamModal clears it)
+            const f = document.getElementById('teamForm');
+            if (f.elements.name) f.elements.name.value = a.name || '';
+            if (f.elements.email) f.elements.email.value = a.email || '';
+            if (f.elements.phone) f.elements.phone.value = a.phone || '';
+            const t = document.getElementById('teamModalTitle'); if (t) t.textContent = 'Hire — ' + (a.name || 'New Team Member');
         }
 
         async function loadTaxes() {

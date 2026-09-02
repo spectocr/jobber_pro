@@ -867,7 +867,7 @@ const publicApiLimiter = rateLimit({
 });
 
 // Body parsing — 50mb for upload routes, 10kb everywhere else
-const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/client-portal/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs', '/api/quotes', '/api/jobs', '/api/taxes/confirmations'];
+const LARGE_BODY_PATHS = ['/api/upload', '/api/public/quote-request', '/api/public/apply', '/api/client-portal/quote-request', '/api/expenses', '/api/settings', '/api/portfolio', '/api/compliance-docs', '/api/quotes', '/api/jobs', '/api/taxes/confirmations'];
 app.use((req, res, next) => {
     const limit = LARGE_BODY_PATHS.some(p => req.path.startsWith(p)) ? '50mb' : '10kb';
     express.json({ limit })(req, res, next);
@@ -4827,13 +4827,143 @@ app.post('/api/team', isAuthenticated, async (req, res) => {
     } else {
         member.createdAt = new Date();
         member.active = true;
-        await db.collection('team').insertOne(member);
+        const ins = await db.collection('team').insertOne(member);
+        return res.json({ success: true, userCreated: userCreated, userUpdated: userUpdated, id: ins.insertedId.toString() });
     }
-    res.json({ success: true, userCreated: userCreated, userUpdated: userUpdated });
+    res.json({ success: true, userCreated: userCreated, userUpdated: userUpdated, id: member._id });
 });
 
 app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
     await db.collection('team').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+});
+
+// ═══════════════════════ Job Applications ═══════════════════════
+const APPLY_POSITIONS = ['Handyman / Technician', 'Helper / Laborer', 'Painter', 'Carpenter', 'Office / Admin', 'Other'];
+const APPLY_TRADES = ['Drywall', 'Painting', 'Plumbing', 'Electrical', 'Carpentry', 'Flooring', 'Tile', 'Gutters', 'Landscaping', 'Pressure Washing', 'General Repair'];
+
+// Public application page
+app.get('/apply', async (req, res) => {
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.appName || settings.companyName || 'GSD Property Services';
+    const posOpts = APPLY_POSITIONS.map(p => '<option>' + p + '</option>').join('');
+    const tradeBoxes = APPLY_TRADES.map(t => '<label class="chk"><input type="checkbox" class="trade" value="' + t + '"> ' + t + '</label>').join('');
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Careers — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;padding:1.5rem 1rem;}.card{background:white;border-radius:16px;max-width:560px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.75rem 2rem;color:white;}.header h1{font-size:1.4rem;}.header p{opacity:0.9;font-size:0.92rem;margin-top:0.3rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:1rem 0 0.35rem;}input.txt,select.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}.chks{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-top:0.4rem;}.chk{font-size:0.9rem;color:#4a5568;display:flex;align-items:center;gap:0.35rem;cursor:pointer;}.chk input,.yn input{width:16px;height:16px;accent-color:#667eea;}.yn{display:flex;align-items:center;gap:0.5rem;font-size:0.92rem;color:#4a5568;margin-top:0.6rem;cursor:pointer;}#err{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem;border-radius:8px;font-size:0.85rem;margin-top:1rem;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1.25rem;}.btn:disabled{opacity:0.6;}</style></head><body><div class="card"><div class="header"><h1>Join the ${companyName} Crew</h1><p>We're hiring skilled, reliable people in South Jersey. Apply below.</p></div><div class="body">
+        <div class="row"><div><label class="fld">First Name *</label><input class="txt" id="firstName"></div><div><label class="fld">Last Name *</label><input class="txt" id="lastName"></div></div>
+        <div class="row"><div><label class="fld">Phone *</label><input class="txt" id="phone" placeholder="(555) 555-5555"></div><div><label class="fld">Email</label><input class="txt" type="email" id="email"></div></div>
+        <label class="fld">Position *</label><select class="txt" id="position"><option value="">Select…</option>${posOpts}</select>
+        <label class="fld">Years of Experience</label><input class="txt" type="number" id="experienceYears" min="0" max="60" placeholder="e.g., 5">
+        <label class="fld">Skills / Trades</label><div class="chks">${tradeBoxes}</div>
+        <label class="yn"><input type="checkbox" id="hasTransportation"> Reliable transportation</label>
+        <label class="yn"><input type="checkbox" id="hasLicense"> Valid driver's license</label>
+        <label class="yn"><input type="checkbox" id="hasTools"> I have my own tools</label>
+        <label class="yn"><input type="checkbox" id="authorizedToWork"> Authorized to work in the U.S.</label>
+        <label class="fld">Availability</label><select class="txt" id="availability"><option value="">Select…</option><option>Full-time</option><option>Part-time</option><option>Weekends</option><option>Flexible</option></select>
+        <label class="fld">Why do you want to work with us?</label><textarea class="txt" id="message" rows="3" placeholder="Tell us a bit about yourself…"></textarea>
+        <label class="fld">Résumé (optional — PDF or image)</label><input type="file" id="resume" accept=".pdf,.doc,.docx,image/*" style="font-size:0.9rem;">
+        <div id="err"></div>
+        <button class="btn" id="btn" onclick="submitApp()">Submit Application</button>
+        <script>
+            async function submitApp(){
+                var btn=document.getElementById('btn'), err=document.getElementById('err');
+                err.style.display='none';
+                var fn=document.getElementById('firstName').value.trim(), ln=document.getElementById('lastName').value.trim(), ph=document.getElementById('phone').value.trim(), pos=document.getElementById('position').value;
+                if(!fn||!ln||!ph||!pos){ err.textContent='Please fill in your name, phone, and the position.'; err.style.display='block'; return; }
+                btn.disabled=true; btn.textContent='Submitting…';
+                var trades=[]; document.querySelectorAll('.trade:checked').forEach(function(c){ trades.push(c.value); });
+                var resumeData=null, resumeName=null, rf=document.getElementById('resume').files[0];
+                try{
+                    if(rf){ if(rf.size>8*1024*1024){ err.textContent='Résumé is too large (max 8MB).'; err.style.display='block'; btn.disabled=false; btn.textContent='Submit Application'; return; } resumeData=await new Promise(function(rs){var r=new FileReader();r.onload=function(){rs(r.result);};r.readAsDataURL(rf);}); resumeName=rf.name; }
+                    var body={ firstName:fn, lastName:ln, phone:ph, email:document.getElementById('email').value.trim(), position:pos, experienceYears:document.getElementById('experienceYears').value, trades:trades, hasTransportation:document.getElementById('hasTransportation').checked, hasLicense:document.getElementById('hasLicense').checked, hasTools:document.getElementById('hasTools').checked, authorizedToWork:document.getElementById('authorizedToWork').checked, availability:document.getElementById('availability').value, message:document.getElementById('message').value.trim(), resumeData:resumeData, resumeName:resumeName };
+                    var resp=await fetch('/api/public/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+                    var d=await resp.json();
+                    if(!resp.ok){ err.textContent=d.error||'Submission failed'; err.style.display='block'; btn.disabled=false; btn.textContent='Submit Application'; return; }
+                    document.querySelector('.body').innerHTML='<div style="text-align:center;padding:2rem 0;"><div style="font-size:2.8rem;">✅</div><h2 style="color:#22543d;margin:0.75rem 0;">Application Received!</h2><p style="color:#4a5568;">Thanks '+fn+' — we got your application and will be in touch if it\\'s a fit. Appreciate your interest!</p></div>';
+                }catch(e){ err.textContent='Something went wrong. Please try again.'; err.style.display='block'; btn.disabled=false; btn.textContent='Submit Application'; }
+            }
+        </script>
+    </div></div></body></html>`);
+});
+
+// Submit application (public)
+app.post('/api/public/apply', publicApiLimiter, async (req, res) => {
+    try {
+        const b = req.body || {};
+        if (!b.firstName || !b.lastName || !b.phone || !b.position) return res.status(400).json({ error: 'Please fill in the required fields.' });
+        let resumeKey = null;
+        if (b.resumeData && typeof b.resumeData === 'string' && b.resumeData.startsWith('data:') && s3Client) {
+            try {
+                const m = b.resumeData.match(/^data:([^;]+);base64,(.+)$/);
+                if (m) {
+                    const ext = (b.resumeName && b.resumeName.includes('.')) ? b.resumeName.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) : 'pdf';
+                    const key = 'applications/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+                    await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: Buffer.from(m[2], 'base64'), ContentType: m[1] }));
+                    resumeKey = key;
+                }
+            } catch (e) { console.error('Résumé upload failed:', e.message); }
+        }
+        const application = {
+            firstName: b.firstName, lastName: b.lastName, name: (b.firstName + ' ' + b.lastName).trim(),
+            email: (b.email || '').toLowerCase().trim(), phone: b.phone,
+            position: b.position, experienceYears: b.experienceYears || '',
+            trades: Array.isArray(b.trades) ? b.trades.slice(0, 20).map(t => String(t).slice(0, 40)) : [],
+            hasTransportation: !!b.hasTransportation, hasLicense: !!b.hasLicense, hasTools: !!b.hasTools,
+            authorizedToWork: !!b.authorizedToWork, availability: b.availability || '',
+            message: (b.message || '').slice(0, 2000),
+            resumeKey, status: 'new', source: 'website', createdAt: new Date()
+        };
+        await db.collection('applications').insertOne(application);
+
+        try {
+            await db.collection('client_messages').insertOne({
+                clientId: null, clientName: application.name, clientEmail: application.email,
+                message: 'New job application — ' + application.position + (application.experienceYears ? ' · ' + application.experienceYears + ' yrs' : '') + (application.trades.length ? '\n\nSkills: ' + application.trades.join(', ') : '') + (application.message ? '\n\n"' + application.message + '"' : ''),
+                subject: 'application', reference: application.phone, createdAt: new Date(), read: false
+            });
+        } catch (e) { /* non-fatal */ }
+        if (emailService.initialized) {
+            const yn = v => v ? 'Yes' : 'No';
+            emailService.sendEmail({
+                to: 'info@gsdhandymanservice.com',
+                subject: '📝 New job application — ' + application.name + ' (' + application.position + ')',
+                html: `<div style="font-family:Arial,sans-serif;max-width:560px;"><h2 style="color:#667eea;">New Job Application</h2><p><strong>${application.name}</strong> — ${application.position}</p><p style="color:#4a5568;line-height:1.6;">📞 ${application.phone}${application.email ? ' · ' + application.email : ''}<br>Experience: ${application.experienceYears || '—'} yrs<br>Skills: ${application.trades.join(', ') || '—'}<br>Transportation: ${yn(application.hasTransportation)} · License: ${yn(application.hasLicense)} · Tools: ${yn(application.hasTools)}<br>Availability: ${application.availability || '—'}<br>Authorized to work: ${yn(application.authorizedToWork)}</p>${application.message ? `<p style="background:#f8fafc;border-left:3px solid #667eea;padding:10px 14px;color:#4a5568;">"${application.message}"</p>` : ''}${resumeKey ? '<p style="color:#276749;">📎 Résumé attached — view it in Admin → Applications.</p>' : ''}<p style="color:#9ca3af;font-size:0.85rem;">Review &amp; hire in Admin → Applications.</p></div>`,
+                text: 'New application: ' + application.name + ' — ' + application.position + ' (' + application.phone + ')'
+            }).catch(() => {});
+        }
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Apply error:', e);
+        res.status(500).json({ error: 'Submission failed. Please try again.' });
+    }
+});
+
+app.get('/api/applications', isAuthenticated, async (req, res) => {
+    const apps = await db.collection('applications').find({}).sort({ createdAt: -1 }).toArray();
+    res.json(apps.map(a => ({
+        id: a._id.toString(), name: a.name, firstName: a.firstName, lastName: a.lastName,
+        email: a.email, phone: a.phone, position: a.position, experienceYears: a.experienceYears,
+        trades: a.trades || [], hasTransportation: a.hasTransportation, hasLicense: a.hasLicense,
+        hasTools: a.hasTools, authorizedToWork: a.authorizedToWork, availability: a.availability,
+        message: a.message, resumeKey: a.resumeKey || null, status: a.status || 'new',
+        note: a.note || '', teamMemberId: a.teamMemberId || null, createdAt: a.createdAt
+    })));
+});
+
+app.patch('/api/applications/:id', isAuthenticated, async (req, res) => {
+    const set = { updatedAt: new Date() };
+    if (req.body.status) set.status = req.body.status;
+    if (req.body.note !== undefined) set.note = req.body.note;
+    await db.collection('applications').updateOne({ _id: new ObjectId(req.params.id) }, { $set: set });
+    res.json({ success: true });
+});
+
+app.post('/api/applications/:id/hire', isAuthenticated, async (req, res) => {
+    await db.collection('applications').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'hired', teamMemberId: req.body.teamMemberId || null, hiredAt: new Date() } });
+    res.json({ success: true });
+});
+
+app.delete('/api/applications/:id', isAuthenticated, async (req, res) => {
+    await db.collection('applications').deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });
 });
 
