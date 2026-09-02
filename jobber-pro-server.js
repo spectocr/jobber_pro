@@ -1413,6 +1413,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="nav-btn admin-sub-item" onclick="showView('payroll')">💼 Payroll</button>
                     <button class="nav-btn admin-sub-item" onclick="showView('taxes')">🧾 Taxes</button>
                     <button class="nav-btn admin-sub-item" onclick="showView('expenses')">💸 Expenses</button>
+                    <button class="nav-btn admin-sub-item" onclick="showView('giftcards')">🎁 Gift Cards</button>
                 </div>
                 <button class="nav-btn admin-item" onclick="showView('vendors')">🏪 Vendors</button>
                 <button class="nav-btn admin-item" onclick="showView('portfolio')">🖼️ Portfolio</button>
@@ -2025,6 +2026,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
         </div>
 
+        <div id="giftcards" class="view">
+            <div class="card">
+                <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+                    <h2>🎁 Gift Cards</h2>
+                    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <a href="/gift-cards" target="_blank" class="btn btn-secondary">↗ Public purchase page</a>
+                        <button class="btn btn-secondary" onclick="loadGiftCards()">🔄 Refresh</button>
+                        <button class="btn btn-primary" onclick="openRedeemGiftCard()">➕ Redeem a card</button>
+                    </div>
+                </div>
+                <div id="giftcards-summary" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;"></div>
+                <div id="giftcards-list"><div class="empty-state"><p>Loading…</p></div></div>
+            </div>
+        </div>
+
         <div id="team" class="view">
             <div class="card">
                 <div class="card-header">
@@ -2628,6 +2644,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <input type="number" name="truckMpg" step="0.1" min="1" placeholder="16">
                             <small style="color: #718096; display: block; margin-top: 0.5rem;">Used to estimate fuel cost per job</small>
                         </div>
+                    </div>
+                    <h3 style="margin: 2rem 0 1rem 0; color: #667eea;">🎁 Gift Cards</h3>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                            <input type="checkbox" id="giftCardsEnabled" style="width:auto;cursor:pointer;">
+                            <span>Enable public gift card sales</span>
+                        </label>
+                        <small style="color:#718096;display:block;margin-top:0.4rem;">When on, anyone can buy a gift card at <strong>/gift-cards</strong>. Test-buy one yourself before advertising it.</small>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                            <input type="checkbox" id="giftCardRoundUp" style="width:auto;cursor:pointer;">
+                            <span>Enable "round up for the cause" at checkout</span>
+                        </label>
+                        <small style="color:#718096;display:block;margin-top:0.4rem;">Only shows if a charity is named below. Off until you're ready.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Round-up Charity / Cause</label>
+                        <input type="text" name="roundUpCharity" id="roundUpCharity" placeholder="e.g., South Jersey German Shepherd Rescue">
+                        <small style="color:#718096;display:block;margin-top:0.4rem;">Name of the 501(c)(3) you'll remit round-up donations to.</small>
                     </div>
                     <div class="form-group">
                         <label>Contract Terms</label>
@@ -4676,6 +4712,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'team') loadTeam();
             if (viewName === 'payroll') { loadPayrollCompliance(); applyPayrollPreset(); }
             if (viewName === 'taxes') { populateTaxYears(); loadTaxes(); populateMileageYears(); loadMileageReport(); }
+            if (viewName === 'giftcards') loadGiftCards();
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -12336,6 +12373,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             form.elements.companyLicense.value = settings.companyLicense || '';
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
             form.elements.taxRatePercent.value = ((settings.taxRate || 0.06625) * 100).toFixed(3);
+            document.getElementById('giftCardsEnabled').checked = !!settings.giftCardsEnabled;
+            document.getElementById('giftCardRoundUp').checked = !!settings.giftCardRoundUp;
+            form.elements.roundUpCharity.value = settings.roundUpCharity || '';
             form.elements.dieselPrice.value = settings.dieselPrice != null ? settings.dieselPrice : 3.85;
             form.elements.truckMpg.value = settings.truckMpg != null ? settings.truckMpg : 16;
             form.elements.contractTerms.value = settings.contractTerms || '';
@@ -12618,6 +12658,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 companyLicense: form.elements.companyLicense.value,
                 hourlyRate: parseFloat(form.elements.hourlyRate.value),
                 taxRate: parseFloat(form.elements.taxRatePercent.value) / 100,
+                giftCardsEnabled: document.getElementById('giftCardsEnabled').checked,
+                giftCardRoundUp: document.getElementById('giftCardRoundUp').checked,
+                roundUpCharity: form.elements.roundUpCharity.value.trim(),
                 dieselPrice: parseFloat(form.elements.dieselPrice.value) || 0,
                 truckMpg: parseFloat(form.elements.truckMpg.value) || 16,
                 companyLogo: document.getElementById('companyLogo').value || null,
@@ -17318,6 +17361,66 @@ function formatDuration(seconds) {
             a.download = 'mileage-log-' + d.year + '.csv';
             a.click();
             setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+        }
+
+        // ── Gift Cards (admin) ──
+        let _giftCards = [];
+        async function loadGiftCards() {
+            const box = document.getElementById('giftcards-list');
+            const sum = document.getElementById('giftcards-summary');
+            box.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+            try {
+                _giftCards = await (await fetch('/api/gift-cards')).json();
+            } catch (e) { box.innerHTML = '<div class="empty-state"><p>Failed to load gift cards.</p></div>'; return; }
+            const active = _giftCards.filter(c => c.status === 'active');
+            const outstanding = active.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0);
+            const sold = _giftCards.filter(c => c.status !== 'void').reduce((s, c) => s + (parseFloat(c.initialAmount) || 0), 0);
+            const roundUps = _giftCards.reduce((s, c) => s + (parseFloat(c.roundUpAmount) || 0), 0);
+            const tile = (label, val, color) => '<div style="flex:1;min-width:150px;background:#f7fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem;"><div style="font-size:0.75rem;color:#718096;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">' + label + '</div><div style="font-size:1.6rem;font-weight:800;color:' + color + ';">' + val + '</div></div>';
+            sum.innerHTML = tile('Total Sold', _usd(sold), '#2d3748') + tile('Outstanding Balance (liability)', _usd(outstanding), '#c9640a') + tile('Round-ups Collected', _usd(roundUps), '#276749');
+            if (!_giftCards.length) { box.innerHTML = '<div class="empty-state"><p>No gift cards yet. Share your <a href="/gift-cards" target="_blank">purchase page</a> once you enable sales in Settings.</p></div>'; return; }
+            const statusColor = { active: '#38a169', depleted: '#718096', void: '#e53e3e' };
+            box.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><thead><tr style="text-align:left;border-bottom:2px solid #e2e8f0;color:#4a5568;font-size:0.8rem;text-transform:uppercase;">' +
+                '<th style="padding:0.5rem 0.6rem;">Code</th><th style="padding:0.5rem 0.6rem;">To</th><th style="padding:0.5rem 0.6rem;">From</th><th style="padding:0.5rem 0.6rem;text-align:right;">Initial</th><th style="padding:0.5rem 0.6rem;text-align:right;">Balance</th><th style="padding:0.5rem 0.6rem;">Status</th><th style="padding:0.5rem 0.6rem;">Date</th><th></th></tr></thead><tbody>' +
+                _giftCards.map(function(c){
+                    return '<tr style="border-bottom:1px solid #edf2f7;">' +
+                        '<td style="padding:0.5rem 0.6rem;font-family:monospace;font-weight:700;">' + c.code + '</td>' +
+                        '<td style="padding:0.5rem 0.6rem;">' + (c.recipientName || '') + '</td>' +
+                        '<td style="padding:0.5rem 0.6rem;color:#718096;">' + (c.buyerName || '') + '</td>' +
+                        '<td style="padding:0.5rem 0.6rem;text-align:right;">' + _usd(c.initialAmount) + '</td>' +
+                        '<td style="padding:0.5rem 0.6rem;text-align:right;font-weight:700;">' + _usd(c.balance) + '</td>' +
+                        '<td style="padding:0.5rem 0.6rem;"><span style="background:' + (statusColor[c.status] || '#718096') + ';color:#fff;padding:2px 9px;border-radius:100px;font-size:0.72rem;font-weight:700;text-transform:uppercase;">' + c.status + '</span></td>' +
+                        '<td style="padding:0.5rem 0.6rem;color:#a0aec0;white-space:nowrap;">' + new Date(c.createdAt).toLocaleDateString() + '</td>' +
+                        '<td style="padding:0.5rem 0.6rem;white-space:nowrap;">' + (c.status === 'active' ? '<button onclick="voidGiftCard(\'' + c.id + '\')" style="padding:0.3rem 0.6rem;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.78rem;cursor:pointer;">Void</button>' : '') + '</td>' +
+                    '</tr>';
+                }).join('') + '</tbody></table></div>';
+        }
+        async function voidGiftCard(id) {
+            if (!confirm('Void this gift card? Its remaining balance can no longer be redeemed.')) return;
+            try { await fetch('/api/gift-cards/' + id + '/void', { method: 'POST' }); loadGiftCards(); }
+            catch (e) { alert('Failed to void card.'); }
+        }
+        async function openRedeemGiftCard() {
+            const code = prompt('Gift card code to redeem:');
+            if (!code) return;
+            let card;
+            try {
+                const res = await fetch('/api/gift-cards/lookup/' + encodeURIComponent(code.trim()));
+                card = await res.json();
+                if (!res.ok) { alert(card.error || 'Card not found'); return; }
+            } catch (e) { alert('Lookup failed.'); return; }
+            if (card.status !== 'active') { alert('That card is ' + card.status + '.'); return; }
+            const jobId = prompt('Apply to which job? Paste the Job ID (from the job record):');
+            if (!jobId) return;
+            const amt = prompt('Amount to apply (balance $' + Number(card.balance).toFixed(2) + '):', Number(card.balance).toFixed(2));
+            if (!amt) return;
+            try {
+                const res = await fetch('/api/gift-cards/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code.trim(), jobId: jobId.trim(), amount: parseFloat(amt) }) });
+                const d = await res.json();
+                if (!res.ok) { alert(d.error || 'Redemption failed'); return; }
+                alert('Applied ' + _usd(d.applied) + '. Remaining on card: ' + _usd(d.remaining));
+                loadGiftCards();
+            } catch (e) { alert('Redemption failed.'); }
         }
 
         async function loadTaxes() {

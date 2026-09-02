@@ -9609,6 +9609,215 @@ app.post('/api/deposit/pay', async (req, res) => {
     }
 });
 
+// ═══════════════════════ Gift Cards ═══════════════════════
+function generateGiftCode() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I/L
+    const rand = n => Array.from({ length: n }, () => chars[crypto.randomInt(0, chars.length)]).join('');
+    return 'GSD-' + rand(4) + '-' + rand(4);
+}
+async function chargeCloverToken(token, amountCents) {
+    const r = await fetch('https://scl.clover.com/v1/charges', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+            'Content-Type': 'application/json', 'Accept': 'application/json',
+            'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+        },
+        body: JSON.stringify({ amount: amountCents, currency: 'USD', source: token })
+    });
+    const raw = await r.text();
+    let charge = {}; try { charge = JSON.parse(raw); } catch (_) {}
+    return { ok: r.ok, charge, error: (charge.error && charge.error.message) || raw };
+}
+
+// Public gift-card purchase page
+app.get('/gift-cards', async (req, res) => {
+    const settings = await db.collection('settings').findOne() || {};
+    const companyName = settings.appName || settings.companyName || 'GSD Property Services';
+    const wrap = (inner) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Cards — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}.card{background:white;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.2rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:0.9rem 0 0.35rem;}input.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.amts{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;}.amt{flex:1;min-width:70px;padding:0.7rem;border:2px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:700;color:#4a5568;cursor:pointer;text-align:center;}.amt.sel{border-color:#667eea;background:#eef0fb;color:#667eea;}.clover-field{height:46px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;display:flex;align-items:center;margin-bottom:0.5rem;}.clover-field iframe{width:100%!important;height:46px!important;border:none!important;}.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;}#payError{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin:0.75rem 0;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;cursor:not-allowed;}.secure{text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem;}.roundup{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:0.9rem 1rem;margin-top:1rem;}.rbtns{display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;}.rb{flex:1;min-width:60px;padding:0.5rem;border:1.5px solid #9ae6b4;border-radius:7px;background:#fff;font-weight:700;color:#276749;cursor:pointer;font-size:0.85rem;}.rb.sel{background:#38a169;color:#fff;border-color:#38a169;}</style></head><body><div class="card"><div class="header"><h1>🎁 ${companyName} Gift Card</h1><p>Give the gift of a job well done</p></div><div class="body">${inner}</div></div></body></html>`;
+
+    if (!settings.giftCardsEnabled) {
+        return res.send(wrap('<div style="text-align:center;padding:1.5rem 0;"><div style="font-size:2.5rem;">🎁</div><h2 style="color:#1a202c;margin:0.75rem 0;">Coming soon</h2><p style="color:#718096;">Gift cards will be available shortly — check back soon!</p></div>'));
+    }
+
+    const roundUpOn = !!settings.giftCardRoundUp && !!settings.roundUpCharity;
+    const charity = (settings.roundUpCharity || '').replace(/</g, '&lt;');
+    const feePercent = parseFloat(settings.cloverFeePercent) || 0;
+    const roundUpHtml = roundUpOn ? `<div class="roundup"><div style="font-weight:700;color:#22543d;font-size:0.92rem;">🐾 Round up for ${charity}?</div><div style="font-size:0.82rem;color:#276749;margin-top:0.2rem;">Add a little to support the cause.</div><div class="rbtns"><button type="button" class="rb sel" onclick="setRound(0,this)">No thanks</button><button type="button" class="rb" onclick="setRound(2,this)">+$2</button><button type="button" class="rb" onclick="setRound(5,this)">+$5</button><button type="button" class="rb" onclick="setRound(10,this)">+$10</button></div></div>` : '';
+
+    res.send(wrap(`
+        <div id="payError"></div>
+        <label class="fld">Gift Card Amount</label>
+        <div class="amts">
+            <div class="amt" onclick="pick(50,this)">$50</div>
+            <div class="amt sel" onclick="pick(100,this)">$100</div>
+            <div class="amt" onclick="pick(250,this)">$250</div>
+        </div>
+        <input class="txt" type="number" id="customAmt" min="10" max="2000" step="1" placeholder="Or enter a custom amount" oninput="customPick()" style="margin-bottom:0.25rem;">
+        <label class="fld">Your Name</label><input class="txt" id="buyerName" placeholder="Jane Buyer">
+        <label class="fld">Your Email (receipt)</label><input class="txt" type="email" id="buyerEmail" placeholder="you@email.com">
+        <label class="fld">Recipient Name</label><input class="txt" id="recipientName" placeholder="John Recipient">
+        <label class="fld">Recipient Email (we'll send the card)</label><input class="txt" type="email" id="recipientEmail" placeholder="them@email.com">
+        <label class="fld">Personal Message (optional)</label><textarea class="txt" id="giftMessage" rows="2" placeholder="Happy Holidays!"></textarea>
+        ${roundUpHtml}
+        <label class="fld" style="margin-top:1.1rem;">Card Number</label><div id="card-number" class="clover-field"></div>
+        <div class="pay-row"><div><label class="fld" style="margin-top:0;">Expiry</label><div id="card-date" class="clover-field"></div></div><div><label class="fld" style="margin-top:0;">CVV</label><div id="card-cvv" class="clover-field"></div></div></div>
+        <label class="fld" style="margin-top:0;">ZIP</label><div id="card-postal-code" class="clover-field"></div>
+        <button class="btn" id="payBtn" onclick="submitGift()">Purchase Gift Card</button>
+        <div class="secure">🔒 Secure payment via Clover</div>
+        <script src="https://checkout.clover.com/sdk.js"></script>
+        <script>
+            var clover = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
+            var elems = clover.elements();
+            elems.create('CARD_NUMBER').mount('#card-number');
+            elems.create('CARD_DATE').mount('#card-date');
+            elems.create('CARD_CVV').mount('#card-cvv');
+            elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
+            var giftAmount = 100, roundUp = 0, feePct = ${feePercent};
+            function pick(v, el){ giftAmount = v; document.getElementById('customAmt').value=''; document.querySelectorAll('.amt').forEach(function(a){a.classList.remove('sel');}); el.classList.add('sel'); updateBtn(); }
+            function customPick(){ var v = parseFloat(document.getElementById('customAmt').value)||0; giftAmount = v; document.querySelectorAll('.amt').forEach(function(a){a.classList.remove('sel');}); updateBtn(); }
+            function setRound(v, el){ roundUp = v; document.querySelectorAll('.rb').forEach(function(b){b.classList.remove('sel');}); el.classList.add('sel'); updateBtn(); }
+            function updateBtn(){ var fee = feePct>0 ? giftAmount*(feePct/100) : 0; var total = giftAmount + roundUp + fee; document.getElementById('payBtn').textContent = total>0 ? ('Purchase — $' + total.toFixed(2)) : 'Purchase Gift Card'; }
+            updateBtn();
+            async function submitGift(){
+                var btn = document.getElementById('payBtn'), err = document.getElementById('payError');
+                err.style.display='none';
+                var amt = giftAmount;
+                if (!(amt>=10 && amt<=2000)) { err.textContent='Please choose an amount between $10 and $2000.'; err.style.display='block'; return; }
+                var bn=document.getElementById('buyerName').value.trim(), be=document.getElementById('buyerEmail').value.trim(), rn=document.getElementById('recipientName').value.trim(), re=document.getElementById('recipientEmail').value.trim();
+                if(!bn||!be||!rn||!re){ err.textContent='Please fill in your info and the recipient\\'s name & email.'; err.style.display='block'; return; }
+                btn.disabled=true; btn.textContent='Processing...';
+                try{
+                    var result = await clover.createToken();
+                    if(!result.token){ err.textContent='Card error: ' + (result.errors ? Object.values(result.errors).join(', ') : 'check your card details'); err.style.display='block'; btn.disabled=false; updateBtn(); return; }
+                    var resp = await fetch('/api/gift-cards/purchase', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: result.token, amount: amt, roundUp: roundUp, buyerName: bn, buyerEmail: be, recipientName: rn, recipientEmail: re, message: document.getElementById('giftMessage').value.trim() }) });
+                    var data = await resp.json();
+                    if(!resp.ok){ err.textContent = data.error || 'Payment failed'; err.style.display='block'; btn.disabled=false; updateBtn(); return; }
+                    document.querySelector('.body').innerHTML = '<div style="text-align:center;padding:1.5rem 0;"><div style="font-size:2.8rem;">🎉</div><h2 style="color:#22543d;margin:0.75rem 0;">Gift Card Purchased!</h2><p style="color:#4a5568;">We emailed the card to <strong>'+rn+'</strong> and a receipt to you. Thank you!</p><div style="margin-top:1rem;background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:0.9rem;font-size:0.9rem;color:#276749;">Code: <strong>'+data.code+'</strong></div></div>';
+                }catch(e){ err.textContent='An error occurred. Please try again.'; err.style.display='block'; btn.disabled=false; updateBtn(); }
+            }
+        </script>
+    `));
+});
+
+// Purchase (public)
+app.post('/api/gift-cards/purchase', async (req, res) => {
+    try {
+        const settings = await db.collection('settings').findOne() || {};
+        if (!settings.giftCardsEnabled) return res.status(400).json({ error: 'Gift cards are not available right now.' });
+        const { token, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, roundUp } = req.body;
+        const amt = Math.round((parseFloat(amount) || 0) * 100) / 100;
+        if (!token) return res.status(400).json({ error: 'Missing payment details' });
+        if (!(amt >= 10 && amt <= 2000)) return res.status(400).json({ error: 'Amount must be between $10 and $2000' });
+        if (!buyerName || !buyerEmail || !recipientName || !recipientEmail) return res.status(400).json({ error: 'Please fill in buyer and recipient info' });
+
+        const roundUpOn = !!settings.giftCardRoundUp && !!settings.roundUpCharity;
+        const roundUpAmt = roundUpOn ? Math.max(0, Math.round((parseFloat(roundUp) || 0) * 100) / 100) : 0;
+        const feePercent = parseFloat(settings.cloverFeePercent) || 0;
+        const feeAmt = feePercent > 0 ? Math.round(amt * (feePercent / 100) * 100) / 100 : 0;
+        const chargeTotal = Math.round((amt + roundUpAmt + feeAmt) * 100) / 100;
+
+        const { ok, charge, error } = await chargeCloverToken(token, Math.round(chargeTotal * 100));
+        if (!ok) return res.status(400).json({ error: error || 'Payment failed' });
+
+        const code = generateGiftCode();
+        const card = {
+            code, initialAmount: amt, balance: amt,
+            buyerName, buyerEmail: (buyerEmail || '').toLowerCase().trim(),
+            recipientName, recipientEmail: (recipientEmail || '').toLowerCase().trim(),
+            message: message || '',
+            roundUpAmount: roundUpAmt, roundUpCharity: roundUpAmt ? (settings.roundUpCharity || '') : '',
+            feeAmount: feeAmt, chargeTotal,
+            status: 'active', chargeId: charge.id,
+            last4: (charge.source && charge.source.last4) || null,
+            cardBrand: (charge.source && charge.source.brand) || null,
+            redemptions: [], createdAt: new Date()
+        };
+        await db.collection('gift_cards').insertOne(card);
+
+        if (emailService.initialized) {
+            const companyName = settings.appName || settings.companyName || 'GSD Property Services';
+            const money = n => '$' + parseFloat(n).toFixed(2);
+            const cardHtml = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+                <div style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-radius:14px;padding:28px;text-align:center;">
+                    <div style="font-size:2rem;">🎁</div>
+                    <div style="font-size:0.85rem;opacity:0.9;letter-spacing:0.05em;text-transform:uppercase;">${companyName} Gift Card</div>
+                    <div style="font-size:2.5rem;font-weight:800;margin:8px 0;">${money(amt)}</div>
+                    <div style="background:rgba(255,255,255,0.2);border-radius:8px;padding:8px 12px;font-size:1.1rem;font-weight:700;letter-spacing:0.08em;">${code}</div>
+                </div>
+                <p style="color:#374151;margin-top:18px;">Hi ${recipientName}, ${buyerName} sent you a gift card good toward any GSD Property Services work.</p>
+                ${message ? `<p style="background:#f8fafc;border-left:3px solid #667eea;padding:10px 14px;color:#4a5568;font-style:italic;border-radius:0 6px 6px 0;">"${String(message).replace(/</g, '&lt;')}"</p>` : ''}
+                <p style="color:#6b7280;font-size:0.85rem;margin-top:16px;">To redeem, just mention this code when you book. Balance never expires. Questions? Call 856-872-4636.</p>
+            </div>`;
+            emailService.sendEmail({ to: card.recipientEmail, subject: `🎁 You've received a ${companyName} gift card!`, html: cardHtml, text: `You've received a ${companyName} gift card worth ${money(amt)}! Code: ${code}. From: ${buyerName}. ${message || ''}` }).catch(() => {});
+            emailService.sendEmail({ to: card.buyerEmail, subject: `Your ${companyName} gift card purchase`, html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#374151;"><h2 style="color:#667eea;">Thank you, ${buyerName}!</h2><p>Your gift card was purchased and emailed to ${recipientName} (${card.recipientEmail}).</p><table style="margin-top:12px;font-size:0.95rem;"><tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Gift card</td><td><strong>${money(amt)}</strong></td></tr>${roundUpAmt ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Round-up (${settings.roundUpCharity})</td><td>${money(roundUpAmt)}</td></tr>` : ''}${feeAmt ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">Processing fee</td><td>${money(feeAmt)}</td></tr>` : ''}<tr><td style="padding:8px 12px 4px 0;color:#111;border-top:1px solid #e5e7eb;"><strong>Total charged</strong></td><td style="border-top:1px solid #e5e7eb;padding-top:8px;"><strong>${money(chargeTotal)}</strong></td></tr></table><p style="color:#9ca3af;font-size:0.8rem;margin-top:16px;">Code: ${code}</p></div>`, text: `Thank you ${buyerName}! Gift card ${money(amt)} sent to ${recipientName}. Total charged ${money(chargeTotal)}. Code: ${code}` }).catch(() => {});
+            emailService.sendEmail({ to: 'info@gsdhandymanservice.com', subject: `🎁 Gift card sold — ${money(amt)}${roundUpAmt ? ' (+' + money(roundUpAmt) + ' round-up)' : ''}`, html: `<p style="font-family:Arial,sans-serif;">Gift card <strong>${code}</strong> — ${money(amt)}<br>From: ${buyerName} (${card.buyerEmail})<br>To: ${recipientName} (${card.recipientEmail})<br>Charged: ${money(chargeTotal)}${roundUpAmt ? `<br>Round-up for ${settings.roundUpCharity}: ${money(roundUpAmt)}` : ''}</p>`, text: `Gift card sold: ${code} ${money(amt)}` }).catch(() => {});
+        }
+
+        res.json({ success: true, code, amount: amt });
+    } catch (e) {
+        console.error('Gift card purchase error:', e);
+        res.status(500).json({ error: 'Purchase failed. Your card was not charged if you did not see a confirmation.' });
+    }
+});
+
+// Admin: list gift cards
+app.get('/api/gift-cards', isAuthenticated, async (req, res) => {
+    const cards = await db.collection('gift_cards').find({}).sort({ createdAt: -1 }).toArray();
+    res.json(cards.map(c => ({
+        id: c._id.toString(), code: c.code, initialAmount: c.initialAmount, balance: c.balance,
+        buyerName: c.buyerName, recipientName: c.recipientName, recipientEmail: c.recipientEmail,
+        status: c.status, roundUpAmount: c.roundUpAmount || 0, createdAt: c.createdAt,
+        redemptions: c.redemptions || []
+    })));
+});
+
+// Admin: look up a code (balance check for redemption)
+app.get('/api/gift-cards/lookup/:code', isAuthenticated, async (req, res) => {
+    const card = await db.collection('gift_cards').findOne({ code: (req.params.code || '').toUpperCase().trim() });
+    if (!card) return res.status(404).json({ error: 'Gift card not found' });
+    res.json({ id: card._id.toString(), code: card.code, balance: card.balance, status: card.status, recipientName: card.recipientName });
+});
+
+// Admin: redeem against a job (applies balance as a payment)
+app.post('/api/gift-cards/redeem', isAuthenticated, async (req, res) => {
+    try {
+        const card = await db.collection('gift_cards').findOne({ code: (req.body.code || '').toUpperCase().trim() });
+        if (!card) return res.status(404).json({ error: 'Gift card not found' });
+        if (card.status !== 'active') return res.status(400).json({ error: 'Gift card is ' + card.status });
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.body.jobId) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const redeemAmt = Math.round((parseFloat(req.body.amount) || 0) * 100) / 100;
+        if (redeemAmt <= 0) return res.status(400).json({ error: 'Enter an amount to apply' });
+        if (redeemAmt > card.balance) return res.status(400).json({ error: 'Only $' + card.balance.toFixed(2) + ' left on this card' });
+
+        const newPayment = { id: Date.now(), date: new Date().toISOString().split('T')[0], amount: redeemAmt, method: 'gift_card', notes: 'Gift card ' + card.code };
+        const existingPaid = (job.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const newTotalPaid = Math.round((existingPaid + redeemAmt) * 100) / 100;
+        const jobTotal = Math.round((parseFloat(job.totalWithTax || job.total) || 0) * 100) / 100;
+        const newBalanceOwed = Math.round(Math.max(0, jobTotal - newTotalPaid) * 100) / 100;
+        const setFields = { totalPaid: newTotalPaid, balanceOwed: newBalanceOwed, updatedAt: new Date() };
+        if (newBalanceOwed <= 0 && job.status !== 'completed') setFields.status = 'completed';
+        await db.collection('jobs').updateOne({ _id: job._id }, { $push: { payments: newPayment }, $set: setFields });
+
+        const newCardBalance = Math.round((card.balance - redeemAmt) * 100) / 100;
+        await db.collection('gift_cards').updateOne({ _id: card._id }, {
+            $set: { balance: newCardBalance, status: newCardBalance <= 0 ? 'depleted' : 'active' },
+            $push: { redemptions: { jobId: job._id, jobTitle: job.title, amount: redeemAmt, at: new Date(), by: req.session.userName || 'admin' } }
+        });
+        res.json({ success: true, applied: redeemAmt, remaining: newCardBalance });
+    } catch (e) {
+        console.error('Gift redeem error:', e.message);
+        res.status(500).json({ error: 'Redemption failed' });
+    }
+});
+
+// Admin: void a gift card
+app.post('/api/gift-cards/:id/void', isAuthenticated, async (req, res) => {
+    await db.collection('gift_cards').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'void', voidedAt: new Date() } });
+    res.json({ success: true });
+});
+
 // Admin manually enters a card for a client (keys it in on their behalf)
 app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
     try {
