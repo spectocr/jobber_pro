@@ -2668,6 +2668,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <small style="color:#718096;display:block;margin-top:0.4rem;">Name of the 501(c)(3) you'll remit round-up donations to.</small>
                     </div>
                     <div class="form-group">
+                        <label>Gift Card Terms &amp; Conditions</label>
+                        <textarea name="giftCardTerms" rows="8" placeholder="Leave blank to use the built-in default terms. One term per line — 'Title: description' bolds the title."></textarea>
+                        <small style="color:#718096;display:block;margin-top:0.4rem;">Shown at /gift-cards/terms and required at checkout. One term per line. Format <strong>Title: description</strong>. Leave blank for the default terms.</small>
+                    </div>
+                    <div class="form-group">
                         <label>Contract Terms</label>
                         <textarea name="contractTerms" rows="6" placeholder="Enter contract terms and conditions that will appear at the bottom of invoices..."></textarea>
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">These terms will be displayed at the bottom of all invoices</small>
@@ -12378,6 +12383,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('giftCardsEnabled').checked = !!settings.giftCardsEnabled;
             document.getElementById('giftCardRoundUp').checked = !!settings.giftCardRoundUp;
             form.elements.roundUpCharity.value = settings.roundUpCharity || '';
+            form.elements.giftCardTerms.value = settings.giftCardTerms || '';
             form.elements.dieselPrice.value = settings.dieselPrice != null ? settings.dieselPrice : 3.85;
             form.elements.truckMpg.value = settings.truckMpg != null ? settings.truckMpg : 16;
             form.elements.contractTerms.value = settings.contractTerms || '';
@@ -12663,6 +12669,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 giftCardsEnabled: document.getElementById('giftCardsEnabled').checked,
                 giftCardRoundUp: document.getElementById('giftCardRoundUp').checked,
                 roundUpCharity: form.elements.roundUpCharity.value.trim(),
+                giftCardTerms: form.elements.giftCardTerms.value,
                 dieselPrice: parseFloat(form.elements.dieselPrice.value) || 0,
                 truckMpg: parseFloat(form.elements.truckMpg.value) || 16,
                 companyLogo: document.getElementById('companyLogo').value || null,
