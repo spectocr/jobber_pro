@@ -9808,7 +9808,6 @@ app.get('/gift-cards', async (req, res) => {
     const roundUpHtml = roundUpOn ? `<div class="roundup"><div style="font-weight:700;color:#22543d;font-size:0.92rem;">🐾 Round up for ${charity}?</div><div style="font-size:0.82rem;color:#276749;margin-top:0.2rem;">Add a little to support the cause.</div><div class="rbtns"><button type="button" class="rb sel" onclick="setRound(0,this)">No thanks</button><button type="button" class="rb" onclick="setRound(2,this)">+$2</button><button type="button" class="rb" onclick="setRound(5,this)">+$5</button><button type="button" class="rb" onclick="setRound(10,this)">+$10</button></div></div>` : '';
 
     res.send(wrap(`
-        <div id="payError"></div>
         <label class="fld">Gift Card Amount</label>
         <div class="amts">
             <div class="amt" onclick="pick(50,this)">$50</div>
@@ -9829,6 +9828,7 @@ app.get('/gift-cards', async (req, res) => {
             <input type="checkbox" id="agreeTerms" style="width:16px;height:16px;margin-top:1px;accent-color:#667eea;flex-shrink:0;">
             <span>I agree to the <a href="/gift-cards/terms" target="_blank" style="color:#667eea;">Gift Card Terms &amp; Conditions</a> — balance never expires, no fees, not redeemable for cash.</span>
         </label>
+        <div id="payError"></div>
         <button class="btn" id="payBtn" onclick="submitGift()">Purchase Gift Card</button>
         <div class="secure">🔒 Secure payment via Clover</div>
         <div style="text-align:center;margin-top:0.5rem;"><a href="/gift-cards/balance" style="color:#667eea;font-size:0.82rem;">Check a gift card balance →</a></div>
