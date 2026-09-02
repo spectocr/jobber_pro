@@ -9834,10 +9834,15 @@ app.get('/gift-cards', async (req, res) => {
         <script>
             var clover = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
             var elems = clover.elements();
-            elems.create('CARD_NUMBER').mount('#card-number');
-            elems.create('CARD_DATE').mount('#card-date');
-            elems.create('CARD_CVV').mount('#card-cvv');
-            elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
+            // Style the input INSIDE Clover's iframe so it fills the field (no dead click zone)
+            var cloverStyles = {
+                input: { 'font-size': '16px', 'line-height': '46px', height: '46px', color: '#1a202c' },
+                'input::placeholder': { color: '#9ca3af' }
+            };
+            elems.create('CARD_NUMBER', cloverStyles).mount('#card-number');
+            elems.create('CARD_DATE', cloverStyles).mount('#card-date');
+            elems.create('CARD_CVV', cloverStyles).mount('#card-cvv');
+            elems.create('CARD_POSTAL_CODE', cloverStyles).mount('#card-postal-code');
             // Tuck Clover's injected "Powered by Clover" badge into the card as its footer
             (function(){
                 var card = document.querySelector('.card');
