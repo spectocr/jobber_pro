@@ -10883,10 +10883,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     }
                     _adminCloverInst = new Clover(_cloverConfig.publicKey, { merchantId: _cloverConfig.merchantId });
                     const elems = _adminCloverInst.elements();
-                    elems.create('CARD_NUMBER').mount('#admin-card-number');
-                    elems.create('CARD_DATE').mount('#admin-card-date');
-                    elems.create('CARD_CVV').mount('#admin-card-cvv');
-                    elems.create('CARD_POSTAL_CODE').mount('#admin-card-zip');
+                    const cloverStyles = { input: { 'font-size': '16px', 'line-height': '46px', height: '46px', color: '#1a202c' }, 'input::placeholder': { color: '#9ca3af' } };
+                    elems.create('CARD_NUMBER', cloverStyles).mount('#admin-card-number');
+                    elems.create('CARD_DATE', cloverStyles).mount('#admin-card-date');
+                    elems.create('CARD_CVV', cloverStyles).mount('#admin-card-cvv');
+                    elems.create('CARD_POSTAL_CODE', cloverStyles).mount('#admin-card-zip');
                     _adminCloverMounted = true;
                 } catch(e) {
                     console.error('Clover init error:', e);

@@ -7035,11 +7035,12 @@ app.get('/invoice/:jobId', async (req, res) => {
             if (!cloverMounted) {
                 cloverInst = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
                 var elems = cloverInst.elements();
-                cloverCardEl = elems.create('CARD_NUMBER');
+                var cloverStyles = { input: { 'font-size': '16px', 'line-height': '46px', height: '46px', color: '#1a202c' }, 'input::placeholder': { color: '#9ca3af' } };
+                cloverCardEl = elems.create('CARD_NUMBER', cloverStyles);
                 cloverCardEl.mount('#card-number');
-                elems.create('CARD_DATE').mount('#card-date');
-                elems.create('CARD_CVV').mount('#card-cvv');
-                elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
+                elems.create('CARD_DATE', cloverStyles).mount('#card-date');
+                elems.create('CARD_CVV', cloverStyles).mount('#card-cvv');
+                elems.create('CARD_POSTAL_CODE', cloverStyles).mount('#card-postal-code');
                 cloverMounted = true;
             }
         }
@@ -9547,10 +9548,11 @@ app.get('/deposit/:token', async (req, res) => {
             <script>
                 var clover = new Clover('${process.env.CLOVER_PUBLIC_KEY}', { merchantId: '${process.env.CLOVER_MERCHANT_ID}' });
                 var elems = clover.elements();
-                elems.create('CARD_NUMBER').mount('#card-number');
-                elems.create('CARD_DATE').mount('#card-date');
-                elems.create('CARD_CVV').mount('#card-cvv');
-                elems.create('CARD_POSTAL_CODE').mount('#card-postal-code');
+                var cloverStyles = { input: { 'font-size': '16px', 'line-height': '46px', height: '46px', color: '#1a202c' }, 'input::placeholder': { color: '#9ca3af' } };
+                elems.create('CARD_NUMBER', cloverStyles).mount('#card-number');
+                elems.create('CARD_DATE', cloverStyles).mount('#card-date');
+                elems.create('CARD_CVV', cloverStyles).mount('#card-cvv');
+                elems.create('CARD_POSTAL_CODE', cloverStyles).mount('#card-postal-code');
 
                 async function submitDeposit() {
                     var btn = document.getElementById('payBtn');
