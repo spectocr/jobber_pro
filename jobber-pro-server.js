@@ -17035,6 +17035,7 @@ function formatDuration(seconds) {
                 !!ob.i9Section1?.completedAt,
                 !!ob.i9Section2?.completedAt,
                 !!ob.policyAck?.completedAt,
+                !!ob.agreement?.signedAt,
                 !!ob.jobDescription?.completedAt,
                 !!(member.hourlyRate > 0),
             ];
@@ -17105,6 +17106,15 @@ function formatDuration(seconds) {
                 ? hint('Employee acknowledged all 4 policies digitally. Timestamp is on record.')
                 : hint('Waiting on employee to complete the onboarding form.');
 
+            const ag = ob.agreement;
+            const agRow = ag?.signedAt
+                ? check(true, 'Employee Agreement & Safety Acknowledgment signed',
+                    '<div style="margin-top:0.4rem;background:#f0fff4;border:1px solid #c6f6d5;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.82rem;color:#276749;">' +
+                    'Signed <strong>“' + escapeAuthText(ag.signature) + '”</strong> on ' + new Date(ag.signedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) +
+                    (ag.ip ? '<div style="font-size:0.72rem;color:#718096;margin-top:2px;">IP ' + escapeAuthText(ag.ip) + '</div>' : '') + '</div>')
+                : check(false, 'Employee Agreement & Safety Acknowledgment signed',
+                    hint('Employee reads and e-signs the agreement (at-will, authorized-work-only, no scope/price changes, safety rules, incident reporting) as the final onboarding step.'));
+
             const payRateExtra =
                 hint('Required for payroll calculations in the Payroll view.') +
                 aBtn('✏️ Edit Member', 'editTeamMember(\'' + id + '\')', '#faf5ff');
@@ -17115,6 +17125,7 @@ function formatDuration(seconds) {
                 check(!!ob.i9Section1?.completedAt, 'I-9 Section 1 (employee self-certification)', i9s1Extra) +
                 i9Row +
                 check(!!ob.policyAck?.completedAt, 'Policy acknowledgments (no cash, safety, tools, OT)', policyExtra) +
+                agRow +
                 jdRow +
                 check(!!(member.hourlyRate > 0), 'Pay rate defined' + (member.hourlyRate ? ' · $' + member.hourlyRate + '/hr' : ' · <em style="color:#e53e3e;">Not set</em>'), payRateExtra) +
                 '</div>';

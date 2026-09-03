@@ -703,6 +703,13 @@ input:focus,select:focus{outline:none;border-color:#667eea;}
 .btn-primary{background:#667eea;color:white;flex:1;}
 .btn-secondary{background:#e2e8f0;color:#4a5568;}
 .err{color:#e53e3e;font-size:0.83rem;margin-top:0.5rem;display:none;}
+.agreement-box{border:2px solid #e2e8f0;border-radius:10px;max-height:300px;overflow-y:scroll;padding:1.1rem 1.3rem;background:#fafafa;font-size:0.85rem;line-height:1.65;color:#2d3748;}
+.agreement-box h4{color:#2d3748;font-size:0.92rem;margin:1rem 0 0.35rem;}
+.agreement-box h4:first-child{margin-top:0;}
+.agreement-box p,.agreement-box li{margin-bottom:0.5rem;}
+.agreement-box ul{padding-left:1.2rem;}
+.scroll-hint{font-size:0.8rem;color:#a0aec0;text-align:center;margin-top:0.5rem;}
+.sig-input{font-family:'Snell Roundhand','Segoe Script',cursive;font-size:1.4rem;letter-spacing:0.5px;}
 .step-content{display:none;}
 .step-content.active{display:block;}
 .success-wrap{text-align:center;padding:1.5rem 0;}
@@ -719,9 +726,10 @@ input:focus,select:focus{outline:none;border-color:#667eea;}
     <p>Welcome, <strong>${member.name}</strong> — please complete your employment paperwork below.</p>
   </div>
   <div class="steps" id="stepTabs">
-    <div class="step-tab active" data-step="1">1. Tax Info</div>
+    <div class="step-tab active" data-step="1">1. Tax</div>
     <div class="step-tab" data-step="2">2. Eligibility</div>
     <div class="step-tab" data-step="3">3. Policies</div>
+    <div class="step-tab" data-step="4">4. Agreement</div>
   </div>
   <div class="step-content active" id="step-1">
     <h3>W-4 Withholding Preferences</h3>
@@ -779,7 +787,48 @@ input:focus,select:focus{outline:none;border-color:#667eea;}
       <input type="checkbox" id="pol4">
       <p><strong>Overtime</strong>Overtime (over 40 hrs/week) is paid at 1.5\xd7 my regular rate per NJ law and must be pre-approved.</p>
     </div>
-    <div class="err" id="polErr">Please acknowledge all four policies before submitting.</div>
+    <div class="err" id="polErr">Please acknowledge all four policies before continuing.</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Next: Agreement →</button>
+    </div>
+  </div>
+  <div class="step-content" id="step-4">
+    <h3>Employee Agreement &amp; Safety Acknowledgment</h3>
+    <p style="color:#718096;font-size:0.88rem;margin-bottom:0.9rem;">Please read the full agreement, then sign at the bottom.</p>
+    <div class="agreement-box" id="agreementBox" onscroll="onAgreementScroll()">
+      <h4>1. At-Will Employment</h4>
+      <p>My employment with ${appName} is at-will. Either I or the company may end the employment relationship at any time, with or without cause or notice. Nothing in this document is a contract guaranteeing employment for any period.</p>
+      <h4>2. Authorized Work Only</h4>
+      <p>I will only operate the tools and perform the tasks that ${appName} has specifically trained and authorized me to do. If I have not been cleared for a tool or task, I will not attempt it. If I am unsure whether I am authorized, I will stop and ask before proceeding.</p>
+      <h4>3. No Changes to Scope or Price</h4>
+      <p>I have no authority to change the scope of a job, quote or promise additional work, set or discount prices, or make agreements with customers on the company's behalf. If a customer requests additional or different work, I will refer them to the office and will not begin that work until it is approved.</p>
+      <h4>4. Safety Rules</h4>
+      <ul>
+        <li>Use required personal protective equipment (eye protection, gloves, etc.) at all times.</li>
+        <li>Before any work near water, gas, or electrical: <strong>stop, shut off the supply, and verify it is off</strong> before proceeding.</li>
+        <li>Protect the customer's property — lay down coverings, keep the work area controlled, and clean up.</li>
+        <li>Do not work impaired. No alcohol or drugs on the job.</li>
+        <li>Report every hazard, near-miss, injury, or property damage to ${appName} immediately.</li>
+      </ul>
+      <h4>5. Incidents</h4>
+      <p>If anything is damaged or anyone is hurt, I will make the area safe, notify ${appName} right away, and document what happened with photos. I will not admit fault or negotiate with the customer or anyone else about the incident.</p>
+      <h4>6. Company Property &amp; Tools</h4>
+      <p>Company tools, vehicles, and equipment are ${appName} property to be used only for company work and returned in good condition. I am responsible for basic hand tools as described in the tool policy.</p>
+      <h4>7. Customers &amp; Confidentiality</h4>
+      <p>Customer lists, pricing, and job details are confidential. I will not perform side work for the company's customers or solicit them for my own benefit during my employment.</p>
+      <h4>8. No Cash</h4>
+      <p>I will never collect cash payments from customers. All customer payments go through the company's official channels only.</p>
+      <p style="margin-top:1rem;color:#718096;font-style:italic;">By typing my name and submitting below, I acknowledge that I have read, understand, and agree to the above, and that my typed name is my electronic signature.</p>
+    </div>
+    <div class="scroll-hint" id="scrollHint">▼ Scroll to the bottom to enable signing</div>
+    <label for="sigName" style="margin-top:1rem;">Type your full legal name to sign</label>
+    <input type="text" id="sigName" class="sig-input" placeholder="${member.name}" disabled autocomplete="off">
+    <div class="policy-item" id="agreeItem" onclick="toggleAgree()" style="margin-top:0.75rem;opacity:0.5;pointer-events:none;">
+      <input type="checkbox" id="agreeChk">
+      <p style="pointer-events:none;">I have read and agree to the Employee Agreement &amp; Safety Acknowledgment above.</p>
+    </div>
+    <div class="err" id="agreeErr">Please scroll through, sign your name, and check the box to agree.</div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
       <button class="btn btn-primary" onclick="submitOnboarding()">✓ Submit Onboarding</button>
@@ -803,8 +852,18 @@ input:focus,select:focus{outline:none;border-color:#667eea;}
 var cur=1,tok='${token}';
 function nextStep(){
   if(cur===2){if(!document.getElementById('i9First').value.trim()||!document.getElementById('i9Last').value.trim()||!document.getElementById('i9DOB').value){alert('Please complete your name and date of birth.');return;}}
-  if(cur<3){setTab(cur,'done');cur++;document.getElementById('step-'+cur).classList.add('active');setTab(cur,'active');document.getElementById('step-'+(cur-1)).classList.remove('active');}
+  if(cur===3){var all=['pol1','pol2','pol3','pol4'].every(function(id){return document.getElementById(id).checked;});if(!all){document.getElementById('polErr').style.display='block';return;}document.getElementById('polErr').style.display='none';}
+  if(cur<4){setTab(cur,'done');cur++;document.getElementById('step-'+cur).classList.add('active');setTab(cur,'active');document.getElementById('step-'+(cur-1)).classList.remove('active');}
 }
+function onAgreementScroll(){
+  var b=document.getElementById('agreementBox');
+  if(b.scrollTop+b.clientHeight>=b.scrollHeight-24){
+    var sig=document.getElementById('sigName');sig.disabled=false;
+    var item=document.getElementById('agreeItem');item.style.opacity='1';item.style.pointerEvents='auto';
+    var h=document.getElementById('scrollHint');if(h)h.style.display='none';
+  }
+}
+function toggleAgree(){var c=document.getElementById('agreeChk');if(document.getElementById('sigName').disabled)return;c.checked=!c.checked;c.closest('.policy-item').classList.toggle('checked',c.checked);}
 function prevStep(){
   if(cur>1){setTab(cur,'');cur--;document.getElementById('step-'+cur).classList.add('active');setTab(cur,'active');document.getElementById('step-'+(cur+1)).classList.remove('active');}
 }
@@ -812,13 +871,16 @@ function setTab(n,s){var t=document.querySelector('[data-step="'+n+'"]');t.class
 function togglePolicy(id){var c=document.getElementById(id);c.checked=!c.checked;c.closest('.policy-item').classList.toggle('checked',c.checked);}
 async function submitOnboarding(){
   var all=['pol1','pol2','pol3','pol4'].every(function(id){return document.getElementById(id).checked;});
-  if(!all){document.getElementById('polErr').style.display='block';return;}
-  document.getElementById('polErr').style.display='none';
-  var body={w4:{filingStatus:document.getElementById('filingStatus').value,dependentsAmt:parseFloat(document.getElementById('dependentsAmt').value)||0,extraWithholding:parseFloat(document.getElementById('extraWithholding').value)||0},i9:{firstName:document.getElementById('i9First').value.trim(),middleInitial:document.getElementById('i9MI').value.trim(),lastName:document.getElementById('i9Last').value.trim(),dob:document.getElementById('i9DOB').value,citizenStatus:document.getElementById('citizenStatus').value},policies:{acknowledged:true}};
+  if(!all){alert('Please go back and acknowledge all four policies.');return;}
+  var sig=document.getElementById('sigName').value.trim();
+  var agreed=document.getElementById('agreeChk').checked;
+  if(!sig||!agreed){document.getElementById('agreeErr').style.display='block';return;}
+  document.getElementById('agreeErr').style.display='none';
+  var body={w4:{filingStatus:document.getElementById('filingStatus').value,dependentsAmt:parseFloat(document.getElementById('dependentsAmt').value)||0,extraWithholding:parseFloat(document.getElementById('extraWithholding').value)||0},i9:{firstName:document.getElementById('i9First').value.trim(),middleInitial:document.getElementById('i9MI').value.trim(),lastName:document.getElementById('i9Last').value.trim(),dob:document.getElementById('i9DOB').value,citizenStatus:document.getElementById('citizenStatus').value},policies:{acknowledged:true},agreement:{signature:sig,agreed:true}};
   try{
     var r=await fetch('/api/onboarding/'+tok,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok)throw new Error();
-    document.getElementById('step-3').classList.remove('active');
+    document.getElementById('step-4').classList.remove('active');
     document.getElementById('stepTabs').style.display='none';
     document.getElementById('step-success').classList.add('active');
   }catch(e){alert('Error submitting. Please try again or contact your employer.');}
@@ -5085,16 +5147,26 @@ app.post('/api/onboarding/:token', async (req, res) => {
         'onboarding.inviteTokenExpiry': { $gt: new Date() }
     });
     if (!member) return res.status(400).json({ error: 'Invalid or expired token' });
-    const { w4, i9, policies } = req.body;
+    const { w4, i9, policies, agreement } = req.body;
     const now = new Date();
-    await db.collection('team').updateOne({ _id: member._id }, {
-        $set: {
-            'onboarding.w4': { ...w4, completedAt: now },
-            'onboarding.i9Section1': { ...i9, completedAt: now },
-            'onboarding.policyAck': { acknowledged: true, completedAt: now },
-            'onboarding.completedAt': now,
-        }
-    });
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+    const set = {
+        'onboarding.w4': { ...w4, completedAt: now },
+        'onboarding.i9Section1': { ...i9, completedAt: now },
+        'onboarding.policyAck': { acknowledged: true, completedAt: now },
+        'onboarding.completedAt': now,
+    };
+    if (agreement && agreement.signature) {
+        set['onboarding.agreement'] = {
+            signature: String(agreement.signature).slice(0, 120),
+            agreed: true,
+            version: 'v1',
+            signedAt: now,
+            ip: ip,
+            userAgent: String(req.headers['user-agent'] || '').slice(0, 300)
+        };
+    }
+    await db.collection('team').updateOne({ _id: member._id }, { $set: set });
     res.json({ success: true });
 });
 
