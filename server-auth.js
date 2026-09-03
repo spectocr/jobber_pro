@@ -4202,6 +4202,90 @@ app.get('/api/jobs/:id/photos', isAuthenticated, async (req, res) => {
     }
 });
 
+// ── Structured before/after site photos (categorized, stamped) ──
+const SITE_PHOTO_KEYS = ['before', 'protection', 'hidden', 'after', 'damage'];
+
+async function buildSitePhotosByCategory(job) {
+    const list = Array.isArray(job.sitePhotos) ? job.sitePhotos : [];
+    const byCategory = {};
+    await Promise.all(list.map(async p => {
+        const cat = SITE_PHOTO_KEYS.includes(p.category) ? p.category : 'before';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        let url = p.key;
+        if (s3Client && typeof p.key === 'string' && !p.key.startsWith('data:')) {
+            url = await getS3SignedUrl(p.key, 3600).catch(() => null);
+        }
+        if (url) byCategory[cat].push({ key: p.key, url, category: cat, uploadedAt: p.uploadedAt, uploadedByName: p.uploadedByName || '' });
+    }));
+    // Preserve chronological order within each category
+    Object.keys(byCategory).forEach(k => byCategory[k].sort((a, b) => new Date(a.uploadedAt) - new Date(b.uploadedAt)));
+    return byCategory;
+}
+
+app.get('/api/jobs/:id/site-photos', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { sitePhotos: 1 } });
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        res.json({ byCategory: await buildSitePhotosByCategory(job) });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/jobs/:id/site-photos', isAuthenticated, async (req, res) => {
+    try {
+        const { category, photos } = req.body;
+        const cat = SITE_PHOTO_KEYS.includes(category) ? category : null;
+        if (!cat) return res.status(400).json({ error: 'Invalid photo category' });
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { _id: 1, sitePhotos: 1 } });
+        if (!job) return res.status(404).json({ error: 'Not found' });
+
+        const valid = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 8) : [];
+        if (!valid.length) return res.status(400).json({ error: 'No valid photos' });
+
+        const now = new Date();
+        const newEntries = [];
+        if (s3Client) {
+            const ts = Date.now();
+            const uploads = await Promise.all(valid.map(async (dataUrl, i) => {
+                const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
+                if (!match) return null;
+                const ext = match[2] === 'jpeg' ? 'jpg' : match[2];
+                const key = `jobs/site/${req.params.id}/${cat}-${ts}-${i}.${ext}`;
+                await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: Buffer.from(match[3], 'base64'), ContentType: match[1] }));
+                return key;
+            }));
+            uploads.filter(Boolean).forEach(key => newEntries.push({ key, category: cat, uploadedAt: now, uploadedById: req.session.userId, uploadedByName: req.session.userName || '' }));
+        } else {
+            valid.forEach(dataUrl => newEntries.push({ key: dataUrl, category: cat, uploadedAt: now, uploadedById: req.session.userId, uploadedByName: req.session.userName || '' }));
+        }
+
+        await db.collection('jobs').updateOne({ _id: job._id }, { $push: { sitePhotos: { $each: newEntries } } });
+        const updated = await db.collection('jobs').findOne({ _id: job._id }, { projection: { sitePhotos: 1 } });
+        res.json({ success: true, byCategory: await buildSitePhotosByCategory(updated) });
+    } catch (err) {
+        console.error('Site photo upload error:', err);
+        res.status(500).json({ error: 'Server error uploading photos' });
+    }
+});
+
+app.delete('/api/jobs/:id/site-photos', isAdmin, async (req, res) => {
+    try {
+        const key = req.query.key;
+        if (!key) return res.status(400).json({ error: 'key required' });
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { _id: 1, sitePhotos: 1 } });
+        if (!job) return res.status(404).json({ error: 'Not found' });
+        await db.collection('jobs').updateOne({ _id: job._id }, { $pull: { sitePhotos: { key: key } } });
+        if (s3Client && typeof key === 'string' && !key.startsWith('data:')) {
+            s3Client.send(new DeleteObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key })).catch(() => {});
+        }
+        const updated = await db.collection('jobs').findOne({ _id: job._id }, { projection: { sitePhotos: 1 } });
+        res.json({ success: true, byCategory: await buildSitePhotosByCategory(updated) });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Debug: inspect the raw shape of a job's stored photos (admin only)
 app.get('/api/jobs/:id/photos-debug', isAuthenticated, async (req, res) => {
     try {

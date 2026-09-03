@@ -4006,6 +4006,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <h3 style="margin-bottom: 0.75rem;">📷 Photos</h3>
                             <div id="jobPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
                         </div>
+                        <div id="sitePhotosSection" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                            <h3 style="margin-bottom: 0.35rem;">📸 Before / After Documentation</h3>
+                            <p style="font-size:0.83rem;color:#718096;margin-bottom:1rem;max-width:620px;">Photos are your best protection in a dispute. Capture the site before you start, what you protected, anything you found already broken, the finished work, and any damage. Each photo is stamped with the time and who took it.</p>
+                            <div id="sitePhotoCategories"></div>
+                        </div>
                         <div id="jobAuditLogSection" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                             <h3 style="margin-bottom: 1rem; color: #667eea;">📋 Activity Log</h3>
                             <div id="jobAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
@@ -5766,6 +5771,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('jobPhotosSection').style.display = 'none';
             }
+
+            // Structured before/after documentation (saved jobs only)
+            const sitePhotoSection = document.getElementById('sitePhotosSection');
+            if (_photoJobId) { sitePhotoSection.style.display = 'block'; loadSitePhotos(_photoJobId); }
+            else { sitePhotoSection.style.display = 'none'; }
 
             // Show merged audit log: job entries + source quote history
             const _jobEntries = (job && job.auditLog || []).map(e => ({ ...e, _src: 'job' }));
@@ -17715,6 +17725,94 @@ function formatDuration(seconds) {
         // ── Job Applications (admin) ──
         let _applications = [];
         let _hiringFromAppId = null;
+        // ── Structured before/after job documentation ──
+        const SITE_PHOTO_CATEGORIES = [
+            { key: 'before',     label: 'Existing condition (before)', icon: '🏠' },
+            { key: 'protection', label: 'Protected area / coverings', icon: '🛡️' },
+            { key: 'hidden',     label: 'Hidden condition found', icon: '🔍' },
+            { key: 'after',      label: 'Completed work (after)', icon: '✅' },
+            { key: 'damage',     label: 'Damage / issue', icon: '⚠️' }
+        ];
+        let _sitePhotos = {};
+        let _sitePhotosJobId = null;
+
+        async function loadSitePhotos(jobId) {
+            _sitePhotosJobId = jobId;
+            document.getElementById('sitePhotoCategories').innerHTML = '<p style="color:#a0aec0;font-size:0.85rem;">Loading…</p>';
+            try {
+                const res = await fetch('/api/jobs/' + jobId + '/site-photos');
+                const data = await res.json();
+                _sitePhotos = data.byCategory || {};
+            } catch (e) { _sitePhotos = {}; }
+            renderSitePhotos();
+        }
+
+        function renderSitePhotos() {
+            const container = document.getElementById('sitePhotoCategories');
+            if (!container) return;
+            const fmt = d => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+            container.innerHTML = SITE_PHOTO_CATEGORIES.map(cat => {
+                const shots = _sitePhotos[cat.key] || [];
+                const thumbs = shots.map(s =>
+                    '<div style="position:relative;">' +
+                    '<img src="' + s.url + '" title="' + escapeAuthText((s.uploadedByName || '') + ' · ' + fmt(s.uploadedAt)) + '" style="width:96px;height:96px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;" onclick="openLightbox(this.src)">' +
+                    (isAdmin ? '<button type="button" onclick="deleteSitePhoto(\'' + s.key + '\')" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:white;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:0.75rem;line-height:1;">×</button>' : '') +
+                    '</div>'
+                ).join('');
+                const count = shots.length;
+                return '<div style="margin-bottom:1.1rem;padding:0.85rem 1rem;border:1.5px solid ' + (count ? '#c6f6d5' : '#e2e8f0') + ';border-radius:10px;background:' + (count ? '#f7fffb' : '#fafafa') + ';">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:' + (count ? '0.6rem' : '0') + ';">' +
+                        '<span style="font-weight:600;color:#2d3748;font-size:0.92rem;">' + cat.icon + ' ' + cat.label + (count ? ' <span style="color:#276749;font-size:0.8rem;">· ' + count + '</span>' : '') + '</span>' +
+                        '<label style="font-size:0.82rem;background:#edf2f7;color:#4a5568;border:1px solid #e2e8f0;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;">📷 Add photo' +
+                        '<input type="file" accept="image/*" capture="environment" multiple style="display:none;" onchange="captureSitePhoto(\'' + cat.key + '\', event)"></label>' +
+                    '</div>' +
+                    (count ? '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + thumbs + '</div>' : '') +
+                    '</div>';
+            }).join('');
+        }
+
+        function captureSitePhoto(category, event) {
+            const files = Array.from(event.target.files || []);
+            const container = document.getElementById('sitePhotoCategories');
+            const reads = files.filter(f => f.type.startsWith('image/')).slice(0, 8).map(file => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(file);
+            }));
+            event.target.value = '';
+            Promise.all(reads).then(dataUrls => {
+                const valid = dataUrls.filter(Boolean);
+                if (valid.length) uploadSitePhotos(category, valid);
+            });
+        }
+
+        async function uploadSitePhotos(category, dataUrls) {
+            if (!_sitePhotosJobId) return;
+            try {
+                const res = await fetch('/api/jobs/' + _sitePhotosJobId + '/site-photos', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category: category, photos: dataUrls })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not upload photos'); return; }
+                _sitePhotos = data.byCategory || _sitePhotos;
+                renderSitePhotos();
+            } catch (e) { alert('Network error uploading photos'); }
+        }
+
+        async function deleteSitePhoto(key) {
+            if (!_sitePhotosJobId) return;
+            if (!confirm('Remove this photo?')) return;
+            try {
+                const res = await fetch('/api/jobs/' + _sitePhotosJobId + '/site-photos?key=' + encodeURIComponent(key), { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not remove'); return; }
+                _sitePhotos = data.byCategory || _sitePhotos;
+                renderSitePhotos();
+            } catch (e) { alert('Network error'); }
+        }
+
         // ── Incident reporting ──
         let _incidents = [];
         let incidentPhotos = [];
