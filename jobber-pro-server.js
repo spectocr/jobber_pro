@@ -16922,7 +16922,9 @@ function formatDuration(seconds) {
             renderPayrollSummary(data, start, end);
         }
 
+        let _lastPayroll = null;
         function renderPayrollSummary(data, start, end) {
+            _lastPayroll = { data: data, start: start, end: end };
             const el = document.getElementById('payrollContent');
             if (!data.employees || data.employees.length === 0) {
                 el.innerHTML = '<div class="empty-state"><p>No approved time entries in this period.</p></div>';
@@ -16937,7 +16939,7 @@ function formatDuration(seconds) {
                 const t = emp.taxes;
                 return '<tr>' +
                     '<td><strong>' + emp.name + '</strong><div style="font-size:0.8rem;color:#718096;">$' + (emp.hourlyRate||0).toFixed(2) + '/hr</div></td>' +
-                    '<td style="text-align:right;">' + emp.hours.toFixed(2) + 'h</td>' +
+                    '<td style="text-align:right;">' + emp.hours.toFixed(2) + 'h<div style="font-size:0.78rem;color:#718096;">Reg ' + (emp.regularHours != null ? emp.regularHours : emp.hours).toFixed(2) + (emp.otHours ? ' · <span style="color:#c05621;font-weight:600;">OT ' + emp.otHours.toFixed(2) + '</span>' : '') + '</div></td>' +
                     '<td style="text-align:right;font-weight:600;">' + formatMoney(emp.gross) + '</td>' +
                     '<td style="text-align:right;color:#ed8936;">+' + formatMoney(t.empFICA + t.empSUI + t.empWFD) + '</td>' +
                     '<td style="text-align:right;font-weight:700;color:#c53030;">' + formatMoney(t.totalCost) + '</td>' +
@@ -16949,14 +16951,12 @@ function formatDuration(seconds) {
                     '</tr>';
             }).join('');
 
+            const rh = e => (e.regularHours != null ? e.regularHours : e.hours);
             const copyText = [
-                'PAYROLL SUMMARY — ' + start + ' to ' + end,
-                '─'.repeat(48),
-                ...data.employees.map(e => e.name.padEnd(20) + e.hours.toFixed(2).padStart(7) + 'h  ' + formatMoney(e.gross).padStart(10) + ' gross'),
-                '─'.repeat(48),
-                'TOTALS'.padEnd(20) + totalHours.toFixed(2).padStart(7) + 'h  ' + formatMoney(totalGross).padStart(10) + ' gross',
-                'Employer tax burden: +' + formatMoney(totalBurden),
-                'Total cash out: ' + formatMoney(totalCost),
+                'PAYROLL HOURS FOR GUSTO — ' + start + ' to ' + end,
+                '─'.repeat(44),
+                'Employee'.padEnd(22) + 'Regular'.padStart(9) + 'OT'.padStart(9),
+                ...data.employees.map(e => e.name.padEnd(22) + rh(e).toFixed(2).padStart(9) + (e.otHours || 0).toFixed(2).padStart(9)),
             ].join('\n');
 
             el.innerHTML =
@@ -16979,12 +16979,31 @@ function formatDuration(seconds) {
                 '<div style="font-size:1.75rem;font-weight:700;color:#276749;">' + formatMoney(totalCost) + '</div>' +
                 '<div style="font-size:0.8rem;color:#4a5568;">(' + formatMoney(totalGross) + ' gross + ' + formatMoney(totalBurden) + ' taxes)</div>' +
                 '</div>' +
-                '<button class="btn btn-secondary" onclick="copyPayrollSummary(' + JSON.stringify(copyText.replace(/'/g, "\'")) + ')">📋 Copy for Gusto</button>' +
+                '<button class="btn btn-secondary" onclick="copyPayrollSummary(' + JSON.stringify(copyText.replace(/'/g, "\'")) + ')">📋 Copy hours</button>' +
+                '<button class="btn btn-primary" onclick="exportGustoCsv()">⬇️ Gusto hours CSV</button>' +
                 '</div>';
         }
 
         function copyPayrollSummary(text) {
-            navigator.clipboard.writeText(text).then(() => alert('Payroll summary copied to clipboard.')).catch(() => alert(text));
+            navigator.clipboard.writeText(text).then(() => alert('Payroll hours copied to clipboard.')).catch(() => alert(text));
+        }
+
+        function exportGustoCsv() {
+            if (!_lastPayroll || !_lastPayroll.data.employees.length) { alert('Load a pay period first.'); return; }
+            const d = _lastPayroll;
+            const esc = s => { s = String(s == null ? '' : s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+            let csv = 'Employee,Regular Hours,Overtime Hours,Total Hours\n';
+            d.data.employees.forEach(e => {
+                const reg = (e.regularHours != null ? e.regularHours : e.hours) || 0;
+                const ot = e.otHours || 0;
+                csv += [esc(e.name), reg.toFixed(2), ot.toFixed(2), (reg + ot).toFixed(2)].join(',') + '\n';
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'gusto-hours-' + d.start + '-to-' + d.end + '.csv';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
         }
 
         function onboardingPercent(member) {
