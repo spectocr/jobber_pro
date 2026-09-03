@@ -2644,6 +2644,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <input type="number" name="hourlyRate" step="0.01" min="0">
                     </div>
                     <div class="form-group">
+                        <label>Payroll Week Starts On <span style="font-weight:400;color:#718096;font-size:0.8rem;">(match your Gusto pay week — drives the Last Week preset &amp; overtime)</span></label>
+                        <select name="payrollWeekStart">
+                            <option value="0">Sunday</option>
+                            <option value="1">Monday</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Tax Rate (%)</label>
                         <input type="number" name="taxRatePercent" step="0.001" min="0" placeholder="e.g., 6.625 for NJ">
                         <small style="color: #718096; display: block; margin-top: 0.5rem;">NJ sales tax is 6.625%</small>
@@ -12406,6 +12413,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             form.elements.companyEmail.value = settings.companyEmail || '';
             form.elements.companyLicense.value = settings.companyLicense || '';
             form.elements.hourlyRate.value = settings.hourlyRate || 75;
+            form.elements.payrollWeekStart.value = String(settings.payrollWeekStart != null ? settings.payrollWeekStart : 0);
             form.elements.taxRatePercent.value = ((settings.taxRate || 0.06625) * 100).toFixed(3);
             document.getElementById('giftCardsEnabled').checked = !!settings.giftCardsEnabled;
             document.getElementById('giftCardRoundUp').checked = !!settings.giftCardRoundUp;
@@ -12692,6 +12700,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 companyEmail: form.elements.companyEmail.value,
                 companyLicense: form.elements.companyLicense.value,
                 hourlyRate: parseFloat(form.elements.hourlyRate.value),
+                payrollWeekStart: parseInt(form.elements.payrollWeekStart.value) || 0,
                 taxRate: parseFloat(form.elements.taxRatePercent.value) / 100,
                 giftCardsEnabled: document.getElementById('giftCardsEnabled').checked,
                 giftCardRoundUp: document.getElementById('giftCardRoundUp').checked,
@@ -16892,14 +16901,15 @@ function formatDuration(seconds) {
             let start, end;
             const pad = n => String(n).padStart(2, '0');
             const fmt = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+            const weekStart = (typeof settings !== 'undefined' && settings && settings.payrollWeekStart != null) ? Number(settings.payrollWeekStart) : 0; // 0=Sun,1=Mon
             if (preset === 'this_week') {
-                const mon = new Date(now); mon.setDate(d - ((dow + 6) % 7));
-                const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                start = fmt(mon); end = fmt(sun);
+                const ws = new Date(now); ws.setDate(d - ((dow - weekStart + 7) % 7));
+                const we = new Date(ws); we.setDate(ws.getDate() + 6);
+                start = fmt(ws); end = fmt(we);
             } else if (preset === 'last_week') {
-                const mon = new Date(now); mon.setDate(d - ((dow + 6) % 7) - 7);
-                const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                start = fmt(mon); end = fmt(sun);
+                const ws = new Date(now); ws.setDate(d - ((dow - weekStart + 7) % 7) - 7);
+                const we = new Date(ws); we.setDate(ws.getDate() + 6);
+                start = fmt(ws); end = fmt(we);
             } else if (preset === 'this_month') {
                 start = y + '-' + pad(m + 1) + '-01';
                 end = fmt(new Date(y, m + 1, 0));

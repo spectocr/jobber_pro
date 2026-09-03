@@ -5422,8 +5422,9 @@ app.get('/api/payroll/summary', isAdmin, async (req, res) => {
         if (m.name)   rateMap[m.name] = m.hourlyRate;
     });
 
+    const payrollWeekStart = Number((settings && settings.payrollWeekStart) || 0); // 0=Sun, 1=Mon
     const byEmp = {};
-    const weekHrs = {}; // key -> { weekMonday(YYYY-MM-DD) -> hours } for overtime (>40/wk)
+    const weekHrs = {}; // key -> { weekStartDate(YYYY-MM-DD) -> hours } for overtime (>40/wk)
     for (const e of entries) {
         const key = e.userId || e.userName;
         const rate = e.hourlyRate ?? rateMap[String(e.userId)] ?? rateMap[e.userName] ?? 0;
@@ -5433,12 +5434,12 @@ app.get('/api/payroll/summary', isAdmin, async (req, res) => {
         byEmp[key].gross += hrs * rate;
         byEmp[key].paymentTotal += parseFloat(e.paymentAmount) || 0;
         byEmp[key].entryCount++;
-        // bucket by Monday-start week for the OT split
+        // bucket by the configured week start for the OT split
         const d = new Date(e.clockIn);
-        const monday = new Date(d);
-        monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-        monday.setHours(0, 0, 0, 0);
-        const wk = monday.toISOString().slice(0, 10);
+        const ws = new Date(d);
+        ws.setDate(d.getDate() - ((d.getDay() - payrollWeekStart + 7) % 7));
+        ws.setHours(0, 0, 0, 0);
+        const wk = ws.toISOString().slice(0, 10);
         if (!weekHrs[key]) weekHrs[key] = {};
         weekHrs[key][wk] = (weekHrs[key][wk] || 0) + hrs;
     }
