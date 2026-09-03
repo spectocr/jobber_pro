@@ -1400,6 +1400,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </button>
             <button class="nav-btn" onclick="showView('timeclock')" data-user-only>⏱️ Time Clock</button>
             <button class="nav-btn" onclick="showView('mypay')" data-user-only>💵 My Pay</button>
+            <button class="nav-btn" onclick="showView('incidents')" style="position:relative;">🚨 Incidents
+                <span id="incidents-badge" style="display:none;position:absolute;top:6px;right:4px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
+            </button>
         </div>
         <div class="admin-menu-wrapper" data-admin-only>
             <button class="nav-btn" id="admin-menu-btn" onclick="toggleAdminMenu(event)">⚙️ Admin ▾</button>
@@ -2054,6 +2057,70 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 </div>
                 <div id="applications-list"><div class="empty-state"><p>Loading…</p></div></div>
+            </div>
+        </div>
+
+        <div id="incidents" class="view">
+            <div class="card">
+                <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+                    <h2>🚨 Incident Reports</h2>
+                    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <button class="btn btn-secondary" onclick="loadIncidents()">🔄 Refresh</button>
+                        <button class="btn btn-primary" style="background:#e53e3e;" onclick="openIncidentModal()">🚨 Report an Incident</button>
+                    </div>
+                </div>
+                <div style="background:#fff5f5;border:1px solid #fed7d7;border-left:4px solid #e53e3e;border-radius:8px;padding:0.9rem 1.1rem;margin-bottom:1.25rem;font-size:0.9rem;color:#742a2a;line-height:1.6;">
+                    <strong>If something goes wrong on a job:</strong> make the area safe → take photos → report it here right away.
+                    Do <strong>not</strong> admit fault or negotiate. Cris is notified the moment you submit.
+                </div>
+                <div id="incidents-list"><div class="empty-state"><p>Loading…</p></div></div>
+            </div>
+        </div>
+
+        <div id="incidentModal" class="modal">
+            <div class="modal-content" style="max-width:560px;">
+                <div class="modal-header">
+                    <h2>🚨 Report an Incident</h2>
+                    <button class="close-btn" onclick="closeModal('incidentModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="background:#fff5f5;border-left:4px solid #e53e3e;border-radius:6px;padding:0.7rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:#742a2a;line-height:1.55;">
+                        First: <strong>make the area safe</strong>. Stick to facts. Don't admit fault. This goes straight to Cris.
+                    </div>
+                    <form id="incidentForm" onsubmit="return false;">
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">What kind of incident?</label>
+                        <select id="incType" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;">
+                            <option value="Injury">Injury (someone got hurt)</option>
+                            <option value="Property damage">Property damage</option>
+                            <option value="Near-miss">Near-miss (no harm, but close)</option>
+                            <option value="Customer complaint">Customer complaint / dispute</option>
+                            <option value="Vehicle">Vehicle</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">When did it happen?</label>
+                        <input type="datetime-local" id="incWhen" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;">
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">Job or address</label>
+                        <input type="text" id="incLocation" placeholder="e.g. 12 Oak Ave, or the job name" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;">
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">What happened? <span style="color:#e53e3e;">*</span></label>
+                        <textarea id="incDescription" rows="4" placeholder="Just the facts — what happened, in order." style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;font-family:inherit;"></textarea>
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">Was anyone hurt? Who, and how?</label>
+                        <input type="text" id="incInjuries" placeholder="Leave blank if no one was hurt" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;">
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">Witnesses (names / phones)</label>
+                        <input type="text" id="incWitnesses" placeholder="Optional" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;">
+                        <label class="policy-check" style="display:flex;gap:0.6rem;align-items:flex-start;padding:0.75rem 0.9rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.9rem;cursor:pointer;">
+                            <input type="checkbox" id="incMadeSafe" style="margin-top:2px;width:18px;height:18px;accent-color:#48bb78;">
+                            <span style="font-size:0.88rem;color:#2d3748;">I have made the area safe (or it's being handled now).</span>
+                        </label>
+                        <label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">Photos</label>
+                        <input type="file" id="incPhotos" accept="image/*" capture="environment" multiple onchange="onIncidentPhotos(event)" style="width:100%;margin-bottom:0.5rem;">
+                        <div id="incPhotoPreview" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.9rem;"></div>
+                        <div id="incErr" style="color:#e53e3e;font-size:0.85rem;margin-bottom:0.5rem;display:none;"></div>
+                        <div style="display:flex;gap:0.75rem;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('incidentModal')">Cancel</button>
+                            <button type="button" id="incSubmitBtn" class="btn btn-primary" style="background:#e53e3e;flex:1;" onclick="submitIncident()">🚨 Submit &amp; Notify Cris</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -4752,6 +4819,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'taxes') { populateTaxYears(); loadTaxes(); populateMileageYears(); loadMileageReport(); }
             if (viewName === 'giftcards') loadGiftCards();
             if (viewName === 'applications') loadApplications();
+            if (viewName === 'incidents') loadIncidents();
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -17647,6 +17715,149 @@ function formatDuration(seconds) {
         // ── Job Applications (admin) ──
         let _applications = [];
         let _hiringFromAppId = null;
+        // ── Incident reporting ──
+        let _incidents = [];
+        let incidentPhotos = [];
+
+        function openIncidentModal() {
+            document.getElementById('incidentForm').reset();
+            incidentPhotos = [];
+            document.getElementById('incPhotoPreview').innerHTML = '';
+            document.getElementById('incErr').style.display = 'none';
+            // Default the time to now (local)
+            const now = new Date();
+            const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            document.getElementById('incWhen').value = local;
+            document.getElementById('incidentModal').classList.add('active');
+        }
+
+        function onIncidentPhotos(event) {
+            const files = Array.from(event.target.files || []);
+            files.forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+                if (incidentPhotos.length >= 8) return;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    incidentPhotos.push(e.target.result);
+                    renderIncidentPhotoPreview();
+                };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = '';
+        }
+
+        function renderIncidentPhotoPreview() {
+            const box = document.getElementById('incPhotoPreview');
+            box.innerHTML = incidentPhotos.map((src, i) =>
+                '<div style="position:relative;">' +
+                '<img src="' + src + '" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;">' +
+                '<button type="button" onclick="removeIncidentPhoto(' + i + ')" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:white;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:0.75rem;line-height:1;">×</button>' +
+                '</div>'
+            ).join('');
+        }
+
+        function removeIncidentPhoto(i) {
+            incidentPhotos.splice(i, 1);
+            renderIncidentPhotoPreview();
+        }
+
+        async function submitIncident() {
+            const err = document.getElementById('incErr');
+            const description = document.getElementById('incDescription').value.trim();
+            if (!description) { err.textContent = 'Please describe what happened.'; err.style.display = 'block'; return; }
+            err.style.display = 'none';
+            const btn = document.getElementById('incSubmitBtn');
+            btn.disabled = true; btn.textContent = 'Sending…';
+            const payload = {
+                type: document.getElementById('incType').value,
+                occurredAt: document.getElementById('incWhen').value,
+                location: document.getElementById('incLocation').value.trim(),
+                description: description,
+                injuries: document.getElementById('incInjuries').value.trim(),
+                witnesses: document.getElementById('incWitnesses').value.trim(),
+                madeSafe: document.getElementById('incMadeSafe').checked,
+                photos: incidentPhotos
+            };
+            try {
+                const res = await fetch('/api/incidents', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not submit.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = '🚨 Submit & Notify Cris'; return; }
+                closeModal('incidentModal');
+                alert('✅ Reported. Cris has been notified.' + (data.notified === false ? '\\n\\n(Note: automatic alert could not be sent — call Cris directly.)' : ''));
+                btn.disabled = false; btn.textContent = '🚨 Submit & Notify Cris';
+                loadIncidents();
+            } catch (e) {
+                err.textContent = 'Network error. If urgent, call Cris directly.'; err.style.display = 'block';
+                btn.disabled = false; btn.textContent = '🚨 Submit & Notify Cris';
+            }
+        }
+
+        async function loadIncidents() {
+            const box = document.getElementById('incidents-list');
+            box.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+            try { _incidents = await (await fetch('/api/incidents')).json(); }
+            catch (e) { box.innerHTML = '<div class="empty-state"><p>Failed to load incidents.</p></div>'; return; }
+            renderIncidents();
+            updateIncidentsBadge();
+        }
+
+        function incStatusMeta(s) {
+            if (s === 'closed') return { label: 'Closed', bg: '#e2e8f0', fg: '#4a5568' };
+            if (s === 'reviewing') return { label: 'Reviewing', bg: '#fefcbf', fg: '#744210' };
+            return { label: 'Open', bg: '#fed7d7', fg: '#742a2a' };
+        }
+
+        function updateIncidentsBadge() {
+            const badge = document.getElementById('incidents-badge');
+            if (!badge || !isAdmin) return;
+            const open = _incidents.filter(i => (i.status || 'open') === 'open').length;
+            if (open > 0) { badge.textContent = open; badge.style.display = 'block'; }
+            else badge.style.display = 'none';
+        }
+
+        function renderIncidents() {
+            const box = document.getElementById('incidents-list');
+            if (!_incidents.length) {
+                box.innerHTML = '<div class="empty-state"><h3>No incidents reported</h3><p>' + (isAdmin ? 'Reports from the crew will show up here.' : 'Use the button above if something happens on a job.') + '</p></div>';
+                return;
+            }
+            const fmt = d => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+            box.innerHTML = _incidents.map(inc => {
+                const m = incStatusMeta(inc.status || 'open');
+                const photos = (inc.photoUrls || []).map(u => '<a href="' + u + '" target="_blank"><img src="' + u + '" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;"></a>').join('');
+                const statusCtl = isAdmin
+                    ? '<select onchange="updateIncidentStatus(\'' + inc.id + '\',this.value)" style="font-size:0.8rem;padding:3px 6px;border:1px solid #e2e8f0;border-radius:6px;background:' + m.bg + ';color:' + m.fg + ';font-weight:700;cursor:pointer;">' +
+                        '<option value="open"' + ((inc.status || 'open') === 'open' ? ' selected' : '') + '>Open</option>' +
+                        '<option value="reviewing"' + (inc.status === 'reviewing' ? ' selected' : '') + '>Reviewing</option>' +
+                        '<option value="closed"' + (inc.status === 'closed' ? ' selected' : '') + '>Closed</option>' +
+                      '</select>'
+                    : '<span style="background:' + m.bg + ';color:' + m.fg + ';font-size:0.76rem;font-weight:700;padding:2px 9px;border-radius:10px;">' + m.label + '</span>';
+                return '<div style="background:white;border:2px solid #e2e8f0;border-left:4px solid #e53e3e;border-radius:10px;padding:1rem 1.25rem;margin-bottom:0.9rem;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.5rem;">' +
+                        '<div><span style="font-weight:700;color:#2d3748;font-size:1rem;">' + escapeAuthText(inc.type) + '</span>' +
+                        (inc.madeSafe ? ' <span style="background:#c6f6d5;color:#276749;font-size:0.72rem;font-weight:700;padding:2px 7px;border-radius:10px;">✓ Area made safe</span>' : ' <span style="background:#fed7d7;color:#742a2a;font-size:0.72rem;font-weight:700;padding:2px 7px;border-radius:10px;">⚠ Not marked safe</span>') +
+                        '<div style="font-size:0.8rem;color:#718096;margin-top:2px;">Reported by ' + escapeAuthText(inc.reportedByName || 'Unknown') + ' · ' + fmt(inc.createdAt) + '</div></div>' +
+                        statusCtl +
+                    '</div>' +
+                    (inc.occurredAt ? '<div style="font-size:0.85rem;color:#4a5568;"><strong>When:</strong> ' + fmt(inc.occurredAt) + '</div>' : '') +
+                    (inc.location ? '<div style="font-size:0.85rem;color:#4a5568;"><strong>Where:</strong> ' + escapeAuthText(inc.location) + '</div>' : '') +
+                    '<div style="font-size:0.9rem;color:#2d3748;margin-top:0.4rem;white-space:pre-wrap;">' + escapeAuthText(inc.description) + '</div>' +
+                    (inc.injuries ? '<div style="font-size:0.85rem;color:#c53030;margin-top:0.4rem;"><strong>Injuries:</strong> ' + escapeAuthText(inc.injuries) + '</div>' : '') +
+                    (inc.witnesses ? '<div style="font-size:0.85rem;color:#4a5568;margin-top:0.2rem;"><strong>Witnesses:</strong> ' + escapeAuthText(inc.witnesses) + '</div>' : '') +
+                    (photos ? '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.6rem;">' + photos + '</div>' : '') +
+                    '</div>';
+            }).join('');
+        }
+
+        async function updateIncidentStatus(id, status) {
+            try {
+                const res = await fetch('/api/incidents/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status }) });
+                if (res.ok) { const inc = _incidents.find(i => i.id === id); if (inc) inc.status = status; updateIncidentsBadge(); }
+            } catch (e) {}
+        }
+
         async function loadApplications() {
             const box = document.getElementById('applications-list');
             box.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';

@@ -5507,6 +5507,134 @@ app.delete('/api/team/:id/authorization/:authId', isAdmin, async (req, res) => {
     res.json({ success: true, authorizations: list });
 });
 
+// ── Incident reports (field crew → instant owner notification) ──
+app.post('/api/incidents', isAuthenticated, async (req, res) => {
+    try {
+        const { type, occurredAt, location, description, injuries, witnesses, madeSafe, photos } = req.body;
+        if (!description || !description.trim()) return res.status(400).json({ error: 'Please describe what happened.' });
+        const now = new Date();
+
+        // Upload any photos to S3
+        let photoKeys = [];
+        const valid = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 8) : [];
+        if (valid.length && s3Client) {
+            const ts = Date.now();
+            const uploads = await Promise.all(valid.map(async (dataUrl, i) => {
+                const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
+                if (!match) return null;
+                const ext = match[2] === 'jpeg' ? 'jpg' : match[2];
+                const key = `incidents/${ts}-${i}.${ext}`;
+                await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: Buffer.from(match[3], 'base64'), ContentType: match[1] }));
+                return key;
+            }));
+            photoKeys = uploads.filter(Boolean);
+        }
+
+        const incident = {
+            type: (type || 'Other').slice(0, 60),
+            occurredAt: occurredAt ? new Date(occurredAt) : now,
+            location: (location || '').slice(0, 300),
+            description: description.trim().slice(0, 5000),
+            injuries: (injuries || '').slice(0, 1000),
+            witnesses: (witnesses || '').slice(0, 500),
+            madeSafe: !!madeSafe,
+            photos: photoKeys,
+            status: 'open',
+            reportedById: req.session.userId,
+            reportedByName: req.session.userName || 'Unknown',
+            createdAt: now,
+            updatedAt: now
+        };
+        const ins = await db.collection('incidents').insertOne(incident);
+
+        // Notify the owner immediately (email + SMS). Failures never block the report.
+        let notified = false;
+        try {
+            const settings = await db.collection('settings').findOne({}) || {};
+            const appName = settings.companyName || 'GSD Property Services';
+            const notifyEmail = settings.incidentNotifyEmail || settings.companyEmail;
+            const notifyPhone = settings.incidentNotifyPhone || settings.companyPhone;
+            const when = incident.occurredAt.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+            const lines = [
+                `🚨 ${incident.type} reported by ${incident.reportedByName}`,
+                incident.location ? `Where: ${incident.location}` : '',
+                `When: ${when}`,
+                incident.injuries ? `Injuries: ${incident.injuries}` : '',
+                `Area made safe: ${incident.madeSafe ? 'Yes' : 'NOT marked safe'}`,
+                '',
+                incident.description
+            ].filter(Boolean);
+
+            if (notifyEmail && emailService && emailService.sendEmail) {
+                await emailService.sendEmail({
+                    to: notifyEmail,
+                    subject: `🚨 Incident reported — ${incident.type} (${incident.reportedByName})`,
+                    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
+                        <h2 style="color:#e53e3e;">🚨 Incident Report</h2>
+                        <p><strong>Type:</strong> ${incident.type}<br>
+                        <strong>Reported by:</strong> ${incident.reportedByName}<br>
+                        <strong>When:</strong> ${when}<br>
+                        ${incident.location ? `<strong>Where:</strong> ${incident.location}<br>` : ''}
+                        <strong>Area made safe:</strong> ${incident.madeSafe ? 'Yes' : '<span style="color:#e53e3e;">NOT marked safe</span>'}</p>
+                        ${incident.injuries ? `<p style="color:#c53030;"><strong>Injuries:</strong> ${incident.injuries}</p>` : ''}
+                        ${incident.witnesses ? `<p><strong>Witnesses:</strong> ${incident.witnesses}</p>` : ''}
+                        <p style="white-space:pre-wrap;background:#f8f9fa;padding:1rem;border-radius:8px;">${incident.description}</p>
+                        ${photoKeys.length ? `<p>${photoKeys.length} photo(s) attached — view them in the app under Incidents.</p>` : ''}
+                        <p style="margin-top:1.5rem;"><a href="${process.env.APP_URL}/login" style="background:#e53e3e;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Open in app →</a></p>
+                    </div>`,
+                    text: lines.join('\n')
+                });
+                notified = true;
+            }
+            if (notifyPhone && typeof sendSMS === 'function') {
+                const smsBody = `🚨 ${appName} incident: ${incident.type} by ${incident.reportedByName}. ${incident.location || ''} ${incident.madeSafe ? '(safe)' : '(NOT SAFE)'}. Check the app.`.slice(0, 300);
+                const r = await sendSMS(notifyPhone, smsBody, { type: 'incident' });
+                if (r && r.success) notified = true;
+            }
+        } catch (notifyErr) {
+            console.error('Incident notify failed:', notifyErr.message);
+        }
+
+        res.json({ success: true, id: ins.insertedId.toString(), notified });
+    } catch (err) {
+        console.error('Create incident error:', err);
+        res.status(500).json({ error: 'Server error saving incident' });
+    }
+});
+
+// List incidents — admins see all, workers see only their own.
+app.get('/api/incidents', isAuthenticated, async (req, res) => {
+    try {
+        const query = req.session.userRole === 'admin' ? {} : { reportedById: req.session.userId };
+        const incidents = await db.collection('incidents').find(query).sort({ createdAt: -1 }).limit(200).toArray();
+        const withUrls = await Promise.all(incidents.map(async inc => {
+            const photoUrls = await Promise.all((inc.photos || []).map(k => getS3SignedUrl(k, 3600).catch(() => null)));
+            return { ...inc, id: inc._id.toString(), photoUrls: photoUrls.filter(Boolean) };
+        }));
+        res.json(withUrls);
+    } catch (err) {
+        console.error('List incidents error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin updates incident status / notes.
+app.patch('/api/incidents/:id', isAdmin, async (req, res) => {
+    try {
+        const { status, adminNotes } = req.body;
+        const set = { updatedAt: new Date() };
+        if (status && ['open', 'reviewing', 'closed'].includes(status)) {
+            set.status = status;
+            if (status === 'closed') set.closedAt = new Date();
+        }
+        if (typeof adminNotes === 'string') set.adminNotes = adminNotes.slice(0, 5000);
+        await db.collection('incidents').updateOne({ _id: new ObjectId(req.params.id) }, { $set: set });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Business-level compliance settings
 app.get('/api/settings/compliance', isAdmin, async (req, res) => {
     const s = await db.collection('settings').findOne({}, { projection: { compliance: 1 } });
