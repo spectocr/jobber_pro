@@ -14622,7 +14622,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const isMobile = window.innerWidth < 768;
 
             const renderCards = (leads) => leads.map(l => {
-                const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const date = new Date(l.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
                 const color = statusColors[l.status] || '#6b7280';
                 return \`<div style="background:white;border:2px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
@@ -14653,7 +14653,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             const renderTable = (leads) => \`<table><thead><tr>\` + sth('leads','createdAt','Date') + sth('leads','name','Name') + \`<th>Contact</th>\` + sth('leads','service','Service') + sth('leads','city','Location') + \`<th>Description & Photos</th>\` + sth('leads','status','Status') + \`<th></th></tr></thead><tbody>\` +
                 leads.map(l => {
-                    const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const date = new Date(l.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
                     const color = statusColors[l.status] || '#6b7280';
                     return \`<tr>
                         <td style="white-space:nowrap;">\${date}</td>
@@ -14707,7 +14707,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!l) return;
             const statusColors = { new: '#3b82f6', contacted: '#f59e0b', quoted: '#8b5cf6', won: '#10b981', lost: '#6b7280', rejected: '#dc2626' };
             const color = statusColors[l.status] || '#6b7280';
-            const date = new Date(l.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            const date = new Date(l.createdAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
             document.getElementById('leadModalName').textContent = l.name;
             document.getElementById('leadModalBody').innerHTML = \`
                 <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
