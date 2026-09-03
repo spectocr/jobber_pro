@@ -1403,6 +1403,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             <button class="nav-btn" onclick="showView('incidents')" style="position:relative;">🚨 Incidents
                 <span id="incidents-badge" style="display:none;position:absolute;top:6px;right:4px;background:#e53e3e;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;"></span>
             </button>
+            <button class="nav-btn" onclick="showView('handbook')" style="position:relative;">📖 Handbook
+                <span id="handbook-badge" style="display:none;position:absolute;top:6px;right:4px;background:#ed8936;color:white;border-radius:10px;padding:2px 6px;font-size:0.7rem;font-weight:bold;">!</span>
+            </button>
         </div>
         <div class="admin-menu-wrapper" data-admin-only>
             <button class="nav-btn" id="admin-menu-btn" onclick="toggleAdminMenu(event)">⚙️ Admin ▾</button>
@@ -2074,6 +2077,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     Do <strong>not</strong> admit fault or negotiate. Cris is notified the moment you submit.
                 </div>
                 <div id="incidents-list"><div class="empty-state"><p>Loading…</p></div></div>
+            </div>
+        </div>
+
+        <div id="handbook" class="view">
+            <div class="card">
+                <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+                    <h2>📖 Employee Handbook</h2>
+                    <div id="handbook-actions" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;"></div>
+                </div>
+                <div id="handbook-body"><div class="empty-state"><p>Loading…</p></div></div>
             </div>
         </div>
 
@@ -4825,6 +4838,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'giftcards') loadGiftCards();
             if (viewName === 'applications') loadApplications();
             if (viewName === 'incidents') loadIncidents();
+            if (viewName === 'handbook') loadHandbook();
             if (viewName === 'expenses') loadExpenses();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'portfolio') loadPortfolio();
@@ -5040,6 +5054,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         window.addEventListener('DOMContentLoaded', () => {
             loadWeatherBar();
             checkAdminOOOBadge();
+            checkHandbookBadge();
             // Handle post-OAuth redirect
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('analytics') === 'connected') {
@@ -17193,6 +17208,13 @@ function formatDuration(seconds) {
                 : check(false, 'Employee Agreement & Safety Acknowledgment signed',
                     hint('Employee reads and e-signs the agreement (at-will, authorized-work-only, no scope/price changes, safety rules, incident reporting) as the final onboarding step.'));
 
+            const hbAck = member.handbookAck;
+            const hbRow = hbAck
+                ? check(true, 'Employee handbook acknowledged · v' + hbAck.version,
+                    hint('Acknowledged in the app on ' + new Date(hbAck.acknowledgedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '.'))
+                : check(false, 'Employee handbook acknowledged',
+                    hint('Once this person has an app login, they acknowledge the handbook from the 📖 Handbook tab. Not required to finish onboarding.'));
+
             const payRateExtra =
                 hint('Required for payroll calculations in the Payroll view.') +
                 aBtn('✏️ Edit Member', 'editTeamMember(\'' + id + '\')', '#faf5ff');
@@ -17204,6 +17226,7 @@ function formatDuration(seconds) {
                 i9Row +
                 check(!!ob.policyAck?.completedAt, 'Policy acknowledgments (no cash, safety, tools, OT)', policyExtra) +
                 agRow +
+                hbRow +
                 jdRow +
                 check(!!(member.hourlyRate > 0), 'Pay rate defined' + (member.hourlyRate ? ' · $' + member.hourlyRate + '/hr' : ' · <em style="color:#e53e3e;">Not set</em>'), payRateExtra) +
                 '</div>';
@@ -17811,6 +17834,228 @@ function formatDuration(seconds) {
                 _sitePhotos = data.byCategory || _sitePhotos;
                 renderSitePhotos();
             } catch (e) { alert('Network error'); }
+        }
+
+        // ── Employee Handbook ──
+        let _handbook = null;
+        let _handbookAck = null;
+        let _handbookShareEnabled = false;
+        let _handbookEditing = false;
+        let _handbookDraft = null;
+
+        async function loadHandbook() {
+            _handbookEditing = false;
+            const body = document.getElementById('handbook-body');
+            body.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+            try {
+                const data = await (await fetch('/api/handbook')).json();
+                _handbook = data.handbook;
+                _handbookAck = data.myAck;
+                _handbookShareEnabled = !!data.shareEnabled;
+            } catch (e) {
+                body.innerHTML = '<div class="empty-state"><p>Failed to load handbook.</p></div>';
+                return;
+            }
+            renderHandbook();
+            updateHandbookBadge();
+        }
+
+        function updateHandbookBadge() {
+            const badge = document.getElementById('handbook-badge');
+            if (!badge || !_handbook) return;
+            const needsAck = !_handbookAck || _handbookAck.version !== _handbook.version;
+            badge.style.display = needsAck ? 'block' : 'none';
+        }
+
+        // Lightweight check on app load so the "!" badge shows before opening the view.
+        async function checkHandbookBadge() {
+            try {
+                const data = await (await fetch('/api/handbook')).json();
+                const badge = document.getElementById('handbook-badge');
+                if (!badge || !data.handbook) return;
+                const needsAck = !data.myAck || data.myAck.version !== data.handbook.version;
+                badge.style.display = needsAck ? 'block' : 'none';
+            } catch (e) {}
+        }
+
+        function renderHandbookActions() {
+            const el = document.getElementById('handbook-actions');
+            if (!el) return;
+            if (_handbookEditing) { el.innerHTML = ''; return; }
+            let html = '<button class="btn btn-secondary" onclick="printHandbook()">🖨️ Print</button>';
+            if (isAdmin) {
+                html += '<button class="btn btn-secondary" onclick="openHandbookShare()">🔗 Share link</button>';
+                html += '<button class="btn btn-secondary" onclick="viewHandbookAcks()">👀 Who\'s read it</button>';
+                html += '<button class="btn btn-primary" onclick="editHandbook()">✏️ Edit</button>';
+            }
+            el.innerHTML = html;
+        }
+
+        function renderHandbook() {
+            renderHandbookActions();
+            const body = document.getElementById('handbook-body');
+            if (!_handbook) { body.innerHTML = '<div class="empty-state"><p>No handbook.</p></div>'; return; }
+            const updated = _handbook.updatedAt ? new Date(_handbook.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+            const needsAck = !_handbookAck || _handbookAck.version !== _handbook.version;
+
+            const ackBar = needsAck
+                ? '<div style="background:#fffaf0;border:1px solid #fbd38d;border-left:4px solid #ed8936;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">' +
+                    '<span style="color:#744210;font-size:0.9rem;">Please read the handbook, then confirm you\'ve read and understand it.</span>' +
+                    '<button class="btn btn-primary" onclick="acknowledgeHandbook()">✓ I\'ve read &amp; agree (v' + _handbook.version + ')</button></div>'
+                : '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-left:4px solid #48bb78;border-radius:8px;padding:0.85rem 1.25rem;margin-bottom:1.5rem;color:#276749;font-size:0.9rem;">✓ You acknowledged this handbook (v' + _handbookAck.version + ') on ' + new Date(_handbookAck.acknowledgedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '.</div>';
+
+            const sections = (_handbook.sections || []).map((sec, i) =>
+                '<section style="margin-bottom:1.6rem;">' +
+                    '<h3 style="color:#2d3748;font-size:1.05rem;margin-bottom:0.4rem;">' + (i + 1) + '. ' + escapeAuthText(sec.title) + '</h3>' +
+                    '<div style="color:#4a5568;font-size:0.94rem;line-height:1.65;white-space:pre-wrap;">' + escapeAuthText(sec.body) + '</div>' +
+                '</section>'
+            ).join('');
+
+            body.innerHTML =
+                '<div style="color:#718096;font-size:0.85rem;margin-bottom:1.25rem;">Version ' + _handbook.version + (updated ? ' · Updated ' + updated : '') + '</div>' +
+                ackBar +
+                '<div style="max-width:760px;">' + sections + '</div>';
+        }
+
+        async function acknowledgeHandbook() {
+            try {
+                const res = await fetch('/api/handbook/acknowledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not acknowledge'); return; }
+                _handbookAck = { version: data.version, acknowledgedAt: data.acknowledgedAt };
+                renderHandbook();
+                updateHandbookBadge();
+            } catch (e) { alert('Network error'); }
+        }
+
+        function printHandbook() {
+            if (!_handbook) return;
+            const updated = _handbook.updatedAt ? new Date(_handbook.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+            const co = (typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'GSD Property Services';
+            const secs = (_handbook.sections || []).map((sec, i) =>
+                '<section><h2>' + (i + 1) + '. ' + escapeAuthText(sec.title) + '</h2><div>' + escapeAuthText(sec.body).replace(/\\n/g, '<br>') + '</div></section>'
+            ).join('');
+            const w = window.open('', '_blank');
+            w.document.write('<html><head><title>Employee Handbook — ' + escapeAuthText(co) + '</title><style>body{font-family:Georgia,serif;max-width:720px;margin:2rem auto;padding:0 1rem;color:#222;line-height:1.6;}h1{text-align:center;}section{margin-bottom:1.4rem;}h2{font-size:1.1rem;margin-bottom:0.3rem;}div{white-space:normal;}</style></head><body><h1>' + escapeAuthText(co) + '<br><small style="font-size:0.6em;color:#666;">Employee Handbook · v' + _handbook.version + (updated ? ' · ' + updated : '') + '</small></h1>' + secs + '</body></html>');
+            w.document.close();
+            w.focus();
+            setTimeout(() => w.print(), 300);
+        }
+
+        async function openHandbookShare() {
+            let url = '';
+            try {
+                const cur = await (await fetch('/api/handbook/share')).json();
+                url = cur.url || '';
+            } catch (e) {}
+            if (!url) {
+                // No link yet — create one.
+                try {
+                    const gen = await (await fetch('/api/handbook/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) })).json();
+                    url = gen.url || '';
+                    _handbookShareEnabled = true;
+                } catch (e) {}
+                if (!url) { alert('Could not create share link'); return; }
+                prompt('Read-only handbook link created — copy and share it with anyone (no login needed):', url);
+                return;
+            }
+            // Link exists — show it, and offer to rotate (invalidate the old one) or turn it off.
+            const action = prompt('Read-only handbook link (share with anyone, no login):\\n\\n' + url + '\\n\\n— Copy it above and press Cancel to keep it.\\n— Type NEW to generate a fresh link (old one stops working).\\n— Type OFF to disable sharing.', url);
+            if (action === null) return;
+            const a = action.trim().toUpperCase();
+            if (a === 'NEW') {
+                const gen = await (await fetch('/api/handbook/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) })).json();
+                if (gen.url) prompt('New link (old one is now disabled):', gen.url);
+            } else if (a === 'OFF') {
+                await fetch('/api/handbook/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }) });
+                _handbookShareEnabled = false;
+                alert('Share link disabled. The old link no longer works.');
+            }
+        }
+
+        async function viewHandbookAcks() {
+            try {
+                const acks = await (await fetch('/api/handbook/acks')).json();
+                if (!acks.length) { alert('No one has acknowledged the handbook yet.'); return; }
+                const lines = acks.map(a => '• ' + a.userName + ' — v' + a.version + ' on ' + new Date(a.acknowledgedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+                alert('Handbook acknowledgments:\\n\\n' + lines.join('\\n'));
+            } catch (e) { alert('Could not load acknowledgments'); }
+        }
+
+        // ── Admin: edit handbook ──
+        function editHandbook() {
+            _handbookEditing = true;
+            _handbookDraft = JSON.parse(JSON.stringify(_handbook.sections || []));
+            renderHandbookEditor();
+        }
+
+        function syncHandbookDraftFromDom() {
+            (_handbookDraft || []).forEach((sec, i) => {
+                const t = document.getElementById('hb-title-' + i);
+                const b = document.getElementById('hb-body-' + i);
+                if (t) sec.title = t.value;
+                if (b) sec.body = b.value;
+            });
+        }
+
+        function renderHandbookEditor() {
+            document.getElementById('handbook-actions').innerHTML = '';
+            const body = document.getElementById('handbook-body');
+            const rows = (_handbookDraft || []).map((sec, i) =>
+                '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.9rem;background:#fafafa;">' +
+                    '<div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">' +
+                        '<input id="hb-title-' + i + '" type="text" value="' + escapeAuthText(sec.title) + '" placeholder="Section title" style="flex:1;padding:0.5rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:6px;font-weight:600;">' +
+                        '<button type="button" onclick="moveHandbookSection(' + i + ',-1)" title="Move up" style="background:#edf2f7;border:none;border-radius:6px;width:32px;height:32px;cursor:pointer;">↑</button>' +
+                        '<button type="button" onclick="moveHandbookSection(' + i + ',1)" title="Move down" style="background:#edf2f7;border:none;border-radius:6px;width:32px;height:32px;cursor:pointer;">↓</button>' +
+                        '<button type="button" onclick="removeHandbookSection(' + i + ')" title="Remove" style="background:#fed7d7;color:#c53030;border:none;border-radius:6px;width:32px;height:32px;cursor:pointer;">✕</button>' +
+                    '</div>' +
+                    '<textarea id="hb-body-' + i + '" rows="5" placeholder="Section text…" style="width:100%;padding:0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-family:inherit;font-size:0.9rem;">' + escapeAuthText(sec.body) + '</textarea>' +
+                '</div>'
+            ).join('');
+            body.innerHTML =
+                '<div style="background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;padding:0.85rem 1.1rem;margin-bottom:1.25rem;font-size:0.86rem;color:#2c5282;">Edit the handbook below. Saving with any change bumps the version and prompts the crew to re-acknowledge.</div>' +
+                rows +
+                '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">' +
+                    '<button class="btn btn-secondary" onclick="addHandbookSection()">+ Add section</button>' +
+                    '<div style="flex:1;"></div>' +
+                    '<button class="btn btn-secondary" onclick="cancelHandbookEdit()">Cancel</button>' +
+                    '<button class="btn btn-primary" onclick="saveHandbook()">💾 Save handbook</button>' +
+                '</div>';
+        }
+
+        function addHandbookSection() {
+            syncHandbookDraftFromDom();
+            _handbookDraft.push({ id: 'sec_' + Date.now().toString(36), title: '', body: '' });
+            renderHandbookEditor();
+        }
+        function removeHandbookSection(i) {
+            syncHandbookDraftFromDom();
+            _handbookDraft.splice(i, 1);
+            renderHandbookEditor();
+        }
+        function moveHandbookSection(i, dir) {
+            syncHandbookDraftFromDom();
+            const j = i + dir;
+            if (j < 0 || j >= _handbookDraft.length) return;
+            const tmp = _handbookDraft[i]; _handbookDraft[i] = _handbookDraft[j]; _handbookDraft[j] = tmp;
+            renderHandbookEditor();
+        }
+        function cancelHandbookEdit() {
+            _handbookEditing = false;
+            renderHandbook();
+        }
+        async function saveHandbook() {
+            syncHandbookDraftFromDom();
+            const sections = (_handbookDraft || []).filter(s => (s.title && s.title.trim()) || (s.body && s.body.trim()));
+            if (!sections.length) { alert('Add at least one section.'); return; }
+            try {
+                const res = await fetch('/api/handbook', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sections: sections }) });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not save'); return; }
+                _handbookEditing = false;
+                await loadHandbook();
+                if (data.bumped) alert('Saved. Version bumped to v' + data.version + ' — the crew will be asked to re-acknowledge.');
+            } catch (e) { alert('Network error saving handbook'); }
         }
 
         // ── Incident reporting ──

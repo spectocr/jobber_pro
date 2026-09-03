@@ -5783,6 +5783,178 @@ app.post('/api/settings/compliance', isAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Employee Handbook ──────────────────────────────────────────────────────
+function defaultHandbook(appName) {
+    const co = appName || 'GSD Property Services';
+    return {
+        version: 1,
+        updatedAt: new Date(),
+        updatedBy: 'System',
+        sections: [
+            { id: 'welcome', title: 'Welcome', body: `Welcome to ${co}. This handbook explains how we work and what we expect. Read it fully, and ask if anything is unclear. We do good work, we treat customers and their homes with respect, and we keep each other safe.` },
+            { id: 'employment', title: 'Employment Basics', body: `Your employment is at-will — either you or ${co} may end it at any time, with or without cause or notice. This handbook is not a contract and does not guarantee employment for any period. We follow all applicable federal and New Jersey employment laws.` },
+            { id: 'authorized-work', title: 'Authorized Work Only', body: `You may only operate tools and perform tasks that ${co} has trained and authorized you for. Your authorizations are tracked. If you have not been cleared for a tool or task, do not attempt it — stop and ask. When in doubt, ask before you act.` },
+            { id: 'scope-price', title: 'No Changes to Scope or Price', body: `You have no authority to change a job's scope, quote or promise extra work, set or discount prices, or make agreements with customers on the company's behalf. If a customer asks for additional or different work, refer them to the office. Do not start unapproved work.` },
+            { id: 'safety', title: 'Safety Rules', body: `• Wear required PPE (eye protection, gloves, etc.) at all times.\n• Before any work near water, gas, or electrical: STOP, shut off the supply, and VERIFY it is off before proceeding.\n• Protect the customer's property — lay coverings, keep the area controlled, clean up.\n• Never work impaired. No alcohol or drugs on the job.\n• Report every hazard, near-miss, injury, or property damage immediately.` },
+            { id: 'incidents', title: 'If Something Goes Wrong', body: `If anything is damaged or anyone is hurt: make the area safe, notify the office right away, and document what happened with photos. Use the Incident Report in the app. Do NOT admit fault or negotiate with the customer or anyone else about the incident — just report the facts.` },
+            { id: 'tools', title: 'Tools & Equipment', body: `${co} provides power tools and major equipment; you supply basic hand tools. Company tools and vehicles are for company work only and must be returned in good condition. Personal tools on job sites are your own responsibility.` },
+            { id: 'customers', title: 'Customers & Confidentiality', body: `Customer lists, pricing, and job details are confidential. Do not perform side work for the company's customers or solicit them for your own benefit while employed here. Be professional, courteous, and clean on every job site.` },
+            { id: 'pay', title: 'Pay & Time', body: `All wages are paid by check or direct deposit — never in cash. Clock in and out accurately using the app. Overtime (over 40 hours in a week) is paid at 1.5× your regular rate per NJ law and must be pre-approved. Never collect cash payments from customers; all payments go through the company's official channels.` },
+            { id: 'ack', title: 'Acknowledgment', body: `By acknowledging this handbook in the app, you confirm you have received access to it, read it, understand it, and agree to follow it. When the handbook is updated, you'll be asked to acknowledge the new version.` }
+        ]
+    };
+}
+
+async function getOrSeedHandbook() {
+    const s = await db.collection('settings').findOne({}) || {};
+    if (s.handbook && Array.isArray(s.handbook.sections)) return s.handbook;
+    const hb = defaultHandbook(s.companyName);
+    await db.collection('settings').updateOne({}, { $set: { handbook: hb } }, { upsert: true });
+    return hb;
+}
+
+// Read the handbook + whether the current user has acknowledged the current version.
+app.get('/api/handbook', isAuthenticated, async (req, res) => {
+    try {
+        const hb = await getOrSeedHandbook();
+        const ack = await db.collection('handbook_acks').findOne({ userId: req.session.userId, version: hb.version });
+        res.json({ handbook: { version: hb.version, updatedAt: hb.updatedAt, updatedBy: hb.updatedBy, sections: hb.sections }, myAck: ack ? { acknowledgedAt: ack.acknowledgedAt, version: ack.version } : null, shareEnabled: !!hb.shareToken });
+    } catch (err) {
+        console.error('Get handbook error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Save handbook — bumps version when the content changed.
+app.post('/api/handbook', isAdmin, async (req, res) => {
+    try {
+        const { sections } = req.body;
+        if (!Array.isArray(sections)) return res.status(400).json({ error: 'sections required' });
+        const clean = sections
+            .filter(s => (s.title && s.title.trim()) || (s.body && s.body.trim()))
+            .map(s => ({ id: (s.id || '').toString().slice(0, 40) || ('sec_' + Math.random().toString(36).slice(2, 8)), title: (s.title || '').toString().slice(0, 200), body: (s.body || '').toString().slice(0, 20000) }));
+        if (!clean.length) return res.status(400).json({ error: 'Add at least one section' });
+
+        const existing = await getOrSeedHandbook();
+        const changed = JSON.stringify(existing.sections) !== JSON.stringify(clean);
+        const hb = {
+            version: changed ? (existing.version || 1) + 1 : (existing.version || 1),
+            updatedAt: changed ? new Date() : existing.updatedAt,
+            updatedBy: changed ? (req.session.userName || 'Admin') : existing.updatedBy,
+            sections: clean,
+            shareToken: existing.shareToken || null
+        };
+        await db.collection('settings').updateOne({}, { $set: { handbook: hb } }, { upsert: true });
+        res.json({ success: true, version: hb.version, bumped: changed });
+    } catch (err) {
+        console.error('Save handbook error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Current user acknowledges the current handbook version.
+app.post('/api/handbook/acknowledge', isAuthenticated, async (req, res) => {
+    try {
+        const hb = await getOrSeedHandbook();
+        const now = new Date();
+        const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+        await db.collection('handbook_acks').updateOne(
+            { userId: req.session.userId, version: hb.version },
+            { $set: { userId: req.session.userId, userName: req.session.userName || 'Unknown', version: hb.version, acknowledgedAt: now, ip } },
+            { upsert: true }
+        );
+        // Reflect on the matching team member for the onboarding checklist.
+        await db.collection('team').updateOne({ userId: req.session.userId }, { $set: { handbookAck: { version: hb.version, acknowledgedAt: now } } });
+        res.json({ success: true, version: hb.version, acknowledgedAt: now });
+    } catch (err) {
+        console.error('Handbook ack error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin: who has acknowledged, and which version.
+app.get('/api/handbook/acks', isAdmin, async (req, res) => {
+    try {
+        const acks = await db.collection('handbook_acks').find({}).sort({ acknowledgedAt: -1 }).limit(500).toArray();
+        res.json(acks.map(a => ({ userName: a.userName, version: a.version, acknowledgedAt: a.acknowledgedAt })));
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin: read the current share link without changing it.
+app.get('/api/handbook/share', isAdmin, async (req, res) => {
+    try {
+        const hb = await getOrSeedHandbook();
+        res.json({ shareToken: hb.shareToken || null, url: hb.shareToken ? `${process.env.APP_URL}/handbook/${hb.shareToken}` : null });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin: enable/rotate or disable the public shareable link.
+app.post('/api/handbook/share', isAdmin, async (req, res) => {
+    try {
+        const hb = await getOrSeedHandbook();
+        let token = hb.shareToken || null;
+        if (req.body && req.body.enabled === false) token = null;
+        else token = crypto.randomBytes(16).toString('hex');
+        await db.collection('settings').updateOne({}, { $set: { 'handbook.shareToken': token } }, { upsert: true });
+        res.json({ success: true, shareToken: token, url: token ? `${process.env.APP_URL}/handbook/${token}` : null });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Public read-only handbook via share token.
+app.get('/handbook/:token', async (req, res) => {
+    try {
+        const s = await db.collection('settings').findOne({}) || {};
+        const hb = s.handbook;
+        if (!hb || !hb.shareToken || hb.shareToken !== req.params.token) {
+            return res.status(404).send('<div style="font-family:sans-serif;padding:3rem;text-align:center;"><h2>Handbook not found</h2><p>This link is invalid or has been turned off.</p></div>');
+        }
+        res.send(buildHandbookHtml(hb, s.companyName || 'GSD Property Services', s.companyLogo));
+    } catch (err) {
+        res.status(500).send('Server error');
+    }
+});
+
+function escHb(str) {
+    return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function buildHandbookHtml(hb, companyName, logo) {
+    const sections = (hb.sections || []).map((sec, i) =>
+        `<section><h2>${i + 1}. ${escHb(sec.title)}</h2><div class="body">${escHb(sec.body).replace(/\n/g, '<br>')}</div></section>`
+    ).join('');
+    const updated = hb.updatedAt ? new Date(hb.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Employee Handbook — ${escHb(companyName)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f4f8;color:#2d3748;line-height:1.65;padding:2rem 1rem;}
+.wrap{max-width:760px;margin:0 auto;background:white;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:2.5rem;}
+.head{text-align:center;border-bottom:2px solid #edf2f7;padding-bottom:1.5rem;margin-bottom:2rem;}
+.head img{max-height:64px;margin-bottom:0.75rem;}
+.head h1{color:#667eea;font-size:1.6rem;}
+.head p{color:#718096;font-size:0.9rem;margin-top:0.35rem;}
+section{margin-bottom:1.75rem;}
+section h2{font-size:1.1rem;color:#2d3748;margin-bottom:0.5rem;}
+.body{font-size:0.95rem;color:#4a5568;}
+.print-btn{display:inline-block;margin:0 auto 1.5rem;background:#667eea;color:white;border:none;padding:0.6rem 1.4rem;border-radius:8px;font-size:0.9rem;font-weight:600;cursor:pointer;}
+@media print{body{background:white;padding:0;}.wrap{box-shadow:none;max-width:none;padding:0.5rem;}.print-btn{display:none;}}
+</style></head><body>
+<div class="wrap">
+  <div class="head">
+    ${logo ? `<img src="${escHb(logo)}" alt="${escHb(companyName)}">` : ''}
+    <h1>${escHb(companyName)}</h1>
+    <p>Employee Handbook · v${hb.version || 1}${updated ? ' · Updated ' + updated : ''}</p>
+  </div>
+  <div style="text-align:center;"><button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button></div>
+  ${sections}
+</div>
+</body></html>`;
+}
+
 // Payroll summary — approved time entries for a date range with NJ tax estimates
 app.get('/api/payroll/summary', isAdmin, async (req, res) => {
     const { start, end } = req.query;
