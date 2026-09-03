@@ -5391,6 +5391,50 @@ app.post('/api/team/:id/job-description', isAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Tool / task authorization records (per employee paper trail) ──
+// Create or update one authorization record on a team member.
+app.post('/api/team/:id/authorization', isAdmin, async (req, res) => {
+    const { authId, task, category, status, note } = req.body;
+    if (!task || !task.trim()) return res.status(400).json({ error: 'Task/tool name required' });
+    const allowed = ['authorized', 'training', 'not_authorized'];
+    const st = allowed.includes(status) ? status : 'not_authorized';
+    const now = new Date();
+    const member = await db.collection('team').findOne({ _id: new ObjectId(req.params.id) });
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+    const list = Array.isArray(member.authorizations) ? member.authorizations.slice() : [];
+
+    if (authId) {
+        const idx = list.findIndex(a => a.id === authId);
+        if (idx === -1) return res.status(404).json({ error: 'Authorization record not found' });
+        const prev = list[idx];
+        const rec = { ...prev, task: task.trim(), category: (category || prev.category || '').trim(), status: st, note: (note || '').trim(), updatedAt: now, updatedBy: req.session.userName };
+        // Stamp the date a status was first reached, so the paper trail keeps history.
+        if (st === 'authorized' && prev.status !== 'authorized') rec.authorizedAt = now;
+        if (st === 'training' && prev.status !== 'training') rec.trainingStartedAt = now;
+        list[idx] = rec;
+    } else {
+        const rec = {
+            id: 'auth_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+            task: task.trim(), category: (category || '').trim(), status: st, note: (note || '').trim(),
+            createdAt: now, createdBy: req.session.userName, updatedAt: now, updatedBy: req.session.userName
+        };
+        if (st === 'authorized') rec.authorizedAt = now;
+        if (st === 'training') rec.trainingStartedAt = now;
+        list.push(rec);
+    }
+    await db.collection('team').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { authorizations: list, updatedAt: now } });
+    res.json({ success: true, authorizations: list });
+});
+
+// Remove one authorization record.
+app.delete('/api/team/:id/authorization/:authId', isAdmin, async (req, res) => {
+    const member = await db.collection('team').findOne({ _id: new ObjectId(req.params.id) });
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+    const list = (member.authorizations || []).filter(a => a.id !== req.params.authId);
+    await db.collection('team').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { authorizations: list, updatedAt: new Date() } });
+    res.json({ success: true, authorizations: list });
+});
+
 // Business-level compliance settings
 app.get('/api/settings/compliance', isAdmin, async (req, res) => {
     const s = await db.collection('settings').findOne({}, { projection: { compliance: 1 } });

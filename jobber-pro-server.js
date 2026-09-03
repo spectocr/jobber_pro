@@ -2097,6 +2097,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div id="team-onboarding-checklist"></div>
                 </div>
 
+                <!-- Tool / Task Authorization -->
+                <div style="margin-top: 2rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
+                        <h3 style="color:#667eea;">🔒 Authorized Tools &amp; Tasks</h3>
+                        <span id="team-auth-count" style="font-size:0.8rem;color:#718096;"></span>
+                    </div>
+                    <p style="font-size:0.82rem;color:#718096;margin-bottom:1rem;max-width:640px;">This is your paper trail. A worker performs a task because GSD trained and authorized them for it — dated, with your name on it. Anything not marked <strong>Authorized</strong> is off-limits.</p>
+                    <div id="team-authorization"></div>
+                </div>
+
                 <!-- Pay Summary Stats -->
                 <div style="margin-top: 2rem;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">Pay Summary</h3>
@@ -11210,6 +11220,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             \`;
 
             renderOnboardingChecklist(member);
+            renderAuthorizationMatrix(member);
 
             // Load member's jobs
             const memberJobs = jobs.filter(j => isAssignedTo(j, member.id));
@@ -17116,6 +17127,140 @@ function formatDuration(seconds) {
                 btn.disabled = !hasEmail;
                 if (!hasEmail) btn.title = 'Add an email address to this team member first';
             }
+        }
+
+        // ── Tool / task authorization matrix ──
+        const AUTH_SUGGESTIONS = [
+            { task: 'Power tools (saws, nail gun, grinder)', category: 'Tools' },
+            { task: 'Ladders & working at height', category: 'Safety' },
+            { task: 'Electrical — outlets, switches, fixtures', category: 'Trade' },
+            { task: 'Plumbing — shutoffs & fixture R&R', category: 'Trade' },
+            { task: 'Drive company vehicle', category: 'Vehicle' },
+            { task: 'Work on customer property unsupervised', category: 'Authority' },
+            { task: 'Paint sprayer / chemicals', category: 'Safety' },
+            { task: 'Demolition', category: 'Safety' },
+            { task: 'Roof work', category: 'Safety' },
+            { task: 'Handle customer payments', category: 'Authority' }
+        ];
+
+        function authStatusMeta(status) {
+            if (status === 'authorized') return { label: 'Authorized', bg: '#c6f6d5', fg: '#276749', dot: '#38a169' };
+            if (status === 'training')   return { label: 'In training', bg: '#fefcbf', fg: '#744210', dot: '#d69e2e' };
+            return { label: 'Not authorized', bg: '#fed7d7', fg: '#742a2a', dot: '#e53e3e' };
+        }
+
+        function renderAuthorizationMatrix(member) {
+            const container = document.getElementById('team-authorization');
+            if (!container) return;
+            const list = Array.isArray(member.authorizations) ? member.authorizations : [];
+            const id = member.id;
+            const fmt = d => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+
+            const authCount = list.filter(a => a.status === 'authorized').length;
+            const countEl = document.getElementById('team-auth-count');
+            if (countEl) countEl.textContent = list.length ? (authCount + ' authorized · ' + list.length + ' on record') : '';
+
+            const existingTasks = list.map(a => (a.task || '').toLowerCase());
+            const chips = AUTH_SUGGESTIONS.filter(s => !existingTasks.includes(s.task.toLowerCase())).map(s =>
+                '<button type="button" onclick="quickAddAuthorization(\'' + id + '\', ' + JSON.stringify(s).replace(/"/g, '&quot;') + ')" ' +
+                'style="font-size:0.78rem;background:#f7fafc;color:#4a5568;border:1px dashed #cbd5e0;padding:4px 10px;border-radius:14px;cursor:pointer;font-weight:600;">+ ' + s.task + '</button>'
+            ).join('');
+
+            let rows = '';
+            if (!list.length) {
+                rows = '<div style="padding:1.25rem;text-align:center;color:#a0aec0;font-size:0.9rem;background:#f8f9fa;border-radius:8px;">Nothing on record yet. Add the tools and tasks this person is cleared for below.</div>';
+            } else {
+                rows = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;">' +
+                    '<thead><tr style="text-align:left;color:#718096;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.03em;">' +
+                    '<th style="padding:0.5rem 0.6rem;">Tool / Task</th><th style="padding:0.5rem 0.6rem;">Status</th><th style="padding:0.5rem 0.6rem;">Dated</th><th style="padding:0.5rem 0.6rem;">Note</th><th></th></tr></thead><tbody>' +
+                    list.map(a => {
+                        const m = authStatusMeta(a.status);
+                        const dateStr = a.status === 'authorized' && a.authorizedAt ? '✓ ' + fmt(a.authorizedAt)
+                            : a.status === 'training' && a.trainingStartedAt ? 'since ' + fmt(a.trainingStartedAt)
+                            : '';
+                        const by = a.updatedBy ? '<div style="font-size:0.72rem;color:#a0aec0;">by ' + escapeAuthText(a.updatedBy) + '</div>' : '';
+                        return '<tr style="border-top:1px solid #edf2f7;">' +
+                            '<td style="padding:0.6rem;"><strong style="color:#2d3748;">' + escapeAuthText(a.task) + '</strong>' + (a.category ? '<div style="font-size:0.72rem;color:#a0aec0;">' + escapeAuthText(a.category) + '</div>' : '') + '</td>' +
+                            '<td style="padding:0.6rem;">' + (isAdmin
+                                ? '<select onchange="updateAuthorizationStatus(\'' + id + '\',\'' + a.id + '\',this.value)" style="font-size:0.82rem;padding:3px 6px;border:1px solid #e2e8f0;border-radius:6px;background:' + m.bg + ';color:' + m.fg + ';font-weight:700;cursor:pointer;">' +
+                                    '<option value="not_authorized"' + (a.status === 'not_authorized' ? ' selected' : '') + '>Not authorized</option>' +
+                                    '<option value="training"' + (a.status === 'training' ? ' selected' : '') + '>In training</option>' +
+                                    '<option value="authorized"' + (a.status === 'authorized' ? ' selected' : '') + '>Authorized</option>' +
+                                  '</select>'
+                                : '<span style="background:' + m.bg + ';color:' + m.fg + ';font-size:0.76rem;font-weight:700;padding:2px 9px;border-radius:10px;">' + m.label + '</span>') + '</td>' +
+                            '<td style="padding:0.6rem;color:#4a5568;white-space:nowrap;">' + dateStr + by + '</td>' +
+                            '<td style="padding:0.6rem;color:#718096;max-width:200px;">' + (a.note ? escapeAuthText(a.note) : '<span style="color:#cbd5e0;">—</span>') +
+                                (isAdmin ? ' <button type="button" onclick="editAuthorizationNote(\'' + id + '\',\'' + a.id + '\')" style="background:none;border:none;color:#a0aec0;cursor:pointer;font-size:0.78rem;">✏️</button>' : '') + '</td>' +
+                            '<td style="padding:0.6rem;text-align:right;">' + (isAdmin ? '<button type="button" onclick="removeAuthorization(\'' + id + '\',\'' + a.id + '\')" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:0.95rem;">✕</button>' : '') + '</td>' +
+                            '</tr>';
+                    }).join('') +
+                    '</tbody></table></div>';
+            }
+
+            const adder = !isAdmin ? '' :
+                '<div style="margin-top:1rem;">' +
+                    (chips ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem;">' + chips + '</div>' : '') +
+                    '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">' +
+                        '<input id="newAuthTask" type="text" placeholder="Custom tool or task…" style="flex:1;min-width:180px;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.88rem;">' +
+                        '<button type="button" class="btn btn-secondary btn-small" onclick="addCustomAuthorization(\'' + id + '\')">+ Add task</button>' +
+                    '</div>' +
+                '</div>';
+
+            container.innerHTML = rows + adder;
+        }
+
+        function escapeAuthText(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        async function saveAuthorization(teamId, payload) {
+            try {
+                const res = await fetch('/api/team/' + teamId + '/authorization', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not save authorization'); return; }
+                const member = team.find(t => t.id == teamId);
+                if (member) { member.authorizations = data.authorizations; renderAuthorizationMatrix(member); }
+            } catch (e) { alert('Network error saving authorization'); }
+        }
+
+        function quickAddAuthorization(teamId, suggestion) {
+            saveAuthorization(teamId, { task: suggestion.task, category: suggestion.category, status: 'authorized' });
+        }
+
+        function addCustomAuthorization(teamId) {
+            const input = document.getElementById('newAuthTask');
+            const task = (input?.value || '').trim();
+            if (!task) { input?.focus(); return; }
+            saveAuthorization(teamId, { task: task, status: 'authorized' });
+        }
+
+        function updateAuthorizationStatus(teamId, authId, status) {
+            const member = team.find(t => t.id == teamId);
+            const rec = member && (member.authorizations || []).find(a => a.id === authId);
+            if (!rec) return;
+            saveAuthorization(teamId, { authId: authId, task: rec.task, category: rec.category, status: status, note: rec.note });
+        }
+
+        function editAuthorizationNote(teamId, authId) {
+            const member = team.find(t => t.id == teamId);
+            const rec = member && (member.authorizations || []).find(a => a.id === authId);
+            if (!rec) return;
+            const note = prompt('Note for "' + rec.task + '" (training date, restrictions, etc.):', rec.note || '');
+            if (note === null) return;
+            saveAuthorization(teamId, { authId: authId, task: rec.task, category: rec.category, status: rec.status, note: note });
+        }
+
+        async function removeAuthorization(teamId, authId) {
+            if (!confirm('Remove this authorization record? The dated history will be lost.')) return;
+            try {
+                const res = await fetch('/api/team/' + teamId + '/authorization/' + authId, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not remove'); return; }
+                const member = team.find(t => t.id == teamId);
+                if (member) { member.authorizations = data.authorizations; renderAuthorizationMatrix(member); }
+            } catch (e) { alert('Network error'); }
         }
 
         function viewOnboardingSubmission(memberId) {
