@@ -2558,6 +2558,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
 
                 <div id="reports-container">
+                    <!-- Year over Year -->
+                    <div class="report-section" style="background:#f7fafc;border:2px solid #e2e8f0;padding:1.5rem;border-radius:8px;margin-bottom:2rem;">
+                        <h3 style="margin-bottom:1rem;">📅 Year over Year — Revenue &amp; Profit</h3>
+                        <div id="yoy-report"><p style="color:#718096;">Loading…</p></div>
+                    </div>
+
                     <!-- Tax Reconciliation Report -->
                     <div class="report-section" style="background: #f0f9ff; border: 2px solid #667eea; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
                         <h3 style="color: #667eea; margin-bottom: 1rem;">💰 Tax Reconciliation</h3>
@@ -4844,7 +4850,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (viewName === 'portfolio') loadPortfolio();
             if (viewName === 'messages') loadMessages();
             if (viewName === 'activity') loadActivityLog();
-            if (viewName === 'reports') loadReports();
+            if (viewName === 'reports') { loadReports(); loadYoyReport(); }
             if (viewName === 'analytics') loadAnalytics();
             if (viewName === 'surveys') loadSurveys();
             if (viewName === 'leads') loadLeads();
@@ -12402,6 +12408,80 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (!res.ok) throw new Error('Failed');
                 loadSurveys();
             } catch (e) { alert('Failed to update.'); }
+        }
+
+        async function loadYoyReport() {
+            const box = document.getElementById('yoy-report');
+            if (!box) return;
+            box.innerHTML = '<p style="color:#718096;">Loading…</p>';
+            let data;
+            try { data = await (await fetch('/api/reports/yoy')).json(); }
+            catch (e) { box.innerHTML = '<p style="color:#e53e3e;">Failed to load year-over-year data.</p>'; return; }
+            renderYoyReport(data.years || []);
+        }
+
+        function renderYoyReport(years) {
+            const box = document.getElementById('yoy-report');
+            if (!box) return;
+            if (!years.length) { box.innerHTML = '<p style="color:#718096;">No revenue or expense data yet.</p>'; return; }
+
+            const delta = (cur, prev) => {
+                if (prev === 0 || prev == null) return '<span style="color:#a0aec0;">—</span>';
+                const pct = Math.round(((cur - prev) / Math.abs(prev)) * 100);
+                const up = cur >= prev;
+                const color = up ? '#276749' : '#c53030';
+                const arrow = up ? '▲' : '▼';
+                return '<span style="color:' + color + ';font-weight:600;">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+            };
+
+            // Table (years are already newest-first). Delta compares each year to the one below it (prior year).
+            let rows = years.map((y, i) => {
+                const prior = years[i + 1];
+                const profitColor = y.profit >= 0 ? '#2d3748' : '#c53030';
+                return '<tr style="border-top:1px solid #edf2f7;">' +
+                    '<td style="padding:0.6rem 0.75rem;font-weight:700;">' + y.year + '</td>' +
+                    '<td style="padding:0.6rem 0.75rem;text-align:right;">' + formatMoney(y.revenue) + '</td>' +
+                    '<td style="padding:0.6rem 0.75rem;text-align:right;color:#718096;">' + formatMoney(y.costs) + '</td>' +
+                    '<td style="padding:0.6rem 0.75rem;text-align:right;font-weight:700;color:' + profitColor + ';">' + formatMoney(y.profit) + '</td>' +
+                    '<td style="padding:0.6rem 0.75rem;text-align:right;color:#718096;">' + y.margin + '%</td>' +
+                    '<td style="padding:0.6rem 0.75rem;text-align:right;">' + (prior ? delta(y.revenue, prior.revenue) : '<span style="color:#a0aec0;">—</span>') + '</td>' +
+                    '<td style="padding:0.6rem 0.75rem;text-align:right;">' + (prior ? delta(y.profit, prior.profit) : '<span style="color:#a0aec0;">—</span>') + '</td>' +
+                    '</tr>';
+            }).join('');
+
+            const table = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;font-variant-numeric:tabular-nums;">' +
+                '<thead><tr style="text-align:right;color:#718096;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.03em;">' +
+                    '<th style="padding:0.5rem 0.75rem;text-align:left;">Year</th>' +
+                    '<th style="padding:0.5rem 0.75rem;">Revenue</th>' +
+                    '<th style="padding:0.5rem 0.75rem;">Costs</th>' +
+                    '<th style="padding:0.5rem 0.75rem;">Net Profit</th>' +
+                    '<th style="padding:0.5rem 0.75rem;">Margin</th>' +
+                    '<th style="padding:0.5rem 0.75rem;">Rev Δ</th>' +
+                    '<th style="padding:0.5rem 0.75rem;">Profit Δ</th>' +
+                '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+            // Simple grouped bar chart (oldest → newest, left → right)
+            const chartYears = years.slice().reverse();
+            const maxVal = Math.max(1, ...chartYears.map(y => Math.max(y.revenue, y.profit, 0)));
+            const bars = chartYears.map(y => {
+                const revH = Math.round((y.revenue / maxVal) * 130);
+                const profH = Math.round((Math.max(y.profit, 0) / maxVal) * 130);
+                return '<div style="display:flex;flex-direction:column;align-items:center;gap:0.4rem;min-width:64px;">' +
+                    '<div style="display:flex;align-items:flex-end;gap:4px;height:130px;">' +
+                        '<div title="Revenue ' + formatMoney(y.revenue) + '" style="width:20px;height:' + revH + 'px;background:#667eea;border-radius:3px 3px 0 0;"></div>' +
+                        '<div title="Profit ' + formatMoney(y.profit) + '" style="width:20px;height:' + profH + 'px;background:#48bb78;border-radius:3px 3px 0 0;"></div>' +
+                    '</div>' +
+                    '<div style="font-size:0.78rem;color:#4a5568;font-weight:600;">' + y.year + '</div>' +
+                    '</div>';
+            }).join('');
+            const chart = '<div style="margin-top:1.5rem;">' +
+                '<div style="display:flex;gap:1.25rem;align-items:flex-end;overflow-x:auto;padding-bottom:0.5rem;">' + bars + '</div>' +
+                '<div style="display:flex;gap:1.25rem;margin-top:0.75rem;font-size:0.8rem;color:#718096;">' +
+                    '<span><span style="display:inline-block;width:11px;height:11px;background:#667eea;border-radius:2px;vertical-align:middle;"></span> Revenue</span>' +
+                    '<span><span style="display:inline-block;width:11px;height:11px;background:#48bb78;border-radius:2px;vertical-align:middle;"></span> Net Profit</span>' +
+                '</div></div>';
+
+            box.innerHTML = table + chart;
         }
 
         async function loadReports() {

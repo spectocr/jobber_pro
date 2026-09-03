@@ -2818,6 +2818,75 @@ app.get('/api/dashboard', isAuthenticated, async (req, res) => {
     res.json(stats);
 });
 
+// ── Year-over-Year revenue & profit ──
+// Mirrors the dashboard convention: revenue = pre-tax total of invoiced/completed
+// jobs by scheduledDate; profit = revenue − embedded material costs − expenses by date.
+app.get('/api/reports/yoy', isAdmin, async (req, res) => {
+    try {
+        const [jobs, expenses] = await Promise.all([
+            db.collection('jobs').find({ status: { $in: ['invoiced', 'completed'] } }).toArray(),
+            db.collection('expenses').find({}).toArray()
+        ]);
+
+        const yearData = {}; // year -> { revenue, materialCosts, expenses, months:[{revenue,materialCosts,expenses}] }
+        const ensureYear = y => {
+            if (!yearData[y]) yearData[y] = { revenue: 0, materialCosts: 0, expenses: 0, months: Array.from({ length: 12 }, () => ({ revenue: 0, cost: 0 })) };
+            return yearData[y];
+        };
+
+        jobs.forEach(j => {
+            const sd = (j.scheduledDate || '').toString();
+            if (sd.length < 7) return;
+            const y = parseInt(sd.slice(0, 4), 10);
+            const mo = parseInt(sd.slice(5, 7), 10) - 1;
+            if (!y || mo < 0 || mo > 11) return;
+            const rev = parseFloat(j.total) || 0;
+            const matCost = Array.isArray(j.materialItems)
+                ? j.materialItems.reduce((s, it) => s + ((parseFloat(it.quantity) || 0) * (parseFloat(it.price) || 0)), 0)
+                : 0;
+            const yd = ensureYear(y);
+            yd.revenue += rev;
+            yd.materialCosts += matCost;
+            yd.months[mo].revenue += rev;
+            yd.months[mo].cost += matCost;
+        });
+
+        expenses.forEach(e => {
+            if (!e.date) return;
+            const d = typeof e.date === 'string' ? e.date : (e.date instanceof Date ? e.date.toISOString() : String(e.date));
+            if (d.length < 7) return;
+            const y = parseInt(d.slice(0, 4), 10);
+            const mo = parseInt(d.slice(5, 7), 10) - 1;
+            if (!y || mo < 0 || mo > 11) return;
+            const amt = parseFloat(e.amount) || 0;
+            const yd = ensureYear(y);
+            yd.expenses += amt;
+            yd.months[mo].cost += amt;
+        });
+
+        const r2 = n => Math.round(n * 100) / 100;
+        const years = Object.keys(yearData).map(Number).sort((a, b) => b - a).map(y => {
+            const yd = yearData[y];
+            const profit = yd.revenue - yd.materialCosts - yd.expenses;
+            return {
+                year: y,
+                revenue: r2(yd.revenue),
+                costs: r2(yd.materialCosts + yd.expenses),
+                materialCosts: r2(yd.materialCosts),
+                expenses: r2(yd.expenses),
+                profit: r2(profit),
+                margin: yd.revenue > 0 ? Math.round((profit / yd.revenue) * 100) : 0,
+                months: yd.months.map(m => ({ revenue: r2(m.revenue), profit: r2(m.revenue - m.cost) }))
+            };
+        });
+
+        res.json({ years });
+    } catch (err) {
+        console.error('YoY report error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.get('/api/clients', isAuthenticated, async (req, res) => {
     const clients = await db.collection('clients').find().toArray();
     // Map _id to id for frontend compatibility
