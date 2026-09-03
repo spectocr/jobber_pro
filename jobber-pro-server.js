@@ -17945,8 +17945,95 @@ function formatDuration(seconds) {
                     (inc.injuries ? '<div style="font-size:0.85rem;color:#c53030;margin-top:0.4rem;"><strong>Injuries:</strong> ' + escapeAuthText(inc.injuries) + '</div>' : '') +
                     (inc.witnesses ? '<div style="font-size:0.85rem;color:#4a5568;margin-top:0.2rem;"><strong>Witnesses:</strong> ' + escapeAuthText(inc.witnesses) + '</div>' : '') +
                     (photos ? '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.6rem;">' + photos + '</div>' : '') +
+                    renderIncidentTimeline(inc, fmt) +
                     '</div>';
             }).join('');
+        }
+
+        function renderIncidentTimeline(inc, fmt) {
+            const updates = inc.updates || [];
+            const entries = updates.map(u => {
+                const uPhotos = (u.photoUrls || []).map(url => '<a href="' + url + '" target="_blank"><img src="' + url + '" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;"></a>').join('');
+                return '<div style="border-left:2px solid #e2e8f0;padding:0 0 0.75rem 0.85rem;margin-left:0.35rem;position:relative;">' +
+                    '<div style="position:absolute;left:-5px;top:4px;width:8px;height:8px;border-radius:50%;background:#a0aec0;"></div>' +
+                    '<div style="font-size:0.78rem;color:#718096;">' + escapeAuthText(u.byName || 'Unknown') + ' · ' + fmt(u.at) + '</div>' +
+                    (u.text ? '<div style="font-size:0.88rem;color:#2d3748;margin-top:0.2rem;white-space:pre-wrap;">' + escapeAuthText(u.text) + '</div>' : '') +
+                    (uPhotos ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.4rem;">' + uPhotos + '</div>' : '') +
+                    '</div>';
+            }).join('');
+
+            const composer =
+                '<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px dashed #e2e8f0;">' +
+                    '<textarea id="upd-text-' + inc.id + '" rows="2" placeholder="Add a follow-up — what you did next, a call made, next steps…" style="width:100%;padding:0.5rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.88rem;font-family:inherit;"></textarea>' +
+                    '<div id="upd-prev-' + inc.id + '" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.4rem;"></div>' +
+                    '<div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;flex-wrap:wrap;">' +
+                        '<label style="font-size:0.82rem;background:#edf2f7;color:#4a5568;border:1px solid #e2e8f0;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600;">📷 Add photos' +
+                            '<input type="file" accept="image/*" capture="environment" multiple style="display:none;" onchange="onIncidentUpdatePhotos(\'' + inc.id + '\', event)"></label>' +
+                        '<button type="button" class="btn btn-primary btn-small" onclick="submitIncidentUpdate(\'' + inc.id + '\')">Add update</button>' +
+                    '</div>' +
+                '</div>';
+
+            const count = updates.length;
+            return '<div style="margin-top:0.75rem;">' +
+                '<button type="button" onclick="toggleIncidentTimeline(\'' + inc.id + '\')" style="background:none;border:none;color:#4a5568;cursor:pointer;font-size:0.85rem;font-weight:600;padding:0;">💬 Timeline & updates' + (count ? ' (' + count + ')' : '') + ' <span id="inc-caret-' + inc.id + '">▾</span></button>' +
+                '<div id="inc-timeline-' + inc.id + '" style="display:none;margin-top:0.75rem;">' +
+                    (entries || '<div style="font-size:0.82rem;color:#a0aec0;margin-bottom:0.5rem;">No follow-ups yet.</div>') +
+                    composer +
+                '</div>' +
+            '</div>';
+        }
+
+        function toggleIncidentTimeline(id) {
+            const el = document.getElementById('inc-timeline-' + id);
+            const caret = document.getElementById('inc-caret-' + id);
+            if (!el) return;
+            const show = el.style.display === 'none';
+            el.style.display = show ? 'block' : 'none';
+            if (caret) caret.textContent = show ? '▴' : '▾';
+        }
+
+        let _incidentUpdatePhotos = {};
+        function onIncidentUpdatePhotos(id, event) {
+            const files = Array.from(event.target.files || []);
+            if (!_incidentUpdatePhotos[id]) _incidentUpdatePhotos[id] = [];
+            files.forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+                if (_incidentUpdatePhotos[id].length >= 8) return;
+                const reader = new FileReader();
+                reader.onload = e => { _incidentUpdatePhotos[id].push(e.target.result); renderUpdatePhotoPreview(id); };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = '';
+        }
+        function renderUpdatePhotoPreview(id) {
+            const box = document.getElementById('upd-prev-' + id);
+            if (!box) return;
+            const arr = _incidentUpdatePhotos[id] || [];
+            box.innerHTML = arr.map((src, i) =>
+                '<div style="position:relative;"><img src="' + src + '" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;">' +
+                '<button type="button" onclick="removeUpdatePhoto(\'' + id + '\',' + i + ')" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:white;border:none;border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:0.7rem;line-height:1;">×</button></div>'
+            ).join('');
+        }
+        function removeUpdatePhoto(id, i) {
+            if (_incidentUpdatePhotos[id]) { _incidentUpdatePhotos[id].splice(i, 1); renderUpdatePhotoPreview(id); }
+        }
+        async function submitIncidentUpdate(id) {
+            const textEl = document.getElementById('upd-text-' + id);
+            const text = (textEl ? textEl.value : '').trim();
+            const photos = _incidentUpdatePhotos[id] || [];
+            if (!text && !photos.length) { alert('Add a note or a photo first.'); return; }
+            try {
+                const res = await fetch('/api/incidents/' + id + '/updates', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text, photos: photos })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not add update'); return; }
+                _incidentUpdatePhotos[id] = [];
+                const idx = _incidents.findIndex(i => i.id === id);
+                if (idx > -1 && data.incident) _incidents[idx] = data.incident;
+                renderIncidents();
+                setTimeout(() => toggleIncidentTimeline(id), 0); // keep it open after re-render
+            } catch (e) { alert('Network error adding update'); }
         }
 
         async function updateIncidentStatus(id, status) {

@@ -5686,15 +5686,22 @@ app.post('/api/incidents', isAuthenticated, async (req, res) => {
     }
 });
 
+// Attach signed photo URLs to an incident and its update timeline.
+async function signIncident(inc) {
+    const photoUrls = await Promise.all((inc.photos || []).map(k => getS3SignedUrl(k, 3600).catch(() => null)));
+    const updates = await Promise.all((inc.updates || []).map(async u => {
+        const uUrls = await Promise.all((u.photos || []).map(k => getS3SignedUrl(k, 3600).catch(() => null)));
+        return { ...u, photoUrls: uUrls.filter(Boolean) };
+    }));
+    return { ...inc, id: inc._id.toString(), photoUrls: photoUrls.filter(Boolean), updates };
+}
+
 // List incidents — admins see all, workers see only their own.
 app.get('/api/incidents', isAuthenticated, async (req, res) => {
     try {
         const query = req.session.userRole === 'admin' ? {} : { reportedById: req.session.userId };
         const incidents = await db.collection('incidents').find(query).sort({ createdAt: -1 }).limit(200).toArray();
-        const withUrls = await Promise.all(incidents.map(async inc => {
-            const photoUrls = await Promise.all((inc.photos || []).map(k => getS3SignedUrl(k, 3600).catch(() => null)));
-            return { ...inc, id: inc._id.toString(), photoUrls: photoUrls.filter(Boolean) };
-        }));
+        const withUrls = await Promise.all(incidents.map(inc => signIncident(inc)));
         res.json(withUrls);
     } catch (err) {
         console.error('List incidents error:', err);
@@ -5715,6 +5722,53 @@ app.patch('/api/incidents/:id', isAdmin, async (req, res) => {
         await db.collection('incidents').updateOne({ _id: new ObjectId(req.params.id) }, { $set: set });
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Append a follow-up update (note and/or more photos) to an incident's timeline.
+// Allowed for admins or the person who filed the incident.
+app.post('/api/incidents/:id/updates', isAuthenticated, async (req, res) => {
+    try {
+        const { text, photos } = req.body;
+        const incident = await db.collection('incidents').findOne({ _id: new ObjectId(req.params.id) });
+        if (!incident) return res.status(404).json({ error: 'Not found' });
+        const isOwner = req.session.userRole === 'admin';
+        const isReporter = incident.reportedById && incident.reportedById === req.session.userId;
+        if (!isOwner && !isReporter) return res.status(403).json({ error: 'Not allowed' });
+
+        const note = (text || '').trim();
+        const valid = Array.isArray(photos) ? photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 8) : [];
+        if (!note && !valid.length) return res.status(400).json({ error: 'Add a note or a photo.' });
+
+        const now = new Date();
+        let photoKeys = [];
+        if (valid.length && s3Client) {
+            const ts = Date.now();
+            const uploads = await Promise.all(valid.map(async (dataUrl, i) => {
+                const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
+                if (!match) return null;
+                const ext = match[2] === 'jpeg' ? 'jpg' : match[2];
+                const key = `incidents/${req.params.id}/updates/${ts}-${i}.${ext}`;
+                await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: Buffer.from(match[3], 'base64'), ContentType: match[1] }));
+                return key;
+            }));
+            photoKeys = uploads.filter(Boolean);
+        }
+
+        const update = {
+            id: 'upd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            text: note.slice(0, 5000),
+            photos: photoKeys,
+            byId: req.session.userId,
+            byName: req.session.userName || 'Unknown',
+            at: now
+        };
+        await db.collection('incidents').updateOne({ _id: incident._id }, { $push: { updates: update }, $set: { updatedAt: now } });
+        const updated = await db.collection('incidents').findOne({ _id: incident._id });
+        res.json({ success: true, incident: await signIncident(updated) });
+    } catch (err) {
+        console.error('Incident update error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
