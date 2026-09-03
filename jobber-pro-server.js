@@ -2038,9 +2038,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
                     <h2>🎁 Gift Cards</h2>
                     <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-                        <a href="/gift-cards" target="_blank" class="btn btn-secondary">↗ Purchase page</a>
-                        <a href="/gift-cards/balance" target="_blank" class="btn btn-secondary">↗ Balance check</a>
-                        <a href="/gift-cards/terms" target="_blank" class="btn btn-secondary">↗ Terms</a>
+                        <a href="https://gsdhandymanservice.com/gift-cards" target="_blank" class="btn btn-secondary">↗ Purchase page</a>
+                        <a href="https://gsdhandymanservice.com/gift-cards/balance" target="_blank" class="btn btn-secondary">↗ Balance check</a>
+                        <a href="https://gsdhandymanservice.com/gift-cards/terms" target="_blank" class="btn btn-secondary">↗ Terms</a>
                         <button class="btn btn-secondary" onclick="loadGiftCards()">🔄 Refresh</button>
                         <button class="btn btn-primary" onclick="openRedeemGiftCard()">➕ Redeem a card</button>
                     </div>
@@ -2055,7 +2055,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
                     <h2>📝 Job Applications</h2>
                     <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-                        <a href="/apply" target="_blank" class="btn btn-secondary">↗ Public apply page</a>
+                        <a href="https://gsdhandymanservice.com/apply" target="_blank" class="btn btn-secondary">↗ Public apply page</a>
                         <button class="btn btn-secondary" onclick="loadApplications()">🔄 Refresh</button>
                     </div>
                 </div>
@@ -17780,7 +17780,7 @@ function formatDuration(seconds) {
             const roundUps = _giftCards.reduce((s, c) => s + (parseFloat(c.roundUpAmount) || 0), 0);
             const tile = (label, val, color) => '<div style="flex:1;min-width:150px;background:#f7fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem;"><div style="font-size:0.75rem;color:#718096;text-transform:uppercase;letter-spacing:.04em;font-weight:700;">' + label + '</div><div style="font-size:1.6rem;font-weight:800;color:' + color + ';">' + val + '</div></div>';
             sum.innerHTML = tile('Total Sold', _usd(sold), '#2d3748') + tile('Outstanding Balance (liability)', _usd(outstanding), '#c9640a') + tile('Round-ups Collected', _usd(roundUps), '#276749');
-            if (!_giftCards.length) { box.innerHTML = '<div class="empty-state"><p>No gift cards yet. Share your <a href="/gift-cards" target="_blank">purchase page</a> once you enable sales in Settings.</p></div>'; return; }
+            if (!_giftCards.length) { box.innerHTML = '<div class="empty-state"><p>No gift cards yet. Share your <a href="https://gsdhandymanservice.com/gift-cards" target="_blank">purchase page</a> once you enable sales in Settings.</p></div>'; return; }
             const statusColor = { active: '#38a169', depleted: '#718096', void: '#e53e3e' };
             box.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><thead><tr style="text-align:left;border-bottom:2px solid #e2e8f0;color:#4a5568;font-size:0.8rem;text-transform:uppercase;">' +
                 '<th style="padding:0.5rem 0.6rem;">Code</th><th style="padding:0.5rem 0.6rem;">To</th><th style="padding:0.5rem 0.6rem;">From</th><th style="padding:0.5rem 0.6rem;text-align:right;">Initial</th><th style="padding:0.5rem 0.6rem;text-align:right;">Balance</th><th style="padding:0.5rem 0.6rem;">Status</th><th style="padding:0.5rem 0.6rem;">Date</th><th></th></tr></thead><tbody>' +
@@ -18377,7 +18377,7 @@ function formatDuration(seconds) {
         }
         function renderApplications() {
             const box = document.getElementById('applications-list');
-            if (!_applications.length) { box.innerHTML = '<div class="empty-state"><p>No applications yet. Share your <a href="/apply" target="_blank">apply page</a>.</p></div>'; return; }
+            if (!_applications.length) { box.innerHTML = '<div class="empty-state"><p>No applications yet. Share your <a href="https://gsdhandymanservice.com/apply" target="_blank">apply page</a>.</p></div>'; return; }
             const active = _applications.filter(a => !['hired', 'rejected'].includes(a.status));
             const archived = _applications.filter(a => ['hired', 'rejected'].includes(a.status));
             const statusColor = { new: '#3b82f6', reviewing: '#f59e0b', interview: '#8b5cf6', offer: '#0ea5e9', hired: '#10b981', rejected: '#6b7280' };
