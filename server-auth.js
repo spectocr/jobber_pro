@@ -4355,6 +4355,48 @@ app.delete('/api/jobs/:id/site-photos', isAdmin, async (req, res) => {
     }
 });
 
+// ── Immediate attachment persistence (so a file is safe the moment it uploads,
+//    not only when the whole job is saved) ──
+app.post('/api/jobs/:id/attachments', isAuthenticated, async (req, res) => {
+    try {
+        const att = req.body && req.body.attachment;
+        if (!att || att.id == null) return res.status(400).json({ error: 'attachment required' });
+        // Store the lean form (drop base64 when we have an S3 key).
+        const lean = att.s3Key
+            ? { id: att.id, name: att.name, type: att.type, size: att.size, s3Key: att.s3Key, uploadedAt: att.uploadedAt || new Date().toISOString(), comment: att.comment || '' }
+            : att;
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { _id: 1 } });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        // Idempotent: don't double-add if this id is already present.
+        await db.collection('jobs').updateOne(
+            { _id: job._id, 'attachments.id': { $ne: att.id } },
+            { $push: { attachments: lean }, $set: { updatedAt: new Date() } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Append attachment error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/jobs/:id/attachments/:attId', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { _id: 1, attachments: 1 } });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        // attachment ids are numbers client-side; match loosely on string form too.
+        const attId = req.params.attId;
+        const removed = (job.attachments || []).find(a => String(a.id) === String(attId));
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $pull: { attachments: { id: removed ? removed.id : attId } }, $set: { updatedAt: new Date() } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Delete attachment error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Debug: inspect the raw shape of a job's stored photos (admin only)
 app.get('/api/jobs/:id/photos-debug', isAuthenticated, async (req, res) => {
     try {

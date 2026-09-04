@@ -6418,6 +6418,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!items.length) return;
 
             // 2) Optimize + upload each, with a live progress popup
+            const failed = [];
             photoProgress.open(items.map(function(it){ return it.file; }), 'Uploading attachments');
             await Promise.all(items.map(async function(it, idx){
                 let file = it.file;
@@ -6441,23 +6442,48 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     });
                     if (!response.ok) throw new Error('Upload failed');
                     const result = await response.json();
-                    attachments.push({
+                    const att = {
                         id: Date.now() + Math.random(),
                         name: file.name, type: file.type, size: file.size,
                         s3Key: result.s3Key, data: result.data,
                         previewUrl: isImage ? dataUrl : undefined,
                         uploadedAt: new Date().toISOString(),
                         comment: it.comment
-                    });
+                    };
+                    attachments.push(att);
                     renderAttachments();
                     markFormDirty();
-                    photoProgress.update(idx, 'Added', 'done');
+
+                    // Lock it in immediately on a saved job so it can't be lost by leaving without Save.
+                    if (currentEditingJobId) {
+                        try {
+                            const lean = att.s3Key
+                                ? { id: att.id, name: att.name, type: att.type, size: att.size, s3Key: att.s3Key, uploadedAt: att.uploadedAt, comment: att.comment }
+                                : att;
+                            const pr = await fetch('/api/jobs/' + currentEditingJobId + '/attachments', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attachment: lean })
+                            });
+                            if (!pr.ok) throw new Error('save failed');
+                            att._saved = true;
+                        } catch (persistErr) {
+                            // Reached S3 but not attached to the job — flag it clearly.
+                            failed.push(file.name + ' (uploaded, but not saved to the job — hit Save)');
+                            photoProgress.update(idx, 'Not saved', 'error');
+                            return;
+                        }
+                    }
+                    photoProgress.update(idx, currentEditingJobId ? 'Saved' : 'Added', 'done');
                 } catch (err) {
                     console.error('Upload error:', err);
+                    failed.push(file.name);
                     photoProgress.update(idx, 'Failed', 'error');
                 }
             }));
-            photoProgress.close(900);
+            // Keep failures on screen longer, and tell the user plainly.
+            photoProgress.close(failed.length ? 2500 : 900);
+            if (failed.length) {
+                alert('⚠️ ' + failed.length + ' file(s) did NOT save:\\n\\n• ' + failed.join('\\n• ') + '\\n\\nPlease try those again.');
+            }
         }
 
         function renderAttachments() {
@@ -6489,6 +6515,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                 \`;
             }).join('');
+
+            // On a brand-new (unsaved) job, attachments live only in memory until the
+            // job is saved — warn plainly so they aren't lost by navigating away.
+            if (!currentEditingJobId && attachments.length) {
+                container.innerHTML = '<div style="background:#fffaf0;border:1px solid #fbd38d;border-left:4px solid #ed8936;border-radius:8px;padding:0.7rem 1rem;margin-bottom:0.75rem;font-size:0.85rem;color:#744210;">⚠️ These ' + attachments.length + ' file(s) aren\'t saved yet. <strong>Save the job</strong> to keep them — they\'ll be lost if you leave without saving.</div>' + container.innerHTML;
+            }
 
             // Lazy-load presigned URLs for S3 images that have no local preview
             attachments.forEach(att => {
@@ -6527,6 +6559,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 attachments = attachments.filter(att => att.id != id);
                 renderAttachments();
                 markFormDirty();
+
+                // On a saved job, persist the removal immediately so it matches the
+                // immediate-save on upload (otherwise a deleted photo would reappear).
+                if (currentEditingJobId) {
+                    fetch('/api/jobs/' + currentEditingJobId + '/attachments/' + id, { method: 'DELETE' }).catch(() => {});
+                }
 
                 // If this was the sign-off attachment, clear signoff from job
                 if (attachment.name === 'Business Sign-Off' && currentEditingJobId) {
