@@ -4816,7 +4816,7 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
             userId: new ObjectId(req.session.userId),
             action: isReconvert ? 'reconverted_to_job' : 'converted_to_job',
             oldStatus: quote.status,
-            newStatus: quote.status,
+            newStatus: 'approved',
             note: isReconvert
                 ? `Quote #${quote.quoteNumber} re-converted to a new job by ${req.session.userName}`
                 : `Quote #${quote.quoteNumber} converted to job by ${req.session.userName}`
@@ -4871,10 +4871,17 @@ app.post('/api/quotes/:id/convert', isAuthenticated, async (req, res) => {
         conversionEntry.note = isReconvert
             ? `Quote #${quote.quoteNumber} re-converted to new Job #${result.insertedId.toString().slice(-6)} by ${req.session.userName}`
             : `Quote #${quote.quoteNumber} converted to Job #${result.insertedId.toString().slice(-6)} by ${req.session.userName}`;
+        // Converting is the finish line for the quote: mark it approved and archive it
+        // so it drops out of the "in review" pile automatically — no manual cleanup.
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(req.params.id) },
             {
-                $set: { convertedToJobId: result.insertedId },
+                $set: {
+                    convertedToJobId: result.insertedId,
+                    status: 'approved',
+                    archived: true,
+                    approvedAt: quote.approvedAt || new Date()
+                },
                 $push: { auditLog: conversionEntry }
             }
         );
