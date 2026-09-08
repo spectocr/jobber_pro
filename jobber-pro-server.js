@@ -17144,6 +17144,9 @@ function formatDuration(seconds) {
             }
             document.getElementById('payrollStart').value = start || '';
             document.getElementById('payrollEnd').value = end || '';
+            // Auto-calculate for the chosen preset so the summary isn't blank until
+            // "Calculate" is pressed. (Custom returns above and waits for Calculate.)
+            if (start && end) loadPayroll();
         }
 
         async function loadPayroll() {
