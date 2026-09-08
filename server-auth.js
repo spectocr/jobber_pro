@@ -7106,6 +7106,9 @@ app.get('/api/expenses', isAuthenticated, async (req, res) => {
 app.post('/api/expenses', isAuthenticated, isAdmin, async (req, res) => {
     const expense = req.body;
 
+    // Always store amount as a number so every total (incl. DB-level sums) is reliable.
+    if (expense.amount !== undefined) expense.amount = parseFloat(expense.amount) || 0;
+
     if (expense._id) {
         // Update existing
         const { _id, ...updateData } = expense;
