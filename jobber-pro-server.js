@@ -17153,8 +17153,16 @@ function formatDuration(seconds) {
             const start = document.getElementById('payrollStart').value;
             const end   = document.getElementById('payrollEnd').value;
             if (!start || !end) { alert('Please select a date range.'); return; }
-            const data = await fetch('/api/payroll/summary?start=' + start + '&end=' + end).then(r => r.json());
-            renderPayrollSummary(data, start, end);
+            const el = document.getElementById('payrollContent');
+            try {
+                const res = await fetch('/api/payroll/summary?start=' + start + '&end=' + end);
+                if (!res.ok) throw new Error('Server returned ' + res.status);
+                const data = await res.json();
+                renderPayrollSummary(data, start, end);
+            } catch (err) {
+                console.error('Payroll load error:', err);
+                if (el) el.innerHTML = '<div class="empty-state"><p style="color:#e53e3e;">Could not load payroll: ' + err.message + '</p></div>';
+            }
         }
 
         let _lastPayroll = null;
@@ -17173,7 +17181,7 @@ function formatDuration(seconds) {
             const rows = data.employees.map(emp => {
                 const t = emp.taxes;
                 return '<tr>' +
-                    '<td><strong>' + emp.name + '</strong><div style="font-size:0.8rem;color:#718096;">$' + (emp.hourlyRate||0).toFixed(2) + '/hr</div></td>' +
+                    '<td><strong>' + emp.name + '</strong><div style="font-size:0.8rem;color:#718096;">$' + (Number(emp.hourlyRate) || 0).toFixed(2) + '/hr</div></td>' +
                     '<td style="text-align:right;">' + emp.hours.toFixed(2) + 'h<div style="font-size:0.78rem;color:#718096;">Reg ' + (emp.regularHours != null ? emp.regularHours : emp.hours).toFixed(2) + (emp.otHours ? ' · <span style="color:#c05621;font-weight:600;">OT ' + emp.otHours.toFixed(2) + '</span>' : '') + '</div></td>' +
                     '<td style="text-align:right;font-weight:600;">' + formatMoney(emp.gross) + '</td>' +
                     '<td style="text-align:right;color:#ed8936;">+' + formatMoney(t.empFICA + t.empSUI + t.empWFD) + '</td>' +

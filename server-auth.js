@@ -6099,7 +6099,7 @@ app.get('/api/payroll/summary', isAdmin, async (req, res) => {
     const weekHrs = {}; // key -> { weekStartDate(YYYY-MM-DD) -> hours } for overtime (>40/wk)
     for (const e of entries) {
         const key = e.userId || e.userName;
-        const rate = e.hourlyRate ?? rateMap[String(e.userId)] ?? rateMap[e.userName] ?? 0;
+        const rate = parseFloat(e.hourlyRate ?? rateMap[String(e.userId)] ?? rateMap[e.userName] ?? 0) || 0;
         const hrs = (e.duration || 0) / 3600;
         if (!byEmp[key]) byEmp[key] = { name: e.userName, hourlyRate: rate, hours: 0, gross: 0, paymentTotal: 0, entryCount: 0 };
         byEmp[key].hours += hrs;
