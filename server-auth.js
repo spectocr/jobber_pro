@@ -3065,6 +3065,41 @@ app.post('/api/payments/refund', isAdmin, async (req, res) => {
     }
 });
 
+// Cancel a job in one clean action: status → cancelled, balance zeroed off the
+// books, reason logged, and a cancellation letter sent to the client.
+app.post('/api/jobs/:id/cancel', isAdmin, async (req, res) => {
+    try {
+        const { reason } = req.body || {};
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        if (job.status === 'cancelled') return res.status(400).json({ error: 'Job is already cancelled.' });
+        const now = new Date();
+        const auditLog = Array.isArray(job.auditLog) ? job.auditLog : [];
+        auditLog.push({
+            timestamp: now, userName: req.session.userName, action: 'status_change',
+            oldStatus: job.status, newStatus: 'cancelled',
+            note: 'Job cancelled' + (reason && reason.trim() ? ': ' + reason.trim() : '')
+        });
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $set: {
+                status: 'cancelled',
+                balanceOwed: 0,
+                cancelReason: (reason || '').trim(),
+                cancelledAt: now,
+                cancelledBy: req.session.userName,
+                auditLog,
+                updatedAt: now
+            } }
+        );
+        const emailed = await sendJobCancellationEmail({ ...job, status: 'cancelled' }, job._id.toString(), req.session.userName);
+        res.json({ success: true, emailed });
+    } catch (err) {
+        console.error('Cancel job error:', err);
+        res.status(500).json({ error: 'Server error cancelling job' });
+    }
+});
+
 app.get('/api/clients', isAuthenticated, async (req, res) => {
     const clients = await db.collection('clients').find().toArray();
     // Map _id to id for frontend compatibility
@@ -3656,54 +3691,8 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         );
 
         // Send cancellation confirmation email when status changes to cancelled
-        if (job.status === 'cancelled' && oldJob?.status !== 'cancelled' && emailService.initialized) {
-            try {
-                const cancelClient = job.clientId ? await db.collection('clients').findOne({ _id: new ObjectId(job.clientId) }) : null;
-                const cancelSettings = await db.collection('settings').findOne({});
-                const businessName = cancelSettings?.companyName || 'GSD Property Services';
-                const clientEmail = cancelClient?.email;
-                const clientName = cancelClient?.name || 'Valued Client';
-                if (clientEmail) {
-                    const cancelDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                    const _cancelLogId = new ObjectId();
-                    await db.collection('email_logs').insertOne({
-                        _id: _cancelLogId,
-                        type: 'cancellation',
-                        to: clientEmail,
-                        toName: clientName,
-                        subject: `Service Cancellation Confirmation — ${job.title}`,
-                        trigger: `Job "${job.title}" cancelled`,
-                        relatedId: new ObjectId(_id),
-                        relatedTitle: job.title,
-                        sentBy: req.session.userName || 'admin',
-                        sentAt: new Date(),
-                        status: 'sent',
-                        opened: false
-                    });
-                    const _cancelHtml = `<div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;padding:2rem;color:#1a202c;">
-                            <h2 style="color:#667eea;margin-bottom:0.25rem;">${businessName}</h2>
-                            <p style="color:#718096;font-size:0.85rem;margin-top:0;">Service Cancellation Confirmation</p>
-                            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0;">
-                            <p>Dear ${clientName},</p>
-                            <p>This letter confirms that, by mutual agreement between <strong>${businessName}</strong> and <strong>${clientName}</strong>, the service arrangement for the following has been cancelled effective <strong>${cancelDate}</strong>:</p>
-                            <div style="background:#f8fafc;border-left:4px solid #667eea;padding:0.85rem 1.1rem;margin:1.25rem 0;border-radius:0 6px 6px 0;">
-                                <strong style="font-size:1rem;">${job.title}</strong>
-                            </div>
-                            <p>Both parties acknowledge that this cancellation is final and agreed upon by mutual consent. Neither party shall pursue any claim, dispute, or legal action against the other arising from or related to this service arrangement or its cancellation.</p>
-                            <p>We appreciate the opportunity and wish you well.</p>
-                            <p style="margin-top:2rem;">Sincerely,<br><strong>${businessName}</strong></p>
-                            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
-                            <p style="color:#9ca3af;font-size:0.78rem;">This is an automated confirmation. Please retain this email for your records.</p>
-                        </div>`;
-                    await db.collection('email_logs').updateOne({ _id: _cancelLogId }, { $set: { htmlBody: _cancelHtml } });
-                    await emailService.sendEmail({
-                        to: clientEmail,
-                        subject: `Service Cancellation Confirmation — ${job.title}`,
-                        html: _cancelHtml,
-                        text: `Service Cancellation Confirmation\n\nDear ${clientName},\n\nThis confirms that by mutual agreement, the service arrangement for "${job.title}" has been cancelled effective ${cancelDate}.\n\nBoth parties acknowledge this cancellation is final. Neither party shall pursue any claim or legal action related to this arrangement or its cancellation.\n\nSincerely,\n${businessName}`
-                    });
-                }
-            } catch (e) { console.error('Cancellation email error:', e.message); }
+        if (job.status === 'cancelled' && oldJob?.status !== 'cancelled') {
+            await sendJobCancellationEmail(job, _id, req.session.userName);
         }
 
     } else {
@@ -3916,6 +3905,52 @@ app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
 });
 
 // ── Survey system ─────────────────────────────────────────────────────────────
+
+// Send the client a service-cancellation confirmation letter. Shared by the job
+// save path and the dedicated cancel endpoint. Returns true if an email went out.
+async function sendJobCancellationEmail(job, jobIdStr, sentBy) {
+    if (!emailService.initialized) return false;
+    try {
+        const cid = job.clientId ? (typeof job.clientId === 'string' ? new ObjectId(job.clientId) : job.clientId) : null;
+        const cancelClient = cid ? await db.collection('clients').findOne({ _id: cid }) : null;
+        const cancelSettings = await db.collection('settings').findOne({});
+        const businessName = cancelSettings?.companyName || 'GSD Property Services';
+        const clientEmail = cancelClient?.email;
+        const clientName = cancelClient?.name || 'Valued Client';
+        if (!clientEmail) return false;
+        const cancelDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const _cancelLogId = new ObjectId();
+        await db.collection('email_logs').insertOne({
+            _id: _cancelLogId, type: 'cancellation', to: clientEmail, toName: clientName,
+            subject: `Service Cancellation Confirmation — ${job.title}`,
+            trigger: `Job "${job.title}" cancelled`, relatedId: new ObjectId(jobIdStr), relatedTitle: job.title,
+            sentBy: sentBy || 'admin', sentAt: new Date(), status: 'sent', opened: false
+        });
+        const _cancelHtml = `<div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;padding:2rem;color:#1a202c;">
+                <h2 style="color:#667eea;margin-bottom:0.25rem;">${businessName}</h2>
+                <p style="color:#718096;font-size:0.85rem;margin-top:0;">Service Cancellation Confirmation</p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0;">
+                <p>Dear ${clientName},</p>
+                <p>This letter confirms that, by mutual agreement between <strong>${businessName}</strong> and <strong>${clientName}</strong>, the service arrangement for the following has been cancelled effective <strong>${cancelDate}</strong>:</p>
+                <div style="background:#f8fafc;border-left:4px solid #667eea;padding:0.85rem 1.1rem;margin:1.25rem 0;border-radius:0 6px 6px 0;">
+                    <strong style="font-size:1rem;">${job.title}</strong>
+                </div>
+                <p>Both parties acknowledge that this cancellation is final and agreed upon by mutual consent. Neither party shall pursue any claim, dispute, or legal action against the other arising from or related to this service arrangement or its cancellation.</p>
+                <p>We appreciate the opportunity and wish you well.</p>
+                <p style="margin-top:2rem;">Sincerely,<br><strong>${businessName}</strong></p>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;">
+                <p style="color:#9ca3af;font-size:0.78rem;">This is an automated confirmation. Please retain this email for your records.</p>
+            </div>`;
+        await db.collection('email_logs').updateOne({ _id: _cancelLogId }, { $set: { htmlBody: _cancelHtml } });
+        await emailService.sendEmail({
+            to: clientEmail,
+            subject: `Service Cancellation Confirmation — ${job.title}`,
+            html: _cancelHtml,
+            text: `Service Cancellation Confirmation\n\nDear ${clientName},\n\nThis confirms that by mutual agreement, the service arrangement for "${job.title}" has been cancelled effective ${cancelDate}.\n\nBoth parties acknowledge this cancellation is final. Neither party shall pursue any claim or legal action related to this arrangement or its cancellation.\n\nSincerely,\n${businessName}`
+        });
+        return true;
+    } catch (e) { console.error('Cancellation email error:', e.message); return false; }
+}
 
 async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = null) {
     const surveyEmail = toEmail || client?.email;

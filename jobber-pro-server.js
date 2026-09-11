@@ -4100,6 +4100,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="btn btn-secondary" onclick="closeModal('jobModal')">Cancel</button>
                 <button class="btn btn-secondary" id="jobSignoffBtn" style="display:none;" onclick="openSignoffForm(document.querySelector('#jobForm [name=id]').value)">✍️ Sign-Off</button>
                 <button class="btn btn-secondary" id="jobResendSurveyBtn" style="display:none;" onclick="resendSurvey()">📋 Resend Survey</button>
+                <button class="btn btn-secondary" id="jobCancelJobBtn" style="display:none;background:#fff5f5;color:#c53030;border-color:#feb2b2;" onclick="cancelJob()">🚫 Cancel Job</button>
                 <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
                 <span id="jobAutoSaveStatus" class="autosave-status"></span>
             </div>
@@ -5758,6 +5759,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Split button only makes sense on an existing, saved job
             const _splitBtn = document.getElementById('splitJobBtn');
             if (_splitBtn) _splitBtn.style.display = (job && (job._id || job.id)) ? '' : 'none';
+            const _cancelJobBtn = document.getElementById('jobCancelJobBtn');
+            if (_cancelJobBtn) _cancelJobBtn.style.display = (isAdmin && job && (job._id || job.id) && job.status !== 'cancelled') ? '' : 'none';
 
             // Version history (snapshots at Completed / Invoiced)
             if (job && (job._id || job.id)) { renderJobVersions(job); }
@@ -7117,6 +7120,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             _unlockedPaymentIds.add(id);
             renderLineItems();
             markFormDirty();
+        }
+
+        async function cancelJob() {
+            if (!currentEditingJobId) { alert('Save the job before cancelling.'); return; }
+            // Net collected = payments minus refunds (refund rows are negative).
+            const netCollected = Math.round((paymentItems || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0) * 100) / 100;
+            if (netCollected > 0.01) {
+                const proceed = confirm(
+                    'Heads up: this job has $' + netCollected.toFixed(2) + ' collected that has NOT been refunded.\\n\\n' +
+                    'Cancelling takes the job off your books but does NOT return that money.\\n\\n' +
+                    'OK = cancel anyway (you\'re keeping the money)\\n' +
+                    'Cancel = stop, so you can hit ↩ Refund first'
+                );
+                if (!proceed) return;
+            } else {
+                if (!confirm('Cancel this job? It will be removed from revenue, A/R, and your active pipeline.')) return;
+            }
+            const reason = prompt('Reason for cancelling (optional — saved to the job history):', '');
+            if (reason === null) return;
+            try {
+                const res = await fetch('/api/jobs/' + currentEditingJobId + '/cancel', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not cancel the job'); return; }
+                hasUnsavedChanges = false;
+                closeModal('jobModal');
+                await loadJobs();
+                alert('🚫 Job cancelled. It\'s off the money books' + (data.emailed ? ' and a cancellation confirmation was emailed to the client.' : '.'));
+            } catch (e) { alert('Network error cancelling the job.'); }
         }
 
         async function refundPayment(paymentId, amount, alreadyRefunded) {
