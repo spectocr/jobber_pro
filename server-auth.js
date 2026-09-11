@@ -7310,7 +7310,7 @@ app.get('/api/calendar', isAuthenticated, async (req, res) => {
 });
 
 // Expenses endpoints
-app.get('/api/expenses', isAuthenticated, async (req, res) => {
+app.get('/api/expenses', isAuthenticated, isAdmin, async (req, res) => {
     const expenses = await db.collection('expenses').find().toArray();
     const expensesWithId = expenses.map(e => ({ ...e, id: e._id.toString() }));
     res.json(expensesWithId);
@@ -7407,7 +7407,7 @@ app.delete('/api/expenses/:id/attachments/:attachmentId', isAuthenticated, isAdm
 });
 
 // Expense comments
-app.post('/api/expenses/:id/comments', isAuthenticated, async (req, res) => {
+app.post('/api/expenses/:id/comments', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const { text } = req.body;
         if (!text?.trim()) return res.status(400).json({ error: 'Comment text required' });
