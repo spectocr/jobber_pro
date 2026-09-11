@@ -2887,6 +2887,100 @@ app.get('/api/reports/yoy', isAdmin, async (req, res) => {
     }
 });
 
+// Find a payment across jobs, gift cards, and charge attempts.
+// Matches by amount, last-4, client name, note text, or Clover ID.
+// Clover IDs are compared with O↔0 folding since they're easy to mis-read.
+app.get('/api/payments/search', isAdmin, async (req, res) => {
+    try {
+        const q = (req.query.q || '').toString().trim();
+        if (!q) return res.json({ results: [] });
+        const qLower = q.toLowerCase();
+        const fold = s => String(s || '').toUpperCase().replace(/O/g, '0').replace(/[^A-Z0-9]/g, '');
+        const qFold = fold(q);
+        const qNum = parseFloat(q.replace(/[$,]/g, ''));
+        const isNum = Number.isFinite(qNum);
+        const qDigits = q.replace(/\D/g, '');
+
+        const [jobs, clients, giftCards, attempts] = await Promise.all([
+            db.collection('jobs').find({ payments: { $exists: true, $ne: [] } }, { projection: { title: 1, clientId: 1, clientName: 1, payments: 1 } }).toArray(),
+            db.collection('clients').find({}, { projection: { name: 1 } }).toArray(),
+            db.collection('gift_cards').find({}).toArray().catch(() => []),
+            db.collection('payment_attempts').find({ success: true }).sort({ at: -1 }).limit(1000).toArray().catch(() => [])
+        ]);
+        const clientName = {};
+        clients.forEach(c => { clientName[c._id.toString()] = c.name; });
+
+        const results = [];
+        const amtMatch = a => isNum && Math.abs((parseFloat(a) || 0) - qNum) < 0.02;
+
+        jobs.forEach(j => {
+            (j.payments || []).forEach(p => {
+                const hit =
+                    amtMatch(p.amount) ||
+                    (qDigits.length === 4 && String(p.last4 || '') === qDigits) ||
+                    (p.cloverChargeId && fold(p.cloverChargeId).includes(qFold) && qFold.length >= 4) ||
+                    (p.notes && p.notes.toLowerCase().includes(qLower)) ||
+                    (qFold.length >= 4 && p.notes && fold(p.notes).includes(qFold));
+                if (hit) results.push({
+                    source: 'Job payment',
+                    amount: parseFloat(p.amount) || 0,
+                    date: p.date || '',
+                    client: clientName[String(j.clientId)] || j.clientName || '',
+                    jobTitle: j.title || '',
+                    jobId: j._id.toString(),
+                    last4: p.last4 || '',
+                    cardBrand: p.cardBrand || '',
+                    cloverChargeId: p.cloverChargeId || '',
+                    note: p.notes || ''
+                });
+            });
+        });
+
+        (giftCards || []).forEach(g => {
+            const hit =
+                amtMatch(g.initialAmount) || amtMatch(g.balance) ||
+                (g.code && g.code.toLowerCase().includes(qLower)) ||
+                (g.buyerName && g.buyerName.toLowerCase().includes(qLower)) ||
+                (g.recipientName && g.recipientName.toLowerCase().includes(qLower));
+            if (hit) results.push({
+                source: 'Gift card',
+                amount: parseFloat(g.initialAmount) || 0,
+                date: g.createdAt ? new Date(g.createdAt).toISOString().split('T')[0] : '',
+                client: (g.buyerName || '') + (g.recipientName ? ' → ' + g.recipientName : ''),
+                jobTitle: 'Gift card ' + (g.code || ''),
+                jobId: '',
+                last4: '', cardBrand: '', cloverChargeId: '',
+                note: g.message || ''
+            });
+        });
+
+        // Charge attempts that didn't get matched above (e.g. Clover ID only lives here)
+        const seenCharge = new Set(results.map(r => r.cloverChargeId).filter(Boolean).map(fold));
+        (attempts || []).forEach(a => {
+            const cid = a.chargeId || (a.response && a.response.id) || '';
+            const hit =
+                amtMatch(a.amount) ||
+                (cid && fold(cid).includes(qFold) && qFold.length >= 4);
+            if (hit && (!cid || !seenCharge.has(fold(cid)))) results.push({
+                source: 'Charge attempt',
+                amount: parseFloat(a.amount) || 0,
+                date: a.at ? new Date(a.at).toISOString().split('T')[0] : '',
+                client: '',
+                jobTitle: a.jobId ? 'Job #' + String(a.jobId).slice(-6) : '',
+                jobId: a.jobId ? String(a.jobId) : '',
+                last4: '', cardBrand: '', cloverChargeId: cid,
+                note: 'Charge attempt log'
+            });
+        });
+
+        results.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        res.json({ results: results.slice(0, 100) });
+    } catch (err) {
+        console.error('Payment search error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.get('/api/clients', isAuthenticated, async (req, res) => {
     const clients = await db.collection('clients').find().toArray();
     // Map _id to id for frontend compatibility
@@ -9955,6 +10049,9 @@ app.post('/api/client-portal/pay', async (req, res) => {
             }
         }
 
+        const _descClient = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }, { projection: { name: 1 } }) : null;
+        const chargeDesc = cloverChargeDescription({ kind: 'Payment', clientName: (_descClient && _descClient.name) || job.clientName, jobTitle: job.title, jobId: job._id });
+
         const chargeSource = cloverCustomerId
             ? { source: cloverCustomerId }
             : { source: token };
@@ -9967,7 +10064,7 @@ app.post('/api/client-portal/pay', async (req, res) => {
                 'Accept': 'application/json',
                 'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
             },
-            body: JSON.stringify({ amount: amountCents, currency: 'USD', ...chargeSource })
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', description: chargeDesc, ...chargeSource })
         });
 
         const rawText = await chargeRes.text();
@@ -10003,6 +10100,7 @@ app.post('/api/client-portal/pay', async (req, res) => {
             method: 'credit_card',
             last4,
             cardBrand,
+            cloverChargeId: charge.id,
             notes: `Online payment — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
         };
 
@@ -10308,6 +10406,9 @@ app.post('/api/deposit/pay', async (req, res) => {
             }
         }
 
+        const _descClient = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }, { projection: { name: 1 } }) : null;
+        const chargeDesc = cloverChargeDescription({ kind: 'Deposit', clientName: (_descClient && _descClient.name) || job.clientName, jobTitle: job.title, jobId: job._id });
+
         const chargeSource = cloverCustomerId
             ? { source: cloverCustomerId }
             : { source: token };
@@ -10320,7 +10421,7 @@ app.post('/api/deposit/pay', async (req, res) => {
                 'Accept': 'application/json',
                 'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
             },
-            body: JSON.stringify({ amount: amountCents, currency: 'USD', ...chargeSource })
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', description: chargeDesc, ...chargeSource })
         });
 
         const rawText = await chargeRes.text();
@@ -10338,6 +10439,7 @@ app.post('/api/deposit/pay', async (req, res) => {
             method: 'credit_card',
             last4,
             cardBrand,
+            cloverChargeId: charge.id,
             notes: `Deposit payment — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
         };
 
@@ -10469,7 +10571,18 @@ function generateGiftCode() {
     const rand = n => Array.from({ length: n }, () => chars[crypto.randomInt(0, chars.length)]).join('');
     return 'GSD-' + rand(4) + '-' + rand(4);
 }
-async function chargeCloverToken(token, amountCents) {
+// Build a human-readable Clover charge description so the transaction shows
+// who/what on the Clover dashboard instead of just an amount.
+function cloverChargeDescription({ kind, clientName, jobTitle, jobId } = {}) {
+    const parts = ['GSD'];
+    if (jobId) parts.push('Job #' + String(jobId).slice(-6));
+    if (clientName) parts.push(String(clientName));
+    if (jobTitle) parts.push(String(jobTitle).slice(0, 60));
+    if (kind) parts.push(kind);
+    return parts.join(' — ').slice(0, 250);
+}
+
+async function chargeCloverToken(token, amountCents, description) {
     const r = await fetch('https://scl.clover.com/v1/charges', {
         method: 'POST',
         headers: {
@@ -10477,7 +10590,7 @@ async function chargeCloverToken(token, amountCents) {
             'Content-Type': 'application/json', 'Accept': 'application/json',
             'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
         },
-        body: JSON.stringify({ amount: amountCents, currency: 'USD', source: token })
+        body: JSON.stringify({ amount: amountCents, currency: 'USD', source: token, ...(description ? { description } : {}) })
     });
     const raw = await r.text();
     let charge = {}; try { charge = JSON.parse(raw); } catch (_) {}
@@ -10634,7 +10747,8 @@ app.post('/api/gift-cards/purchase', async (req, res) => {
         const feeAmt = feePercent > 0 ? Math.round(amt * (feePercent / 100) * 100) / 100 : 0;
         const chargeTotal = Math.round((amt + roundUpAmt + feeAmt) * 100) / 100;
 
-        const { ok, charge, error } = await chargeCloverToken(token, Math.round(chargeTotal * 100));
+        const giftDesc = ('GSD Gift Card — from ' + (buyerName || '?') + ' to ' + (recipientName || '?')).slice(0, 250);
+        const { ok, charge, error } = await chargeCloverToken(token, Math.round(chargeTotal * 100), giftDesc);
         if (!ok) return res.status(400).json({ error: error || 'Payment failed' });
 
         const code = generateGiftCode();
@@ -10781,6 +10895,7 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
             }
         }
 
+        const chargeDesc = cloverChargeDescription({ kind: 'Manual charge', clientName: client && client.name, jobTitle: job.title, jobId: job._id });
         const chargeSource = cloverCustomerId ? { source: cloverCustomerId } : { source: token };
 
         const chargeRes = await fetch('https://scl.clover.com/v1/charges', {
@@ -10791,7 +10906,7 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
                 'Accept': 'application/json',
                 'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
             },
-            body: JSON.stringify({ amount: amountCents, currency: 'USD', ...chargeSource })
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', description: chargeDesc, ...chargeSource })
         });
 
         const rawText = await chargeRes.text();
@@ -10817,6 +10932,7 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
             method: 'credit_card',
             last4,
             cardBrand,
+            cloverChargeId: charge.id,
             notes: `Manual card entry — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
         };
 
@@ -10877,6 +10993,7 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
             return res.status(400).json({ error: 'No saved card on file for this client' });
         }
 
+        const chargeDesc = cloverChargeDescription({ kind: 'Card on file', clientName: client && client.name, jobTitle: job.title, jobId: job._id });
         const chargeRes = await fetch('https://scl.clover.com/v1/charges', {
             method: 'POST',
             headers: {
@@ -10885,7 +11002,7 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
                 'Accept': 'application/json',
                 'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
             },
-            body: JSON.stringify({ amount: amountCents, currency: 'USD', source: client.cloverCustomerId })
+            body: JSON.stringify({ amount: amountCents, currency: 'USD', description: chargeDesc, source: client.cloverCustomerId })
         });
 
         const rawText = await chargeRes.text();
@@ -10912,6 +11029,7 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
             method: 'credit_card',
             last4,
             cardBrand,
+            cloverChargeId: charge.id,
             notes: `Charged saved card — Clover ${charge.id}${last4 ? ` ••••${last4}` : ''}`
         };
 

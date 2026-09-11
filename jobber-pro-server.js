@@ -2558,6 +2558,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
 
                 <div id="reports-container">
+                    <!-- Find a Payment -->
+                    <div class="report-section" style="background:#fff;border:2px solid #e2e8f0;padding:1.5rem;border-radius:8px;margin-bottom:2rem;">
+                        <h3 style="margin-bottom:0.5rem;">🔎 Find a Payment</h3>
+                        <p style="font-size:0.85rem;color:#718096;margin-bottom:0.75rem;">Search by amount, client name, card last&#8209;4, or Clover ID (O vs 0 doesn't matter).</p>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <input id="paySearchInput" type="text" placeholder="e.g. 1695.34  ·  Lansinger  ·  3877  ·  0DNQYE0KWD9K8" onkeydown="if(event.key==='Enter')runPaymentSearch()" style="flex:1;min-width:240px;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <button class="btn btn-primary" onclick="runPaymentSearch()">Search</button>
+                        </div>
+                        <div id="paySearchResults" style="margin-top:1rem;"></div>
+                    </div>
+
                     <!-- Year over Year -->
                     <div class="report-section" style="background:#f7fafc;border:2px solid #e2e8f0;padding:1.5rem;border-radius:8px;margin-bottom:2rem;">
                         <h3 style="margin-bottom:1rem;">📅 Year over Year — Revenue &amp; Profit</h3>
@@ -12446,6 +12457,43 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (!res.ok) throw new Error('Failed');
                 loadSurveys();
             } catch (e) { alert('Failed to update.'); }
+        }
+
+        async function runPaymentSearch() {
+            const q = (document.getElementById('paySearchInput').value || '').trim();
+            const box = document.getElementById('paySearchResults');
+            if (!q) { box.innerHTML = ''; return; }
+            box.innerHTML = '<p style="color:#718096;">Searching…</p>';
+            let data;
+            try { data = await (await fetch('/api/payments/search?q=' + encodeURIComponent(q))).json(); }
+            catch (e) { box.innerHTML = '<p style="color:#e53e3e;">Search failed.</p>'; return; }
+            const results = data.results || [];
+            if (!results.length) { box.innerHTML = '<p style="color:#718096;">No payments matched "' + escapeAuthText(q) + '".</p>'; return; }
+            const rows = results.map(r => {
+                const who = [r.client, r.jobTitle].filter(Boolean).map(escapeAuthText).join(' · ');
+                const card = r.last4 ? (escapeAuthText(r.cardBrand || '') + ' ••••' + escapeAuthText(r.last4)) : '';
+                const open = r.jobId ? '<button class="btn btn-secondary btn-small" onclick="openJobFromSearch(\'' + r.jobId + '\')">Open job</button>' : '';
+                return '<tr style="border-top:1px solid #edf2f7;">' +
+                    '<td style="padding:0.5rem 0.6rem;font-weight:700;">' + formatMoney(r.amount) + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;">' + escapeAuthText(r.date) + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;">' + (who || '<span style="color:#a0aec0;">—</span>') + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;font-size:0.82rem;color:#718096;">' + card + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;font-size:0.78rem;color:#718096;font-family:monospace;">' + escapeAuthText(r.cloverChargeId || '') + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;font-size:0.78rem;color:#a0aec0;">' + escapeAuthText(r.source) + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;">' + open + '</td>' +
+                    '</tr>';
+            }).join('');
+            box.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;">' +
+                '<thead><tr style="text-align:left;color:#718096;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.03em;">' +
+                '<th style="padding:0.4rem 0.6rem;">Amount</th><th style="padding:0.4rem 0.6rem;">Date</th><th style="padding:0.4rem 0.6rem;">Who / Job</th><th style="padding:0.4rem 0.6rem;">Card</th><th style="padding:0.4rem 0.6rem;">Clover ID</th><th style="padding:0.4rem 0.6rem;">Source</th><th></th></tr></thead>' +
+                '<tbody>' + rows + '</tbody></table></div>' +
+                '<p style="font-size:0.78rem;color:#a0aec0;margin-top:0.5rem;">' + results.length + ' match' + (results.length === 1 ? '' : 'es') + '.</p>';
+        }
+
+        function openJobFromSearch(jobId) {
+            const job = jobs.find(j => (j._id || j.id) == jobId);
+            if (job) { openJobModal(job); }
+            else { showView('jobs'); setTimeout(() => loadJobs(), 100); }
         }
 
         async function loadYoyReport() {
