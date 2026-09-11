@@ -6984,7 +6984,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const amtNum = parseFloat(item.amount || 0);
                     const isRefundRow = item.method === 'refund' || amtNum < 0;
                     const refundedAmt = parseFloat(item.refundedAmount) || 0;
-                    const refundable = !isRefundRow && (amtNum - refundedAmt) > 0.001;
+                    const refundable = isAdmin && !isRefundRow && (amtNum - refundedAmt) > 0.001;
                     const amtColor = isRefundRow ? '#c53030' : '#15803d';
                     const refundBtn = refundable
                         ? \`<button type="button" onclick="refundPayment(\${item.id}, \${amtNum}, \${refundedAmt})" style="background:#fed7d7;color:#c53030;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">↩ Refund</button>\`
