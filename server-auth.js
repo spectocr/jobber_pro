@@ -2928,6 +2928,9 @@ app.get('/api/payments/search', isAdmin, async (req, res) => {
                     client: clientName[String(j.clientId)] || j.clientName || '',
                     jobTitle: j.title || '',
                     jobId: j._id.toString(),
+                    paymentId: p.id,
+                    refundable: (p.method !== 'refund') && ((parseFloat(p.amount) || 0) - (parseFloat(p.refundedAmount) || 0) > 0.001) && !!(p.cloverChargeId || (p.notes && /Clover\s+[A-Za-z0-9]+/.test(p.notes))),
+                    refundedAmount: parseFloat(p.refundedAmount) || 0,
                     last4: p.last4 || '',
                     cardBrand: p.cardBrand || '',
                     cloverChargeId: p.cloverChargeId || '',
@@ -2978,6 +2981,87 @@ app.get('/api/payments/search', isAdmin, async (req, res) => {
     } catch (err) {
         console.error('Payment search error:', err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Refund a card payment through Clover (full or partial).
+app.post('/api/payments/refund', isAdmin, async (req, res) => {
+    try {
+        const { jobId, paymentId, amount } = req.body;
+        if (!jobId || paymentId == null) return res.status(400).json({ error: 'jobId and paymentId are required' });
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const payments = Array.isArray(job.payments) ? job.payments : [];
+        const idx = payments.findIndex(p => String(p.id) === String(paymentId));
+        if (idx === -1) return res.status(404).json({ error: 'Payment not found on this job' });
+        const pay = payments[idx];
+
+        // Resolve the Clover charge id from the field, or parse it from the note.
+        const chargeId = pay.cloverChargeId || (pay.notes && (pay.notes.match(/Clover\s+([A-Za-z0-9]+)/) || [])[1]) || null;
+        if (!chargeId) return res.status(400).json({ error: 'This payment has no Clover charge to refund (not a card charge made through the app).' });
+
+        const paidAmt = parseFloat(pay.amount) || 0;
+        const alreadyRefunded = parseFloat(pay.refundedAmount) || 0;
+        const maxRefund = Math.round((paidAmt - alreadyRefunded) * 100) / 100;
+        if (maxRefund <= 0) return res.status(400).json({ error: 'This payment is already fully refunded.' });
+        let refundAmt = amount != null && amount !== '' ? Math.round(parseFloat(amount) * 100) / 100 : maxRefund;
+        if (!Number.isFinite(refundAmt) || refundAmt <= 0) return res.status(400).json({ error: 'Invalid refund amount.' });
+        if (refundAmt > maxRefund + 0.001) return res.status(400).json({ error: `Refund exceeds refundable amount ($${maxRefund.toFixed(2)}).` });
+
+        // Clover refund
+        const refundRes = await fetch('https://scl.clover.com/v1/refunds', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.CLOVER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Clover-Merchant-Id': process.env.CLOVER_MERCHANT_ID
+            },
+            body: JSON.stringify({ charge: chargeId, amount: Math.round(refundAmt * 100) })
+        });
+        const rawText = await refundRes.text();
+        let refund = {};
+        try { refund = JSON.parse(rawText); } catch (_) {}
+        if (!refundRes.ok) {
+            console.error('Clover refund failed', refundRes.status, rawText);
+            await db.collection('payment_attempts').insertOne({ jobId: job._id, at: new Date(), type: 'refund', amount: refundAmt, chargeId, success: false, error: rawText || String(refundRes.status) });
+            return res.status(400).json({ error: (refund.error && refund.error.message) || 'Clover refund failed: ' + (rawText || refundRes.status) });
+        }
+        const refundId = refund.id || '';
+
+        // Annotate the original payment and add a negative refund row so totals stay
+        // correct (totalPaid is the sum of payments on save).
+        const now = new Date();
+        pay.refundedAmount = Math.round((alreadyRefunded + refundAmt) * 100) / 100;
+        pay.refundedAt = now;
+        pay.cloverRefundId = refundId;
+        pay.notes = (pay.notes || '') + ` · Refunded $${refundAmt.toFixed(2)}`;
+        payments[idx] = pay;
+        payments.push({
+            id: Date.now(),
+            date: now.toISOString().split('T')[0],
+            amount: -refundAmt,
+            method: 'refund',
+            last4: pay.last4 || null,
+            cardBrand: pay.cardBrand || null,
+            cloverRefundId: refundId,
+            refundedChargeId: chargeId,
+            notes: `Refund — Clover ${refundId}`
+        });
+
+        const jobTotal = parseFloat(job.totalWithTax || job.total) || 0;
+        const newTotalPaid = Math.round(Math.max(0, (parseFloat(job.totalPaid) || 0) - refundAmt) * 100) / 100;
+        const newBalance = Math.round((jobTotal - newTotalPaid) * 100) / 100;
+        const auditLog = Array.isArray(job.auditLog) ? job.auditLog : [];
+        auditLog.push({ timestamp: now, userName: req.session.userName, action: 'refund', note: `Refunded $${refundAmt.toFixed(2)} to card ${pay.last4 ? '••••' + pay.last4 : ''} (Clover ${refundId})` });
+
+        await db.collection('jobs').updateOne({ _id: job._id }, { $set: { payments, totalPaid: newTotalPaid, balanceOwed: newBalance, auditLog } });
+        await db.collection('payment_attempts').insertOne({ jobId: job._id, at: now, type: 'refund', amount: refundAmt, chargeId, refundId, success: true });
+
+        res.json({ success: true, refundId, refundAmount: refundAmt, totalPaid: newTotalPaid, balanceOwed: newBalance });
+    } catch (err) {
+        console.error('Refund error:', err);
+        res.status(500).json({ error: 'Server error processing refund' });
     }
 });
 

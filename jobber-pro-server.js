@@ -6978,12 +6978,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const isLocked = isCardCharge && !_unlockedPaymentIds.has(item.id);
                 const methodLabel = { cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' }[item.method] || item.method;
                 if (isLocked) {
-                    return \`<div class="line-item" style="display:grid;grid-template-columns:1fr 1fr 1.5fr 2fr auto;gap:0.5rem;margin-bottom:0.5rem;align-items:center;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:0.5rem 0.75rem;">
+                    const amtNum = parseFloat(item.amount || 0);
+                    const isRefundRow = item.method === 'refund' || amtNum < 0;
+                    const refundedAmt = parseFloat(item.refundedAmount) || 0;
+                    const refundable = !isRefundRow && (amtNum - refundedAmt) > 0.001;
+                    const amtColor = isRefundRow ? '#c53030' : '#15803d';
+                    const refundBtn = refundable
+                        ? \`<button type="button" onclick="refundPayment(\${item.id}, \${amtNum}, \${refundedAmt})" style="background:#fed7d7;color:#c53030;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">↩ Refund</button>\`
+                        : '';
+                    return \`<div class="line-item" style="display:grid;grid-template-columns:1fr 1fr 1.5fr 2fr auto;gap:0.5rem;margin-bottom:0.5rem;align-items:center;background:\${isRefundRow ? '#fff5f5' : '#f0fdf4'};border:1.5px solid \${isRefundRow ? '#feb2b2' : '#bbf7d0'};border-radius:8px;padding:0.5rem 0.75rem;">
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Date</div><div style="font-size:0.9rem;">\${item.date || '—'}</div></div>
-                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Amount</div><div style="font-size:0.9rem;font-weight:700;color:#15803d;">\$\${parseFloat(item.amount || 0).toFixed(2)}</div></div>
+                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">\${isRefundRow ? 'Refund' : 'Amount'}</div><div style="font-size:0.9rem;font-weight:700;color:\${amtColor};">\$\${amtNum.toFixed(2)}\${refundedAmt > 0 && !isRefundRow ? \` <span style="font-size:0.72rem;color:#c05621;">(−\$\${refundedAmt.toFixed(2)} refunded)</span>\` : ''}</div></div>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Method</div><div style="font-size:0.9rem;">\${methodLabel}\${item.last4 ? \` ••••\${item.last4}\` : ''}</div></div>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Notes</div><div style="font-size:0.85rem;color:#4b5563;">\${item.notes || '—'}</div></div>
-                        <button type="button" onclick="unlockPaymentItem(\${item.id})" style="background:#e2e8f0;color:#374151;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">🔒 Edit</button>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                            <button type="button" onclick="unlockPaymentItem(\${item.id})" style="background:#e2e8f0;color:#374151;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">🔒 Edit</button>
+                            \${refundBtn}
+                        </div>
                     </div>\`;
                 }
                 return \`<div class="line-item" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr 2fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;\${isCardCharge ? 'border:1.5px solid #fbd38d;border-radius:8px;padding:0.5rem;background:#fffbeb;' : ''}">
@@ -7106,6 +7117,32 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             _unlockedPaymentIds.add(id);
             renderLineItems();
             markFormDirty();
+        }
+
+        async function refundPayment(paymentId, amount, alreadyRefunded) {
+            if (!currentEditingJobId) { alert('Save the job first.'); return; }
+            const maxRefund = Math.round((amount - (alreadyRefunded || 0)) * 100) / 100;
+            if (maxRefund <= 0) { alert('This payment is already fully refunded.'); return; }
+            const input = prompt('Refund amount (up to $' + maxRefund.toFixed(2) + '). This sends the money back to the customer\'s card via Clover.', maxRefund.toFixed(2));
+            if (input === null) return;
+            const refundAmt = Math.round(parseFloat(input) * 100) / 100;
+            if (!Number.isFinite(refundAmt) || refundAmt <= 0) { alert('Enter a valid amount.'); return; }
+            if (refundAmt > maxRefund + 0.001) { alert('That is more than the refundable amount ($' + maxRefund.toFixed(2) + ').'); return; }
+            if (!confirm('Refund $' + refundAmt.toFixed(2) + ' to the customer\'s card? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/api/payments/refund', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: currentEditingJobId, paymentId: paymentId, amount: refundAmt })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Refund failed'); return; }
+                alert('✅ Refunded $' + data.refundAmount.toFixed(2) + '. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
+                // Reload the job so the refund row + updated totals show.
+                const jid = currentEditingJobId;
+                await loadJobs();
+                const j = jobs.find(x => (x._id || x.id) == jid);
+                if (j) openJobModal(j);
+            } catch (e) { alert('Network error processing refund.'); }
         }
 
         function toggleFollowUpFields() {
@@ -12473,6 +12510,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const who = [r.client, r.jobTitle].filter(Boolean).map(escapeAuthText).join(' · ');
                 const card = r.last4 ? (escapeAuthText(r.cardBrand || '') + ' ••••' + escapeAuthText(r.last4)) : '';
                 const open = r.jobId ? '<button class="btn btn-secondary btn-small" onclick="openJobFromSearch(\'' + r.jobId + '\')">Open job</button>' : '';
+                const refund = (r.refundable && r.jobId && r.paymentId != null)
+                    ? ' <button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="refundFromSearch(\'' + r.jobId + '\',\'' + r.paymentId + '\',' + r.amount + ',' + (r.refundedAmount || 0) + ')">↩ Refund</button>'
+                    : '';
                 return '<tr style="border-top:1px solid #edf2f7;">' +
                     '<td style="padding:0.5rem 0.6rem;font-weight:700;">' + formatMoney(r.amount) + '</td>' +
                     '<td style="padding:0.5rem 0.6rem;">' + escapeAuthText(r.date) + '</td>' +
@@ -12480,7 +12520,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<td style="padding:0.5rem 0.6rem;font-size:0.82rem;color:#718096;">' + card + '</td>' +
                     '<td style="padding:0.5rem 0.6rem;font-size:0.78rem;color:#718096;font-family:monospace;">' + escapeAuthText(r.cloverChargeId || '') + '</td>' +
                     '<td style="padding:0.5rem 0.6rem;font-size:0.78rem;color:#a0aec0;">' + escapeAuthText(r.source) + '</td>' +
-                    '<td style="padding:0.5rem 0.6rem;">' + open + '</td>' +
+                    '<td style="padding:0.5rem 0.6rem;white-space:nowrap;">' + open + refund + '</td>' +
                     '</tr>';
             }).join('');
             box.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;">' +
@@ -12494,6 +12534,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const job = jobs.find(j => (j._id || j.id) == jobId);
             if (job) { openJobModal(job); }
             else { showView('jobs'); setTimeout(() => loadJobs(), 100); }
+        }
+
+        async function refundFromSearch(jobId, paymentId, amount, alreadyRefunded) {
+            const maxRefund = Math.round((amount - (alreadyRefunded || 0)) * 100) / 100;
+            if (maxRefund <= 0) { alert('This payment is already fully refunded.'); return; }
+            const input = prompt('Refund amount (up to $' + maxRefund.toFixed(2) + '). Sends money back to the card via Clover.', maxRefund.toFixed(2));
+            if (input === null) return;
+            const refundAmt = Math.round(parseFloat(input) * 100) / 100;
+            if (!Number.isFinite(refundAmt) || refundAmt <= 0) { alert('Enter a valid amount.'); return; }
+            if (refundAmt > maxRefund + 0.001) { alert('That is more than the refundable amount ($' + maxRefund.toFixed(2) + ').'); return; }
+            if (!confirm('Refund $' + refundAmt.toFixed(2) + ' to the customer\'s card? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/api/payments/refund', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: jobId, paymentId: paymentId, amount: refundAmt })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Refund failed'); return; }
+                alert('✅ Refunded $' + data.refundAmount.toFixed(2) + '. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
+                await loadJobs();
+                runPaymentSearch();
+            } catch (e) { alert('Network error processing refund.'); }
         }
 
         async function loadYoyReport() {
