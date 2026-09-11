@@ -7162,20 +7162,26 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!Number.isFinite(refundAmt) || refundAmt <= 0) { alert('Enter a valid amount.'); return; }
             if (refundAmt > maxRefund + 0.001) { alert('That is more than the refundable amount ($' + maxRefund.toFixed(2) + ').'); return; }
             if (!confirm('Refund $' + refundAmt.toFixed(2) + ' to the customer\'s card? This cannot be undone.')) return;
+            const jid = currentEditingJobId;
+            let data;
             try {
                 const res = await fetch('/api/payments/refund', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jobId: currentEditingJobId, paymentId: paymentId, amount: refundAmt })
+                    body: JSON.stringify({ jobId: jid, paymentId: paymentId, amount: refundAmt })
                 });
-                const data = await res.json();
-                if (!res.ok) { alert(data.error || 'Refund failed'); return; }
-                alert('✅ Refunded $' + data.refundAmount.toFixed(2) + '. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
-                // Reload the job so the refund row + updated totals show.
-                const jid = currentEditingJobId;
+                data = await res.json().catch(() => null);
+                if (!res.ok) { alert((data && data.error) || 'Refund failed.'); return; }
+            } catch (e) {
+                alert('⚠️ Network error — the refund may NOT have gone through. Do NOT retry yet: check "Find a Payment" in Reports to see if it processed before trying again.');
+                return;
+            }
+            // Refund succeeded — refresh is separate so a UI hiccup never looks like a failed refund.
+            alert('✅ Refunded $' + data.refundAmount.toFixed(2) + '. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
+            try {
                 await loadJobs();
                 const j = jobs.find(x => (x._id || x.id) == jid);
                 if (j) openJobModal(j);
-            } catch (e) { alert('Network error processing refund.'); }
+            } catch (e) { /* refund is done; refresh is cosmetic */ }
         }
 
         function toggleFollowUpFields() {
@@ -12578,17 +12584,20 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (!Number.isFinite(refundAmt) || refundAmt <= 0) { alert('Enter a valid amount.'); return; }
             if (refundAmt > maxRefund + 0.001) { alert('That is more than the refundable amount ($' + maxRefund.toFixed(2) + ').'); return; }
             if (!confirm('Refund $' + refundAmt.toFixed(2) + ' to the customer\'s card? This cannot be undone.')) return;
+            let data;
             try {
                 const res = await fetch('/api/payments/refund', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ jobId: jobId, paymentId: paymentId, amount: refundAmt })
                 });
-                const data = await res.json();
-                if (!res.ok) { alert(data.error || 'Refund failed'); return; }
-                alert('✅ Refunded $' + data.refundAmount.toFixed(2) + '. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
-                await loadJobs();
-                runPaymentSearch();
-            } catch (e) { alert('Network error processing refund.'); }
+                data = await res.json().catch(() => null);
+                if (!res.ok) { alert((data && data.error) || 'Refund failed.'); return; }
+            } catch (e) {
+                alert('⚠️ Network error — the refund may NOT have gone through. Do NOT retry yet: re-run this search to see if it processed before trying again.');
+                return;
+            }
+            alert('✅ Refunded $' + data.refundAmount.toFixed(2) + '. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
+            try { await loadJobs(); runPaymentSearch(); } catch (e) { /* refund is done; refresh is cosmetic */ }
         }
 
         async function loadYoyReport() {
