@@ -3609,6 +3609,30 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         oldJob = await db.collection('jobs').findOne({ _id: new ObjectId(job._id) });
     }
 
+    // Integrity guard: a job save must never wipe a real Clover charge or refund
+    // that the server recorded (e.g. a stale modal that missed a refund). Restore
+    // any such payment the incoming list dropped, preserve refund annotations, and
+    // recompute totals from the reconciled payments so they're always truthful.
+    if (isUpdate && oldJob && Array.isArray(job.payments)) {
+        const incoming = job.payments;
+        const byId = new Map(incoming.map(p => [String(p.id), p]));
+        (oldJob.payments || []).forEach(op => {
+            const isCardTxn = !!(op.cloverChargeId || op.cloverRefundId) || op.method === 'refund';
+            const match = byId.get(String(op.id));
+            if (!match) {
+                if (isCardTxn) incoming.push(op); // client dropped a real charge/refund — put it back
+            } else {
+                ['cloverChargeId', 'cloverRefundId', 'refundedAmount', 'refundedAt', 'refundedChargeId'].forEach(k => {
+                    if (op[k] != null && match[k] == null) match[k] = op[k];
+                });
+            }
+        });
+        const jobTotal = parseFloat(job.totalWithTax || job.total || oldJob.totalWithTax || oldJob.total) || 0;
+        const paidSum = Math.round(incoming.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0) * 100) / 100;
+        job.totalPaid = paidSum;
+        job.balanceOwed = Math.round((jobTotal - paidSum) * 100) / 100;
+    }
+
     // Convert clientId to ObjectId or remove if invalid
     if (job.clientId && job.clientId !== 'undefined' && typeof job.clientId === 'string' && job.clientId.length === 24) {
         job.clientId = new ObjectId(job.clientId);
