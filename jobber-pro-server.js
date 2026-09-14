@@ -9136,21 +9136,31 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     return;
                 }
 
-                const lastFail = attempts.find(a => !a.success);
+                const lastFail = attempts.find(a => !a.success && a.type !== 'refund');
                 const rows = attempts.map((a, i) => {
-                    const icon = a.success ? '✅' : '❌';
-                    const guide = !a.success ? PAY_ERROR_GUIDE[a.errorCode] || PAY_ERROR_GUIDE.unknown : null;
-                    return \`<tr style="border-bottom:1px solid #f1f5f9;vertical-align:top;">
+                    const isRefund = a.type === 'refund';
+                    const icon = isRefund ? (a.success ? '↩️' : '⚠️') : (a.success ? '✅' : '❌');
+                    const guide = (!a.success && !isRefund) ? PAY_ERROR_GUIDE[a.errorCode] || PAY_ERROR_GUIDE.unknown : null;
+                    const amountCell = isRefund
+                        ? \`<span style="color:#c2410c;font-weight:600;">−$\${(a.amount||0).toFixed(2)}</span>\`
+                        : \`$\${(a.amount||0).toFixed(2)}\`;
+                    let resultCell;
+                    if (isRefund) {
+                        resultCell = a.success
+                            ? \`<span style="color:#c2410c;font-weight:600;">Refunded</span><br><span style="color:#94a3b8;font-family:monospace;font-size:0.75rem;">\${a.refundId||''}</span>\${a.chargeId ? \`<br><span style="color:#94a3b8;font-size:0.72rem;">of charge \${a.chargeId}</span>\` : ''}\`
+                            : \`<span style="color:#dc2626;font-weight:600;">Refund failed</span><br><span style="color:#64748b;font-size:0.78rem;">\${a.error||''}</span>\`;
+                    } else if (a.success) {
+                        resultCell = \`<span style="color:#16a34a;font-weight:600;">Approved</span>\${a.last4 ? \`<span style="color:#64748b;font-size:0.78rem;margin-left:0.4rem;">••••\${a.last4}</span>\` : ''}<br><span style="color:#94a3b8;font-family:monospace;font-size:0.75rem;">\${a.chargeId||''}</span>\`;
+                    } else {
+                        resultCell = \`<span style="color:#dc2626;font-weight:600;">\${guide ? guide.label : 'Failed'}</span><br><span style="color:#64748b;font-size:0.78rem;">\${a.error||''}</span>\`;
+                    }
+                    return \`<tr style="border-bottom:1px solid #f1f5f9;vertical-align:top;\${isRefund ? 'background:#fff7ed;' : ''}">
                         <td style="padding:0.65rem 0.75rem;color:#94a3b8;font-size:0.8rem;">\${icon}</td>
                         <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:#1e293b;">
                             \${new Date(a.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}
                         </td>
-                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:#1e293b;">$\${(a.amount||0).toFixed(2)}</td>
-                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;">
-                            \${a.success
-                                ? \`<span style="color:#16a34a;font-weight:600;">Approved</span>\${a.last4 ? \`<span style="color:#64748b;font-size:0.78rem;margin-left:0.4rem;">••••\${a.last4}</span>\` : ''}<br><span style="color:#94a3b8;font-family:monospace;font-size:0.75rem;">\${a.chargeId||''}</span>\`
-                                : \`<span style="color:#dc2626;font-weight:600;">\${guide ? guide.label : 'Failed'}</span><br><span style="color:#64748b;font-size:0.78rem;">\${a.error||''}</span>\`}
-                        </td>
+                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:#1e293b;">\${amountCell}</td>
+                        <td style="padding:0.65rem 0.75rem;font-size:0.82rem;">\${resultCell}</td>
                         <td style="padding:0.65rem 0.75rem;font-family:monospace;font-size:0.75rem;color:#64748b;">\${a.ip||'—'}</td>
                     </tr>\`;
                 }).join('');
