@@ -10570,7 +10570,14 @@ app.post('/api/deposit/pay', async (req, res) => {
         const rawText = await chargeRes.text();
         let charge = {};
         try { charge = JSON.parse(rawText); } catch (_) {}
-        if (!chargeRes.ok) return res.status(400).json({ error: charge.error?.message || rawText });
+        const depIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+        if (!chargeRes.ok) {
+            await db.collection('payment_attempts').insertOne({
+                jobId: job._id, at: new Date(), amount, ip: depIp, source: 'deposit',
+                success: false, errorCode: charge.error?.code || String(chargeRes.status), error: charge.error?.message || rawText
+            }).catch(() => {});
+            return res.status(400).json({ error: charge.error?.message || rawText });
+        }
 
         const last4 = charge.source?.last4 || charge.paymentToken?.last4 || null;
         const cardBrand = charge.source?.brand || charge.paymentToken?.brand || null;
@@ -10607,6 +10614,12 @@ app.post('/api/deposit/pay', async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: depositSetFields }
         );
+
+        // Log to the payment diagnostics trail (so deposits show up like other payments)
+        await db.collection('payment_attempts').insertOne({
+            jobId: job._id, at: new Date(), amount, ip: depIp, source: 'deposit',
+            success: true, chargeId: charge.id, last4, cardBrand
+        }).catch(() => {});
 
         // Drop a message in the inbox
         try {
