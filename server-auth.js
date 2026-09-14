@@ -9005,6 +9005,60 @@ app.post('/api/client-messages/:id/reply-portal', isAuthenticated, async (req, r
     }
 });
 
+// Admin starts a new portal message to a client (e.g. from a job or quote).
+app.post('/api/clients/:clientId/portal-message', isAdmin, async (req, res) => {
+    try {
+        const text = ((req.body && req.body.message) || '').trim();
+        if (!text) return res.status(400).json({ error: 'Message is required' });
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.clientId) });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+
+        const now = new Date();
+        const reference = (req.body.reference || '').toString().slice(0, 120);
+        const subject = ['quote', 'job', 'portal', ''].includes(req.body.subject) ? req.body.subject : 'portal';
+        await db.collection('client_messages').insertOne({
+            clientId: client._id,
+            clientName: client.name,
+            clientEmail: client.email || '',
+            message: text,
+            subject: subject || 'portal',
+            reference,
+            channel: 'portal',
+            direction: 'outbound',
+            sentBy: req.session.userName || 'GSD',
+            createdAt: now,
+            read: true,
+            readByClient: false
+        });
+
+        let emailed = false;
+        try {
+            const settings = await db.collection('settings').findOne({}) || {};
+            const businessName = settings.companyName || 'GSD Property Services';
+            if (client.email && emailService && emailService.sendEmail) {
+                const portalUrl = `${process.env.APP_URL}/client-portal`;
+                await emailService.sendEmail({
+                    to: client.email,
+                    subject: `New message from ${businessName}`,
+                    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                        <h2 style="color:#667eea;">You have a new message from ${businessName}</h2>
+                        ${reference ? `<p style="color:#718096;">Re: ${reference}</p>` : ''}
+                        <p style="white-space:pre-wrap;background:#f8f9fa;padding:1rem;border-radius:8px;">${text.replace(/</g, '&lt;')}</p>
+                        <p style="margin-top:1.5rem;"><a href="${portalUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">View &amp; reply in your portal →</a></p>
+                    </div>`,
+                    text: `New message from ${businessName}${reference ? ' (Re: ' + reference + ')' : ''}:\n\n${text}\n\nView and reply in your portal: ${portalUrl}`
+                });
+                emailed = true;
+            }
+        } catch (e) { console.error('Portal message (admin-initiated) email failed:', e.message); }
+
+        res.json({ success: true, emailed });
+    } catch (error) {
+        console.error('Admin portal message error:', error);
+        res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
 // Client Portal — Submit quote request (creates a quote directly)
 app.post('/api/client-portal/quote-request', async (req, res) => {
     try {

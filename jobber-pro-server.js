@@ -4100,6 +4100,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <button class="btn btn-secondary" onclick="closeModal('jobModal')">Cancel</button>
                 <button class="btn btn-secondary" id="jobSignoffBtn" style="display:none;" onclick="openSignoffForm(document.querySelector('#jobForm [name=id]').value)">✍️ Sign-Off</button>
                 <button class="btn btn-secondary" id="jobResendSurveyBtn" style="display:none;" onclick="resendSurvey()">📋 Resend Survey</button>
+                <button class="btn btn-secondary" id="jobMessageClientBtn" style="display:none;background:#ebf4ff;color:#3182ce;border-color:#bee3f8;" onclick="messageClientFromJob()">💬 Message Client</button>
                 <button class="btn btn-secondary" id="jobCancelJobBtn" style="display:none;background:#fff5f5;color:#c53030;border-color:#feb2b2;" onclick="cancelJob()">🚫 Cancel Job</button>
                 <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
                 <span id="jobAutoSaveStatus" class="autosave-status"></span>
@@ -4276,8 +4277,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('quoteModal')">Cancel</button>
+                <button class="btn btn-secondary" id="quoteMessageClientBtn" style="display:none;background:#ebf4ff;color:#3182ce;border-color:#bee3f8;" onclick="messageClientFromQuote()">💬 Message Client</button>
                 <button class="btn btn-primary" onclick="saveQuote()">Save Quote</button>
                 <span id="quoteAutoSaveStatus" class="autosave-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageClientModal" class="modal">
+        <div class="modal-content" style="max-width:480px;">
+            <div class="modal-header">
+                <h2>💬 Message Client</h2>
+                <button class="close-btn" onclick="closeModal('messageClientModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:0.88rem;color:#4a5568;margin-bottom:0.75rem;">To <strong id="mcClientName"></strong><span id="mcRefLine"></span>. This posts to their portal and emails them a heads-up.</p>
+                <input type="hidden" id="mcClientId"><input type="hidden" id="mcReference"><input type="hidden" id="mcSubject">
+                <textarea id="mcMessage" rows="4" placeholder="Type your message…" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;"></textarea>
+                <div id="mcErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>
+                <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+                    <button class="btn btn-secondary" onclick="closeModal('messageClientModal')">Cancel</button>
+                    <button class="btn btn-primary" id="mcSendBtn" style="flex:1;" onclick="sendMessageClient()">Send to portal &amp; email</button>
+                </div>
             </div>
         </div>
     </div>
@@ -5761,6 +5782,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (_splitBtn) _splitBtn.style.display = (job && (job._id || job.id)) ? '' : 'none';
             const _cancelJobBtn = document.getElementById('jobCancelJobBtn');
             if (_cancelJobBtn) _cancelJobBtn.style.display = (isAdmin && job && (job._id || job.id) && job.status !== 'cancelled') ? '' : 'none';
+            const _msgClientBtn = document.getElementById('jobMessageClientBtn');
+            if (_msgClientBtn) _msgClientBtn.style.display = (isAdmin && job && (job._id || job.id) && job.clientId) ? '' : 'none';
 
             // Version history (snapshots at Completed / Invoiced)
             if (job && (job._id || job.id)) { renderJobVersions(job); }
@@ -7120,6 +7143,50 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             _unlockedPaymentIds.add(id);
             renderLineItems();
             markFormDirty();
+        }
+
+        function messageClientFromJob() {
+            const clientId = document.getElementById('jobClientSelect').value;
+            const clientName = document.getElementById('jobClientInput').value;
+            if (!clientId) { alert('Select a client on this job first.'); return; }
+            const title = (document.querySelector('#jobForm [name=title]') || {}).value || '';
+            openMessageClient(clientId, clientName, title ? 'Job: ' + title : '', 'job');
+        }
+        function messageClientFromQuote() {
+            const clientId = document.getElementById('quoteClientSelect').value;
+            const clientName = document.getElementById('quoteClientInput').value;
+            if (!clientId) { alert('Select a client on this quote first.'); return; }
+            const qnum = (document.querySelector('#quoteForm [name=quoteNumber]') || {}).value || '';
+            openMessageClient(clientId, clientName, qnum ? 'Quote ' + qnum : '', 'quote');
+        }
+        function openMessageClient(clientId, clientName, reference, subject) {
+            document.getElementById('mcClientId').value = clientId;
+            document.getElementById('mcClientName').textContent = clientName || 'client';
+            document.getElementById('mcReference').value = reference || '';
+            document.getElementById('mcSubject').value = subject || 'portal';
+            document.getElementById('mcRefLine').textContent = reference ? ' · ' + reference : '';
+            document.getElementById('mcMessage').value = '';
+            document.getElementById('mcErr').style.display = 'none';
+            document.getElementById('messageClientModal').classList.add('active');
+        }
+        async function sendMessageClient() {
+            const clientId = document.getElementById('mcClientId').value;
+            const message = document.getElementById('mcMessage').value.trim();
+            const err = document.getElementById('mcErr');
+            if (!message) { err.textContent = 'Type a message first.'; err.style.display = 'block'; return; }
+            const btn = document.getElementById('mcSendBtn'); btn.disabled = true; btn.textContent = 'Sending…';
+            const reset = () => { btn.disabled = false; btn.textContent = 'Send to portal & email'; };
+            try {
+                const res = await fetch('/api/clients/' + clientId + '/portal-message', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, reference: document.getElementById('mcReference').value, subject: document.getElementById('mcSubject').value })
+                });
+                const data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not send'; err.style.display = 'block'; reset(); return; }
+                closeModal('messageClientModal');
+                alert('✅ Message sent to their portal' + (data.emailed ? ' and emailed to them.' : '. (No email on file — portal only.)'));
+                reset();
+            } catch (e) { err.textContent = 'Network error.'; err.style.display = 'block'; reset(); }
         }
 
         async function cancelJob() {
@@ -9222,6 +9289,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function showAddQuoteModal() {
             currentEditingQuoteId = null;
             document.getElementById('quoteModalTitle').textContent = 'Create Quote';
+            const _qMsgBtn = document.getElementById('quoteMessageClientBtn');
+            if (_qMsgBtn) _qMsgBtn.style.display = 'none';
             document.getElementById('quoteForm').reset();
 
             // Clear line items
@@ -9613,6 +9682,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             currentEditingQuoteId = quote.id || quote._id;
             document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
+            const _qMsgBtn = document.getElementById('quoteMessageClientBtn');
+            if (_qMsgBtn) _qMsgBtn.style.display = (isAdmin && quote.clientId) ? '' : 'none';
 
             // Populate form
             const form = document.getElementById('quoteForm');
