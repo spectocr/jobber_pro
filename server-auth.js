@@ -5902,6 +5902,29 @@ app.post('/api/team/:id/job-description', isAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// ── Custom job-description templates (owner-defined, saved in settings) ──
+app.get('/api/job-desc-templates', isAdmin, async (req, res) => {
+    const s = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1 } });
+    res.json(Array.isArray(s?.jobDescTemplates) ? s.jobDescTemplates : []);
+});
+app.post('/api/job-desc-templates', isAdmin, async (req, res) => {
+    const name = ((req.body && req.body.name) || '').trim();
+    const body = ((req.body && req.body.body) || '').trim();
+    if (!name || !body) return res.status(400).json({ error: 'Template name and text are required' });
+    const s = await db.collection('settings').findOne({}) || {};
+    const list = Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates.slice() : [];
+    const tmpl = { id: 'jdt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name.slice(0, 80), body: body.slice(0, 20000), createdAt: new Date() };
+    list.push(tmpl);
+    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
+    res.json({ success: true, template: tmpl, templates: list });
+});
+app.delete('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
+    const s = await db.collection('settings').findOne({}) || {};
+    const list = (Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates : []).filter(t => t.id !== req.params.id);
+    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
+    res.json({ success: true, templates: list });
+});
+
 // ── Tool / task authorization records (per employee paper trail) ──
 // Create or update one authorization record on a team member.
 app.post('/api/team/:id/authorization', isAdmin, async (req, res) => {

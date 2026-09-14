@@ -17906,17 +17906,77 @@ function formatDuration(seconds) {
             ].join(_JD_NL);
             return '';
         }
+        var _jobDescCustom = [];
+        async function loadJobDescTemplates() {
+            try { _jobDescCustom = await (await fetch('/api/job-desc-templates')).json(); }
+            catch (e) { _jobDescCustom = []; }
+            renderJobDescTemplateOptions();
+        }
+        function renderJobDescTemplateOptions() {
+            var sel = document.getElementById('jobDescTemplateSelect');
+            if (!sel) return;
+            var html = '<option value="">Start from a template…</option>' +
+                '<optgroup label="Built-in">' +
+                    '<option value="field-tech">Field Technician / Handyman</option>' +
+                    '<option value="helper">Helper / Apprentice</option>' +
+                    '<option value="lead">Lead / Foreman</option>' +
+                '</optgroup>';
+            if (_jobDescCustom.length) {
+                html += '<optgroup label="My templates">' + _jobDescCustom.map(function (t) {
+                    return '<option value="custom:' + t.id + '">' + escapeAuthText(t.name) + '</option>';
+                }).join('') + '</optgroup>';
+            }
+            sel.innerHTML = html;
+        }
         function fillJobDescTemplate() {
             var sel = document.getElementById('jobDescTemplateSelect');
             var key = sel ? sel.value : '';
             if (!key) { alert('Pick a template first.'); return; }
-            var co = (typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'GSD Property Services';
             var ta = document.getElementById('jobDescText');
-            var text = _jobDescTemplate(key, co);
+            var text;
+            if (key.indexOf('custom:') === 0) {
+                var t = _jobDescCustom.find(function (x) { return x.id === key.slice(7); });
+                text = t ? t.body : '';
+            } else {
+                var co = (typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'GSD Property Services';
+                text = _jobDescTemplate(key, co);
+            }
             if (!text) return;
             if (ta.value.trim() && !confirm('Replace the current text with this template? You can then edit it.')) return;
             ta.value = text;
             ta.focus();
+        }
+        async function saveAsJobDescTemplate() {
+            var ta = document.getElementById('jobDescText');
+            var body = (ta.value || '').trim();
+            if (!body) { alert('Write the description first, then save it as a template.'); return; }
+            var name = prompt('Name this template (e.g. "Painter", "Drywall Tech"):', '');
+            if (name === null) return;
+            name = name.trim();
+            if (!name) { alert('Please enter a name.'); return; }
+            try {
+                var res = await fetch('/api/job-desc-templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, body: body }) });
+                var data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not save template'); return; }
+                _jobDescCustom = data.templates || _jobDescCustom;
+                renderJobDescTemplateOptions();
+                alert('✅ Saved template "' + name + '". It is now in the picker under "My templates".');
+            } catch (e) { alert('Network error saving template'); }
+        }
+        async function deleteJobDescTemplate() {
+            var sel = document.getElementById('jobDescTemplateSelect');
+            var key = sel ? sel.value : '';
+            if (key.indexOf('custom:') !== 0) { alert('Pick one of your saved templates (under "My templates") to delete.'); return; }
+            var id = key.slice(7);
+            var t = _jobDescCustom.find(function (x) { return x.id === id; });
+            if (!confirm('Delete the template "' + (t ? t.name : '') + '"? This cannot be undone.')) return;
+            try {
+                var res = await fetch('/api/job-desc-templates/' + id, { method: 'DELETE' });
+                var data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not delete'); return; }
+                _jobDescCustom = data.templates || [];
+                renderJobDescTemplateOptions();
+            } catch (e) { alert('Network error'); }
         }
 
         function openJobDescModal(memberId) {
@@ -17932,14 +17992,15 @@ function formatDuration(seconds) {
                     '<div class="modal-header"><h3>Job Description</h3><button class="modal-close" onclick="closeModal(\'jobDescModal\')">&times;</button></div>' +
                     '<div style="padding:1.5rem;">' +
                     '<p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Write a simple job description for this employee, or start from a template and edit it. Saving will mark this item as completed on their checklist.</p>' +
-                    '<div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">' +
+                    '<div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">' +
                         '<select id="jobDescTemplateSelect" style="flex:1;min-width:200px;padding:0.5rem;border:2px solid #e2e8f0;border-radius:8px;">' +
                             '<option value="">Start from a template…</option>' +
-                            '<option value="field-tech">Field Technician / Handyman</option>' +
-                            '<option value="helper">Helper / Apprentice</option>' +
-                            '<option value="lead">Lead / Foreman</option>' +
                         '</select>' +
                         '<button type="button" class="btn btn-secondary btn-small" onclick="fillJobDescTemplate()">Use template</button>' +
+                        '<button type="button" class="btn btn-secondary btn-small" title="Delete the selected saved template" style="color:#c53030;" onclick="deleteJobDescTemplate()">🗑</button>' +
+                    '</div>' +
+                    '<div style="text-align:right;margin-bottom:0.75rem;">' +
+                        '<button type="button" class="btn btn-secondary btn-small" onclick="saveAsJobDescTemplate()">💾 Save current text as a template</button>' +
                     '</div>' +
                     '<textarea id="jobDescText" style="width:100%;height:260px;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.93rem;resize:vertical;font-family:inherit;line-height:1.6;" placeholder="Position: Field Technician&#10;&#10;Responsibilities:&#10;- Perform general handyman and property maintenance tasks&#10;- ..."></textarea>' +
                     '<div style="display:flex;gap:0.75rem;margin-top:1rem;">' +
@@ -17951,6 +18012,7 @@ function formatDuration(seconds) {
             modal.dataset.memberId = memberId;
             document.getElementById('jobDescText').value = existing;
             openModal('jobDescModal');
+            loadJobDescTemplates();
         }
 
         async function saveJobDescription() {
