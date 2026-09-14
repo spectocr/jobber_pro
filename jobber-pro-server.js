@@ -17832,6 +17832,93 @@ function formatDuration(seconds) {
             openModal('obSubmissionModal');
         }
 
+        var _JD_NL = String.fromCharCode(10);
+        function _jobDescTemplate(key, co) {
+            co = co || 'GSD Property Services';
+            if (key === 'field-tech') return [
+                'Position: Field Technician / Handyman',
+                'Reports to: ' + co + ' Owner / Manager',
+                '',
+                'Summary:',
+                'Perform general handyman, repair, and property maintenance work for ' + co + ' customers, delivering quality workmanship and representing the company professionally.',
+                '',
+                'Responsibilities:',
+                '- Complete assigned jobs (carpentry, drywall, painting, fixture installs, minor plumbing and electrical, general repairs) to company standards.',
+                '- Operate only the tools and perform only the tasks you have been trained and authorized for.',
+                '- Follow all safety rules and wear required PPE at all times.',
+                '- Protect customer property; keep the work area clean and controlled.',
+                '- Report job status, delays, and any additional work needed to the office. Do not change scope or pricing with the customer.',
+                '- Clock in and out accurately and document work with before and after photos.',
+                '- Report any incident, injury, damage, or hazard to the office immediately.',
+                '',
+                'Requirements:',
+                '- Reliable transportation and a valid driver license.',
+                '- Basic hand tools (' + co + ' provides power tools and major equipment).',
+                '- Professional, courteous conduct on every job site.',
+                '',
+                'Authorization and Safety:',
+                'All work is performed only as trained and authorized by ' + co + '. No cash is collected from customers; all payments go through the company.'
+            ].join(_JD_NL);
+            if (key === 'helper') return [
+                'Position: Helper / Apprentice',
+                'Reports to: Field Technician / Lead',
+                '',
+                'Summary:',
+                'Assist ' + co + ' technicians on job sites, learning the trade while supporting the safe and efficient completion of work.',
+                '',
+                'Responsibilities:',
+                '- Assist with loading, setup, material handling, and cleanup.',
+                '- Perform tasks under the direction of a technician or lead, only as trained and authorized.',
+                '- Follow all safety rules and wear required PPE at all times.',
+                '- Keep tools, materials, and the work area organized and protected.',
+                '- Report any incident, injury, damage, or hazard immediately.',
+                '',
+                'Requirements:',
+                '- Reliable, punctual, and willing to learn.',
+                '- Able to lift and carry materials and work on your feet.',
+                '',
+                'Authorization and Safety:',
+                'Work is performed only under supervision and as authorized by ' + co + '. Never collect cash from customers.'
+            ].join(_JD_NL);
+            if (key === 'lead') return [
+                'Position: Lead / Foreman',
+                'Reports to: ' + co + ' Owner / Manager',
+                '',
+                'Summary:',
+                'Run job sites for ' + co + ', directing the crew and ensuring work is completed safely, on time, and to standard.',
+                '',
+                'Responsibilities:',
+                '- Lead the on-site crew and coordinate the daily work.',
+                '- Verify each crew member only performs tasks they are authorized for.',
+                '- Enforce all safety rules and required PPE on site.',
+                '- Confirm work meets company standards before leaving the site.',
+                '- Communicate scope questions and any additional work needed to the office. Do not change pricing with the customer.',
+                '- Ensure before and after photos are taken and time is logged accurately.',
+                '- Report any incident, injury, damage, or hazard to the office immediately.',
+                '',
+                'Requirements:',
+                '- Proven field experience across general handyman and property maintenance trades.',
+                '- Reliable transportation and a valid driver license.',
+                '- Strong communication and the ability to lead a small crew.',
+                '',
+                'Authorization and Safety:',
+                'The lead upholds ' + co + ' authorization and safety standards on every job. No cash is collected from customers; all payments go through the company.'
+            ].join(_JD_NL);
+            return '';
+        }
+        function fillJobDescTemplate() {
+            var sel = document.getElementById('jobDescTemplateSelect');
+            var key = sel ? sel.value : '';
+            if (!key) { alert('Pick a template first.'); return; }
+            var co = (typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'GSD Property Services';
+            var ta = document.getElementById('jobDescText');
+            var text = _jobDescTemplate(key, co);
+            if (!text) return;
+            if (ta.value.trim() && !confirm('Replace the current text with this template? You can then edit it.')) return;
+            ta.value = text;
+            ta.focus();
+        }
+
         function openJobDescModal(memberId) {
             const member = team.find(t => t.id === memberId);
             const existing = member?.onboarding?.jobDescription?.text || '';
@@ -17844,7 +17931,16 @@ function formatDuration(seconds) {
                     '<div class="modal-content" style="max-width:640px;">' +
                     '<div class="modal-header"><h3>Job Description</h3><button class="modal-close" onclick="closeModal(\'jobDescModal\')">&times;</button></div>' +
                     '<div style="padding:1.5rem;">' +
-                    '<p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Write a simple job description for this employee. Saving will mark this item as completed on their checklist.</p>' +
+                    '<p style="color:#718096;font-size:0.9rem;margin-bottom:1rem;">Write a simple job description for this employee, or start from a template and edit it. Saving will mark this item as completed on their checklist.</p>' +
+                    '<div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">' +
+                        '<select id="jobDescTemplateSelect" style="flex:1;min-width:200px;padding:0.5rem;border:2px solid #e2e8f0;border-radius:8px;">' +
+                            '<option value="">Start from a template…</option>' +
+                            '<option value="field-tech">Field Technician / Handyman</option>' +
+                            '<option value="helper">Helper / Apprentice</option>' +
+                            '<option value="lead">Lead / Foreman</option>' +
+                        '</select>' +
+                        '<button type="button" class="btn btn-secondary btn-small" onclick="fillJobDescTemplate()">Use template</button>' +
+                    '</div>' +
                     '<textarea id="jobDescText" style="width:100%;height:260px;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.93rem;resize:vertical;font-family:inherit;line-height:1.6;" placeholder="Position: Field Technician&#10;&#10;Responsibilities:&#10;- Perform general handyman and property maintenance tasks&#10;- ..."></textarea>' +
                     '<div style="display:flex;gap:0.75rem;margin-top:1rem;">' +
                     '<button class="btn btn-primary" onclick="saveJobDescription()">💾 Save & Mark Provided</button>' +
