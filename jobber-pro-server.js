@@ -14185,10 +14185,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const accent = isOutbound ? '#3182ce' : '#667eea';
                     const bg = isOutbound ? '#eff6ff' : (isUnread ? '#fffacd' : 'white');
                     const border = isOutbound ? '#bee3f8' : (isUnread ? '#f59e0b' : '#e2e8f0');
+                    const isPortalInbound = !isSms && !isOutbound && !!msg.clientId;
                     const replyBox = (isSms && !isOutbound) ? \`
                         <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
                             <input type="text" id="reply-\${id}" placeholder="Text \${msg.clientName} back…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSmsReply('\${id}');}">
                             <button class="btn btn-primary btn-small" onclick="sendSmsReply('\${id}')">Send Text</button>
+                        </div>\` : isPortalInbound ? \`
+                        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+                            <input type="text" id="preply-\${id}" placeholder="Reply to \${msg.clientName} in their portal…" style="flex:1;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendPortalReply('\${id}');}">
+                            <button class="btn btn-primary btn-small" onclick="sendPortalReply('\${id}')">💬 Reply in portal</button>
                         </div>\` : '';
                     return \`<div style="background:\${bg};border:2px solid \${border};border-radius:8px;padding:1.5rem;margin-bottom:1rem;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
@@ -14841,6 +14846,29 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 loadMessages();
             } catch (e) {
                 alert('Could not send text: ' + e.message);
+                input.disabled = false;
+            }
+        }
+
+        async function sendPortalReply(messageId) {
+            const input = document.getElementById('preply-' + messageId);
+            if (!input) return;
+            const text = (input.value || '').trim();
+            if (!text) return;
+            input.disabled = true;
+            try {
+                const res = await fetch('/api/client-messages/' + messageId + '/reply-portal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to send');
+                input.value = '';
+                loadMessages();
+                if (data.emailed === false) alert('Reply posted to the portal. (No email on file, so no heads-up was sent.)');
+            } catch (e) {
+                alert('Could not send reply: ' + e.message);
                 input.disabled = false;
             }
         }

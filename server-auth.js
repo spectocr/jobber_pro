@@ -8857,12 +8857,13 @@ app.post('/api/client-portal/message', async (req, res) => {
         }
 
         const { message, subject, reference } = req.body;
+        if (!message || !message.trim()) return res.status(400).json({ error: 'Message is required' });
         const clientId = new ObjectId(req.session.clientId);
 
         // Get client
         const client = await db.collection('clients').findOne({ _id: clientId });
 
-        // Save message to database
+        // Save message to database as an inbound portal-thread message
         await db.collection('client_messages').insertOne({
             clientId: clientId,
             clientName: client.name,
@@ -8870,16 +8871,137 @@ app.post('/api/client-portal/message', async (req, res) => {
             message: message,
             subject: subject || '',
             reference: reference || '',
+            channel: 'portal',
+            direction: 'inbound',
             createdAt: new Date(),
-            read: false
+            read: false,
+            readByClient: true
         });
 
-        // TODO: Send notification to admin (SMS/Email)
+        // Notify the owner a client messaged through the portal (badge already covers
+        // it; this adds an email so it isn't missed).
+        try {
+            const settings = await db.collection('settings').findOne({}) || {};
+            const notifyEmail = settings.companyEmail;
+            if (notifyEmail && emailService && emailService.sendEmail) {
+                await emailService.sendEmail({
+                    to: notifyEmail,
+                    subject: `💬 New portal message from ${client.name}`,
+                    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                        <h2 style="color:#667eea;">New message from ${client.name}</h2>
+                        ${reference ? `<p style="color:#718096;">Re: ${reference}</p>` : ''}
+                        <p style="white-space:pre-wrap;background:#f8f9fa;padding:1rem;border-radius:8px;">${(message || '').replace(/</g, '&lt;')}</p>
+                        <p style="margin-top:1.5rem;"><a href="${process.env.APP_URL}/login" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Reply in the app →</a></p>
+                    </div>`,
+                    text: `New portal message from ${client.name}${reference ? ' (Re: ' + reference + ')' : ''}:\n\n${message}\n\nReply in the app.`
+                });
+            }
+        } catch (notifyErr) { console.error('Portal message notify failed:', notifyErr.message); }
 
         res.json({ success: true });
     } catch (error) {
         console.error('Send message error:', error);
         res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
+// Client Portal — fetch the client's message thread (both directions), and mark
+// the admin's replies as seen by the client (clears the portal badge).
+app.get('/api/client-portal/messages', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
+        const clientId = new ObjectId(req.session.clientId);
+        const thread = await db.collection('client_messages')
+            .find({ clientId, channel: 'portal' })
+            .sort({ createdAt: 1 })
+            .toArray();
+        // Mark outbound (admin) messages as read by the client
+        await db.collection('client_messages').updateMany(
+            { clientId, channel: 'portal', direction: 'outbound', readByClient: { $ne: true } },
+            { $set: { readByClient: true } }
+        );
+        res.json(thread.map(m => ({
+            id: m._id.toString(),
+            message: m.message,
+            direction: m.direction || 'inbound',
+            reference: m.reference || '',
+            sentBy: m.direction === 'outbound' ? (m.sentBy || 'GSD') : (m.clientName || 'You'),
+            createdAt: m.createdAt
+        })));
+    } catch (error) {
+        console.error('Portal thread error:', error);
+        res.status(500).json({ error: 'Failed to load messages' });
+    }
+});
+
+// Portal — count of admin replies the client hasn't seen (for the tab badge). Non-mutating.
+app.get('/api/client-portal/messages/unread', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.json({ unread: 0 });
+        const clientId = new ObjectId(req.session.clientId);
+        const unread = await db.collection('client_messages').countDocuments({
+            clientId, channel: 'portal', direction: 'outbound', readByClient: { $ne: true }
+        });
+        res.json({ unread });
+    } catch (error) {
+        res.json({ unread: 0 });
+    }
+});
+
+// Admin replies into the portal thread + emails the client a heads-up.
+app.post('/api/client-messages/:id/reply-portal', isAuthenticated, async (req, res) => {
+    try {
+        const text = ((req.body && req.body.message) || '').trim();
+        if (!text) return res.status(400).json({ error: 'Message is required' });
+        const msg = await db.collection('client_messages').findOne({ _id: new ObjectId(req.params.id) });
+        if (!msg) return res.status(404).json({ error: 'Message not found' });
+        if (!msg.clientId) return res.status(400).json({ error: 'This message has no client account to reply to.' });
+
+        const now = new Date();
+        await db.collection('client_messages').insertOne({
+            clientId: msg.clientId,
+            clientName: msg.clientName,
+            clientEmail: msg.clientEmail || '',
+            message: text,
+            subject: 'portal',
+            reference: msg.reference || '',
+            channel: 'portal',
+            direction: 'outbound',
+            sentBy: req.session.userName || 'GSD',
+            createdAt: now,
+            read: true,
+            readByClient: false
+        });
+        await db.collection('client_messages').updateOne({ _id: msg._id }, { $set: { read: true } });
+
+        // Email the client a heads-up to check the portal.
+        let emailed = false;
+        try {
+            const client = await db.collection('clients').findOne({ _id: msg.clientId });
+            const settings = await db.collection('settings').findOne({}) || {};
+            const businessName = settings.companyName || 'GSD Property Services';
+            const to = (client && client.email) || msg.clientEmail;
+            if (to && emailService && emailService.sendEmail) {
+                const portalUrl = `${process.env.APP_URL}/client-portal`;
+                await emailService.sendEmail({
+                    to,
+                    subject: `New reply from ${businessName}`,
+                    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                        <h2 style="color:#667eea;">You have a new message from ${businessName}</h2>
+                        <p style="white-space:pre-wrap;background:#f8f9fa;padding:1rem;border-radius:8px;">${text.replace(/</g, '&lt;')}</p>
+                        <p style="margin-top:1.5rem;"><a href="${portalUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">View &amp; reply in your portal →</a></p>
+                        <p style="color:#a0aec0;font-size:0.82rem;">Log in to your portal to see the full conversation and reply.</p>
+                    </div>`,
+                    text: `New message from ${businessName}:\n\n${text}\n\nView and reply in your portal: ${portalUrl}`
+                });
+                emailed = true;
+            }
+        } catch (e) { console.error('Portal reply email failed:', e.message); }
+
+        res.json({ success: true, emailed });
+    } catch (error) {
+        console.error('Portal reply error:', error);
+        res.status(500).json({ error: 'Failed to send reply' });
     }
 });
 
