@@ -6889,6 +6889,102 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
     }
 });
 
+// Send an outstanding-balance payment reminder to the client.
+app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        if (!client) return res.status(400).json({ error: 'This job has no client on file.' });
+        if (!client.email) return res.status(400).json({ error: 'No email on file for this client.' });
+
+        const settings = await db.collection('settings').findOne({}) || {};
+        const companyName = settings.companyName || 'GSD Property Services';
+        const jobTotal = Math.round((parseFloat(job.totalWithTax || job.total) || 0) * 100) / 100;
+        const paid = Math.round((parseFloat(job.totalPaid) || 0) * 100) / 100;
+        const balance = Math.round((jobTotal - paid) * 100) / 100;
+        if (balance <= 0.01) return res.status(400).json({ error: 'This job has no outstanding balance.' });
+
+        // Due date: due immediately when completed/invoiced, unless the client has net terms.
+        const termsDays = { due_receipt: 0, net_15: 15, net_30: 30, net_45: 45, net_60: 60, net_90: 90 };
+        const td = termsDays[client.paymentTerms] != null ? termsDays[client.paymentTerms] : 0;
+        const base = job.completedAt || job.invoicedAt || job.invoiceSentAt;
+        let dueLine = '';
+        if (base) {
+            const dueDate = new Date(new Date(base).getTime() + td * 86400000);
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const dd = new Date(dueDate); dd.setHours(0, 0, 0, 0);
+            const diff = Math.round((dd - today) / 86400000);
+            const dueStr = dueDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            if (diff > 0) dueLine = `This balance is due by <strong>${dueStr}</strong>.`;
+            else if (diff === 0) dueLine = `This balance is <strong>due today</strong>.`;
+            else dueLine = `This balance was due on <strong>${dueStr}</strong> and is now <strong>${Math.abs(diff)} day(s) past due</strong>.`;
+        }
+
+        const invoiceNumber = job._id.toString().slice(-6).toUpperCase();
+        const portalUrl = `${process.env.APP_URL}/client-portal`;
+        const zellePhone = settings.zellePhone || settings.companyPhone || '';
+        const checkPayableTo = settings.checkPayableTo || 'GSD Handyman Service';
+        const mailTo = settings.companyAddress || '';
+        const note = ((req.body && req.body.note) || '').trim();
+
+        const payOptions = `
+            <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                <tr><td style="padding:0.6rem 0.8rem;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;">
+                    <strong>💻 Pay online</strong><br>Log in to your portal and pay by card: <a href="${portalUrl}" style="color:#667eea;">${portalUrl}</a>
+                </td></tr>
+                ${zellePhone ? `<tr><td style="padding:0.6rem 0.8rem;border:1px solid #e2e8f0;background:#f8fafc;">
+                    <strong>📱 Zelle</strong><br>Send to <strong>${zellePhone}</strong>
+                </td></tr>` : ''}
+                <tr><td style="padding:0.6rem 0.8rem;border:1px solid #e2e8f0;background:#f8fafc;">
+                    <strong>✉️ Check</strong><br>Payable to <strong>${checkPayableTo}</strong>${mailTo ? `<br>Mail to: ${mailTo.replace(/\n/g, ', ')}` : ''}
+                </td></tr>
+            </table>`;
+
+        const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1a202c;">
+            <h2 style="color:#667eea;">Payment Reminder</h2>
+            <p>Hi ${client.name},</p>
+            <p>This is a friendly reminder that you have an outstanding balance with ${companyName}${note ? '' : '.'}</p>
+            ${note ? `<p style="white-space:pre-wrap;">${note.replace(/</g, '&lt;')}</p>` : ''}
+            <div style="background:#fff5f5;border-left:4px solid #e53e3e;border-radius:8px;padding:1rem 1.25rem;margin:1.25rem 0;">
+                <div style="font-size:0.85rem;color:#718096;">Invoice #${invoiceNumber} — ${job.title}</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#c53030;margin:0.25rem 0;">$${balance.toFixed(2)} due</div>
+                ${dueLine ? `<div style="font-size:0.9rem;color:#4a5568;">${dueLine}</div>` : ''}
+            </div>
+            <p style="font-weight:600;">How to pay:</p>
+            ${payOptions}
+            <p style="color:#718096;font-size:0.85rem;">If you've already sent this payment, thank you — please disregard this notice. Questions? Just reply to this email${zellePhone ? ` or call ${zellePhone}` : ''}.</p>
+            <p style="margin-top:1.5rem;">Thank you,<br><strong>${companyName}</strong></p>
+        </div>`;
+
+        const _logId = new ObjectId();
+        await emailService.sendEmail({
+            to: client.email,
+            subject: `Payment reminder — Invoice #${invoiceNumber} ($${balance.toFixed(2)} due)`,
+            html,
+            text: `Payment Reminder\n\nHi ${client.name},\n\nYou have an outstanding balance of $${balance.toFixed(2)} for Invoice #${invoiceNumber} (${job.title}).\n${dueLine.replace(/<[^>]+>/g, '')}\n\nHow to pay:\n- Online: ${portalUrl}\n${zellePhone ? `- Zelle: ${zellePhone}\n` : ''}- Check payable to ${checkPayableTo}${mailTo ? ' (mail to ' + mailTo.replace(/\n/g, ', ') + ')' : ''}\n\nIf already paid, please disregard.\n\nThank you,\n${companyName}`
+        });
+
+        const now = new Date();
+        await db.collection('email_logs').insertOne({
+            _id: _logId, type: 'payment_reminder', to: client.email, toName: client.name,
+            subject: `Payment reminder — Invoice #${invoiceNumber} ($${balance.toFixed(2)} due)`,
+            trigger: `Payment reminder for "${job.title}" — $${balance.toFixed(2)}`,
+            relatedId: job._id, relatedTitle: job.title, htmlBody: html,
+            sentBy: req.session.userName || 'admin', sentAt: now, status: 'sent', opened: false
+        });
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $set: { paymentReminderSentAt: now }, $inc: { paymentReminderCount: 1 } }
+        );
+
+        res.json({ success: true, balance, sentTo: client.email });
+    } catch (error) {
+        console.error('Payment reminder error:', error);
+        res.status(500).json({ error: error.message || 'Failed to send reminder' });
+    }
+});
+
 // Email Logs
 app.get('/api/email-logs', isAuthenticated, async (req, res) => {
     try {

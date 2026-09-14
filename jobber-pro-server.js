@@ -7850,6 +7850,70 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             return clients.find(c => c.id == id) || null;
         }
 
+        // ── Payment reminders (AR) ──
+        function _reminderAgo(d) {
+            var days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+            return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + 'd ago';
+        }
+        function openPaymentReminder(jobId) {
+            var job = jobs.find(function (j) { return (j._id || j.id) == jobId; });
+            if (!job) { alert('Job not found'); return; }
+            var client = findClient(job.clientId);
+            var total = job.totalWithTax || parseFloat(job.total) || 0;
+            var balance = Math.round((total - (parseFloat(job.totalPaid) || 0)) * 100) / 100;
+            var modal = document.getElementById('paymentReminderModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'paymentReminderModal';
+                modal.className = 'modal';
+                modal.innerHTML =
+                    '<div class="modal-content" style="max-width:460px;">' +
+                    '<div class="modal-header"><h3>📨 Send Payment Reminder</h3><button class="modal-close" onclick="closeModal(\'paymentReminderModal\')">&times;</button></div>' +
+                    '<div style="padding:1.5rem;">' +
+                        '<div id="prInfo" style="margin-bottom:1rem;"></div>' +
+                        '<input type="hidden" id="prJobId">' +
+                        '<label style="display:block;font-weight:600;font-size:0.85rem;color:#4a5568;margin-bottom:0.3rem;">Optional note (added to the email)</label>' +
+                        '<textarea id="prNote" rows="2" placeholder="e.g. Thanks again for your business!" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;"></textarea>' +
+                        '<div style="font-size:0.8rem;color:#718096;margin-top:0.5rem;">The email includes the balance, the due date, and how to pay — portal, Zelle, and check.</div>' +
+                        '<div id="prErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>' +
+                        '<div style="display:flex;gap:0.5rem;margin-top:1rem;">' +
+                            '<button class="btn btn-secondary" onclick="closeModal(\'paymentReminderModal\')">Cancel</button>' +
+                            '<button class="btn btn-primary" id="prSendBtn" style="flex:1;" onclick="sendPaymentReminder()">Send reminder</button>' +
+                        '</div>' +
+                    '</div></div>';
+                document.body.appendChild(modal);
+            }
+            document.getElementById('prJobId').value = jobId;
+            var noEmail = !client || !client.email;
+            document.getElementById('prInfo').innerHTML =
+                '<div style="background:#f8fafc;border-radius:8px;padding:0.85rem 1rem;">' +
+                '<div style="font-weight:600;color:#2d3748;">' + escapeAuthText(job.title) + '</div>' +
+                '<div style="font-size:0.85rem;color:#718096;">' + escapeAuthText(client ? client.name : 'Unknown') + (client && client.email ? ' · ' + escapeAuthText(client.email) : '') + '</div>' +
+                '<div style="font-size:1.3rem;font-weight:700;color:#c53030;margin-top:0.3rem;">' + formatMoney(balance) + ' due</div>' +
+                '</div>' +
+                (noEmail ? '<div style="color:#c53030;font-size:0.82rem;margin-top:0.5rem;">⚠️ No email on file for this client — add one on their card first.</div>' : '');
+            document.getElementById('prNote').value = '';
+            document.getElementById('prErr').style.display = 'none';
+            var btn = document.getElementById('prSendBtn'); btn.disabled = noEmail; btn.textContent = 'Send reminder';
+            openModal('paymentReminderModal');
+        }
+        async function sendPaymentReminder() {
+            var jobId = document.getElementById('prJobId').value;
+            var note = document.getElementById('prNote').value.trim();
+            var err = document.getElementById('prErr');
+            var btn = document.getElementById('prSendBtn'); btn.disabled = true; btn.textContent = 'Sending…';
+            var reset = function () { btn.disabled = false; btn.textContent = 'Send reminder'; };
+            try {
+                var res = await fetch('/api/jobs/' + jobId + '/payment-reminder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: note }) });
+                var data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not send'; err.style.display = 'block'; reset(); return; }
+                closeModal('paymentReminderModal');
+                alert('✅ Payment reminder emailed to ' + data.sentTo + ' (' + formatMoney(data.balance) + ' due).');
+                reset();
+                if (typeof loadDashboard === 'function') loadDashboard();
+            } catch (e) { err.textContent = 'Network error.'; err.style.display = 'block'; reset(); }
+        }
+
         // Find team member by ID
         function findTeamMember(id) {
             return team.find(t => t.id == id) || null;
@@ -8169,9 +8233,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     ${maskName(client ? client.name : 'Unknown')} • ${j.scheduledDate || 'No date'}
                                 </div>
                             </td>
-                            <td style="padding: 0.75rem; text-align: right;">
+                            <td style="padding: 0.75rem; text-align: right; white-space:nowrap;">
                                 <div style="font-weight: 700; color: #e53e3e; font-size: 1rem;">${formatMoney(balanceOwed)}</div>
                                 ${dueInfo || '<div style="font-size:0.7rem;color:#718096;">owed</div>'}
+                                ${j.paymentReminderSentAt ? `<div style="font-size:0.66rem;color:#a0aec0;">📨 reminded ${_reminderAgo(j.paymentReminderSentAt)}</div>` : ''}
+                                <button onclick="event.stopPropagation();openPaymentReminder('${j.id}')" style="margin-top:5px;font-size:0.7rem;background:#ebf4ff;color:#3182ce;border:1px solid #bee3f8;border-radius:6px;padding:3px 9px;cursor:pointer;font-weight:600;">📨 Send reminder</button>
                             </td>
                         </tr>`;
                     }).join('') +
