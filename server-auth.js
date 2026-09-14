@@ -5918,6 +5918,18 @@ app.post('/api/job-desc-templates', isAdmin, async (req, res) => {
     await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
     res.json({ success: true, template: tmpl, templates: list });
 });
+app.put('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
+    const name = ((req.body && req.body.name) || '').trim();
+    const body = ((req.body && req.body.body) || '').trim();
+    if (!name || !body) return res.status(400).json({ error: 'Template name and text are required' });
+    const s = await db.collection('settings').findOne({}) || {};
+    const list = Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates.slice() : [];
+    const idx = list.findIndex(t => t.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Template not found' });
+    list[idx] = { ...list[idx], name: name.slice(0, 80), body: body.slice(0, 20000), updatedAt: new Date() };
+    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
+    res.json({ success: true, templates: list });
+});
 app.delete('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
     const s = await db.collection('settings').findOne({}) || {};
     const list = (Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates : []).filter(t => t.id !== req.params.id);

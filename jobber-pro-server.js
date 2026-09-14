@@ -2143,6 +2143,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h2>Team Members</h2>
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <input type="text" id="team-search" placeholder="🔍 Search team members..." style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 250px;" oninput="filterTeam()">
+                        <button class="btn btn-secondary" onclick="openJdTemplateManager()">📋 JD Templates</button>
                         <button class="btn btn-primary" onclick="openTeamModal()">+ Add Team Member</button>
                     </div>
                 </div>
@@ -17976,6 +17977,112 @@ function formatDuration(seconds) {
                 if (!res.ok) { alert(data.error || 'Could not delete'); return; }
                 _jobDescCustom = data.templates || [];
                 renderJobDescTemplateOptions();
+            } catch (e) { alert('Network error'); }
+        }
+
+        // ── Central Job Description Template manager (Team section button) ──
+        function openJdTemplateManager() {
+            var modal = document.getElementById('jdTemplateManagerModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'jdTemplateManagerModal';
+                modal.className = 'modal';
+                modal.innerHTML =
+                    '<div class="modal-content" style="max-width:680px;">' +
+                    '<div class="modal-header"><h3>📋 Job Description Templates</h3><button class="modal-close" onclick="closeModal(\'jdTemplateManagerModal\')">&times;</button></div>' +
+                    '<div style="padding:1.5rem;">' +
+                        '<div id="jdmList"></div>' +
+                        '<div id="jdmEditor" style="display:none;">' +
+                            '<label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">Template name</label>' +
+                            '<input type="text" id="jdmName" placeholder="e.g. Painter, Drywall Tech" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:0.75rem;">' +
+                            '<label style="display:block;font-weight:600;font-size:0.88rem;color:#4a5568;margin-bottom:0.3rem;">Description text</label>' +
+                            '<textarea id="jdmBody" rows="12" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;line-height:1.6;resize:vertical;"></textarea>' +
+                            '<div id="jdmErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>' +
+                            '<div style="display:flex;gap:0.5rem;margin-top:1rem;">' +
+                                '<button class="btn btn-secondary" onclick="jdManagerBackToList()">← Back</button>' +
+                                '<button class="btn btn-primary" onclick="jdManagerSave()" style="flex:1;">💾 Save Template</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div></div>';
+                document.body.appendChild(modal);
+            }
+            modal.dataset.editId = '';
+            document.getElementById('jdmEditor').style.display = 'none';
+            document.getElementById('jdmList').style.display = 'block';
+            openModal('jdTemplateManagerModal');
+            loadJobDescTemplates().then(renderJdManagerList);
+        }
+        function renderJdManagerList() {
+            var box = document.getElementById('jdmList');
+            if (!box) return;
+            var custom = _jobDescCustom || [];
+            var html = '<p style="color:#718096;font-size:0.88rem;margin-bottom:1rem;">Reusable job descriptions for hiring. Your custom templates appear in the picker when you write a job description for an employee.</p>';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;"><strong style="color:#2d3748;">My templates</strong><button class="btn btn-primary btn-small" onclick="jdManagerNew()">+ New template</button></div>';
+            if (!custom.length) {
+                html += '<div style="padding:1rem;text-align:center;color:#a0aec0;background:#f8f9fa;border-radius:8px;">No custom templates yet. Click <strong>+ New template</strong> to create one.</div>';
+            } else {
+                html += custom.map(function (t) {
+                    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border:1.5px solid #e2e8f0;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.5rem;">' +
+                        '<div style="min-width:0;"><div style="font-weight:600;color:#2d3748;">' + escapeAuthText(t.name) + '</div>' +
+                        '<div style="font-size:0.8rem;color:#a0aec0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeAuthText((t.body || '').slice(0, 90)) + '</div></div>' +
+                        '<div style="display:flex;gap:0.4rem;flex-shrink:0;">' +
+                            '<button class="btn btn-secondary btn-small" onclick="jdManagerEdit(\'' + t.id + '\')">Edit</button>' +
+                            '<button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="jdManagerDelete(\'' + t.id + '\')">Delete</button>' +
+                        '</div></div>';
+                }).join('');
+            }
+            html += '<div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #edf2f7;font-size:0.82rem;color:#a0aec0;">Built-in (always available): Field Technician / Handyman · Helper / Apprentice · Lead / Foreman</div>';
+            box.innerHTML = html;
+        }
+        function jdManagerNew() {
+            document.getElementById('jdTemplateManagerModal').dataset.editId = '';
+            document.getElementById('jdmName').value = '';
+            document.getElementById('jdmBody').value = '';
+            document.getElementById('jdmErr').style.display = 'none';
+            document.getElementById('jdmList').style.display = 'none';
+            document.getElementById('jdmEditor').style.display = 'block';
+        }
+        function jdManagerEdit(id) {
+            var t = (_jobDescCustom || []).find(function (x) { return x.id === id; });
+            if (!t) return;
+            document.getElementById('jdTemplateManagerModal').dataset.editId = id;
+            document.getElementById('jdmName').value = t.name || '';
+            document.getElementById('jdmBody').value = t.body || '';
+            document.getElementById('jdmErr').style.display = 'none';
+            document.getElementById('jdmList').style.display = 'none';
+            document.getElementById('jdmEditor').style.display = 'block';
+        }
+        function jdManagerBackToList() {
+            document.getElementById('jdmEditor').style.display = 'none';
+            document.getElementById('jdmList').style.display = 'block';
+        }
+        async function jdManagerSave() {
+            var id = document.getElementById('jdTemplateManagerModal').dataset.editId || '';
+            var name = document.getElementById('jdmName').value.trim();
+            var body = document.getElementById('jdmBody').value.trim();
+            var err = document.getElementById('jdmErr');
+            if (!name || !body) { err.textContent = 'Name and text are both required.'; err.style.display = 'block'; return; }
+            try {
+                var url = id ? '/api/job-desc-templates/' + id : '/api/job-desc-templates';
+                var res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, body: body }) });
+                var data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not save'; err.style.display = 'block'; return; }
+                _jobDescCustom = data.templates || _jobDescCustom;
+                renderJobDescTemplateOptions();
+                jdManagerBackToList();
+                renderJdManagerList();
+            } catch (e) { err.textContent = 'Network error.'; err.style.display = 'block'; }
+        }
+        async function jdManagerDelete(id) {
+            var t = (_jobDescCustom || []).find(function (x) { return x.id === id; });
+            if (!confirm('Delete the template "' + (t ? t.name : '') + '"? This cannot be undone.')) return;
+            try {
+                var res = await fetch('/api/job-desc-templates/' + id, { method: 'DELETE' });
+                var data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not delete'); return; }
+                _jobDescCustom = data.templates || [];
+                renderJobDescTemplateOptions();
+                renderJdManagerList();
             } catch (e) { alert('Network error'); }
         }
 
