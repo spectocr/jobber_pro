@@ -6975,7 +6975,11 @@ app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
         });
         await db.collection('jobs').updateOne(
             { _id: job._id },
-            { $set: { paymentReminderSentAt: now }, $inc: { paymentReminderCount: 1 } }
+            {
+                $set: { paymentReminderSentAt: now },
+                $inc: { paymentReminderCount: 1 },
+                $push: { auditLog: { timestamp: now, userName: req.session.userName || 'admin', action: 'payment_reminder', note: `Payment reminder sent — $${balance.toFixed(2)} to ${client.email}` } }
+            }
         );
 
         res.json({ success: true, balance, sentTo: client.email });

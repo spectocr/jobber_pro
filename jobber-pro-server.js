@@ -4011,6 +4011,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Total Billed:</strong><strong>$<span id="totalBilledSummary">0.00</span></strong></div>
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><strong>Total Paid:</strong><span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span></div>
                                     <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Balance Owed:</strong><strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong></div>
+                                    <div id="reminderStampLine" style="display:none;margin-top:0.6rem;padding-top:0.5rem;border-top:1px dashed #e2e8f0;font-size:0.8rem;color:#718096;"></div>
                                 </div>
                             </div>
                         </div>
@@ -5794,6 +5795,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             if (_cancelJobBtn) _cancelJobBtn.style.display = (isAdmin && job && (job._id || job.id) && job.status !== 'cancelled') ? '' : 'none';
             const _msgClientBtn = document.getElementById('jobMessageClientBtn');
             if (_msgClientBtn) _msgClientBtn.style.display = (isAdmin && job && (job._id || job.id) && job.clientId) ? '' : 'none';
+
+            // Show the payment-reminder stamp on the job billing summary
+            const _remStamp = document.getElementById('reminderStampLine');
+            if (_remStamp) {
+                if (job && job.paymentReminderSentAt) {
+                    const when = new Date(job.paymentReminderSentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const cnt = job.paymentReminderCount || 1;
+                    _remStamp.innerHTML = '📨 Last payment reminder sent <strong>' + when + '</strong>' + (cnt > 1 ? ' · ' + cnt + ' sent total' : '');
+                    _remStamp.style.display = 'block';
+                } else {
+                    _remStamp.style.display = 'none';
+                }
+            }
 
             // Version history (snapshots at Completed / Invoiced)
             if (job && (job._id || job.id)) { renderJobVersions(job); }
