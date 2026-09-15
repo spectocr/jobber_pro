@@ -1086,6 +1086,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 padding: 0 !important;
                 font-size: 1.5rem;
             }
+            /* Card-payment action buttons (Edit/Refund) stay in flow on mobile,
+               not stacked absolute in the corner */
+            .line-item .pay-row-actions {
+                position: static;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 0.5rem;
+            }
+            .line-item .pay-row-actions button[type="button"] {
+                position: static !important;
+                top: auto; right: auto;
+                width: auto !important;
+                height: auto !important;
+                padding: 0.5rem 0.9rem !important;
+                font-size: 0.85rem;
+            }
 
             /* Calendar */
             .calendar-view.active {
@@ -7045,7 +7062,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">\${isRefundRow ? 'Refund' : 'Amount'}</div><div style="font-size:0.9rem;font-weight:700;color:\${amtColor};">\$\${amtNum.toFixed(2)}\${refundedAmt > 0 && !isRefundRow ? \` <span style="font-size:0.72rem;color:#c05621;">(−\$\${refundedAmt.toFixed(2)} refunded)</span>\` : ''}</div></div>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Method</div><div style="font-size:0.9rem;">\${methodLabel}\${item.last4 ? \` ••••\${item.last4}\` : ''}</div></div>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Notes</div><div style="font-size:0.85rem;color:#4b5563;">\${item.notes || '—'}</div></div>
-                        <div style="display:flex;flex-direction:column;gap:4px;">
+                        <div class="pay-row-actions" style="display:flex;flex-direction:column;gap:4px;">
                             <button type="button" onclick="unlockPaymentItem(\${item.id})" style="background:#e2e8f0;color:#374151;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">🔒 Edit</button>
                             \${refundBtn}
                         </div>
@@ -8235,7 +8252,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('ar-jobs-list').innerHTML = '<div class="empty-state" style="padding: 2rem;"><p style="color: #a0aec0;">No outstanding balances</p></div>';
             } else {
                 const _termsDays = { due_receipt: 0, net_15: 15, net_30: 30, net_45: 45, net_60: 60, net_90: 90 };
-                document.getElementById('ar-jobs-list').innerHTML = '<div style="max-height: 400px; overflow-y: auto;"><table style="font-size: 0.875rem;"><tbody>' +
+                document.getElementById('ar-jobs-list').innerHTML = '<div style="max-height: 400px; overflow-y: auto; overflow-x: auto;"><table style="font-size: 0.875rem; width:100%;"><tbody>' +
                     arJobs.map(j => {
                         const client = findClient(j.clientId);
                         const balanceOwed = j.balanceOwed || 0;
