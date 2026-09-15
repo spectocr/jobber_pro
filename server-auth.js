@@ -10403,6 +10403,21 @@ app.get('/api/clients/:id/texts', isAuthenticated, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Emails sent to a client (for the client-card Emails tab).
+app.get('/api/clients/:id/emails', isAuthenticated, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        if (!client.email) return res.json({ email: '', emails: [] });
+        const logs = await db.collection('email_logs')
+            .find({ to: client.email })
+            .sort({ sentAt: -1 })
+            .limit(200)
+            .toArray();
+        res.json({ email: client.email, emails: logs.map(l => ({ ...l, id: l._id.toString(), _id: l._id.toString() })) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Admin Messages API - Archive message
 app.post('/api/client-messages/:id/archive', isAuthenticated, async (req, res) => {
     try {

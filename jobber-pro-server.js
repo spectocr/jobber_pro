@@ -1655,6 +1655,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <button type="button" class="cd-tab" data-cdtab="quotes" onclick="switchClientTab('quotes')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📄 Quotes</button>
                             <button type="button" class="cd-tab" data-cdtab="callbacks" onclick="switchClientTab('callbacks')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📞 Callbacks</button>
                             <button type="button" class="cd-tab" data-cdtab="texts" onclick="switchClientTab('texts')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">💬 Texts</button>
+                            <button type="button" class="cd-tab" data-cdtab="emails" onclick="switchClientTab('emails')" style="padding:0.5rem 1rem;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#718096;cursor:pointer;font-size:0.95rem;">📧 Emails</button>
                         </div>
                         <div id="cd-panel-jobs">
                             <div id="client-detail-jobs"></div>
@@ -1670,6 +1671,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                         <div id="cd-panel-texts" style="display:none;">
                             <div id="client-detail-texts"></div>
+                        </div>
+                        <div id="cd-panel-emails" style="display:none;">
+                            <div id="client-detail-emails"></div>
                         </div>
                     </div>
                 </div>
@@ -9678,7 +9682,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         }
 
         function switchClientTab(tab) {
-            ['jobs','quotes','callbacks','texts'].forEach(function(t){
+            ['jobs','quotes','callbacks','texts','emails'].forEach(function(t){
                 var panel = document.getElementById('cd-panel-'+t);
                 if (panel) panel.style.display = t === tab ? '' : 'none';
             });
@@ -9688,6 +9692,35 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 b.style.color = on ? '#667eea' : '#718096';
             });
             if (tab === 'texts' && _currentClientId) loadClientTexts(_currentClientId);
+            if (tab === 'emails' && _currentClientId) loadClientEmails(_currentClientId);
+        }
+
+        async function loadClientEmails(clientId) {
+            const box = document.getElementById('client-detail-emails');
+            if (!box) return;
+            box.innerHTML = '<div style="color:#718096;padding:0.5rem 0;">Loading…</div>';
+            try {
+                const res = await fetch('/api/clients/' + clientId + '/emails');
+                const data = await res.json();
+                const emails = data.emails || [];
+                // Merge into allEmailLogs so the shared viewEmailBody() modal can find them.
+                emails.forEach(function (l) { if (!allEmailLogs.find(function (x) { return (x.id || x._id) == l.id; })) allEmailLogs.push(l); });
+                if (!data.email) { box.innerHTML = '<div style="color:#a0aec0;font-size:0.85rem;padding:0.5rem 0;">No email on file for this client — add one on their card to track emails.</div>'; return; }
+                if (!emails.length) { box.innerHTML = '<div style="color:#a0aec0;font-size:0.85rem;padding:0.5rem 0;">No emails sent to ' + escapeSmsText(data.email) + ' yet.</div>'; return; }
+                const typeLabel = { invoice: '📄 Invoice', payment_reminder: '📨 Reminder', cancellation: '🚫 Cancellation', survey: '⭐ Survey', portal: '💬 Portal', quote: '📋 Quote', deposit: '💳 Deposit', reminder: '⏰ Reminder' };
+                box.innerHTML = '<div style="max-height:440px;overflow-y:auto;">' + emails.map(function (l) {
+                    var badge = typeLabel[l.type] || '📧 Email';
+                    var when = new Date(l.sentAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+                    var openedTag = l.opened ? ' · <span style="color:#48bb78;">✓ opened</span>' : '';
+                    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;border:1px solid #edf2f7;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.5rem;">' +
+                        '<div style="min-width:0;"><div style="font-weight:600;color:#2d3748;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeSmsText(l.subject || '(no subject)') + '</div>' +
+                        '<div style="font-size:0.78rem;color:#a0aec0;">' + badge + ' · ' + when + (l.sentBy ? ' · by ' + escapeSmsText(l.sentBy) : '') + openedTag + '</div></div>' +
+                        (l.htmlBody ? '<button class="btn btn-secondary btn-small" style="flex-shrink:0;" onclick="viewEmailBody(\'' + l.id + '\')">👁 View</button>' : '') +
+                        '</div>';
+                }).join('') + '</div>';
+            } catch (e) {
+                box.innerHTML = '<div style="color:#e53e3e;padding:0.5rem 0;">Failed to load emails.</div>';
+            }
         }
 
         async function loadClientTexts(clientId) {
