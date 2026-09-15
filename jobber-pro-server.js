@@ -4033,6 +4033,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;"><strong>Total Paid:</strong><span style="color: #48bb78;">$<span id="totalPaidSummary">0.00</span></span></div>
                                     <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #cbd5e0;"><strong>Balance Owed:</strong><strong style="color: #e53e3e;">$<span id="balanceOwedSummary">0.00</span></strong></div>
                                     <div id="reminderStampLine" style="display:none;margin-top:0.6rem;padding-top:0.5rem;border-top:1px dashed #e2e8f0;font-size:0.8rem;color:#718096;"></div>
+                                    <div id="surveyStampLine" style="display:none;margin-top:0.4rem;font-size:0.8rem;color:#718096;"></div>
                                 </div>
                             </div>
                         </div>
@@ -5830,6 +5831,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
             }
 
+            // Survey status line (only meaningful once a job is completed/invoiced)
+            const _survStamp = document.getElementById('surveyStampLine');
+            if (_survStamp) {
+                const done = job && ['completed', 'invoiced'].includes(job.status);
+                if (done && job.surveyTokenSentAt) {
+                    const sWhen = new Date(job.surveyTokenSentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const rated = job.surveyRating ? ' · ⭐ ' + job.surveyRating : (job.surveySubmittedAt ? ' · ✓ responded' : '');
+                    _survStamp.innerHTML = '⭐ Survey sent <strong>' + sWhen + '</strong>' + rated;
+                    _survStamp.style.display = 'block';
+                } else if (done) {
+                    _survStamp.innerHTML = '⭐ Survey <strong>not sent yet</strong> — use “Send Survey” below.';
+                    _survStamp.style.display = 'block';
+                } else {
+                    _survStamp.style.display = 'none';
+                }
+            }
+
             // Version history (snapshots at Completed / Invoiced)
             if (job && (job._id || job.id)) { renderJobVersions(job); }
             else { const _vs = document.getElementById('jobVersionsSection'); if (_vs) _vs.style.display = 'none'; }
@@ -5847,6 +5865,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 }
                 if (_resendSurveyBtn) {
                     _resendSurveyBtn.style.display = ['completed','invoiced'].includes(job.status) ? '' : 'none';
+                    _resendSurveyBtn.innerHTML = job.surveyTokenSentAt ? '📋 Resend Survey' : '📨 Send Survey';
                 }
             } else {
                 _stepperEl.style.display = 'none';
