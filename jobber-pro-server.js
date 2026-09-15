@@ -681,10 +681,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         .wf-st.wf-now{background:#e9d8fd;color:#553c9a;}
 
         .modal-footer {
-            padding: 1.5rem;
+            padding: 1.25rem 1.5rem;
             border-top: 2px solid #e2e8f0;
             display: flex;
             justify-content: flex-end;
+            align-items: center;
+            flex-wrap: wrap;
             gap: 0.5rem;
             position: sticky;
             bottom: 0;
@@ -692,6 +694,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             z-index: 10;
             flex-shrink: 0;
         }
+        .modal-footer .btn {
+            white-space: nowrap;
+            padding: 0.6rem 1.05rem;
+            line-height: 1.2;
+        }
+        /* Utility buttons cluster left, the primary action stays right */
+        .modal-footer .btn-primary { margin-left: auto; }
 
         .autosave-status {
             font-size: 0.78rem;
