@@ -6449,6 +6449,225 @@ app.post('/api/client-portal/msa/sign', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Property Maintenance Checklists ─────────────────────────────────────────
+// season: 'every' (done every visit) | 'feb' | 'may' | 'aug' | 'nov' (rotation)
+function defaultChecklistTemplate() {
+    let sid = 0, iid = 0;
+    const S = (title, season, items) => ({ id: 'sec' + (++sid), title, season, items: items.map(l => ({ id: 'itm' + (++iid), label: l })) });
+    return {
+        id: 'chk_default',
+        name: 'Quarterly Property Maintenance',
+        sections: [
+            S('Exterior & Grounds', 'every', [
+                'Inspect exterior, roof, soffit/fascia, deck and railings for damage or openings.',
+                'Check outdoor spigot for leaks and correct seasonal status.',
+                'Check gutters/downspouts for visible blockage, damage or poor discharge; clear as needed.',
+                'Inspect AC condensers/lines; clear debris/weeds and check pipe insulation.',
+                'Look for pests, mouse activity, poison ivy and stinging-insect nests.',
+                'Observe lawn/bushes; pick up exterior trash and report concerns.'
+            ]),
+            S('Plumbing & Water', 'every', [
+                'Check faucets, sinks/traps, tubs/showers, toilets and drains for leaks or slow flow.',
+                'Check both water heaters and surrounding areas for leaks/corrosion/moisture.',
+                'Test condensate pumps, pipes and J-traps; clean/brush as needed.',
+                'Inspect washer supply/drain hoses and nearby flooring for leakage.',
+                'Test every water-leak alarm; replace batteries/devices as needed.'
+            ]),
+            S('Safety, Electrical & Access', 'every', [
+                'Test smoke/CO detectors; replace dead, chirping or expired devices/batteries.',
+                'Inspect electrical panels for tripped breakers or obvious concerns.',
+                'Check interior/exterior lights and replace accessible bulbs as needed.',
+                'Test front/sliding doors, locks and deadbolts; note gaps or damage.',
+                'Test both garage-door openers; inspect tracks/joints and lubricate as needed.',
+                'Record any property damage and address/document tenant concerns.'
+            ]),
+            S('HVAC, Laundry & Appliances', 'every', [
+                'Check air-handler filters; replace if dirty and document (tenant responsibility).',
+                'Check bathroom exhaust fans for good draw; clean if needed.',
+                'Check washer/dryer operation, leaks and dryer airflow.',
+                'Clean lint from both exterior dryer-vent guards/cages.',
+                'Quick-check refrigerators and other appliances for dirt, leaks or reported issues.'
+            ]),
+            S('February — Winter / indoor service', 'feb', [
+                'Clean refrigerator coils.',
+                'Clean bath-fan housings and interior HVAC grilles.',
+                'Inspect washer hoses; replace if needed.',
+                'Lubricate garage tracks; verify spigot remains off.',
+                'Catch up full dryer-vent cleaning if November access was missed.'
+            ]),
+            S('May — Cooling / water service', 'may', [
+                'Flush both water heaters; record service dates.',
+                'Exercise relief valves if serviceable/authorized.',
+                'Test/clean condensate pumps and traps.',
+                'Check AC-line insulation and clear condenser areas.',
+                'Check poison ivy and gutters; renew water-alarm batteries.'
+            ]),
+            S('August — Exterior / summer check', 'aug', [
+                'Power wash exterior areas as needed.',
+                'Check poison ivy and stinging-insect nests.',
+                'Inspect deck, railings and trim for cleaning/stain/touch-up needs.',
+                'Spot-check gutters/downspouts after storms.',
+                'Recheck AC condensers, filters and vegetation clearance.'
+            ]),
+            S('November — Winterization / fire safety', 'nov', [
+                'Shut off/drain spigot and install freeze cover.',
+                'Inspect exterior weatherstripping and door sweeps.',
+                'Inspect attic for moisture, pests and ventilation/fan where safely accessible.',
+                'Clean gutters/downspouts.',
+                'Clean full dryer vents/behind dryers; date the service.',
+                'Replace 9V batteries in both garage-door openers.'
+            ])
+        ]
+    };
+}
+async function getChecklistTemplates() {
+    const s = await db.collection('settings').findOne({}, { projection: { checklistTemplates: 1 } });
+    if (s && Array.isArray(s.checklistTemplates) && s.checklistTemplates.length) return s.checklistTemplates;
+    const seed = [defaultChecklistTemplate()];
+    await db.collection('settings').updateOne({}, { $set: { checklistTemplates: seed } }, { upsert: true });
+    return seed;
+}
+app.get('/api/checklist-templates', isAdmin, async (req, res) => {
+    try { res.json(await getChecklistTemplates()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/checklist-templates', isAdmin, async (req, res) => {
+    try {
+        const t = req.body || {};
+        if (!t.name || !t.name.trim()) return res.status(400).json({ error: 'Template name required' });
+        if (!Array.isArray(t.sections) || !t.sections.length) return res.status(400).json({ error: 'At least one section required' });
+        const list = await getChecklistTemplates();
+        const clean = {
+            id: t.id || ('chk_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+            name: t.name.trim().slice(0, 120),
+            sections: t.sections.map(s => ({
+                id: s.id || ('sec_' + Math.random().toString(36).slice(2, 8)),
+                title: (s.title || '').slice(0, 200),
+                season: ['every', 'feb', 'may', 'aug', 'nov'].includes(s.season) ? s.season : 'every',
+                items: (Array.isArray(s.items) ? s.items : []).filter(i => i && (i.label || '').trim()).map(i => ({ id: i.id || ('itm_' + Math.random().toString(36).slice(2, 8)), label: i.label.slice(0, 400) }))
+            })).filter(s => s.items.length)
+        };
+        const idx = list.findIndex(x => x.id === clean.id);
+        if (idx === -1) list.push(clean); else list[idx] = clean;
+        await db.collection('settings').updateOne({}, { $set: { checklistTemplates: list } }, { upsert: true });
+        res.json({ success: true, template: clean, templates: list });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/checklist-templates/:id', isAdmin, async (req, res) => {
+    try {
+        const list = (await getChecklistTemplates()).filter(t => t.id !== req.params.id);
+        await db.collection('settings').updateOne({}, { $set: { checklistTemplates: list } }, { upsert: true });
+        res.json({ success: true, templates: list });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Maintenance reviews (a completed checklist for a client/property)
+app.post('/api/maintenance-reviews', isAdmin, async (req, res) => {
+    try {
+        const b = req.body || {};
+        if (!b.clientId) return res.status(400).json({ error: 'clientId required' });
+        const now = new Date();
+        // Resolve item labels from the template so each review is self-contained.
+        const labelMap = {};
+        try {
+            const tpls = await getChecklistTemplates();
+            const tpl = tpls.find(t => t.id === b.templateId);
+            if (tpl) tpl.sections.forEach(s => s.items.forEach(i => { labelMap[i.id] = i.label; }));
+        } catch (_) {}
+        // Upload any photos (data URLs) per result item to S3
+        const results = [];
+        for (const r of (Array.isArray(b.results) ? b.results : [])) {
+            const photoKeys = [];
+            const photos = Array.isArray(r.photos) ? r.photos.filter(p => typeof p === 'string' && p.startsWith('data:image/')).slice(0, 6) : [];
+            if (photos.length && s3Client) {
+                const ts = Date.now();
+                for (let i = 0; i < photos.length; i++) {
+                    const m = photos[i].match(/^data:(image\/(\w+));base64,(.+)$/);
+                    if (!m) continue;
+                    const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
+                    const key = `maintenance/${b.clientId}/${ts}-${(r.itemId || 'x')}-${i}.${ext}`;
+                    await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: key, Body: Buffer.from(m[3], 'base64'), ContentType: m[1] }));
+                    photoKeys.push(key);
+                }
+            }
+            results.push({ itemId: r.itemId, label: (r.label || labelMap[r.itemId] || '').slice(0, 400), status: ['pass', 'fail', 'na'].includes(r.status) ? r.status : 'na', note: (r.note || '').slice(0, 1000), photos: photoKeys });
+        }
+        const review = {
+            clientId: new ObjectId(b.clientId),
+            templateId: b.templateId || '',
+            templateName: (b.templateName || '').slice(0, 120),
+            propertyLabel: (b.propertyLabel || '').slice(0, 200),
+            visitDate: b.visitDate ? new Date(b.visitDate) : now,
+            nextVisit: b.nextVisit ? new Date(b.nextVisit) : null,
+            technician: (b.technician || req.session.userName || '').slice(0, 120),
+            units: (b.units || '').slice(0, 120),
+            season: b.season || 'every',
+            results,
+            closeoutNotes: (b.closeoutNotes || '').slice(0, 5000),
+            followUpRequired: !!b.followUpRequired,
+            createdAt: now,
+            createdBy: req.session.userName || 'admin'
+        };
+        const ins = await db.collection('maintenance_reviews').insertOne(review);
+        // Stamp next-due on the client for reminders
+        if (review.nextVisit) await db.collection('clients').updateOne({ _id: review.clientId }, { $set: { maintenanceNextDue: review.nextVisit, maintenanceLastReview: now } });
+        else await db.collection('clients').updateOne({ _id: review.clientId }, { $set: { maintenanceLastReview: now } });
+        res.json({ success: true, id: ins.insertedId.toString() });
+    } catch (e) { console.error('Maintenance review error:', e); res.status(500).json({ error: e.message }); }
+});
+
+async function signReviewPhotos(review) {
+    const results = await Promise.all((review.results || []).map(async r => ({
+        ...r,
+        photoUrls: await Promise.all((r.photos || []).map(k => getS3SignedUrl(k, 3600).catch(() => null))).then(a => a.filter(Boolean))
+    })));
+    return { ...review, id: review._id.toString(), results };
+}
+app.get('/api/clients/:id/maintenance-reviews', isAdmin, async (req, res) => {
+    try {
+        const list = await db.collection('maintenance_reviews').find({ clientId: new ObjectId(req.params.id) }).sort({ visitDate: -1 }).limit(100).toArray();
+        res.json(list.map(r => ({ id: r._id.toString(), templateName: r.templateName, propertyLabel: r.propertyLabel, visitDate: r.visitDate, nextVisit: r.nextVisit, technician: r.technician, units: r.units, followUpRequired: r.followUpRequired, itemCount: (r.results || []).length, failCount: (r.results || []).filter(x => x.status === 'fail').length })));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/maintenance-reviews/:id', isAdmin, async (req, res) => {
+    try {
+        const r = await db.collection('maintenance_reviews').findOne({ _id: new ObjectId(req.params.id) });
+        if (!r) return res.status(404).json({ error: 'Not found' });
+        res.json(await signReviewPhotos(r));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/maintenance-reviews/:id', isAdmin, async (req, res) => {
+    try { await db.collection('maintenance_reviews').deleteOne({ _id: new ObjectId(req.params.id) }); res.json({ success: true }); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Portal: a main client's maintenance reports
+app.get('/api/client-portal/maintenance-reviews', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
+        if (!client || client.parentClientId) return res.json({ reviews: [] });
+        const list = await db.collection('maintenance_reviews').find({ clientId: client._id }).sort({ visitDate: -1 }).limit(50).toArray();
+        res.json({ reviews: list.map(r => ({ id: r._id.toString(), templateName: r.templateName, propertyLabel: r.propertyLabel, visitDate: r.visitDate, nextVisit: r.nextVisit, technician: r.technician, units: r.units, followUpRequired: r.followUpRequired })) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/client-portal/maintenance-reviews/:id', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
+        const r = await db.collection('maintenance_reviews').findOne({ _id: new ObjectId(req.params.id), clientId: new ObjectId(req.session.clientId) });
+        if (!r) return res.status(404).json({ error: 'Not found' });
+        res.json(await signReviewPhotos(r));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Maintenance due list (for reminders on the dashboard)
+app.get('/api/maintenance/due', isAdmin, async (req, res) => {
+    try {
+        const soon = new Date(); soon.setDate(soon.getDate() + 14);
+        const clients = await db.collection('clients').find({ maintenanceNextDue: { $lte: soon } }, { projection: { name: 1, maintenanceNextDue: 1 } }).toArray();
+        res.json(clients.map(c => ({ id: c._id.toString(), name: c.name, nextDue: c.maintenanceNextDue })).sort((a, b) => new Date(a.nextDue) - new Date(b.nextDue)));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Public read-only handbook via share token.
 app.get('/handbook/:token', async (req, res) => {
     try {

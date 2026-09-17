@@ -298,6 +298,7 @@
     <!-- Tab nav -->
     <div class="tab-nav">
         <button class="tab-btn active" id="tab-btn-activity"    onclick="switchTab('activity')">Activity</button>
+        <button class="tab-btn"        id="tab-btn-reports"     onclick="switchTab('reports')" style="display:none;">🔧 Maintenance</button>
         <button class="tab-btn"        id="tab-btn-messages"    onclick="switchTab('messages')" style="position:relative;">💬 Messages<span id="portalMsgBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e53e3e;color:#fff;border-radius:999px;min-width:16px;height:16px;font-size:0.65rem;line-height:16px;text-align:center;padding:0 4px;">0</span></button>
         <button class="tab-btn"        id="tab-btn-archive"     onclick="switchTab('archive')">Archive</button>
         <button class="tab-btn"        id="tab-btn-new-request" onclick="switchTab('new-request')">+ New Request</button>
@@ -321,6 +322,22 @@
     <div class="tab-panel" id="tab-archive">
         <div class="archive-label">Completed &amp; Paid</div>
         <div id="archiveList"></div>
+    </div>
+
+    <!-- Maintenance Reports -->
+    <div class="tab-panel" id="tab-reports">
+        <div class="card" style="padding:1.25rem;">
+            <h2 style="margin:0 0 0.75rem;font-size:1.15rem;color:#2d3748;">🔧 Maintenance Reports</h2>
+            <div id="portalMaintList"><p style="color:#718096;">Loading…</p></div>
+        </div>
+    </div>
+
+    <!-- Maintenance review detail modal -->
+    <div id="mrDetailModal" class="modal-overlay" onclick="if(event.target===this)document.getElementById('mrDetailModal').style.display='none'">
+        <div class="modal-box" style="max-width:640px;">
+            <button class="modal-close" onclick="document.getElementById('mrDetailModal').style.display='none'">✕</button>
+            <div id="mrDetailBody"></div>
+        </div>
     </div>
 
     <!-- Messages -->
@@ -725,6 +742,7 @@ async function loadClientData() {
         clientData = await res.json();
 
         const isPM = clientData.client.isPropertyManagement;
+        if (isPM) { const rt = document.getElementById('tab-btn-reports'); if (rt) rt.style.display = ''; }
         const T = {
             quotes:        isPM ? '🎫 Work Orders'         : '📋 My Quotes',
             quoteLabel:    isPM ? 'Work Order'              : 'Quote',
@@ -794,7 +812,7 @@ async function loadClientData() {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 function switchTab(name) {
-    ['activity','messages','archive','new-request'].forEach(t => {
+    ['activity','reports','messages','archive','new-request'].forEach(t => {
         document.getElementById('tab-' + t).classList.remove('active');
         document.getElementById('tab-btn-' + t).classList.remove('active');
     });
@@ -806,6 +824,49 @@ function switchTab(name) {
         document.getElementById('quoteRequestForm').style.display    = 'block';
     }
     if (name === 'messages') loadPortalMessages();
+    if (name === 'reports') loadPortalMaintenance();
+}
+
+async function loadPortalMaintenance() {
+    const box = document.getElementById('portalMaintList');
+    if (!box) return;
+    box.innerHTML = '<p style="color:#718096;">Loading…</p>';
+    let data;
+    try { data = await (await fetch('/api/client-portal/maintenance-reviews')).json(); }
+    catch (e) { box.innerHTML = '<p style="color:#e53e3e;">Could not load reports.</p>'; return; }
+    const reviews = (data && data.reviews) || [];
+    if (!reviews.length) { box.innerHTML = '<p style="color:#718096;">No maintenance reports yet.</p>'; return; }
+    box.innerHTML = reviews.map(function (r) {
+        const vd = new Date(r.visitDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const fu = r.followUpRequired ? '<span style="color:#c05621;font-size:0.8rem;"> · follow-up</span>' : '';
+        return '<div onclick="viewPortalReview(\'' + r.id + '\')" style="border:1.5px solid #e2e8f0;border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.6rem;cursor:pointer;">' +
+            '<div style="font-weight:700;color:#2d3748;">' + esc(r.propertyLabel || r.templateName || 'Maintenance Visit') + '</div>' +
+            '<div style="font-size:0.82rem;color:#718096;margin-top:2px;">' + vd + (r.units ? ' · Units ' + esc(r.units) : '') + (r.technician ? ' · ' + esc(r.technician) : '') + fu + '</div>' +
+            (r.nextVisit ? '<div style="font-size:0.78rem;color:#a0aec0;margin-top:2px;">Next visit: ' + new Date(r.nextVisit).toLocaleDateString() + '</div>' : '') +
+            '</div>';
+    }).join('');
+}
+async function viewPortalReview(id) {
+    const body = document.getElementById('mrDetailBody');
+    body.innerHTML = '<p style="color:#718096;padding:1rem;">Loading…</p>';
+    document.getElementById('mrDetailModal').style.display = 'flex';
+    let r;
+    try { r = await (await fetch('/api/client-portal/maintenance-reviews/' + id)).json(); }
+    catch (e) { body.innerHTML = '<p style="color:#e53e3e;padding:1rem;">Failed to load.</p>'; return; }
+    const icon = { pass: '<span style="color:#48bb78;font-weight:700;">✓</span>', fail: '<span style="color:#e53e3e;font-weight:700;">✗ Fail</span>', na: '<span style="color:#a0aec0;">N/A</span>' };
+    const rows = (r.results || []).map(function (it) {
+        const photos = (it.photoUrls || []).map(function (u) { return '<a href="' + u + '" target="_blank"><img src="' + u + '" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;"></a>'; }).join('');
+        return '<div style="border-top:1px solid #edf2f7;padding:0.5rem 0;font-size:0.86rem;">' +
+            '<div style="display:flex;justify-content:space-between;gap:0.5rem;"><span style="color:#2d3748;">' + esc(it.label || 'Item') + '</span><span style="flex-shrink:0;">' + (icon[it.status] || '') + '</span></div>' +
+            (it.note ? '<div style="color:#718096;font-size:0.8rem;margin-top:2px;">' + esc(it.note) + '</div>' : '') +
+            (photos ? '<div style="display:flex;gap:0.4rem;margin-top:0.4rem;flex-wrap:wrap;">' + photos + '</div>' : '') +
+            '</div>';
+    }).join('');
+    const close = r.closeoutNotes ? '<div style="margin-top:1rem;background:#fffbea;border:1px solid #f6e05e;border-radius:8px;padding:0.75rem 1rem;font-size:0.85rem;color:#744210;"><strong>Closeout:</strong> ' + esc(r.closeoutNotes) + '</div>' : '';
+    body.innerHTML =
+        '<h3 style="margin:0 0 0.5rem;color:#2d3748;">🔧 ' + esc(r.propertyLabel || r.templateName || 'Maintenance Visit') + '</h3>' +
+        '<div style="font-size:0.83rem;color:#718096;margin-bottom:0.75rem;">Visit ' + new Date(r.visitDate).toLocaleDateString() + (r.units ? ' · Units ' + esc(r.units) : '') + (r.technician ? ' · ' + esc(r.technician) : '') + '</div>' +
+        '<div style="max-height:60vh;overflow-y:auto;">' + rows + close + '</div>';
 }
 
 // ── Message Modal ─────────────────────────────────────────────────────────────

@@ -1557,6 +1557,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div id="completed-jobs-list"></div>
                 </div>
 
+                <!-- Maintenance Due Tile -->
+                <div class="card" id="maint-due-card" style="display:none;">
+                    <div class="card-header">
+                        <h2>🔧 Maintenance Reviews Due <span id="maint-due-count" style="color:#718096;font-size:0.9em;"></span></h2>
+                    </div>
+                    <div id="maint-due-list"></div>
+                </div>
                 <!-- Accounts Receivable Tile -->
                 <div class="card">
                     <div class="card-header">
@@ -1624,6 +1631,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 </div>
                 <!-- MSA status (main clients only) -->
                 <div id="client-msa-section" style="display:none;margin-bottom:1.5rem;"></div>
+                <!-- Maintenance reviews (PM clients) -->
+                <div id="client-maintenance-section" style="display:none;margin-bottom:1.5rem;"></div>
                 <!-- Client Relationship Stats -->
                 <div id="client-stats-section" style="margin-bottom: 2rem;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">📊 Client Relationship Overview</h3>
@@ -8105,7 +8114,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         // LOAD FUNCTIONS
         // ============================================================
 
+        async function loadMaintenanceDue() {
+            const card = document.getElementById('maint-due-card');
+            const list = document.getElementById('maint-due-list');
+            if (!card || !list) return;
+            let due = [];
+            try { due = await (await fetch('/api/maintenance/due')).json(); } catch (e) { return; }
+            if (!due.length) { card.style.display = 'none'; return; }
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            document.getElementById('maint-due-count').textContent = '(' + due.length + ')';
+            list.innerHTML = '<div style="max-height:300px;overflow-y:auto;">' + due.map(function (d) {
+                const dd = new Date(d.nextDue); dd.setHours(0, 0, 0, 0);
+                const diff = Math.round((dd - today) / 86400000);
+                const tag = diff < 0 ? '<span style="color:#c53030;font-weight:700;">' + Math.abs(diff) + 'd overdue</span>' : diff === 0 ? '<span style="color:#c05621;font-weight:700;">due today</span>' : '<span style="color:#c05621;">in ' + diff + 'd</span>';
+                return '<div onclick="viewClientDetail(\'' + d.id + '\')" style="display:flex;justify-content:space-between;gap:0.5rem;border-bottom:1px solid #edf2f7;padding:0.6rem 0.75rem;cursor:pointer;">' +
+                    '<strong style="color:#2d3748;">' + escapeAuthText(d.name) + '</strong>' +
+                    '<span style="white-space:nowrap;font-size:0.85rem;">' + new Date(d.nextDue).toLocaleDateString() + ' · ' + tag + '</span></div>';
+            }).join('') + '</div>';
+            card.style.display = 'block';
+        }
+
         async function loadDashboard() {
+            loadMaintenanceDue();
             try {
                 const response = await fetch('/api/dashboard');
                 const stats = await response.json();
@@ -8845,6 +8875,267 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (e) { alert('Network error'); }
         }
 
+        // ── Property Maintenance ──────────────────────────────────────────────
+        var _MRI = 'width:100%;padding:0.5rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.9rem;box-sizing:border-box;';
+        var _MRL = 'display:block;font-size:0.78rem;font-weight:600;color:#4a5568;margin-bottom:0.2rem;';
+        var _SEASON_LABEL = { feb: 'February — Winter/Indoor', may: 'May — Cooling/Water', aug: 'August — Exterior/Summer', nov: 'November — Winterization' };
+        function _seasonForDate(d) { var m = new Date(d + 'T12:00:00').getMonth(); return m <= 2 ? 'feb' : m <= 5 ? 'may' : m <= 8 ? 'aug' : 'nov'; }
+
+        function renderClientMaintenance(client) {
+            var box = document.getElementById('client-maintenance-section');
+            if (!box) return;
+            if (!client.isPropertyManagement) { box.style.display = 'none'; return; }
+            box.style.display = 'block';
+            var due = client.maintenanceNextDue ? new Date(client.maintenanceNextDue) : null;
+            var badge = '';
+            if (due) {
+                var today = new Date(); today.setHours(0, 0, 0, 0);
+                var dd = new Date(due); dd.setHours(0, 0, 0, 0);
+                var diff = Math.round((dd - today) / 86400000);
+                if (diff < 0) badge = '<span style="background:#fed7d7;color:#742a2a;font-size:0.74rem;font-weight:700;padding:2px 9px;border-radius:10px;">Review overdue (' + Math.abs(diff) + 'd)</span>';
+                else if (diff <= 14) badge = '<span style="background:#fefcbf;color:#744210;font-size:0.74rem;font-weight:700;padding:2px 9px;border-radius:10px;">Due in ' + diff + 'd</span>';
+                else badge = '<span style="color:#718096;font-size:0.82rem;">Next review ' + due.toLocaleDateString() + '</span>';
+            }
+            box.innerHTML =
+                '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;background:#fafafa;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.5rem;">' +
+                        '<div><strong style="color:#2d3748;">🔧 Property Maintenance</strong> &nbsp; ' + badge + '</div>' +
+                        '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+                            '<button class="btn btn-secondary btn-small" onclick="openChecklistTemplates()">📋 Templates</button>' +
+                            '<button class="btn btn-primary btn-small" onclick="openMaintenanceReview(\'' + client.id + '\')">+ New Review</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div id="client-maint-list" style="font-size:0.85rem;color:#718096;">Loading…</div>' +
+                '</div>';
+            loadClientMaintenanceReviews(client.id);
+        }
+        async function loadClientMaintenanceReviews(clientId) {
+            var box = document.getElementById('client-maint-list');
+            if (!box) return;
+            try {
+                var list = await (await fetch('/api/clients/' + clientId + '/maintenance-reviews')).json();
+                if (!list.length) { box.innerHTML = '<span style="color:#a0aec0;">No maintenance reviews yet.</span>'; return; }
+                box.innerHTML = list.map(function (r) {
+                    var vd = new Date(r.visitDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    var fails = r.failCount > 0 ? ' · <span style="color:#c53030;">' + r.failCount + ' issue' + (r.failCount > 1 ? 's' : '') + '</span>' : '';
+                    var fu = r.followUpRequired ? ' · <span style="color:#c05621;">follow-up</span>' : '';
+                    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border-top:1px solid #edf2f7;padding:0.5rem 0;flex-wrap:wrap;">' +
+                        '<div><strong style="color:#2d3748;">' + escapeAuthText(r.propertyLabel || r.templateName || 'Review') + '</strong> · ' + vd + (r.units ? ' · Units ' + escapeAuthText(r.units) : '') + fails + fu + '</div>' +
+                        '<div style="display:flex;gap:0.4rem;flex-shrink:0;"><button class="btn btn-secondary btn-small" onclick="viewMaintenanceReview(\'' + r.id + '\')">View</button>' +
+                        '<button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="deleteMaintenanceReview(\'' + r.id + '\',\'' + clientId + '\')">✕</button></div>' +
+                        '</div>';
+                }).join('');
+            } catch (e) { box.innerHTML = '<span style="color:#e53e3e;">Failed to load reviews.</span>'; }
+        }
+        async function deleteMaintenanceReview(id, clientId) {
+            if (!confirm('Delete this maintenance review?')) return;
+            try { await fetch('/api/maintenance-reviews/' + id, { method: 'DELETE' }); loadClientMaintenanceReviews(clientId); } catch (e) { alert('Network error'); }
+        }
+
+        // ── Maintenance review fill form ──
+        var _mr = null;
+        async function openMaintenanceReview(clientId) {
+            var client = clients.find(function (c) { return c.id == clientId; });
+            _mr = { clientId: clientId, templates: [], template: null, season: '', results: {} };
+            try { _mr.templates = await (await fetch('/api/checklist-templates')).json(); } catch (e) { _mr.templates = []; }
+            _mr.template = _mr.templates[0] || null;
+            var today = new Date().toISOString().split('T')[0];
+            _mr.season = _seasonForDate(today);
+            var m = _makeSimpleModal('mrFormModal', '🔧 New Maintenance Review');
+            m.querySelector('.modal-content').style.maxWidth = '760px';
+            var propOpts = (client && Array.isArray(client.serviceLocations)) ? client.serviceLocations.map(function (l) { var a = l.address || l.label || ''; return '<option value="' + escapeAuthText(a) + '">'; }).join('') : '';
+            var body = document.getElementById('mrFormModal-body');
+            body.innerHTML =
+                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:0.75rem;">' +
+                    '<div><label style="' + _MRL + '">Property / location</label><input id="mrProperty" list="mrPropList" style="' + _MRI + '" placeholder="Address / units"><datalist id="mrPropList">' + propOpts + '</datalist></div>' +
+                    '<div><label style="' + _MRL + '">Units</label><input id="mrUnits" style="' + _MRI + '" placeholder="e.g. 13 & 15"></div>' +
+                    '<div><label style="' + _MRL + '">Visit date</label><input id="mrVisitDate" type="date" style="' + _MRI + '" value="' + today + '" onchange="mrDateChanged()"></div>' +
+                    '<div><label style="' + _MRL + '">Next visit</label><input id="mrNextVisit" type="date" style="' + _MRI + '"></div>' +
+                    '<div><label style="' + _MRL + '">Technician</label><input id="mrTech" style="' + _MRI + '" placeholder="Name"></div>' +
+                    '<div><label style="' + _MRL + '">Template</label><select id="mrTemplate" style="' + _MRI + '" onchange="mrTemplateChanged()">' + _mr.templates.map(function (t) { return '<option value="' + t.id + '">' + escapeAuthText(t.name) + '</option>'; }).join('') + '</select></div>' +
+                    '<div><label style="' + _MRL + '">Seasonal block</label><select id="mrSeason" style="' + _MRI + '" onchange="mrSeasonChanged()">' + ['feb', 'may', 'aug', 'nov'].map(function (s) { return '<option value="' + s + '"' + (s === _mr.season ? ' selected' : '') + '>' + _SEASON_LABEL[s] + '</option>'; }).join('') + '</select></div>' +
+                '</div>' +
+                '<div id="mrSections"></div>' +
+                '<label style="' + _MRL + 'margin-top:0.75rem;">Closeout notes</label>' +
+                '<textarea id="mrCloseout" rows="3" style="' + _MRI + '" placeholder="Repairs, materials, deferred items, next actions…"></textarea>' +
+                '<label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;font-size:0.9rem;color:#4a5568;cursor:pointer;"><input type="checkbox" id="mrFollowUp" style="width:16px;height:16px;"> Follow-up required (owner approval needed over the DNE limit)</label>' +
+                '<div id="mrErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>' +
+                '<div style="display:flex;gap:0.5rem;margin-top:1rem;position:sticky;bottom:0;background:white;padding:0.5rem 0;"><button class="btn btn-secondary" onclick="closeModal(\'mrFormModal\')">Cancel</button><button class="btn btn-primary" id="mrSaveBtn" style="flex:1;" onclick="saveMaintenanceReview()">💾 Save Review</button></div>';
+            if (_mr.template) document.getElementById('mrTemplate').value = _mr.template.id;
+            renderMrSections();
+            openModal('mrFormModal');
+        }
+        function renderMrSections() {
+            var box = document.getElementById('mrSections');
+            if (!box) return;
+            if (!_mr.template) { box.innerHTML = '<p style="color:#a0aec0;">No template — create one under 📋 Templates.</p>'; return; }
+            var secs = _mr.template.sections.filter(function (s) { return s.season === 'every' || s.season === _mr.season; });
+            box.innerHTML = secs.map(function (sec) {
+                var isSeason = sec.season !== 'every';
+                return '<div style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.75rem;overflow:hidden;">' +
+                    '<div style="background:' + (isSeason ? '#ebf8ff' : '#f7fafc') + ';padding:0.5rem 0.85rem;font-weight:700;color:#2d3748;font-size:0.9rem;">' + escapeAuthText(sec.title) + '</div>' +
+                    '<div style="padding:0.25rem 0.85rem;">' + sec.items.map(function (it) { return mrItemRow(it); }).join('') + '</div>' +
+                    '</div>';
+            }).join('');
+        }
+        function mrItemRow(it) {
+            var r = _mr.results[it.id] || {};
+            function b(val, label, color) { var on = r.status === val; return '<button type="button" onclick="mrSetStatus(\'' + it.id + '\',\'' + val + '\')" style="padding:3px 11px;border-radius:6px;border:1.5px solid ' + (on ? color : '#e2e8f0') + ';background:' + (on ? color : '#fff') + ';color:' + (on ? '#fff' : '#718096') + ';font-size:0.78rem;font-weight:700;cursor:pointer;">' + label + '</button>'; }
+            var n = (r.photos || []).length;
+            return '<div style="border-top:1px solid #f0f0f0;padding:0.5rem 0;">' +
+                '<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:flex-start;flex-wrap:wrap;">' +
+                    '<div style="flex:1;min-width:170px;font-size:0.85rem;color:#2d3748;">' + escapeAuthText(it.label) + '</div>' +
+                    '<div style="display:flex;gap:0.3rem;flex-shrink:0;">' + b('pass', 'Pass', '#48bb78') + b('fail', 'Fail', '#e53e3e') + b('na', 'N/A', '#a0aec0') + '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:0.5rem;margin-top:0.4rem;align-items:center;flex-wrap:wrap;">' +
+                    '<input type="text" value="' + escapeAuthText(r.note || '') + '" onchange="mrSetNote(\'' + it.id + '\',this.value)" placeholder="Note (optional)" style="flex:1;min-width:150px;padding:0.35rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.82rem;">' +
+                    '<label style="font-size:0.78rem;background:#edf2f7;color:#4a5568;border:1px solid #e2e8f0;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">📷' + (n ? ' ' + n : '') + '<input type="file" accept="image/*" capture="environment" multiple style="display:none;" onchange="mrAddPhoto(\'' + it.id + '\',event)"></label>' +
+                '</div>' +
+            '</div>';
+        }
+        function mrSetStatus(id, s) { if (!_mr.results[id]) _mr.results[id] = {}; _mr.results[id].status = s; renderMrSections(); }
+        function mrSetNote(id, v) { if (!_mr.results[id]) _mr.results[id] = {}; _mr.results[id].note = v; }
+        function mrAddPhoto(id, ev) {
+            var files = Array.from(ev.target.files || []);
+            if (!_mr.results[id]) _mr.results[id] = {};
+            if (!_mr.results[id].photos) _mr.results[id].photos = [];
+            files.forEach(function (f) { if (!f.type.startsWith('image/')) return; if (_mr.results[id].photos.length >= 6) return; var rd = new FileReader(); rd.onload = function (e) { _mr.results[id].photos.push(e.target.result); renderMrSections(); }; rd.readAsDataURL(f); });
+            ev.target.value = '';
+        }
+        function mrTemplateChanged() { var id = document.getElementById('mrTemplate').value; _mr.template = _mr.templates.find(function (t) { return t.id === id; }) || null; renderMrSections(); }
+        function mrSeasonChanged() { _mr.season = document.getElementById('mrSeason').value; renderMrSections(); }
+        function mrDateChanged() { var d = document.getElementById('mrVisitDate').value; if (d) { _mr.season = _seasonForDate(d); document.getElementById('mrSeason').value = _mr.season; renderMrSections(); } }
+        async function saveMaintenanceReview() {
+            var err = document.getElementById('mrErr');
+            var results = [];
+            Object.keys(_mr.results).forEach(function (id) { var r = _mr.results[id]; if (r.status || r.note || (r.photos && r.photos.length)) results.push({ itemId: id, status: r.status || 'na', note: r.note || '', photos: r.photos || [] }); });
+            if (!results.length) { err.textContent = 'Mark at least one item before saving.'; err.style.display = 'block'; return; }
+            var payload = { clientId: _mr.clientId, templateId: _mr.template ? _mr.template.id : '', templateName: _mr.template ? _mr.template.name : '', propertyLabel: document.getElementById('mrProperty').value, units: document.getElementById('mrUnits').value, visitDate: document.getElementById('mrVisitDate').value, nextVisit: document.getElementById('mrNextVisit').value, technician: document.getElementById('mrTech').value, season: _mr.season, closeoutNotes: document.getElementById('mrCloseout').value, followUpRequired: document.getElementById('mrFollowUp').checked, results: results };
+            var btn = document.getElementById('mrSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+            try {
+                var res = await fetch('/api/maintenance-reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                var data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not save'; err.style.display = 'block'; btn.disabled = false; btn.textContent = '💾 Save Review'; return; }
+                closeModal('mrFormModal');
+                alert('✅ Maintenance review saved.');
+                var client = clients.find(function (c) { return c.id == _mr.clientId; });
+                if (client && payload.nextVisit) client.maintenanceNextDue = payload.nextVisit;
+                if (_currentClientId == _mr.clientId && client) renderClientMaintenance(client);
+            } catch (e) { err.textContent = 'Network error.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = '💾 Save Review'; }
+        }
+        async function viewMaintenanceReview(id) {
+            var m = _makeSimpleModal('mrViewModal', '🔧 Maintenance Review');
+            m.querySelector('.modal-content').style.maxWidth = '720px';
+            var body = document.getElementById('mrViewModal-body');
+            body.innerHTML = '<p style="color:#718096;">Loading…</p>';
+            openModal('mrViewModal');
+            var r; try { r = await (await fetch('/api/maintenance-reviews/' + id)).json(); } catch (e) { body.innerHTML = '<p style="color:#e53e3e;">Failed to load.</p>'; return; }
+            body.innerHTML = renderReviewHtml(r);
+        }
+        function renderReviewHtml(r) {
+            var tmpl = (_mr && _mr.templates) ? null : null;
+            var head = '<div style="font-size:0.85rem;color:#4a5568;margin-bottom:1rem;">' +
+                '<strong>' + escapeAuthText(r.propertyLabel || r.templateName || 'Review') + '</strong><br>' +
+                'Visit ' + new Date(r.visitDate).toLocaleDateString() + (r.units ? ' · Units ' + escapeAuthText(r.units) : '') + (r.technician ? ' · ' + escapeAuthText(r.technician) : '') +
+                (r.nextVisit ? '<br>Next visit: ' + new Date(r.nextVisit).toLocaleDateString() : '') + '</div>';
+            var icon = { pass: '<span style="color:#48bb78;font-weight:700;">✓ Pass</span>', fail: '<span style="color:#e53e3e;font-weight:700;">✗ Fail</span>', na: '<span style="color:#a0aec0;">N/A</span>' };
+            var rows = (r.results || []).map(function (it) {
+                var photos = (it.photoUrls || []).map(function (u) { return '<a href="' + u + '" target="_blank"><img src="' + u + '" style="width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;"></a>'; }).join('');
+                return '<div style="border-top:1px solid #edf2f7;padding:0.5rem 0;font-size:0.85rem;">' +
+                    '<div style="display:flex;justify-content:space-between;gap:0.5rem;"><span style="color:#2d3748;">' + (it.label ? escapeAuthText(it.label) : _mrItemLabel(r, it.itemId)) + '</span><span style="flex-shrink:0;">' + (icon[it.status] || '') + '</span></div>' +
+                    (it.note ? '<div style="color:#718096;font-size:0.8rem;margin-top:2px;">' + escapeAuthText(it.note) + '</div>' : '') +
+                    (photos ? '<div style="display:flex;gap:0.4rem;margin-top:0.4rem;flex-wrap:wrap;">' + photos + '</div>' : '') +
+                    '</div>';
+            }).join('');
+            var close = r.closeoutNotes ? '<div style="margin-top:1rem;background:#fffbea;border:1px solid #f6e05e;border-radius:8px;padding:0.75rem 1rem;font-size:0.85rem;color:#744210;"><strong>Closeout:</strong> ' + escapeAuthText(r.closeoutNotes) + (r.followUpRequired ? '<br><strong>Follow-up required.</strong>' : '') + '</div>' : '';
+            return head + rows + close;
+        }
+        function _mrItemLabel(r, itemId) {
+            // Try to resolve the item label from cached templates; fall back to the id
+            if (_mr && _mr.templates) { for (var t = 0; t < _mr.templates.length; t++) { var tp = _mr.templates[t]; for (var s = 0; s < tp.sections.length; s++) { var found = tp.sections[s].items.find(function (i) { return i.id === itemId; }); if (found) return escapeAuthText(found.label); } } }
+            return '<span style="color:#a0aec0;">Item</span>';
+        }
+
+        // ── Checklist template manager ──
+        var _chkTpls = [];
+        async function openChecklistTemplates() {
+            var m = _makeSimpleModal('chkTplModal', '📋 Maintenance Checklist Templates');
+            m.querySelector('.modal-content').style.maxWidth = '720px';
+            var body = document.getElementById('chkTplModal-body');
+            body.innerHTML = '<p style="color:#718096;">Loading…</p>';
+            openModal('chkTplModal');
+            try { _chkTpls = await (await fetch('/api/checklist-templates')).json(); } catch (e) { _chkTpls = []; }
+            renderChkTplList();
+        }
+        function renderChkTplList() {
+            var body = document.getElementById('chkTplModal-body');
+            var rows = _chkTpls.map(function (t) {
+                var itemN = t.sections.reduce(function (n, s) { return n + s.items.length; }, 0);
+                return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border:1.5px solid #e2e8f0;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.5rem;">' +
+                    '<div><strong style="color:#2d3748;">' + escapeAuthText(t.name) + '</strong><div style="font-size:0.78rem;color:#a0aec0;">' + t.sections.length + ' sections · ' + itemN + ' items</div></div>' +
+                    '<div style="display:flex;gap:0.4rem;flex-shrink:0;"><button class="btn btn-secondary btn-small" onclick="chkTplEdit(\'' + t.id + '\')">Edit</button>' +
+                    '<button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="chkTplDelete(\'' + t.id + '\')">Delete</button></div></div>';
+            }).join('');
+            body.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;"><span style="font-size:0.85rem;color:#718096;">Reusable checklists for maintenance visits.</span><button class="btn btn-primary btn-small" onclick="chkTplNew()">+ New template</button></div>' + (rows || '<p style="color:#a0aec0;">No templates.</p>');
+        }
+        function chkTplNew() { _chkTplEditRender({ id: '', name: '', sections: [{ title: '', season: 'every', itemsText: '' }] }); }
+        function chkTplEdit(id) {
+            var t = _chkTpls.find(function (x) { return x.id === id; });
+            if (!t) return;
+            _chkTplEditRender({ id: t.id, name: t.name, sections: t.sections.map(function (s) { return { title: s.title, season: s.season, itemsText: s.items.map(function (i) { return i.label; }).join('\\n') }; }) });
+        }
+        var _chkDraft = null;
+        function _chkTplEditRender(draft) {
+            _chkDraft = draft;
+            var body = document.getElementById('chkTplModal-body');
+            var seasonSel = function (i, val) { return ['every', 'feb', 'may', 'aug', 'nov'].map(function (s) { var lbl = s === 'every' ? 'Every visit' : _SEASON_LABEL[s]; return '<option value="' + s + '"' + (s === val ? ' selected' : '') + '>' + lbl + '</option>'; }).join(''); };
+            var secs = draft.sections.map(function (s, i) {
+                return '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:0.6rem 0.75rem;margin-bottom:0.6rem;background:#fafafa;">' +
+                    '<div style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">' +
+                        '<input id="cs-title-' + i + '" value="' + escapeAuthText(s.title) + '" placeholder="Section title" style="flex:1;min-width:160px;padding:0.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-weight:600;">' +
+                        '<select id="cs-season-' + i + '" style="padding:0.4rem;border:1.5px solid #e2e8f0;border-radius:6px;">' + seasonSel(i, s.season) + '</select>' +
+                        '<button type="button" onclick="chkRemoveSection(' + i + ')" style="background:#fed7d7;color:#c53030;border:none;border-radius:6px;width:34px;cursor:pointer;">✕</button>' +
+                    '</div>' +
+                    '<textarea id="cs-items-' + i + '" rows="4" placeholder="One checklist item per line" style="width:100%;padding:0.5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">' + escapeAuthText(s.itemsText) + '</textarea>' +
+                    '</div>';
+            }).join('');
+            body.innerHTML =
+                '<label style="' + _MRL + '">Template name</label><input id="chkName" value="' + escapeAuthText(draft.name) + '" style="' + _MRI + 'margin-bottom:0.75rem;" placeholder="e.g. Quarterly Property Maintenance">' +
+                '<div style="font-size:0.8rem;color:#718096;margin-bottom:0.4rem;">Sections — mark each “Every visit” or a seasonal month (Feb/May/Aug/Nov). One item per line.</div>' +
+                secs +
+                '<button class="btn btn-secondary btn-small" onclick="chkAddSection()">+ Add section</button>' +
+                '<div id="chkErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>' +
+                '<div style="display:flex;gap:0.5rem;margin-top:1rem;"><button class="btn btn-secondary" onclick="renderChkTplList()">← Back</button><button class="btn btn-primary" style="flex:1;" onclick="chkTplSave()">💾 Save template</button></div>';
+        }
+        function _chkSyncDraft() {
+            if (!_chkDraft) return;
+            _chkDraft.name = document.getElementById('chkName').value;
+            _chkDraft.sections.forEach(function (s, i) {
+                var t = document.getElementById('cs-title-' + i), se = document.getElementById('cs-season-' + i), it = document.getElementById('cs-items-' + i);
+                if (t) s.title = t.value; if (se) s.season = se.value; if (it) s.itemsText = it.value;
+            });
+        }
+        function chkAddSection() { _chkSyncDraft(); _chkDraft.sections.push({ title: '', season: 'every', itemsText: '' }); _chkTplEditRender(_chkDraft); }
+        function chkRemoveSection(i) { _chkSyncDraft(); _chkDraft.sections.splice(i, 1); if (!_chkDraft.sections.length) _chkDraft.sections.push({ title: '', season: 'every', itemsText: '' }); _chkTplEditRender(_chkDraft); }
+        async function chkTplSave() {
+            _chkSyncDraft();
+            var err = document.getElementById('chkErr');
+            if (!_chkDraft.name.trim()) { err.textContent = 'Template name required.'; err.style.display = 'block'; return; }
+            var sections = _chkDraft.sections.map(function (s) { return { id: undefined, title: s.title, season: s.season, items: s.itemsText.split('\\n').map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) { return { label: l }; }) }; }).filter(function (s) { return s.items.length; });
+            if (!sections.length) { err.textContent = 'Add at least one section with items.'; err.style.display = 'block'; return; }
+            try {
+                var res = await fetch('/api/checklist-templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: _chkDraft.id || undefined, name: _chkDraft.name, sections: sections }) });
+                var data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not save'; err.style.display = 'block'; return; }
+                _chkTpls = data.templates || _chkTpls;
+                renderChkTplList();
+            } catch (e) { err.textContent = 'Network error.'; err.style.display = 'block'; }
+        }
+        async function chkTplDelete(id) {
+            if (!confirm('Delete this template?')) return;
+            try { var res = await fetch('/api/checklist-templates/' + id, { method: 'DELETE' }); var data = await res.json(); _chkTpls = data.templates || []; renderChkTplList(); } catch (e) { alert('Network error'); }
+        }
+
         async function viewClientDetail(clientId) {
             const client = clients.find(c => c.id == clientId);
             if (!client) return;
@@ -8861,6 +9152,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Update client info
             document.getElementById('client-detail-name').textContent = client.name;
             renderClientMsaSection(client);
+            renderClientMaintenance(client);
             document.getElementById('client-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${client.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(client.phone) || 'N/A'}</p>
