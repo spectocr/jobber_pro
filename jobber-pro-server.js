@@ -3816,6 +3816,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="serviceLocationsContainer"></div>
                     </div>
                     <div class="form-group">
+                        <label>MSA Special Provisions <span style="font-weight:400;color:#a0aec0;font-size:0.82rem;">— extra agreement clauses for this client (fills {specialProvisions})</span></label>
+                        <textarea name="msaProvisions" id="clientMsaProvisions" rows="3" placeholder="e.g. Quarterly maintenance plan for 13 & 15 Sandra Rd at $X/visit. Owner approval required over the DNE limit."></textarea>
+                    </div>
+                    <div class="form-group">
                         <label>Notes</label>
                         <textarea name="notes"></textarea>
                     </div>

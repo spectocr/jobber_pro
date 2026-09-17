@@ -1047,7 +1047,8 @@ async function checkPortalMsa() {
 function openPortalMsa() {
     if (!_msaData) return;
     let text = _msaData.body || '';
-    if (_msaData.provisions) text += '\n\n\nSPECIAL PROVISIONS\n\n' + _msaData.provisions;
+    // Only append a provisions block if the template didn't already merge {specialProvisions}
+    if (_msaData.provisions && !_msaData.provisionsInBody) text += '\n\n\nSPECIAL PROVISIONS\n\n' + _msaData.provisions;
     document.getElementById('msaBody').textContent = text;
     const signed = !!_msaData.signature;
     const note = document.getElementById('msaSignedNote');

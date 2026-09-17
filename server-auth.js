@@ -6482,13 +6482,16 @@ app.get('/api/client-portal/msa', async (req, res) => {
         if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
         const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
         if (!client) return res.status(404).json({ error: 'Not found' });
-        if (client.parentClientId) return res.json({ applicable: false }); // sub-tenants don't sign the MSA
+        // Sub-tenants (a location-scoped session) never sign the MSA — only the main client.
+        if (client.parentClientId || req.session.portalLocationId) return res.json({ applicable: false });
         const settings = await db.collection('settings').findOne({}) || {};
         const companyName = settings.companyName || 'GSD Property Services';
         const msa = await getOrSeedMsa();
-        const vars = { clientName: client.name, companyName, date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), doNotExceed: fmtMoneyPlain(client.doNotExceed) };
+        const provisions = (client.msaProvisions || '').trim();
+        const vars = { clientName: client.name, companyName, date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), doNotExceed: fmtMoneyPlain(client.doNotExceed), specialProvisions: provisions || 'None.' };
+        const provisionsInBody = /\{specialProvisions\}/.test(msa.body || '');
         const signed = client.msaSignature && client.msaSignature.version === msa.version ? client.msaSignature : null;
-        res.json({ applicable: true, version: msa.version, body: mergeMsa(msa.body, vars), provisions: client.msaProvisions || '', signature: signed });
+        res.json({ applicable: true, version: msa.version, body: mergeMsa(msa.body, vars), provisions, provisionsInBody, signature: signed });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/client-portal/msa/sign', async (req, res) => {
