@@ -1633,6 +1633,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div id="client-msa-section" style="display:none;margin-bottom:1.5rem;"></div>
                 <!-- Maintenance reviews (PM clients) -->
                 <div id="client-maintenance-section" style="display:none;margin-bottom:1.5rem;"></div>
+                <!-- Tenant sub-portals (PM clients) -->
+                <div id="client-tenants-section" style="display:none;margin-bottom:1.5rem;"></div>
                 <!-- Client Relationship Stats -->
                 <div id="client-stats-section" style="margin-bottom: 2rem;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">📊 Client Relationship Overview</h3>
@@ -3796,6 +3798,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>
                     <div id="propertyManagementFields" style="display: none; border-left: 3px solid #667eea; padding-left: 1rem; margin-top: 1rem;">
+                        <div class="form-group">
+                            <label>Do-Not-Exceed (owner approval required above)</label>
+                            <select name="doNotExceed" id="clientDneSelect" onchange="toggleDneCustom()">
+                                <option value="250">$250</option>
+                                <option value="500" selected>$500</option>
+                                <option value="750">$750</option>
+                                <option value="custom">Custom…</option>
+                            </select>
+                            <input type="number" id="clientDneCustom" placeholder="Custom $ amount" min="0" step="50" style="display:none;margin-top:0.5rem;width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;">
+                            <div style="font-size:0.8rem;color:#718096;margin-top:0.25rem;">Work billed at or above this needs the owner's approval; under it proceeds without.</div>
+                        </div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h3 style="margin: 0; color: #667eea;">Service Locations</h3>
                             <button type="button" class="btn btn-primary btn-small" onclick="addServiceLocation()">+ Add Location</button>
@@ -5221,6 +5234,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Handle property management checkbox
                 const pmCheckbox = document.getElementById('isPropertyManagementCheckbox');
                 pmCheckbox.checked = client.isPropertyManagement || false;
+                setDneField(client.doNotExceed);
 
                 // SMS opt-out checkbox
                 document.getElementById('clientSmsOptOut').checked = client.smsOptOut || false;
@@ -6338,6 +6352,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Add service locations if property management is enabled
             if (client.isPropertyManagement) {
                 client.serviceLocations = serviceLocations;
+                client.doNotExceed = getDneValue();
             }
 
             // Portal access
@@ -8537,6 +8552,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const fields = document.getElementById('propertyManagementFields');
             fields.style.display = checkbox.checked ? 'block' : 'none';
         }
+        function toggleDneCustom() {
+            const sel = document.getElementById('clientDneSelect');
+            document.getElementById('clientDneCustom').style.display = sel.value === 'custom' ? 'block' : 'none';
+        }
+        function setDneField(val) {
+            const sel = document.getElementById('clientDneSelect');
+            const custom = document.getElementById('clientDneCustom');
+            const v = parseFloat(val);
+            if (['250', '500', '750'].includes(String(v))) { sel.value = String(v); custom.style.display = 'none'; custom.value = ''; }
+            else if (Number.isFinite(v) && v > 0) { sel.value = 'custom'; custom.style.display = 'block'; custom.value = v; }
+            else { sel.value = '500'; custom.style.display = 'none'; custom.value = ''; }
+        }
+        function getDneValue() {
+            const sel = document.getElementById('clientDneSelect');
+            if (!sel) return 500;
+            if (sel.value === 'custom') return parseFloat(document.getElementById('clientDneCustom').value) || 500;
+            return parseFloat(sel.value) || 500;
+        }
 
         function toggleTaxExemptFields() {
             const on = document.getElementById('taxExemptCheckbox').checked;
@@ -9136,6 +9169,56 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             try { var res = await fetch('/api/checklist-templates/' + id, { method: 'DELETE' }); var data = await res.json(); _chkTpls = data.templates || []; renderChkTplList(); } catch (e) { alert('Network error'); }
         }
 
+        // ── Tenant sub-portals ──
+        function renderClientTenants(client) {
+            var box = document.getElementById('client-tenants-section');
+            if (!box) return;
+            if (!client.isPropertyManagement || !Array.isArray(client.serviceLocations) || !client.serviceLocations.length) { box.style.display = 'none'; return; }
+            box.style.display = 'block';
+            var rows = client.serviceLocations.map(function (l) {
+                var hasLogin = !!l.portalPassword;
+                var em = l.contactEmail || '';
+                var status = hasLogin ? '<span style="background:#c6f6d5;color:#276749;font-size:0.72rem;font-weight:700;padding:2px 9px;border-radius:10px;">Login active</span>' : (em ? '<span style="background:#fefcbf;color:#744210;font-size:0.72rem;font-weight:700;padding:2px 9px;border-radius:10px;">Email only</span>' : '<span style="color:#a0aec0;font-size:0.8rem;">No tenant</span>');
+                return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border-top:1px solid #edf2f7;padding:0.5rem 0;flex-wrap:wrap;">' +
+                    '<div><strong style="color:#2d3748;">' + escapeAuthText(l.address || l.name || 'Property') + '</strong>' + (em ? ' · <span style="color:#718096;font-size:0.85rem;">' + escapeAuthText(em) + '</span>' : '') + ' &nbsp;' + status + '</div>' +
+                    '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;flex-shrink:0;">' +
+                        '<button class="btn btn-secondary btn-small" onclick="setTenantAccess(\'' + client.id + '\',\'' + l.id + '\')">' + (hasLogin ? 'Reset login' : 'Set up login') + '</button>' +
+                        (hasLogin ? '<button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="disableTenantAccess(\'' + client.id + '\',\'' + l.id + '\')">Disable</button>' : '') +
+                    '</div></div>';
+            }).join('');
+            box.innerHTML = '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;background:#fafafa;">' +
+                '<div style="margin-bottom:0.4rem;"><strong style="color:#2d3748;">🔑 Tenant Portals</strong> <span style="color:#a0aec0;font-size:0.82rem;">— each property can have its own tenant login (submit &amp; track requests only, no pricing)</span></div>' +
+                rows + '</div>';
+        }
+        async function setTenantAccess(clientId, locId) {
+            var email = prompt('Tenant email for this property (they log in with this):');
+            if (email === null) return; email = email.trim();
+            if (!email) { alert('Email required.'); return; }
+            var pw = prompt('Set an access code (password) for this tenant:');
+            if (pw === null) return; pw = pw.trim();
+            if (pw.length < 4) { alert('Access code must be at least 4 characters.'); return; }
+            var invite = confirm('Email the tenant their login details now?');
+            try {
+                var res = await fetch('/api/clients/' + clientId + '/locations/' + locId + '/tenant-access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: pw, sendInvite: invite }) });
+                var data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not set up'); return; }
+                alert('✅ Tenant login set.' + (data.emailed ? ' Invite emailed.' : ''));
+                var client = clients.find(function (c) { return c.id == clientId; });
+                if (client && client.serviceLocations) { var l = client.serviceLocations.find(function (x) { return String(x.id) === String(locId); }); if (l) { l.contactEmail = email; l.portalPassword = 'set'; } }
+                if (_currentClientId == clientId && client) renderClientTenants(client);
+            } catch (e) { alert('Network error'); }
+        }
+        async function disableTenantAccess(clientId, locId) {
+            if (!confirm('Disable this tenant\'s login? They will no longer be able to log in.')) return;
+            try {
+                var res = await fetch('/api/clients/' + clientId + '/locations/' + locId + '/tenant-access', { method: 'DELETE' });
+                if (!res.ok) { alert('Could not disable'); return; }
+                var client = clients.find(function (c) { return c.id == clientId; });
+                if (client && client.serviceLocations) { var l = client.serviceLocations.find(function (x) { return String(x.id) === String(locId); }); if (l) delete l.portalPassword; }
+                if (_currentClientId == clientId && client) renderClientTenants(client);
+            } catch (e) { alert('Network error'); }
+        }
+
         async function viewClientDetail(clientId) {
             const client = clients.find(c => c.id == clientId);
             if (!client) return;
@@ -9153,6 +9236,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('client-detail-name').textContent = client.name;
             renderClientMsaSection(client);
             renderClientMaintenance(client);
+            renderClientTenants(client);
             document.getElementById('client-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${client.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(client.phone) || 'N/A'}</p>

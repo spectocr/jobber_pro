@@ -3151,6 +3151,17 @@ app.post('/api/clients', isAuthenticated, async (req, res) => {
     if (client._id) {
         const { _id, ...updateData } = client;
         const before = await db.collection('clients').findOne({ _id: new ObjectId(_id) });
+        // Preserve per-location tenant passwords (set via the tenant-access endpoint,
+        // not present in the client form) so a form save can't wipe tenant logins.
+        if (Array.isArray(updateData.serviceLocations) && before && Array.isArray(before.serviceLocations)) {
+            const byId = {};
+            before.serviceLocations.forEach(l => { byId[String(l.id)] = l; });
+            updateData.serviceLocations = updateData.serviceLocations.map(l => {
+                const prev = byId[String(l.id)];
+                if (prev && prev.portalPassword && !l.portalPassword) return { ...l, portalPassword: prev.portalPassword };
+                return l;
+            });
+        }
         await db.collection('clients').updateOne(
             { _id: new ObjectId(_id) },
             { $set: { ...updateData, updatedAt: new Date() } }
@@ -6419,6 +6430,52 @@ app.post('/api/clients/:id/msa/send', isAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Tenant sub-portal access (a service location = one tenant login) ──
+app.post('/api/clients/:id/locations/:locId/tenant-access', isAdmin, async (req, res) => {
+    try {
+        const { email, password, sendInvite } = req.body || {};
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        const loc = (client.serviceLocations || []).find(l => String(l.id) === String(req.params.locId));
+        if (!loc) return res.status(404).json({ error: 'Property/location not found' });
+        const set = {};
+        const em = (email || loc.contactEmail || '').trim().toLowerCase();
+        if (!em) return res.status(400).json({ error: 'A tenant email is required' });
+        set['serviceLocations.$[l].contactEmail'] = em;
+        if (password) set['serviceLocations.$[l].portalPassword'] = await bcrypt.hash(password, 10);
+        await db.collection('clients').updateOne({ _id: client._id }, { $set: set }, { arrayFilters: [{ 'l.id': loc.id }] });
+        let emailed = false;
+        if (sendInvite && em && emailService && emailService.sendEmail) {
+            const settings = await db.collection('settings').findOne({}) || {};
+            const companyName = settings.companyName || 'GSD Property Services';
+            const loginUrl = `${process.env.APP_URL}/client-login`;
+            await emailService.sendEmail({
+                to: em,
+                subject: `Your tenant portal access — ${companyName}`,
+                html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                    <h2 style="color:#667eea;">Your maintenance request portal is ready</h2>
+                    <p>You can now submit and track maintenance requests for <strong>${loc.address || loc.name || 'your unit'}</strong> online.</p>
+                    <p><strong>Login:</strong> ${em}<br>${password ? '<strong>Access code:</strong> ' + password : 'Use the access code provided to you.'}</p>
+                    <p style="margin-top:1.5rem;"><a href="${loginUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Open your portal →</a></p>
+                </div>`,
+                text: `Your tenant portal for ${loc.address || 'your unit'} is ready.\nLogin: ${em}\n${password ? 'Access code: ' + password + '\n' : ''}Portal: ${loginUrl}`
+            });
+            emailed = true;
+        }
+        res.json({ success: true, emailed });
+    } catch (e) { console.error('Tenant access error:', e); res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/clients/:id/locations/:locId/tenant-access', isAdmin, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        const loc = (client.serviceLocations || []).find(l => String(l.id) === String(req.params.locId));
+        if (!loc) return res.status(404).json({ error: 'Not found' });
+        await db.collection('clients').updateOne({ _id: client._id }, { $unset: { 'serviceLocations.$[l].portalPassword': '' } }, { arrayFilters: [{ 'l.id': loc.id }] });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Portal: fetch this client's MSA (base + provisions) and signed status
 app.get('/api/client-portal/msa', async (req, res) => {
     try {
@@ -9144,15 +9201,16 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
             email: { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
         });
         let matchedLocationId = null;
+        let matchedLoc = null;
 
-        // If not found by primary email, check service location contact emails
+        // If not found by primary email, check service location contact emails (tenants)
         if (!client) {
             client = await db.collection('clients').findOne({
                 'serviceLocations.contactEmail': { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
             });
             if (client) {
                 const loc = client.serviceLocations.find(l => l.contactEmail?.toLowerCase() === emailNorm);
-                if (loc) matchedLocationId = String(loc.id);
+                if (loc) { matchedLocationId = String(loc.id); matchedLoc = loc; }
             }
         }
 
@@ -9161,12 +9219,14 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or access code' });
         }
 
-        if (!client.portalPassword) {
+        // A tenant (location) uses their own location password if set; otherwise the client's.
+        const effectivePassword = (matchedLoc && matchedLoc.portalPassword) ? matchedLoc.portalPassword : client.portalPassword;
+        if (!effectivePassword) {
             await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: false, reason: 'Portal access not set up' });
             return res.status(401).json({ error: 'Portal access not set up. Contact us to enable portal access.' });
         }
 
-        const passwordMatch = await bcrypt.compare(password, client.portalPassword);
+        const passwordMatch = await bcrypt.compare(password, effectivePassword);
         if (!passwordMatch) {
             await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: false, reason: 'Wrong access code' });
             return res.status(401).json({ error: 'Invalid email or access code' });
@@ -9269,7 +9329,19 @@ app.get('/api/client-portal/me', async (req, res) => {
             })
             .sort((a, b) => new Date(b.date) - new Date(a.date));
 
+        // Tenant (location-scoped) sessions never see money — strip pricing & invoices.
+        const stripMoney = arr => arr.map(x => {
+            const c = { ...x };
+            ['total', 'totalWithTax', 'totalPaid', 'balanceOwed', 'subtotal', 'tax', 'lineItems', 'laborItems', 'materialItems', 'payments', 'deposit', 'amountPaid'].forEach(k => delete c[k]);
+            return c;
+        });
+        const tenantView = !!locationId;
+        const outQuotes = tenantView ? stripMoney(quotesWithId) : quotesWithId;
+        const outJobs = tenantView ? stripMoney(jobsWithId) : jobsWithId;
+        const outInvoices = tenantView ? [] : invoices;
+
         res.json({
+            tenantView,
             client: {
                 name: matchedLocation ? `${matchedLocation.name || matchedLocation.address}` : client.name,
                 displayName: client.name,
@@ -9279,9 +9351,9 @@ app.get('/api/client-portal/me', async (req, res) => {
                 locationAddress: matchedLocation?.address || '',
                 isPropertyManagement: !!client.isPropertyManagement
             },
-            quotes: quotesWithId,
-            jobs: jobsWithId,
-            invoices,
+            quotes: outQuotes,
+            jobs: outJobs,
+            invoices: outInvoices,
             addresses: locationId && matchedLocation
                 ? [{ id: String(matchedLocation.id), label: matchedLocation.name || matchedLocation.address, address: matchedLocation.address }]
                 : addresses,
@@ -9632,6 +9704,8 @@ app.post('/api/client-portal/quote-request', async (req, res) => {
             priority: priority || 'flexible',
             status: 'draft',
             source: 'portal',
+            submittedByTenant: !!sessionLocationId,
+            submittedByLocationId: sessionLocationId || null,
             total: 0,
             lineItems: [],
             validUntil,

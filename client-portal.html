@@ -489,6 +489,19 @@
 
 <script>
 let clientData = null;
+let _tenantView = false;
+function _itemBadges(item) {
+    if (_tenantView) return '';
+    var parts = [];
+    var locName = '';
+    if (item.serviceLocationId != null && clientData) {
+        var loc = (clientData.addresses || []).find(function (a) { return String(a.id) === String(item.serviceLocationId); });
+        if (loc) locName = loc.label || loc.address;
+    }
+    if (locName) parts.push('<span style="background:#edf2f7;color:#4a5568;font-size:0.72rem;padding:1px 8px;border-radius:8px;">📍 ' + esc(locName) + '</span>');
+    if (item.submittedByTenant) parts.push('<span style="background:#fef3c7;color:#92400e;font-size:0.72rem;padding:1px 8px;border-radius:8px;">🏠 Tenant request</span>');
+    return parts.length ? '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin:0.25rem 0;">' + parts.join('') + '</div>' : '';
+}
 let qrPhotos   = [];
 
 // ── Workflow stepper ──────────────────────────────────────────────────────────
@@ -667,6 +680,7 @@ function renderQuoteCard(quote, T) {
     <div class="card${isArchived ? ' card-archived' : ''}">
         <span class="card-type-badge badge-quote">${typeLabel}</span>
         <div class="card-title">${quote.title}</div>
+        ${_itemBadges(quote)}
         ${descSnippet ? `<div class="card-desc">${descSnippet}</div>` : ''}
         <div class="card-meta">${meta}</div>
         ${buildWorkflowStepper(getQuoteStages(quote))}
@@ -691,13 +705,14 @@ function renderJobCard(job, T) {
     <div class="card">
         <span class="card-type-badge badge-job">Job</span>
         <div class="card-title">${job.title}</div>
+        ${_itemBadges(job)}
         ${jobDesc ? `<div class="card-desc">${jobDesc}</div>` : ''}
         <div class="card-meta">Scheduled: ${date}${time ? ' · ' + time : ''}</div>
         ${buildWorkflowStepper(getJobStages(job))}
         <div class="card-actions">
             <span class="status-badge ${statusClass}">${statusLabel}</span>
             <button class="btn btn-primary" onclick="viewJobDetail('${esc(job.id)}')">View Details</button>
-            ${job.status === 'invoiced' ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-success">View Invoice</a>` : ''}
+            ${job.status === 'invoiced' && !_tenantView ? `<a href="/invoice/${job.id}" target="_blank" class="btn btn-success">View Invoice</a>` : ''}
             <button class="btn btn-ghost" onclick="openMessageModal('job','${esc(job.id)}')">Message</button>
         </div>
     </div>`;
@@ -740,6 +755,7 @@ async function loadClientData() {
         const res = await fetch('/api/client-portal/me');
         if (!res.ok) { window.location.href = '/client-login'; return; }
         clientData = await res.json();
+        _tenantView = !!clientData.tenantView;
 
         const isPM = clientData.client.isPropertyManagement;
         if (isPM) { const rt = document.getElementById('tab-btn-reports'); if (rt) rt.style.display = ''; }
