@@ -6321,6 +6321,134 @@ app.post('/api/handbook/share', isAdmin, async (req, res) => {
     }
 });
 
+// ── Master Service Agreement (MSA) — client-signed ──────────────────────────
+function defaultMsaBody(companyName) {
+    const co = companyName || 'GSD Property Services';
+    return [
+        'MASTER SERVICE AGREEMENT',
+        '',
+        'This Master Service Agreement ("Agreement") is entered into as of {date} by and between ' + co + ' ("Contractor") and {clientName} ("Client").',
+        '',
+        '1. SERVICES. Contractor will provide handyman, repair, maintenance, and related property services as requested by Client and agreed upon from time to time, whether under this Agreement generally or under a specific quote, work order, or maintenance plan.',
+        '',
+        '2. AUTHORIZATION & SPENDING LIMIT. Client authorizes Contractor to perform requested work. For any single item of work Contractor reasonably expects to exceed {doNotExceed}, Contractor will obtain Client approval before proceeding. Work at or under that amount may proceed without separate approval.',
+        '',
+        '3. PRICING & PAYMENT. Work is billed at the rates in the applicable quote or Contractor\'s standard rates. Invoices are due on receipt unless written payment terms are noted on the Client\'s account. A credit-card surcharge may apply to card payments.',
+        '',
+        '4. ACCESS. Client will provide safe, timely access to the property and any areas needed to perform the work.',
+        '',
+        '5. INDEPENDENT CONTRACTOR. Contractor is an independent contractor, not an employee, agent, or partner of Client.',
+        '',
+        '6. INSURANCE. Contractor maintains general liability insurance and will provide a certificate on request.',
+        '',
+        '7. LIMITATION OF LIABILITY. To the fullest extent permitted by law, Contractor\'s liability arising out of the services is limited to the amount paid for the specific work giving rise to the claim. Contractor is not liable for pre-existing conditions or for indirect or consequential damages.',
+        '',
+        '8. TERM & TERMINATION. This Agreement remains in effect until terminated by either party with written notice. Termination does not affect obligations for work already performed.',
+        '',
+        '9. GOVERNING LAW. This Agreement is governed by the laws of the State of New Jersey.',
+        '',
+        '10. ENTIRE AGREEMENT. This Agreement, together with any special provisions below and the applicable quotes/work orders, is the entire agreement between the parties and supersedes prior understandings.',
+        '',
+        'By signing below, Client acknowledges they have read, understood, and agree to this Agreement.'
+    ].join('\n');
+}
+async function getOrSeedMsa() {
+    const s = await db.collection('settings').findOne({}) || {};
+    if (s.msaTemplate && s.msaTemplate.body) return s.msaTemplate;
+    const msa = { version: 1, body: defaultMsaBody(s.companyName), updatedAt: new Date(), updatedBy: 'System' };
+    await db.collection('settings').updateOne({}, { $set: { msaTemplate: msa } }, { upsert: true });
+    return msa;
+}
+function mergeMsa(body, vars) {
+    return String(body || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
+}
+function fmtMoneyPlain(n) { const v = parseFloat(n); return Number.isFinite(v) && v > 0 ? '$' + v.toFixed(0) : '$500'; }
+
+// Admin: read / edit the base MSA template
+app.get('/api/msa-template', isAdmin, async (req, res) => {
+    try { res.json(await getOrSeedMsa()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/msa-template', isAdmin, async (req, res) => {
+    try {
+        const body = ((req.body && req.body.body) || '').trim();
+        if (!body) return res.status(400).json({ error: 'MSA text is required' });
+        const existing = await getOrSeedMsa();
+        const changed = existing.body !== body;
+        const msa = { version: changed ? (existing.version || 1) + 1 : (existing.version || 1), body, updatedAt: changed ? new Date() : existing.updatedAt, updatedBy: changed ? (req.session.userName || 'Admin') : existing.updatedBy };
+        await db.collection('settings').updateOne({}, { $set: { msaTemplate: msa } }, { upsert: true });
+        res.json({ success: true, version: msa.version, bumped: changed });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: set per-client special provisions + read MSA status for a client
+app.get('/api/clients/:id/msa', isAdmin, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        const msa = await getOrSeedMsa();
+        res.json({ base: msa, provisions: client.msaProvisions || '', signature: client.msaSignature || null, version: msa.version });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/clients/:id/msa', isAdmin, async (req, res) => {
+    try {
+        await db.collection('clients').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { msaProvisions: ((req.body && req.body.provisions) || '').slice(0, 20000) } });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: email the client a link to sign their MSA in the portal
+app.post('/api/clients/:id/msa/send', isAdmin, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        if (!client.email) return res.status(400).json({ error: 'No email on file for this client.' });
+        const settings = await db.collection('settings').findOne({}) || {};
+        const companyName = settings.companyName || 'GSD Property Services';
+        const portalUrl = `${process.env.APP_URL}/client-portal`;
+        await emailService.sendEmail({
+            to: client.email,
+            subject: `Please review & sign your Service Agreement — ${companyName}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                <h2 style="color:#667eea;">Your Service Agreement is ready</h2>
+                <p>Hi ${client.name}, please review and sign your Master Service Agreement with ${companyName}. It takes a minute.</p>
+                <p style="margin-top:1.5rem;"><a href="${portalUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Review &amp; sign in your portal →</a></p>
+            </div>`,
+            text: `Please review and sign your Service Agreement with ${companyName}: ${portalUrl}`
+        });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Portal: fetch this client's MSA (base + provisions) and signed status
+app.get('/api/client-portal/msa', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        if (client.parentClientId) return res.json({ applicable: false }); // sub-tenants don't sign the MSA
+        const settings = await db.collection('settings').findOne({}) || {};
+        const companyName = settings.companyName || 'GSD Property Services';
+        const msa = await getOrSeedMsa();
+        const vars = { clientName: client.name, companyName, date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), doNotExceed: fmtMoneyPlain(client.doNotExceed) };
+        const signed = client.msaSignature && client.msaSignature.version === msa.version ? client.msaSignature : null;
+        res.json({ applicable: true, version: msa.version, body: mergeMsa(msa.body, vars), provisions: client.msaProvisions || '', signature: signed });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/client-portal/msa/sign', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
+        const sig = ((req.body && req.body.signature) || '').trim();
+        if (!sig) return res.status(400).json({ error: 'Signature is required' });
+        const msa = await getOrSeedMsa();
+        const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+        await db.collection('clients').updateOne(
+            { _id: new ObjectId(req.session.clientId) },
+            { $set: { msaSignature: { signature: sig.slice(0, 120), version: msa.version, signedAt: new Date(), ip, userAgent: String(req.headers['user-agent'] || '').slice(0, 300) } } }
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Public read-only handbook via share token.
 app.get('/handbook/:token', async (req, res) => {
     try {

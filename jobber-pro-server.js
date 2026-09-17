@@ -1575,6 +1575,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <input type="text" id="client-search" placeholder="🔍 Search clients..." style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; min-width: 250px;" oninput="filterClients()">
                         <button class="btn btn-secondary" onclick="exportClientsToExcel()">📊 Export to Excel</button>
+                        <button class="btn btn-secondary" onclick="openMsaTemplate()">📄 MSA</button>
                         <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
                     </div>
                 </div>
@@ -1621,6 +1622,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h2 id="client-detail-name"></h2>
                     <button class="btn btn-secondary" onclick="openSendComplianceModal(_currentClientId)" style="font-size: 0.85rem; margin-left: auto;">📎 Send Compliance Docs</button>
                 </div>
+                <!-- MSA status (main clients only) -->
+                <div id="client-msa-section" style="display:none;margin-bottom:1.5rem;"></div>
                 <!-- Client Relationship Stats -->
                 <div id="client-stats-section" style="margin-bottom: 2rem;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">📊 Client Relationship Overview</h3>
@@ -8753,6 +8756,95 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             });
         }
 
+        function renderClientMsaSection(client) {
+            const box = document.getElementById('client-msa-section');
+            if (!box) return;
+            if (client.parentClientId) { box.style.display = 'none'; return; } // sub-tenants don't sign the MSA
+            box.style.display = 'block';
+            const sig = client.msaSignature;
+            const prov = client.msaProvisions || '';
+            const status = sig
+                ? '<span style="background:#c6f6d5;color:#276749;font-size:0.76rem;font-weight:700;padding:2px 10px;border-radius:10px;">✓ Signed</span> <span style="color:#718096;font-size:0.84rem;">“' + escapeAuthText(sig.signature) + '” on ' + new Date(sig.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' (v' + sig.version + ')</span>'
+                : '<span style="background:#fed7d7;color:#742a2a;font-size:0.76rem;font-weight:700;padding:2px 10px;border-radius:10px;">Not signed</span>';
+            box.innerHTML =
+                '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;background:#fafafa;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">' +
+                        '<div><strong style="color:#2d3748;">📄 Master Service Agreement</strong> &nbsp; ' + status + '</div>' +
+                        '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+                            '<button class="btn btn-secondary btn-small" onclick="editClientMsaProvisions(\'' + client.id + '\')">✎ Special provisions' + (prov ? ' •' : '') + '</button>' +
+                            (client.email ? '<button class="btn btn-secondary btn-small" onclick="sendClientMsa(\'' + client.id + '\')">📧 Send to sign</button>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    (prov ? '<div style="margin-top:0.6rem;font-size:0.82rem;color:#4a5568;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem 0.75rem;white-space:pre-wrap;"><strong>Special provisions:</strong> ' + escapeAuthText(prov) + '</div>' : '') +
+                '</div>';
+        }
+        function _makeSimpleModal(id, title) {
+            let m = document.getElementById(id);
+            if (!m) {
+                m = document.createElement('div'); m.id = id; m.className = 'modal';
+                m.innerHTML = '<div class="modal-content" style="max-width:680px;"><div class="modal-header"><h3>' + title + '</h3>' +
+                    '<button class="modal-close" onclick="closeModal(\'' + id + '\')">&times;</button></div>' +
+                    '<div class="modal-body" id="' + id + '-body"></div></div>';
+                document.body.appendChild(m);
+            }
+            return m;
+        }
+        async function openMsaTemplate() {
+            const m = _makeSimpleModal('msaTemplateModal', '📄 Master Service Agreement — Template');
+            const body = document.getElementById('msaTemplateModal-body');
+            body.innerHTML = '<p style="color:#718096;">Loading…</p>';
+            openModal('msaTemplateModal');
+            let data; try { data = await (await fetch('/api/msa-template')).json(); } catch (e) { body.innerHTML = '<p style="color:#e53e3e;">Failed to load.</p>'; return; }
+            body.innerHTML =
+                '<p style="font-size:0.85rem;color:#718096;margin-bottom:0.75rem;">This is the base agreement every main client signs. Use merge fields <code>{clientName}</code>, <code>{companyName}</code>, <code>{date}</code>, <code>{doNotExceed}</code>. Per-client extra clauses are added on each client card. Saving a change bumps the version and prompts clients to re-sign. Have your attorney review the wording.</p>' +
+                '<textarea id="msaTemplateBody" rows="18" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.88rem;line-height:1.6;"></textarea>' +
+                '<div id="msaTplErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>' +
+                '<div style="display:flex;gap:0.5rem;margin-top:1rem;"><button class="btn btn-secondary" onclick="closeModal(\'msaTemplateModal\')">Cancel</button><button class="btn btn-primary" style="flex:1;" onclick="saveMsaTemplate()">💾 Save (v' + data.version + ')</button></div>';
+            document.getElementById('msaTemplateBody').value = data.body || '';
+        }
+        async function saveMsaTemplate() {
+            const body = document.getElementById('msaTemplateBody').value.trim();
+            const err = document.getElementById('msaTplErr');
+            if (!body) { err.textContent = 'Agreement text is required.'; err.style.display = 'block'; return; }
+            try {
+                const res = await fetch('/api/msa-template', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: body }) });
+                const data = await res.json();
+                if (!res.ok) { err.textContent = data.error || 'Could not save'; err.style.display = 'block'; return; }
+                closeModal('msaTemplateModal');
+                alert(data.bumped ? 'Saved — MSA is now v' + data.version + '. Clients will be asked to re-sign.' : 'Saved.');
+            } catch (e) { err.textContent = 'Network error.'; err.style.display = 'block'; }
+        }
+        async function editClientMsaProvisions(clientId) {
+            const client = clients.find(c => c.id == clientId);
+            const m = _makeSimpleModal('msaProvModal', '✎ Special Provisions');
+            const body = document.getElementById('msaProvModal-body');
+            body.innerHTML =
+                '<p style="font-size:0.85rem;color:#718096;margin-bottom:0.75rem;">Extra clauses for <strong>' + escapeAuthText(client ? client.name : '') + '</strong> only — appended below the standard agreement when they sign. Leave blank for none.</p>' +
+                '<textarea id="msaProvBody" rows="8" style="width:100%;padding:0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;line-height:1.6;" placeholder="e.g. Quarterly maintenance plan at $X/visit for 13 & 15 Sandra Rd. Owner approval required over $500."></textarea>' +
+                '<div style="display:flex;gap:0.5rem;margin-top:1rem;"><button class="btn btn-secondary" onclick="closeModal(\'msaProvModal\')">Cancel</button><button class="btn btn-primary" style="flex:1;" onclick="saveClientMsaProvisions(\'' + clientId + '\')">💾 Save provisions</button></div>';
+            document.getElementById('msaProvBody').value = client && client.msaProvisions ? client.msaProvisions : '';
+            openModal('msaProvModal');
+        }
+        async function saveClientMsaProvisions(clientId) {
+            const prov = document.getElementById('msaProvBody').value;
+            try {
+                const res = await fetch('/api/clients/' + clientId + '/msa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provisions: prov }) });
+                if (!res.ok) { alert('Could not save provisions'); return; }
+                const client = clients.find(c => c.id == clientId); if (client) client.msaProvisions = prov;
+                closeModal('msaProvModal');
+                if (_currentClientId == clientId && client) renderClientMsaSection(client);
+            } catch (e) { alert('Network error'); }
+        }
+        async function sendClientMsa(clientId) {
+            if (!confirm('Email this client a link to review and sign their Service Agreement?')) return;
+            try {
+                const res = await fetch('/api/clients/' + clientId + '/msa/send', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not send'); return; }
+                alert('✅ Sent — the client can review and sign in their portal.');
+            } catch (e) { alert('Network error'); }
+        }
+
         async function viewClientDetail(clientId) {
             const client = clients.find(c => c.id == clientId);
             if (!client) return;
@@ -8768,6 +8860,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             // Update client info
             document.getElementById('client-detail-name').textContent = client.name;
+            renderClientMsaSection(client);
             document.getElementById('client-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${client.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(client.phone) || 'N/A'}</p>

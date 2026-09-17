@@ -267,6 +267,34 @@
         </div>
     </div>
 
+    <!-- MSA sign banner (main clients, unsigned) -->
+    <div id="msaBanner" style="display:none;background:#fffaf0;border:1px solid #fbd38d;border-left:4px solid #ed8936;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div style="color:#744210;font-size:0.92rem;">📄 Please review and sign your Service Agreement.</div>
+            <button class="btn btn-primary" onclick="openPortalMsa()" style="padding:0.55rem 1.2rem;">Review &amp; Sign</button>
+        </div>
+    </div>
+
+    <!-- MSA modal -->
+    <div id="msaModal" class="modal-overlay" onclick="if(event.target===this)closeMsaModal()">
+        <div class="modal-box" style="max-width:640px;">
+            <button class="modal-close" onclick="closeMsaModal()">✕</button>
+            <h3 style="margin:0 0 1rem;color:#2d3748;">📄 Master Service Agreement</h3>
+            <div id="msaBody" onscroll="onMsaScroll()" style="max-height:44vh;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;background:#fafafa;font-size:0.86rem;line-height:1.6;white-space:pre-wrap;color:#2d3748;"></div>
+            <div id="msaScrollHint" style="font-size:0.78rem;color:#a0aec0;text-align:center;margin-top:0.5rem;">▼ Scroll to the bottom to sign</div>
+            <div id="msaSignedNote" style="display:none;background:#f0fff4;border:1px solid #c6f6d5;border-radius:8px;padding:0.75rem 1rem;margin-top:0.75rem;color:#276749;font-size:0.9rem;"></div>
+            <div id="msaSignArea" style="display:none;">
+                <label class="form-label" style="margin-top:1rem;">Type your full legal name to sign</label>
+                <input type="text" id="msaSigName" class="form-input" style="font-family:'Snell Roundhand','Segoe Script',cursive;font-size:1.3rem;" placeholder="Your name" disabled autocomplete="off">
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:0.85rem;color:#4a5568;margin-top:0.75rem;cursor:pointer;opacity:0.5;pointer-events:none;" id="msaAgreeWrap">
+                    <input type="checkbox" id="msaAgree" style="width:16px;height:16px;margin-top:2px;"><span>I have read and agree to this Master Service Agreement.</span>
+                </label>
+                <div id="msaErr" style="color:#e53e3e;font-size:0.85rem;margin-top:0.5rem;display:none;"></div>
+                <button class="btn btn-primary" id="msaSignBtn" style="width:100%;padding:0.75rem;margin-top:1rem;" onclick="signPortalMsa()">✓ Sign Agreement</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Tab nav -->
     <div class="tab-nav">
         <button class="tab-btn active" id="tab-btn-activity"    onclick="switchTab('activity')">Activity</button>
@@ -714,6 +742,7 @@ async function loadClientData() {
         window._portalT = T;
 
         checkPortalMsgBadge();
+        checkPortalMsa();
 
         document.getElementById('requestTitle').textContent = T.requestTitle;
         document.querySelector('.portal-request-desc').textContent = T.requestDesc;
@@ -925,6 +954,61 @@ async function checkPortalMsgBadge() {
         const d = await res.json();
         updatePortalMsgBadge(d.unread || 0);
     } catch (e) {}
+}
+
+// ── Master Service Agreement ───────────────────────────────────────────────────
+let _msaData = null;
+async function checkPortalMsa() {
+    try {
+        const res = await fetch('/api/client-portal/msa');
+        if (!res.ok) return;
+        _msaData = await res.json();
+        const banner = document.getElementById('msaBanner');
+        if (banner) banner.style.display = (_msaData.applicable && !_msaData.signature) ? 'block' : 'none';
+    } catch (e) {}
+}
+function openPortalMsa() {
+    if (!_msaData) return;
+    let text = _msaData.body || '';
+    if (_msaData.provisions) text += '\n\n\nSPECIAL PROVISIONS\n\n' + _msaData.provisions;
+    document.getElementById('msaBody').textContent = text;
+    const signed = !!_msaData.signature;
+    const note = document.getElementById('msaSignedNote');
+    note.style.display = signed ? 'block' : 'none';
+    if (signed) note.textContent = '✓ Signed “' + _msaData.signature.signature + '” on ' + new Date(_msaData.signature.signedAt).toLocaleDateString();
+    document.getElementById('msaSignArea').style.display = signed ? 'none' : 'block';
+    document.getElementById('msaScrollHint').style.display = signed ? 'none' : 'block';
+    const sig = document.getElementById('msaSigName'); sig.value = ''; sig.disabled = true;
+    document.getElementById('msaAgree').checked = false;
+    const w = document.getElementById('msaAgreeWrap'); w.style.opacity = '0.5'; w.style.pointerEvents = 'none';
+    document.getElementById('msaErr').style.display = 'none';
+    document.getElementById('msaModal').style.display = 'flex';
+    setTimeout(onMsaScroll, 60);
+}
+function onMsaScroll() {
+    const b = document.getElementById('msaBody');
+    if (!b) return;
+    if (b.scrollTop + b.clientHeight >= b.scrollHeight - 24) {
+        document.getElementById('msaSigName').disabled = false;
+        const w = document.getElementById('msaAgreeWrap'); w.style.opacity = '1'; w.style.pointerEvents = 'auto';
+        const h = document.getElementById('msaScrollHint'); if (h) h.style.display = 'none';
+    }
+}
+function closeMsaModal() { document.getElementById('msaModal').style.display = 'none'; }
+async function signPortalMsa() {
+    const sig = document.getElementById('msaSigName').value.trim();
+    const agree = document.getElementById('msaAgree').checked;
+    const err = document.getElementById('msaErr');
+    if (!sig || !agree) { err.textContent = 'Type your name and check the box to sign.'; err.style.display = 'block'; return; }
+    const btn = document.getElementById('msaSignBtn'); btn.disabled = true; btn.textContent = 'Signing…';
+    try {
+        const res = await fetch('/api/client-portal/msa/sign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ signature: sig }) });
+        if (!res.ok) throw new Error();
+        closeMsaModal();
+        document.getElementById('msaBanner').style.display = 'none';
+        alert('✅ Thank you — your Service Agreement is signed.');
+        checkPortalMsa();
+    } catch (e) { err.textContent = 'Could not sign. Please try again.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = '✓ Sign Agreement'; }
 }
 
 // ── Modals ────────────────────────────────────────────────────────────────────
