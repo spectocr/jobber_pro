@@ -5379,13 +5379,96 @@ app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
 const APPLY_POSITIONS = ['Handyman / Technician', 'Helper / Laborer', 'Painter', 'Carpenter', 'Office / Admin', 'Other'];
 const APPLY_TRADES = ['Drywall', 'Painting', 'Plumbing', 'Electrical', 'Carpentry', 'Flooring', 'Tile', 'Gutters', 'Landscaping', 'Pressure Washing', 'General Repair'];
 
+// Built-in role descriptions (same wording used internally in onboarding's job-description
+// templates) so applicants can read what a role actually involves before they apply.
+function defaultRoleDescriptions(co) {
+    co = co || 'GSD Property Services';
+    const NL = '\n';
+    return [
+        {
+            title: 'Field Technician / Handyman',
+            body: [
+                'Reports to: ' + co + ' Owner / Manager',
+                '',
+                'Summary:',
+                'Perform general handyman, repair, and property maintenance work for ' + co + ' customers, delivering quality workmanship and representing the company professionally.',
+                '',
+                'Responsibilities:',
+                '- Complete assigned jobs (carpentry, drywall, painting, fixture installs, minor plumbing and electrical, general repairs) to company standards.',
+                '- Operate only the tools and perform only the tasks you have been trained and authorized for.',
+                '- Follow all safety rules and wear required PPE at all times.',
+                '- Protect customer property; keep the work area clean and controlled.',
+                '- Report job status, delays, and any additional work needed to the office.',
+                '- Clock in and out accurately and document work with before and after photos.',
+                '- Report any incident, injury, damage, or hazard to the office immediately.',
+                '',
+                'Requirements:',
+                '- Reliable transportation and a valid driver license.',
+                '- Basic hand tools (' + co + ' provides power tools and major equipment).',
+                '- Professional, courteous conduct on every job site.'
+            ].join(NL)
+        },
+        {
+            title: 'Helper / Apprentice',
+            body: [
+                'Reports to: Field Technician / Lead',
+                '',
+                'Summary:',
+                'Assist ' + co + ' technicians on job sites, learning the trade while supporting the safe and efficient completion of work.',
+                '',
+                'Responsibilities:',
+                '- Assist with loading, setup, material handling, and cleanup.',
+                '- Perform tasks under the direction of a technician or lead, only as trained and authorized.',
+                '- Follow all safety rules and wear required PPE at all times.',
+                '- Keep tools, materials, and the work area organized and protected.',
+                '- Report any incident, injury, damage, or hazard immediately.',
+                '',
+                'Requirements:',
+                '- Reliable, punctual, and willing to learn.',
+                '- Able to lift and carry materials and work on your feet.'
+            ].join(NL)
+        },
+        {
+            title: 'Lead / Foreman',
+            body: [
+                'Reports to: ' + co + ' Owner / Manager',
+                '',
+                'Summary:',
+                'Run job sites for ' + co + ', directing the crew and ensuring work is completed safely, on time, and to standard.',
+                '',
+                'Responsibilities:',
+                '- Lead the on-site crew and coordinate the daily work.',
+                '- Verify each crew member only performs tasks they are authorized for.',
+                '- Enforce all safety rules and required PPE on site.',
+                '- Confirm work meets company standards before leaving the site.',
+                '- Ensure before and after photos are taken and time is logged accurately.',
+                '- Report any incident, injury, damage, or hazard to the office immediately.',
+                '',
+                'Requirements:',
+                '- Proven field experience across general handyman and property maintenance trades.',
+                '- Reliable transportation and a valid driver license.',
+                '- Strong communication and the ability to lead a small crew.'
+            ].join(NL)
+        }
+    ];
+}
+
 // Public application page
 app.get('/apply', async (req, res) => {
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.appName || settings.companyName || 'GSD Property Services';
     const posOpts = APPLY_POSITIONS.map(p => '<option>' + p + '</option>').join('');
     const tradeBoxes = APPLY_TRADES.map(t => '<label class="chk"><input type="checkbox" class="trade" value="' + t + '"> ' + t + '</label>').join('');
-    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Careers — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;padding:1.5rem 1rem;}.card{background:white;border-radius:16px;max-width:560px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.75rem 2rem;color:white;text-align:center;}.header h1{font-size:1.5rem;}.header p{opacity:0.9;font-size:0.92rem;margin-top:0.3rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:1rem 0 0.35rem;}input.txt,select.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}.chks{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-top:0.4rem;}.chk{font-size:0.9rem;color:#4a5568;display:flex;align-items:center;gap:0.35rem;cursor:pointer;}.chk input,.yn input{width:16px;height:16px;accent-color:#667eea;}.yn{display:flex;align-items:center;gap:0.5rem;font-size:0.92rem;color:#4a5568;margin-top:0.6rem;cursor:pointer;}#err{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem;border-radius:8px;font-size:0.85rem;margin-top:1rem;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1.25rem;}.btn:disabled{opacity:0.6;}</style></head><body><div class="card"><div class="header"><h1>🐾 Join the Pack</h1><p>${companyName} is hiring skilled, reliable people in South Jersey. Apply below.</p></div><div class="body">
+    const escApply = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const roles = [
+        ...defaultRoleDescriptions(companyName),
+        ...(Array.isArray(settings.jobDescTemplates) ? settings.jobDescTemplates.map(t => ({ title: t.name, body: t.body })) : [])
+    ];
+    const rolesHtml = roles.map((r, i) =>
+        '<details' + (i === 0 ? ' open' : '') + ' class="role"><summary>' + escApply(r.title) + '</summary><div class="roledesc">' + escApply(r.body).replace(/\n/g, '<br>') + '</div></details>'
+    ).join('');
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Careers — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;padding:1.5rem 1rem;}.card{background:white;border-radius:16px;max-width:560px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.75rem 2rem;color:white;text-align:center;}.header h1{font-size:1.5rem;}.header p{opacity:0.9;font-size:0.92rem;margin-top:0.3rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:1rem 0 0.35rem;}input.txt,select.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}.chks{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-top:0.4rem;}.chk{font-size:0.9rem;color:#4a5568;display:flex;align-items:center;gap:0.35rem;cursor:pointer;}.chk input,.yn input{width:16px;height:16px;accent-color:#667eea;}.yn{display:flex;align-items:center;gap:0.5rem;font-size:0.92rem;color:#4a5568;margin-top:0.6rem;cursor:pointer;}#err{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem;border-radius:8px;font-size:0.85rem;margin-top:1rem;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1.25rem;}.btn:disabled{opacity:0.6;}.roles{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:0.25rem 0.9rem;margin-bottom:1.5rem;}.roles>p{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;padding:0.75rem 0 0.25rem;}details.role{border-top:1px solid #e2e8f0;padding:0.6rem 0;}details.role:first-of-type{border-top:none;}details.role summary{cursor:pointer;font-weight:700;color:#334155;font-size:0.92rem;list-style:none;}details.role summary::-webkit-details-marker{display:none;}details.role summary::before{content:'▸ ';color:#667eea;}details.role[open] summary::before{content:'▾ ';}.roledesc{margin-top:0.5rem;font-size:0.86rem;line-height:1.6;color:#4a5568;}</style></head><body><div class="card"><div class="header"><h1>🐾 Join the Pack</h1><p>${companyName} is hiring skilled, reliable people in South Jersey. Read about the roles below and apply.</p></div><div class="body">
+        <div class="roles"><p>What you'd be doing</p>${rolesHtml}</div>
         <div class="row"><div><label class="fld">First Name *</label><input class="txt" id="firstName"></div><div><label class="fld">Last Name *</label><input class="txt" id="lastName"></div></div>
         <div class="row"><div><label class="fld">Phone *</label><input class="txt" id="phone" placeholder="(555) 555-5555"></div><div><label class="fld">Email</label><input class="txt" type="email" id="email"></div></div>
         <label class="fld">Position *</label><select class="txt" id="position"><option value="">Select…</option>${posOpts}</select>
