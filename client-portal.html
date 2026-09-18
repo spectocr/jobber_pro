@@ -906,11 +906,25 @@ function viewPortalComm(i) {
     const it = (window._portalCommItems || [])[i];
     if (!it || it.kind !== 'email') return;
     const when = new Date(it.at).toLocaleString();
-    document.getElementById('commsDetailBody').innerHTML =
+    const box = document.getElementById('commsDetailBody');
+    box.innerHTML =
         '<h3 style="margin:0 0 0.25rem;color:#2d3748;">' + esc(it.subject || 'Email') + '</h3>' +
         '<div style="font-size:0.8rem;color:#a0aec0;margin-bottom:0.9rem;">' + when + '</div>' +
-        '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;max-height:60vh;overflow-y:auto;">' + (it.htmlBody || '<p style="padding:1rem;color:#a0aec0;">No content.</p>') + '</div>';
+        '<div id="commsEmailFrameBox" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;max-height:60vh;overflow-y:auto;"></div>';
     document.getElementById('commsDetailModal').style.display = 'flex';
+    if (it.htmlBody) {
+        // Render the email in an isolated iframe so its own markup/CSS never
+        // leaks into and overrides the portal page's styling.
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'width:100%;border:none;min-height:420px;display:block;';
+        iframe.onload = () => { try { iframe.style.height = (iframe.contentDocument.body.scrollHeight + 32) + 'px'; } catch (e) {} };
+        document.getElementById('commsEmailFrameBox').appendChild(iframe);
+        iframe.contentDocument.open();
+        iframe.contentDocument.write(it.htmlBody);
+        iframe.contentDocument.close();
+    } else {
+        document.getElementById('commsEmailFrameBox').innerHTML = '<p style="padding:1rem;color:#a0aec0;">No content.</p>';
+    }
 }
 
 async function loadPortalMaintenance() {
