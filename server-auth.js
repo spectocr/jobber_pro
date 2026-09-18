@@ -5482,7 +5482,8 @@ app.get('/api/applications', isAuthenticated, async (req, res) => {
         trades: a.trades || [], hasTransportation: a.hasTransportation, hasLicense: a.hasLicense,
         hasTools: a.hasTools, authorizedToWork: a.authorizedToWork, availability: a.availability,
         message: a.message, resumeKey: a.resumeKey || null, status: a.status || 'new',
-        note: a.note || '', teamMemberId: a.teamMemberId || null, createdAt: a.createdAt
+        note: a.note || '', teamMemberId: a.teamMemberId || null, createdAt: a.createdAt,
+        comments: a.comments || []
     })));
 });
 
@@ -5501,6 +5502,35 @@ app.post('/api/applications/:id/hire', isAuthenticated, async (req, res) => {
 
 app.delete('/api/applications/:id', isAuthenticated, async (req, res) => {
     await db.collection('applications').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+});
+
+// Application comments (internal notes on a candidate — never shown to the applicant)
+app.post('/api/applications/:id/comments', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text?.trim()) return res.status(400).json({ error: 'Comment text required' });
+        const comment = {
+            id: new ObjectId().toString(),
+            text: text.trim(),
+            author: req.session.userName || 'Admin',
+            at: new Date()
+        };
+        await db.collection('applications').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $push: { comments: comment }, $set: { updatedAt: new Date() } }
+        );
+        res.json({ success: true, comment });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+
+app.delete('/api/applications/:id/comments/:commentId', isAuthenticated, isAdmin, async (req, res) => {
+    await db.collection('applications').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $pull: { comments: { id: req.params.commentId } } }
+    );
     res.json({ success: true });
 });
 

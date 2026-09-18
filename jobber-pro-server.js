@@ -19609,6 +19609,16 @@ function formatDuration(seconds) {
                         (a.status !== 'hired' ? '<button onclick="acceptApplication(\'' + a.id + '\')" class="btn btn-primary btn-small">✅ Accept &amp; Hire</button>' : '<span style="color:#10b981;font-weight:700;font-size:0.85rem;">✅ Hired</span>') +
                         '<button onclick="deleteApplication(\'' + a.id + '\')" class="btn btn-danger btn-small">🗑</button>' +
                     '</div>' +
+                    '<details style="margin-top:0.75rem;">' +
+                        '<summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:#4a5568;list-style:none;">💬 Comments' + (a.comments && a.comments.length ? ' (' + a.comments.length + ')' : '') + '</summary>' +
+                        '<div style="margin-top:0.6rem;">' +
+                            '<div id="app-comments-' + a.id + '">' + renderApplicationCommentsHtml((a.comments || []).map(c => ({ ...c, appId: a.id }))) + '</div>' +
+                            '<div style="display:flex;gap:0.5rem;margin-top:0.5rem;">' +
+                                '<input type="text" id="app-comment-input-' + a.id + '" placeholder="Add a comment…" style="flex:1;padding:0.5rem 0.65rem;border:2px solid #e2e8f0;border-radius:6px;font-size:0.85rem;" onkeydown="if(event.key===\'Enter\')addApplicationComment(\'' + a.id + '\')">' +
+                                '<button class="btn btn-primary btn-small" onclick="addApplicationComment(\'' + a.id + '\')">Post</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</details>' +
                 '</div>';
             };
             let html = active.length ? active.map(card).join('') : '<p style="color:#718096;padding:0.75rem 0;">No open applications.</p>';
@@ -19634,6 +19644,49 @@ function formatDuration(seconds) {
             if (f.elements.email) f.elements.email.value = a.email || '';
             if (f.elements.phone) f.elements.phone.value = a.phone || '';
             const t = document.getElementById('teamModalTitle'); if (t) t.textContent = 'Hire — ' + (a.name || 'New Team Member');
+        }
+
+        function renderApplicationCommentsHtml(comments) {
+            if (!comments.length) return '<p style="color:#a0aec0;font-style:italic;font-size:0.85rem;">No comments yet.</p>';
+            return comments.map(cm => {
+                const when = new Date(cm.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+                return '<div style="padding:0.55rem 0.65rem;background:#f7fafc;border-radius:8px;margin-bottom:0.4rem;position:relative;">' +
+                    '<div style="font-size:0.75rem;color:#a0aec0;margin-bottom:0.15rem;">' + escapeSmsText(cm.author) + ' · ' + when + '</div>' +
+                    '<div style="color:#2d3748;font-size:0.88rem;padding-right:1.25rem;">' + escapeSmsText(cm.text) + '</div>' +
+                    '<button onclick="deleteApplicationComment(\'' + cm.appId + '\',\'' + cm.id + '\')" style="position:absolute;top:0.4rem;right:0.5rem;background:none;border:none;color:#e53e3e;cursor:pointer;font-size:0.78rem;">✕</button>' +
+                '</div>';
+            }).join('');
+        }
+        async function addApplicationComment(appId) {
+            const input = document.getElementById('app-comment-input-' + appId);
+            const text = input.value.trim();
+            if (!text) return;
+            try {
+                const res = await fetch('/api/applications/' + appId + '/comments', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+                });
+                if (!res.ok) throw new Error();
+                const { comment } = await res.json();
+                const a = _applications.find(x => x.id === appId);
+                if (a) {
+                    a.comments = [...(a.comments || []), comment];
+                    document.getElementById('app-comments-' + appId).innerHTML =
+                        renderApplicationCommentsHtml(a.comments.map(c => ({ ...c, appId })));
+                    input.value = '';
+                }
+            } catch (e) { alert('Failed to post comment.'); }
+        }
+        async function deleteApplicationComment(appId, commentId) {
+            if (!confirm('Delete this comment?')) return;
+            try {
+                await fetch('/api/applications/' + appId + '/comments/' + commentId, { method: 'DELETE' });
+                const a = _applications.find(x => x.id === appId);
+                if (a) {
+                    a.comments = (a.comments || []).filter(c => c.id !== commentId);
+                    document.getElementById('app-comments-' + appId).innerHTML =
+                        renderApplicationCommentsHtml(a.comments.map(c => ({ ...c, appId })));
+                }
+            } catch (e) { alert('Failed to delete comment.'); }
         }
 
         async function loadTaxes() {
