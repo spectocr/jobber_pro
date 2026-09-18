@@ -300,6 +300,7 @@
         <button class="tab-btn active" id="tab-btn-activity"    onclick="switchTab('activity')">Activity</button>
         <button class="tab-btn"        id="tab-btn-reports"     onclick="switchTab('reports')" style="display:none;">🔧 Maintenance</button>
         <button class="tab-btn"        id="tab-btn-messages"    onclick="switchTab('messages')" style="position:relative;">💬 Messages<span id="portalMsgBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e53e3e;color:#fff;border-radius:999px;min-width:16px;height:16px;font-size:0.65rem;line-height:16px;text-align:center;padding:0 4px;">0</span></button>
+        <button class="tab-btn"        id="tab-btn-comms"       onclick="switchTab('comms')" style="display:none;">📨 Communications</button>
         <button class="tab-btn"        id="tab-btn-archive"     onclick="switchTab('archive')">Archive</button>
         <button class="tab-btn"        id="tab-btn-new-request" onclick="switchTab('new-request')">+ New Request</button>
     </div>
@@ -355,6 +356,26 @@
                 <button class="btn btn-primary" onclick="sendPortalThreadMessage()" style="padding:0 1.1rem;">Send</button>
             </div>
             <p style="color:#a0aec0;font-size:0.78rem;margin-top:0.5rem;">We'll email you when GSD replies. You can also reply right here.</p>
+        </div>
+    </div>
+
+    <!-- Communication History -->
+    <div class="tab-panel" id="tab-comms">
+        <div class="card" style="padding:1.25rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
+                <h2 style="margin:0;font-size:1.15rem;color:#2d3748;">📨 Communication History</h2>
+                <button class="btn btn-ghost" onclick="loadPortalComms()" style="font-size:0.85rem;">↻ Refresh</button>
+            </div>
+            <p style="color:#a0aec0;font-size:0.8rem;margin-bottom:0.75rem;">Every email and text we've sent you — invoices, agreements, reminders, and updates.</p>
+            <div id="portalCommsList"><p style="color:#718096;">Loading…</p></div>
+        </div>
+    </div>
+
+    <!-- Communication detail modal -->
+    <div id="commsDetailModal" class="modal-overlay" onclick="if(event.target===this)document.getElementById('commsDetailModal').style.display='none'">
+        <div class="modal-box" style="max-width:600px;">
+            <button class="modal-close" onclick="document.getElementById('commsDetailModal').style.display='none'">✕</button>
+            <div id="commsDetailBody"></div>
         </div>
     </div>
 
@@ -759,6 +780,7 @@ async function loadClientData() {
 
         const isPM = clientData.client.isPropertyManagement;
         if (isPM) { const rt = document.getElementById('tab-btn-reports'); if (rt) rt.style.display = ''; }
+        if (!_tenantView) { const ct = document.getElementById('tab-btn-comms'); if (ct) ct.style.display = ''; }
         const T = {
             quotes:        isPM ? '🎫 Work Orders'         : '📋 My Quotes',
             quoteLabel:    isPM ? 'Work Order'              : 'Quote',
@@ -828,7 +850,7 @@ async function loadClientData() {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 function switchTab(name) {
-    ['activity','reports','messages','archive','new-request'].forEach(t => {
+    ['activity','reports','messages','comms','archive','new-request'].forEach(t => {
         document.getElementById('tab-' + t).classList.remove('active');
         document.getElementById('tab-btn-' + t).classList.remove('active');
     });
@@ -841,6 +863,54 @@ function switchTab(name) {
     }
     if (name === 'messages') loadPortalMessages();
     if (name === 'reports') loadPortalMaintenance();
+    if (name === 'comms') loadPortalComms();
+}
+
+async function loadPortalComms() {
+    const box = document.getElementById('portalCommsList');
+    if (!box) return;
+    box.innerHTML = '<p style="color:#718096;">Loading…</p>';
+    let data;
+    try { data = await (await fetch('/api/client-portal/communications')).json(); }
+    catch (e) { box.innerHTML = '<p style="color:#e53e3e;">Could not load communication history.</p>'; return; }
+    const items = (data && data.items) || [];
+    if (!items.length) { box.innerHTML = '<p style="color:#718096;">Nothing sent yet.</p>'; return; }
+    const subtypeLabel = { invoice: 'Invoice', payment_reminder: 'Payment Reminder', cancellation: 'Cancellation', survey: 'Survey', portal: 'Portal Message', quote: 'Quote', deposit: 'Deposit', reminder: 'Reminder', msa_sign: 'Service Agreement' };
+    box.innerHTML = items.map(function (it, i) {
+        if (it.kind === 'text') {
+            const out = it.direction === 'outbound';
+            const when = new Date(it.at).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+            return '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.6rem;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">' +
+                    '<span style="background:#edf2f7;color:#4a5568;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:8px;">💬 Text · ' + (out ? 'From GSD' : 'From you') + '</span>' +
+                    '<span style="font-size:0.75rem;color:#a0aec0;">' + when + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.88rem;color:#2d3748;white-space:pre-wrap;">' + esc(it.message) + '</div>' +
+            '</div>';
+        }
+        const when = new Date(it.at).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const label = subtypeLabel[it.subtype] || 'Email';
+        return '<div onclick="viewPortalComm(' + i + ')" style="border:1.5px solid #e2e8f0;border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.6rem;cursor:pointer;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">' +
+                '<div style="min-width:0;">' +
+                    '<span style="background:#ebf4ff;color:#2b6cb0;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:8px;">📧 ' + esc(label) + '</span>' +
+                    '<div style="font-weight:600;color:#2d3748;margin-top:0.3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(it.subject || '(no subject)') + '</div>' +
+                '</div>' +
+                '<span style="font-size:0.75rem;color:#a0aec0;white-space:nowrap;">' + when + '</span>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+    window._portalCommItems = items;
+}
+function viewPortalComm(i) {
+    const it = (window._portalCommItems || [])[i];
+    if (!it || it.kind !== 'email') return;
+    const when = new Date(it.at).toLocaleString();
+    document.getElementById('commsDetailBody').innerHTML =
+        '<h3 style="margin:0 0 0.25rem;color:#2d3748;">' + esc(it.subject || 'Email') + '</h3>' +
+        '<div style="font-size:0.8rem;color:#a0aec0;margin-bottom:0.9rem;">' + when + '</div>' +
+        '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;max-height:60vh;overflow-y:auto;">' + (it.htmlBody || '<p style="padding:1rem;color:#a0aec0;">No content.</p>') + '</div>';
+    document.getElementById('commsDetailModal').style.display = 'flex';
 }
 
 async function loadPortalMaintenance() {

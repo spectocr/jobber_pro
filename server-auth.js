@@ -9661,6 +9661,41 @@ app.get('/api/client-portal/messages/unread', async (req, res) => {
     }
 });
 
+// Portal: a read-only history of every email and text sent to/from this client —
+// invoices, MSA notices, payment reminders, surveys, deposit receipts, and SMS.
+// Excluded for tenant (location-scoped) sessions — this is the main client's own inbox.
+app.get('/api/client-portal/communications', async (req, res) => {
+    try {
+        if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
+        if (req.session.portalLocationId) return res.json({ items: [] });
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+
+        const items = [];
+
+        if (client.email) {
+            const emails = await db.collection('email_logs').find({ to: client.email }).sort({ sentAt: -1 }).limit(100).toArray();
+            emails.forEach(l => items.push({
+                kind: 'email', subtype: l.type || 'email', subject: l.subject || '',
+                htmlBody: l.htmlBody || '', at: l.sentAt, opened: !!l.opened
+            }));
+        }
+
+        const norm = (client.phone || '').replace(/\D/g, '').slice(-10);
+        const allTexts = await db.collection('client_messages').find({ subject: 'sms' }).sort({ createdAt: -1 }).limit(300).toArray();
+        allTexts.filter(m => {
+            if (m.clientId && String(m.clientId) === String(client._id)) return true;
+            const p = (m.clientPhone || m.reference || '').replace(/\D/g, '').slice(-10);
+            return norm && p === norm;
+        }).forEach(m => items.push({
+            kind: 'text', direction: m.direction || 'inbound', message: m.message || '', at: m.createdAt
+        }));
+
+        items.sort((a, b) => new Date(b.at) - new Date(a.at));
+        res.json({ items: items.slice(0, 150) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Admin replies into the portal thread + emails the client a heads-up.
 app.post('/api/client-messages/:id/reply-portal', isAuthenticated, async (req, res) => {
     try {
