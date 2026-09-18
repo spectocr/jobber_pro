@@ -18706,14 +18706,17 @@ function formatDuration(seconds) {
             var box = document.getElementById('jdmList');
             if (!box) return;
             var custom = _jobDescCustom || [];
-            var html = '<p style="color:#718096;font-size:0.88rem;margin-bottom:1rem;">Reusable job descriptions — these also appear on the public Apply page and the onboarding picker. Edit or delete any of them, including the starter roles.</p>';
+            var html = '<p style="color:#718096;font-size:0.88rem;margin-bottom:1rem;">Reusable job descriptions — these also appear on the public Apply page and the onboarding picker, in this order. Use the arrows to reorder, edit or delete any of them, including the starter roles.</p>';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;"><strong style="color:#2d3748;">Templates</strong><button class="btn btn-primary btn-small" onclick="jdManagerNew()">+ New template</button></div>';
             if (!custom.length) {
                 html += '<div style="padding:1rem;text-align:center;color:#a0aec0;background:#f8f9fa;border-radius:8px;">No templates yet. Click <strong>+ New template</strong> to create one.</div>';
             } else {
-                html += custom.map(function (t) {
+                html += custom.map(function (t, i) {
+                    var upBtn = '<button type="button" title="Move up" onclick="jdManagerMove(\'' + t.id + '\',-1)" style="background:#edf2f7;border:none;border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:0.75rem;' + (i === 0 ? 'opacity:0.3;cursor:default;' : '') + '"' + (i === 0 ? ' disabled' : '') + '>↑</button>';
+                    var downBtn = '<button type="button" title="Move down" onclick="jdManagerMove(\'' + t.id + '\',1)" style="background:#edf2f7;border:none;border-radius:5px;width:26px;height:22px;cursor:pointer;font-size:0.75rem;' + (i === custom.length - 1 ? 'opacity:0.3;cursor:default;' : '') + '"' + (i === custom.length - 1 ? ' disabled' : '') + '>↓</button>';
                     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border:1.5px solid #e2e8f0;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.5rem;">' +
-                        '<div style="min-width:0;"><div style="font-weight:600;color:#2d3748;">' + escapeAuthText(t.name) + '</div>' +
+                        '<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">' + upBtn + downBtn + '</div>' +
+                        '<div style="min-width:0;flex:1;"><div style="font-weight:600;color:#2d3748;">' + escapeAuthText(t.name) + '</div>' +
                         '<div style="font-size:0.8rem;color:#a0aec0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeAuthText((t.body || '').slice(0, 90)) + '</div></div>' +
                         '<div style="display:flex;gap:0.4rem;flex-shrink:0;">' +
                             '<button class="btn btn-secondary btn-small" onclick="jdManagerEdit(\'' + t.id + '\')">Edit</button>' +
@@ -18722,6 +18725,32 @@ function formatDuration(seconds) {
                 }).join('');
             }
             box.innerHTML = html;
+        }
+        function jdManagerMove(id, dir) {
+            var arr = _jobDescCustom || [];
+            var idx = arr.findIndex(function (t) { return t.id === id; });
+            var swapIdx = idx + dir;
+            if (idx === -1 || swapIdx < 0 || swapIdx >= arr.length) return;
+            var tmp = arr[idx]; arr[idx] = arr[swapIdx]; arr[swapIdx] = tmp;
+            renderJdManagerList(); // optimistic re-render
+            renderJobDescTemplateOptions();
+            saveJdOrder();
+        }
+        async function saveJdOrder() {
+            try {
+                var ids = (_jobDescCustom || []).map(function (t) { return t.id; });
+                var res = await fetch('/api/job-desc-templates/reorder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ids }) });
+                if (!res.ok) {
+                    var data = await res.json().catch(function () { return {}; });
+                    alert(data.error || 'Could not save the new order — reloading.');
+                    await loadJobDescTemplates();
+                    renderJdManagerList();
+                }
+            } catch (e) {
+                alert('Network error saving order — reloading.');
+                await loadJobDescTemplates();
+                renderJdManagerList();
+            }
         }
         function jdManagerNew() {
             document.getElementById('jdTemplateManagerModal').dataset.editId = '';

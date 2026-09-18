@@ -5497,6 +5497,7 @@ app.get('/apply', async (req, res) => {
         <label class="yn"><input type="checkbox" id="hasTools"> I have my own tools</label>
         <label class="yn"><input type="checkbox" id="authorizedToWork"> Authorized to work in the U.S.</label>
         <label class="fld">Availability</label><select class="txt" id="availability"><option value="">Select…</option><option>Full-time</option><option>Part-time</option><option>Weekends</option><option>Flexible</option></select>
+        <div style="font-size:0.78rem;color:#94a3b8;margin-top:0.3rem;">Most jobs are scheduled between 8am and 6pm.</div>
         <label class="fld">Why do you want to work with us?</label><textarea class="txt" id="message" rows="3" placeholder="Tell us a bit about yourself…"></textarea>
         <label class="fld">Résumé (optional — PDF or image)</label><input type="file" id="resume" accept=".pdf,.doc,.docx,image/*" style="font-size:0.9rem;">
         <div id="err"></div>
@@ -6110,6 +6111,23 @@ app.delete('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
     await db.collection('settings').updateOne({}, { $pull: { jobDescTemplates: { id: req.params.id } } });
     const after = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1 } });
     res.json({ success: true, templates: after.jobDescTemplates || [] });
+});
+
+// Reorder templates — the client sends the full desired id order (from drag/move-up-down);
+// this is the one operation that legitimately needs to rewrite the whole array, since order
+// isn't a property of any single element. Validated so it can only reorder, never lose one.
+app.post('/api/job-desc-templates/reorder', isAdmin, async (req, res) => {
+    try {
+        const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids : [];
+        const current = await getOrSeedJobDescTemplates();
+        const sameSet = ids.length === current.length && ids.every(id => current.some(t => t.id === id)) && current.every(t => ids.includes(t.id));
+        if (!sameSet) return res.status(400).json({ error: 'Reorder list must include every existing template exactly once' });
+        const byId = {};
+        current.forEach(t => { byId[t.id] = t; });
+        const reordered = ids.map(id => byId[id]);
+        await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: reordered } });
+        res.json({ success: true, templates: reordered });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Tool / task authorization records (per employee paper trail) ──
