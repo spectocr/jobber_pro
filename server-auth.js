@@ -6423,8 +6423,23 @@ app.post('/api/msa-template', isAdmin, async (req, res) => {
         const existing = await getOrSeedMsa();
         const changed = existing.body !== body;
         const msa = { version: changed ? (existing.version || 1) + 1 : (existing.version || 1), body, updatedAt: changed ? new Date() : existing.updatedAt, updatedBy: changed ? (req.session.userName || 'Admin') : existing.updatedBy };
-        await db.collection('settings').updateOne({}, { $set: { msaTemplate: msa } }, { upsert: true });
+        const update = { $set: { msaTemplate: msa } };
+        // Archive the version being replaced so history/diffing is available going forward.
+        if (changed) update.$push = { msaVersions: { version: existing.version || 1, body: existing.body, updatedAt: existing.updatedAt, updatedBy: existing.updatedBy } };
+        await db.collection('settings').updateOne({}, update, { upsert: true });
         res.json({ success: true, version: msa.version, bumped: changed });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: full version history of the base MSA template (archived versions + current).
+app.get('/api/msa-template/versions', isAdmin, async (req, res) => {
+    try {
+        const s = await db.collection('settings').findOne({}, { projection: { msaVersions: 1, msaTemplate: 1 } }) || {};
+        const archived = Array.isArray(s.msaVersions) ? s.msaVersions : [];
+        const current = s.msaTemplate;
+        const all = current ? [...archived, current] : archived;
+        all.sort((a, b) => (b.version || 0) - (a.version || 0));
+        res.json(all.map(v => ({ version: v.version, body: v.body, updatedAt: v.updatedAt, updatedBy: v.updatedBy, current: current && v.version === current.version })));
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6469,18 +6484,66 @@ app.post('/api/clients/:id/msa/send', isAdmin, async (req, res) => {
         if (!client.email) return res.status(400).json({ error: 'No email on file for this client.' });
         const settings = await db.collection('settings').findOne({}) || {};
         const companyName = settings.companyName || 'GSD Property Services';
-        const portalUrl = `${process.env.APP_URL}/client-portal`;
-        await emailService.sendEmail({
-            to: client.email,
-            subject: `Please review & sign your Service Agreement — ${companyName}`,
-            html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+        const appUrl = process.env.APP_URL;
+        const portalUrl = `${appUrl}/client-portal`;
+        const msa = await getOrSeedMsa();
+        const now = new Date();
+        const _logId = new ObjectId();
+        const _trackUrl = `${appUrl}/api/email-track/${_logId}`;
+        const subject = `Please review & sign your Service Agreement — ${companyName}`;
+        const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
                 <h2 style="color:#667eea;">Your Service Agreement is ready</h2>
                 <p>Hi ${client.name}, please review and sign your Master Service Agreement with ${companyName}. It takes a minute.</p>
                 <p style="margin-top:1.5rem;"><a href="${portalUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Review &amp; sign in your portal →</a></p>
-            </div>`,
-            text: `Please review and sign your Service Agreement with ${companyName}: ${portalUrl}`
+            </div>`;
+        await emailService.sendEmail({
+            to: client.email,
+            subject,
+            html,
+            text: `Please review and sign your Service Agreement with ${companyName}: ${portalUrl}`,
+            trackingPixelUrl: _trackUrl
         });
+        await db.collection('email_logs').insertOne({
+            _id: _logId,
+            type: 'msa_sign',
+            to: client.email,
+            toName: client.name,
+            subject,
+            trigger: `MSA (v${msa.version}) sent for signature`,
+            relatedId: client._id,
+            relatedTitle: client.name,
+            htmlBody: html,
+            sentBy: req.session.userName || 'admin',
+            sentAt: now,
+            status: 'sent',
+            opened: false,
+            meta: { msaVersion: msa.version }
+        });
+        await db.collection('clients').updateOne(
+            { _id: client._id },
+            { $push: { msaAuditLog: { action: 'sent', at: now, by: req.session.userName || 'admin', version: msa.version, to: client.email } } }
+        );
         res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: read the send/open/sign activity trail for a client's MSA.
+app.get('/api/clients/:id/msa/activity', isAdmin, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) }, { projection: { msaAuditLog: 1, msaSignature: 1 } });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        const emailLogs = await db.collection('email_logs').find({ relatedId: client._id, type: 'msa_sign' }).sort({ sentAt: 1 }).toArray();
+        const events = [];
+        emailLogs.forEach(l => {
+            events.push({ action: 'sent', at: l.sentAt, to: l.to, by: l.sentBy, version: l.meta && l.meta.msaVersion });
+            if (l.opened) events.push({ action: 'opened', at: l.openedAt || l.sentAt });
+        });
+        (client.msaAuditLog || []).forEach(e => { if (e.action === 'signed') events.push(e); });
+        if (client.msaSignature && !events.some(e => e.action === 'signed')) {
+            events.push({ action: 'signed', at: client.msaSignature.signedAt, version: client.msaSignature.version, signature: client.msaSignature.signature, ip: client.msaSignature.ip });
+        }
+        events.sort((a, b) => new Date(a.at) - new Date(b.at));
+        res.json({ events });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6564,9 +6627,14 @@ app.post('/api/client-portal/msa/sign', async (req, res) => {
         if (!sig) return res.status(400).json({ error: 'Signature is required' });
         const msa = await getOrSeedMsa();
         const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+        const now = new Date();
+        const signature = { signature: sig.slice(0, 120), version: msa.version, signedAt: now, ip, userAgent: String(req.headers['user-agent'] || '').slice(0, 300) };
         await db.collection('clients').updateOne(
             { _id: new ObjectId(req.session.clientId) },
-            { $set: { msaSignature: { signature: sig.slice(0, 120), version: msa.version, signedAt: new Date(), ip, userAgent: String(req.headers['user-agent'] || '').slice(0, 300) } } }
+            {
+                $set: { msaSignature: signature },
+                $push: { msaAuditLog: { action: 'signed', at: now, version: msa.version, signature: signature.signature, ip } }
+            }
         );
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }

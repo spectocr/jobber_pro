@@ -8953,7 +8953,110 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 ? '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;color:#276749;font-size:0.85rem;">✓ Signed “' + escapeAuthText(sig.signature) + '” on ' + new Date(sig.signedAt).toLocaleDateString() + ' (v' + sig.version + ')</div>'
                 : '<div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;color:#742a2a;font-size:0.85rem;">Not signed yet — this is a live preview (v' + data.version + ') of what the client sees in their portal.</div>';
             body.innerHTML = sigNote +
-                '<div style="max-height:60vh;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;background:#fafafa;font-size:0.86rem;line-height:1.6;white-space:pre-wrap;color:#2d3748;">' + escapeAuthText(text) + '</div>';
+                '<div style="max-height:60vh;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;background:#fafafa;font-size:0.86rem;line-height:1.6;white-space:pre-wrap;color:#2d3748;">' + escapeAuthText(text) + '</div>' +
+                '<details style="margin-top:1rem;" ontoggle="if(this.open && !this.dataset.loaded){this.dataset.loaded=1;loadMsaVersionHistory();}">' +
+                    '<summary style="cursor:pointer;font-weight:600;color:#4a5568;font-size:0.88rem;">🕐 Version History &amp; Diff</summary>' +
+                    '<div id="msaVersionHistoryBox" style="margin-top:0.75rem;"><p style="color:#a0aec0;font-size:0.85rem;">Loading…</p></div>' +
+                '</details>' +
+                '<details style="margin-top:0.6rem;" ontoggle="if(this.open && !this.dataset.loaded){this.dataset.loaded=1;loadMsaActivity(\'' + clientId + '\');}">' +
+                    '<summary style="cursor:pointer;font-weight:600;color:#4a5568;font-size:0.88rem;">📋 Send &amp; Sign Activity</summary>' +
+                    '<div id="msaActivityBox" style="margin-top:0.75rem;"><p style="color:#a0aec0;font-size:0.85rem;">Loading…</p></div>' +
+                '</details>';
+        }
+
+        // ── MSA version history + diff (template wording, not client-merged text) ──
+        var _msaVersions = [];
+        async function loadMsaVersionHistory() {
+            var box = document.getElementById('msaVersionHistoryBox');
+            if (!box) return;
+            try { _msaVersions = await (await fetch('/api/msa-template/versions')).json(); }
+            catch (e) { box.innerHTML = '<p style="color:#e53e3e;font-size:0.85rem;">Failed to load version history.</p>'; return; }
+            if (!_msaVersions.length) { box.innerHTML = '<p style="color:#a0aec0;font-size:0.85rem;">No version history yet.</p>'; return; }
+            var opts = _msaVersions.map(function (v) {
+                var when = new Date(v.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                return '<option value="' + v.version + '">v' + v.version + (v.current ? ' (current)' : '') + ' — ' + when + (v.updatedBy ? ' · ' + escapeAuthText(v.updatedBy) : '') + '</option>';
+            }).join('');
+            var defaultFrom = _msaVersions.length > 1 ? _msaVersions[1].version : _msaVersions[0].version;
+            var defaultTo = _msaVersions[0].version;
+            box.innerHTML =
+                '<p style="font-size:0.8rem;color:#a0aec0;margin-bottom:0.6rem;">Note: history starts from the first edit made after this feature shipped — earlier versions weren\'t archived.</p>' +
+                '<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;">' +
+                    '<select id="msaDiffFrom" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">' + opts + '</select>' +
+                    '<span style="color:#a0aec0;">→</span>' +
+                    '<select id="msaDiffTo" style="padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">' + opts + '</select>' +
+                    '<button class="btn btn-secondary btn-small" onclick="showMsaDiff()">Show diff</button>' +
+                '</div>' +
+                '<div id="msaDiffOutput"></div>';
+            document.getElementById('msaDiffFrom').value = String(defaultFrom);
+            document.getElementById('msaDiffTo').value = String(defaultTo);
+            if (_msaVersions.length > 1) showMsaDiff();
+        }
+        function showMsaDiff() {
+            var fromV = parseInt(document.getElementById('msaDiffFrom').value, 10);
+            var toV = parseInt(document.getElementById('msaDiffTo').value, 10);
+            var out = document.getElementById('msaDiffOutput');
+            var from = _msaVersions.find(function (v) { return v.version === fromV; });
+            var to = _msaVersions.find(function (v) { return v.version === toV; });
+            if (!from || !to) { out.innerHTML = ''; return; }
+            if (fromV === toV) { out.innerHTML = '<p style="color:#a0aec0;font-size:0.85rem;">Same version selected.</p>'; return; }
+            var diff = _msaLineDiff(from.body, to.body);
+            var addedN = diff.filter(function (d) { return d.type === 'add'; }).length;
+            var delN = diff.filter(function (d) { return d.type === 'del'; }).length;
+            var rows = diff.map(function (d) {
+                if (d.type === 'same') return '<div style="padding:1px 6px;color:#4a5568;">' + escapeAuthText(d.text || ' ') + '</div>';
+                if (d.type === 'add') return '<div style="padding:1px 6px;background:#f0fff4;color:#276749;">+ ' + escapeAuthText(d.text || ' ') + '</div>';
+                return '<div style="padding:1px 6px;background:#fff5f5;color:#c53030;text-decoration:line-through;">- ' + escapeAuthText(d.text || ' ') + '</div>';
+            }).join('');
+            out.innerHTML =
+                '<div style="font-size:0.8rem;color:#718096;margin-bottom:0.4rem;">v' + fromV + ' → v' + toV + ' &nbsp;·&nbsp; <span style="color:#276749;">+' + addedN + '</span> &nbsp;<span style="color:#c53030;">-' + delN + '</span></div>' +
+                '<div style="max-height:40vh;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:8px;padding:0.5rem 0;background:#fafafa;font-family:ui-monospace,Menlo,monospace;font-size:0.78rem;line-height:1.55;white-space:pre-wrap;">' + rows + '</div>';
+        }
+        // Compact LCS-based line diff — no external library, fine for a document this size.
+        function _msaLineDiff(oldText, newText) {
+            var a = String(oldText || '').split('\n');
+            var b = String(newText || '').split('\n');
+            var n = a.length, m = b.length;
+            var dp = [];
+            for (var i = 0; i <= n; i++) dp.push(new Array(m + 1).fill(0));
+            for (var i2 = n - 1; i2 >= 0; i2--) {
+                for (var j2 = m - 1; j2 >= 0; j2--) {
+                    dp[i2][j2] = a[i2] === b[j2] ? dp[i2 + 1][j2 + 1] + 1 : Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+                }
+            }
+            var result = [], i = 0, j = 0;
+            while (i < n && j < m) {
+                if (a[i] === b[j]) { result.push({ type: 'same', text: a[i] }); i++; j++; }
+                else if (dp[i + 1][j] >= dp[i][j + 1]) { result.push({ type: 'del', text: a[i] }); i++; }
+                else { result.push({ type: 'add', text: b[j] }); j++; }
+            }
+            while (i < n) { result.push({ type: 'del', text: a[i] }); i++; }
+            while (j < m) { result.push({ type: 'add', text: b[j] }); j++; }
+            return result;
+        }
+
+        // ── MSA send/open/sign activity trail ──
+        async function loadMsaActivity(clientId) {
+            var box = document.getElementById('msaActivityBox');
+            if (!box) return;
+            var events;
+            try { events = (await (await fetch('/api/clients/' + clientId + '/msa/activity')).json()).events || []; }
+            catch (e) { box.innerHTML = '<p style="color:#e53e3e;font-size:0.85rem;">Failed to load activity.</p>'; return; }
+            if (!events.length) { box.innerHTML = '<p style="color:#a0aec0;font-size:0.85rem;">No activity yet — nothing sent.</p>'; return; }
+            var icon = { sent: '📧', opened: '👁', signed: '✍️' };
+            var label = function (e) {
+                if (e.action === 'sent') return 'Sent to ' + escapeAuthText(e.to || '') + (e.by ? ' by ' + escapeAuthText(e.by) : '') + (e.version ? ' (v' + e.version + ')' : '');
+                if (e.action === 'opened') return 'Email opened';
+                if (e.action === 'signed') return 'Signed “' + escapeAuthText(e.signature || '') + '”' + (e.version ? ' (v' + e.version + ')' : '') + (e.ip ? ' · IP ' + escapeAuthText(e.ip) : '');
+                return e.action;
+            };
+            box.innerHTML = '<div style="border-left:2px solid #e2e8f0;margin-left:0.4rem;">' + events.map(function (e) {
+                var when = new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+                return '<div style="position:relative;padding:0 0 0.75rem 1rem;">' +
+                    '<div style="position:absolute;left:-0.55rem;top:2px;width:16px;height:16px;background:white;border:2px solid #e2e8f0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;">' + (icon[e.action] || '•') + '</div>' +
+                    '<div style="font-size:0.85rem;color:#2d3748;">' + label(e) + '</div>' +
+                    '<div style="font-size:0.75rem;color:#a0aec0;">' + when + '</div>' +
+                '</div>';
+            }).join('') + '</div>';
         }
 
         // ── Property Maintenance ──────────────────────────────────────────────
