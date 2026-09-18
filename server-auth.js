@@ -5414,8 +5414,8 @@ function defaultJobDescTemplates(co) {
             ].join(NL)
         },
         {
-            id: 'jdt_helper',
-            name: 'Helper / Apprentice',
+            id: 'jdt_helper_starter',
+            name: 'Helper / Apprentice (Starter)',
             body: [
                 'Reports to: Field Technician / Lead',
                 '',
@@ -5438,8 +5438,8 @@ function defaultJobDescTemplates(co) {
             ].join(NL)
         },
         {
-            id: 'jdt_lead',
-            name: 'Lead / Foreman',
+            id: 'jdt_lead_starter',
+            name: 'Lead / Foreman (Starter)',
             body: [
                 'Reports to: ' + co + ' Owner / Manager',
                 '',
