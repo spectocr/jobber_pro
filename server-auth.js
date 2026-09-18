@@ -5379,14 +5379,16 @@ app.delete('/api/team/:id', isAuthenticated, async (req, res) => {
 const APPLY_POSITIONS = ['Handyman / Technician', 'Helper / Laborer', 'Painter', 'Carpenter', 'Office / Admin', 'Other'];
 const APPLY_TRADES = ['Drywall', 'Painting', 'Plumbing', 'Electrical', 'Carpentry', 'Flooring', 'Tile', 'Gutters', 'Landscaping', 'Pressure Washing', 'General Repair'];
 
-// Built-in role descriptions (same wording used internally in onboarding's job-description
-// templates) so applicants can read what a role actually involves before they apply.
-function defaultRoleDescriptions(co) {
+// Built-in job-description templates — seeded once into settings.jobDescTemplates so they're
+// real, editable/deletable records (same list powers the onboarding picker, the Team > JD
+// Templates manager, and the public /apply page's role descriptions — one source of truth).
+function defaultJobDescTemplates(co) {
     co = co || 'GSD Property Services';
     const NL = '\n';
     return [
         {
-            title: 'Field Technician / Handyman',
+            id: 'jdt_field_tech',
+            name: 'Field Technician / Handyman',
             body: [
                 'Reports to: ' + co + ' Owner / Manager',
                 '',
@@ -5398,18 +5400,22 @@ function defaultRoleDescriptions(co) {
                 '- Operate only the tools and perform only the tasks you have been trained and authorized for.',
                 '- Follow all safety rules and wear required PPE at all times.',
                 '- Protect customer property; keep the work area clean and controlled.',
-                '- Report job status, delays, and any additional work needed to the office.',
+                '- Report job status, delays, and any additional work needed to the office. Do not change scope or pricing with the customer.',
                 '- Clock in and out accurately and document work with before and after photos.',
                 '- Report any incident, injury, damage, or hazard to the office immediately.',
                 '',
                 'Requirements:',
                 '- Reliable transportation and a valid driver license.',
                 '- Basic hand tools (' + co + ' provides power tools and major equipment).',
-                '- Professional, courteous conduct on every job site.'
+                '- Professional, courteous conduct on every job site.',
+                '',
+                'Authorization and Safety:',
+                'All work is performed only as trained and authorized by ' + co + '. No cash is collected from customers; all payments go through the company.'
             ].join(NL)
         },
         {
-            title: 'Helper / Apprentice',
+            id: 'jdt_helper',
+            name: 'Helper / Apprentice',
             body: [
                 'Reports to: Field Technician / Lead',
                 '',
@@ -5425,11 +5431,15 @@ function defaultRoleDescriptions(co) {
                 '',
                 'Requirements:',
                 '- Reliable, punctual, and willing to learn.',
-                '- Able to lift and carry materials and work on your feet.'
+                '- Able to lift and carry materials and work on your feet.',
+                '',
+                'Authorization and Safety:',
+                'Work is performed only under supervision and as authorized by ' + co + '. Never collect cash from customers.'
             ].join(NL)
         },
         {
-            title: 'Lead / Foreman',
+            id: 'jdt_lead',
+            name: 'Lead / Foreman',
             body: [
                 'Reports to: ' + co + ' Owner / Manager',
                 '',
@@ -5441,16 +5451,27 @@ function defaultRoleDescriptions(co) {
                 '- Verify each crew member only performs tasks they are authorized for.',
                 '- Enforce all safety rules and required PPE on site.',
                 '- Confirm work meets company standards before leaving the site.',
+                '- Communicate scope questions and any additional work needed to the office. Do not change pricing with the customer.',
                 '- Ensure before and after photos are taken and time is logged accurately.',
                 '- Report any incident, injury, damage, or hazard to the office immediately.',
                 '',
                 'Requirements:',
                 '- Proven field experience across general handyman and property maintenance trades.',
                 '- Reliable transportation and a valid driver license.',
-                '- Strong communication and the ability to lead a small crew.'
+                '- Strong communication and the ability to lead a small crew.',
+                '',
+                'Authorization and Safety:',
+                'The lead upholds ' + co + ' authorization and safety standards on every job. No cash is collected from customers; all payments go through the company.'
             ].join(NL)
         }
     ];
+}
+async function getOrSeedJobDescTemplates() {
+    const s = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1, companyName: 1 } });
+    if (s && Array.isArray(s.jobDescTemplates) && s.jobDescTemplates.length) return s.jobDescTemplates;
+    const seed = defaultJobDescTemplates(s && s.companyName);
+    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: seed } }, { upsert: true });
+    return seed;
 }
 
 // Public application page
@@ -5460,12 +5481,9 @@ app.get('/apply', async (req, res) => {
     const posOpts = APPLY_POSITIONS.map(p => '<option>' + p + '</option>').join('');
     const tradeBoxes = APPLY_TRADES.map(t => '<label class="chk"><input type="checkbox" class="trade" value="' + t + '"> ' + t + '</label>').join('');
     const escApply = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const roles = [
-        ...defaultRoleDescriptions(companyName),
-        ...(Array.isArray(settings.jobDescTemplates) ? settings.jobDescTemplates.map(t => ({ title: t.name, body: t.body })) : [])
-    ];
+    const roles = await getOrSeedJobDescTemplates();
     const rolesHtml = roles.map((r, i) =>
-        '<details' + (i === 0 ? ' open' : '') + ' class="role"><summary>' + escApply(r.title) + '</summary><div class="roledesc">' + escApply(r.body).replace(/\n/g, '<br>') + '</div></details>'
+        '<details' + (i === 0 ? ' open' : '') + ' class="role"><summary>' + escApply(r.name) + '</summary><div class="roledesc">' + escApply(r.body).replace(/\n/g, '<br>') + '</div></details>'
     ).join('');
     res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Careers — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;padding:1.5rem 1rem;}.card{background:white;border-radius:16px;max-width:940px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.75rem 2rem;color:white;text-align:center;}.header h1{font-size:1.5rem;}.header p{opacity:0.9;font-size:0.92rem;margin-top:0.3rem;}.body{padding:1.75rem 2rem;}.layout{display:grid;grid-template-columns:1fr 320px;gap:2.25rem;align-items:start;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:1rem 0 0.35rem;}label.fld:first-of-type{margin-top:0;}input.txt,select.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}.chks{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-top:0.4rem;}.chk{font-size:0.9rem;color:#4a5568;display:flex;align-items:center;gap:0.35rem;cursor:pointer;}.chk input,.yn input{width:16px;height:16px;accent-color:#667eea;}.yn{display:flex;align-items:center;gap:0.5rem;font-size:0.92rem;color:#4a5568;margin-top:0.6rem;cursor:pointer;}#err{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem;border-radius:8px;font-size:0.85rem;margin-top:1rem;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1.25rem;}.btn:disabled{opacity:0.6;}.rolescol{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:0.25rem 0.9rem;}.rolescol>p{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;padding:0.9rem 0 0.25rem;}details.role{border-top:1px solid #e2e8f0;padding:0.6rem 0;}details.role:first-of-type{border-top:none;}details.role summary{cursor:pointer;font-weight:700;color:#334155;font-size:0.9rem;list-style:none;}details.role summary::-webkit-details-marker{display:none;}details.role summary::before{content:'▸ ';color:#667eea;}details.role[open] summary::before{content:'▾ ';}.roledesc{margin-top:0.5rem;font-size:0.84rem;line-height:1.6;color:#4a5568;}@media (max-width:760px){.layout{grid-template-columns:1fr;gap:0;}.rolescol{order:-1;margin-bottom:1.5rem;}}</style></head><body><div class="card"><div class="header"><h1>🐾 Join the Pack</h1><p>${companyName} is hiring skilled, reliable people in South Jersey. Read about the roles and apply.</p></div><div class="body"><div class="layout">
         <div class="formcol">
@@ -6056,15 +6074,13 @@ app.post('/api/team/:id/job-description', isAdmin, async (req, res) => {
 
 // ── Custom job-description templates (owner-defined, saved in settings) ──
 app.get('/api/job-desc-templates', isAdmin, async (req, res) => {
-    const s = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1 } });
-    res.json(Array.isArray(s?.jobDescTemplates) ? s.jobDescTemplates : []);
+    try { res.json(await getOrSeedJobDescTemplates()); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/job-desc-templates', isAdmin, async (req, res) => {
     const name = ((req.body && req.body.name) || '').trim();
     const body = ((req.body && req.body.body) || '').trim();
     if (!name || !body) return res.status(400).json({ error: 'Template name and text are required' });
-    const s = await db.collection('settings').findOne({}) || {};
-    const list = Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates.slice() : [];
+    const list = (await getOrSeedJobDescTemplates()).slice();
     const tmpl = { id: 'jdt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name.slice(0, 80), body: body.slice(0, 20000), createdAt: new Date() };
     list.push(tmpl);
     await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
@@ -6074,8 +6090,7 @@ app.put('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
     const name = ((req.body && req.body.name) || '').trim();
     const body = ((req.body && req.body.body) || '').trim();
     if (!name || !body) return res.status(400).json({ error: 'Template name and text are required' });
-    const s = await db.collection('settings').findOne({}) || {};
-    const list = Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates.slice() : [];
+    const list = (await getOrSeedJobDescTemplates()).slice();
     const idx = list.findIndex(t => t.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Template not found' });
     list[idx] = { ...list[idx], name: name.slice(0, 80), body: body.slice(0, 20000), updatedAt: new Date() };
@@ -6083,8 +6098,7 @@ app.put('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
     res.json({ success: true, templates: list });
 });
 app.delete('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
-    const s = await db.collection('settings').findOne({}) || {};
-    const list = (Array.isArray(s.jobDescTemplates) ? s.jobDescTemplates : []).filter(t => t.id !== req.params.id);
+    const list = (await getOrSeedJobDescTemplates()).filter(t => t.id !== req.params.id);
     await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
     res.json({ success: true, templates: list });
 });

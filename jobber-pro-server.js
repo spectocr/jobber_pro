@@ -18611,80 +18611,6 @@ function formatDuration(seconds) {
             openModal('obSubmissionModal');
         }
 
-        var _JD_NL = String.fromCharCode(10);
-        function _jobDescTemplate(key, co) {
-            co = co || 'GSD Property Services';
-            if (key === 'field-tech') return [
-                'Position: Field Technician / Handyman',
-                'Reports to: ' + co + ' Owner / Manager',
-                '',
-                'Summary:',
-                'Perform general handyman, repair, and property maintenance work for ' + co + ' customers, delivering quality workmanship and representing the company professionally.',
-                '',
-                'Responsibilities:',
-                '- Complete assigned jobs (carpentry, drywall, painting, fixture installs, minor plumbing and electrical, general repairs) to company standards.',
-                '- Operate only the tools and perform only the tasks you have been trained and authorized for.',
-                '- Follow all safety rules and wear required PPE at all times.',
-                '- Protect customer property; keep the work area clean and controlled.',
-                '- Report job status, delays, and any additional work needed to the office. Do not change scope or pricing with the customer.',
-                '- Clock in and out accurately and document work with before and after photos.',
-                '- Report any incident, injury, damage, or hazard to the office immediately.',
-                '',
-                'Requirements:',
-                '- Reliable transportation and a valid driver license.',
-                '- Basic hand tools (' + co + ' provides power tools and major equipment).',
-                '- Professional, courteous conduct on every job site.',
-                '',
-                'Authorization and Safety:',
-                'All work is performed only as trained and authorized by ' + co + '. No cash is collected from customers; all payments go through the company.'
-            ].join(_JD_NL);
-            if (key === 'helper') return [
-                'Position: Helper / Apprentice',
-                'Reports to: Field Technician / Lead',
-                '',
-                'Summary:',
-                'Assist ' + co + ' technicians on job sites, learning the trade while supporting the safe and efficient completion of work.',
-                '',
-                'Responsibilities:',
-                '- Assist with loading, setup, material handling, and cleanup.',
-                '- Perform tasks under the direction of a technician or lead, only as trained and authorized.',
-                '- Follow all safety rules and wear required PPE at all times.',
-                '- Keep tools, materials, and the work area organized and protected.',
-                '- Report any incident, injury, damage, or hazard immediately.',
-                '',
-                'Requirements:',
-                '- Reliable, punctual, and willing to learn.',
-                '- Able to lift and carry materials and work on your feet.',
-                '',
-                'Authorization and Safety:',
-                'Work is performed only under supervision and as authorized by ' + co + '. Never collect cash from customers.'
-            ].join(_JD_NL);
-            if (key === 'lead') return [
-                'Position: Lead / Foreman',
-                'Reports to: ' + co + ' Owner / Manager',
-                '',
-                'Summary:',
-                'Run job sites for ' + co + ', directing the crew and ensuring work is completed safely, on time, and to standard.',
-                '',
-                'Responsibilities:',
-                '- Lead the on-site crew and coordinate the daily work.',
-                '- Verify each crew member only performs tasks they are authorized for.',
-                '- Enforce all safety rules and required PPE on site.',
-                '- Confirm work meets company standards before leaving the site.',
-                '- Communicate scope questions and any additional work needed to the office. Do not change pricing with the customer.',
-                '- Ensure before and after photos are taken and time is logged accurately.',
-                '- Report any incident, injury, damage, or hazard to the office immediately.',
-                '',
-                'Requirements:',
-                '- Proven field experience across general handyman and property maintenance trades.',
-                '- Reliable transportation and a valid driver license.',
-                '- Strong communication and the ability to lead a small crew.',
-                '',
-                'Authorization and Safety:',
-                'The lead upholds ' + co + ' authorization and safety standards on every job. No cash is collected from customers; all payments go through the company.'
-            ].join(_JD_NL);
-            return '';
-        }
         var _jobDescCustom = [];
         async function loadJobDescTemplates() {
             try { _jobDescCustom = await (await fetch('/api/job-desc-templates')).json(); }
@@ -18694,33 +18620,20 @@ function formatDuration(seconds) {
         function renderJobDescTemplateOptions() {
             var sel = document.getElementById('jobDescTemplateSelect');
             if (!sel) return;
-            var html = '<option value="">Start from a template…</option>' +
-                '<optgroup label="Built-in">' +
-                    '<option value="field-tech">Field Technician / Handyman</option>' +
-                    '<option value="helper">Helper / Apprentice</option>' +
-                    '<option value="lead">Lead / Foreman</option>' +
-                '</optgroup>';
-            if (_jobDescCustom.length) {
-                html += '<optgroup label="My templates">' + _jobDescCustom.map(function (t) {
-                    return '<option value="custom:' + t.id + '">' + escapeAuthText(t.name) + '</option>';
-                }).join('') + '</optgroup>';
-            }
-            sel.innerHTML = html;
+            // Every template — built-in and custom alike — lives in the same DB-backed list now,
+            // so there's just one flat picker (all editable/deletable the same way).
+            sel.innerHTML = '<option value="">Start from a template…</option>' + (_jobDescCustom || []).map(function (t) {
+                return '<option value="' + t.id + '">' + escapeAuthText(t.name) + '</option>';
+            }).join('');
         }
         function fillJobDescTemplate() {
             var sel = document.getElementById('jobDescTemplateSelect');
-            var key = sel ? sel.value : '';
-            if (!key) { alert('Pick a template first.'); return; }
-            var ta = document.getElementById('jobDescText');
-            var text;
-            if (key.indexOf('custom:') === 0) {
-                var t = _jobDescCustom.find(function (x) { return x.id === key.slice(7); });
-                text = t ? t.body : '';
-            } else {
-                var co = (typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'GSD Property Services';
-                text = _jobDescTemplate(key, co);
-            }
+            var id = sel ? sel.value : '';
+            if (!id) { alert('Pick a template first.'); return; }
+            var t = (_jobDescCustom || []).find(function (x) { return x.id === id; });
+            var text = t ? t.body : '';
             if (!text) return;
+            var ta = document.getElementById('jobDescText');
             if (ta.value.trim() && !confirm('Replace the current text with this template? You can then edit it.')) return;
             ta.value = text;
             ta.focus();
@@ -18744,10 +18657,9 @@ function formatDuration(seconds) {
         }
         async function deleteJobDescTemplate() {
             var sel = document.getElementById('jobDescTemplateSelect');
-            var key = sel ? sel.value : '';
-            if (key.indexOf('custom:') !== 0) { alert('Pick one of your saved templates (under "My templates") to delete.'); return; }
-            var id = key.slice(7);
-            var t = _jobDescCustom.find(function (x) { return x.id === id; });
+            var id = sel ? sel.value : '';
+            if (!id) { alert('Pick a template to delete.'); return; }
+            var t = (_jobDescCustom || []).find(function (x) { return x.id === id; });
             if (!confirm('Delete the template "' + (t ? t.name : '') + '"? This cannot be undone.')) return;
             try {
                 var res = await fetch('/api/job-desc-templates/' + id, { method: 'DELETE' });
@@ -18794,10 +18706,10 @@ function formatDuration(seconds) {
             var box = document.getElementById('jdmList');
             if (!box) return;
             var custom = _jobDescCustom || [];
-            var html = '<p style="color:#718096;font-size:0.88rem;margin-bottom:1rem;">Reusable job descriptions for hiring. Your custom templates appear in the picker when you write a job description for an employee.</p>';
-            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;"><strong style="color:#2d3748;">My templates</strong><button class="btn btn-primary btn-small" onclick="jdManagerNew()">+ New template</button></div>';
+            var html = '<p style="color:#718096;font-size:0.88rem;margin-bottom:1rem;">Reusable job descriptions — these also appear on the public Apply page and the onboarding picker. Edit or delete any of them, including the starter roles.</p>';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;"><strong style="color:#2d3748;">Templates</strong><button class="btn btn-primary btn-small" onclick="jdManagerNew()">+ New template</button></div>';
             if (!custom.length) {
-                html += '<div style="padding:1rem;text-align:center;color:#a0aec0;background:#f8f9fa;border-radius:8px;">No custom templates yet. Click <strong>+ New template</strong> to create one.</div>';
+                html += '<div style="padding:1rem;text-align:center;color:#a0aec0;background:#f8f9fa;border-radius:8px;">No templates yet. Click <strong>+ New template</strong> to create one.</div>';
             } else {
                 html += custom.map(function (t) {
                     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border:1.5px solid #e2e8f0;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.5rem;">' +
@@ -18809,7 +18721,6 @@ function formatDuration(seconds) {
                         '</div></div>';
                 }).join('');
             }
-            html += '<div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #edf2f7;font-size:0.82rem;color:#a0aec0;">Built-in (always available): Field Technician / Handyman · Helper / Apprentice · Lead / Foreman</div>';
             box.innerHTML = html;
         }
         function jdManagerNew() {
