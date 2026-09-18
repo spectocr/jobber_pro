@@ -8863,6 +8863,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         '<div><strong style="color:#2d3748;">📄 Master Service Agreement</strong> &nbsp; ' + status + '</div>' +
                         '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
                             '<button class="btn btn-secondary btn-small" onclick="editClientMsaProvisions(\'' + client.id + '\')">✎ Special provisions' + (prov ? ' •' : '') + '</button>' +
+                            '<button class="btn btn-secondary btn-small" onclick="viewClientMsa(\'' + client.id + '\')">👁 View MSA</button>' +
                             (client.email ? '<button class="btn btn-secondary btn-small" onclick="sendClientMsa(\'' + client.id + '\')">📧 Send to sign</button>' : '') +
                         '</div>' +
                     '</div>' +
@@ -8934,6 +8935,25 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 if (!res.ok) { alert(data.error || 'Could not send'); return; }
                 alert('✅ Sent — the client can review and sign in their portal.');
             } catch (e) { alert('Network error'); }
+        }
+        async function viewClientMsa(clientId) {
+            const client = clients.find(function (c) { return c.id == clientId; });
+            var m = _makeSimpleModal('msaViewModal', '📄 Master Service Agreement — ' + escapeAuthText(client ? client.name : ''));
+            m.querySelector('.modal-content').style.maxWidth = '680px';
+            var body = document.getElementById('msaViewModal-body');
+            body.innerHTML = '<p style="color:#718096;">Loading…</p>';
+            openModal('msaViewModal');
+            var data;
+            try { data = await (await fetch('/api/clients/' + clientId + '/msa')).json(); }
+            catch (e) { body.innerHTML = '<p style="color:#e53e3e;">Failed to load.</p>'; return; }
+            var text = data.mergedBody || '';
+            if (data.provisions && !data.provisionsInBody) text += '\n\n\nSPECIAL PROVISIONS\n\n' + data.provisions;
+            var sig = data.signature;
+            var sigNote = sig
+                ? '<div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;color:#276749;font-size:0.85rem;">✓ Signed “' + escapeAuthText(sig.signature) + '” on ' + new Date(sig.signedAt).toLocaleDateString() + ' (v' + sig.version + ')</div>'
+                : '<div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;color:#742a2a;font-size:0.85rem;">Not signed yet — this is a live preview (v' + data.version + ') of what the client sees in their portal.</div>';
+            body.innerHTML = sigNote +
+                '<div style="max-height:60vh;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;background:#fafafa;font-size:0.86rem;line-height:1.6;white-space:pre-wrap;color:#2d3748;">' + escapeAuthText(text) + '</div>';
         }
 
         // ── Property Maintenance ──────────────────────────────────────────────

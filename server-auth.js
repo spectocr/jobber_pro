@@ -6433,8 +6433,25 @@ app.get('/api/clients/:id/msa', isAdmin, async (req, res) => {
     try {
         const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
         if (!client) return res.status(404).json({ error: 'Not found' });
+        const settings = await db.collection('settings').findOne({}) || {};
+        const companyName = settings.companyName || 'GSD Property Services';
         const msa = await getOrSeedMsa();
-        res.json({ base: msa, provisions: client.msaProvisions || '', signature: client.msaSignature || null, version: msa.version });
+        const provisions = (client.msaProvisions || '').trim();
+        const vars = {
+            clientName: client.name, companyName,
+            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            doNotExceed: fmtMoneyPlain(client.doNotExceed),
+            specialProvisions: provisions || 'None.',
+            standardRate: fmtRate(client.standardRate, 'standardRate'),
+            serviceCallMin: fmtRate(client.serviceCallMin, 'serviceCallMin'),
+            emergencyRate: fmtRate(client.emergencyRate, 'emergencyRate'),
+            emergencyMin: fmtRate(client.emergencyMin, 'emergencyMin')
+        };
+        const provisionsInBody = /\{specialProvisions\}/.test(msa.body || '');
+        res.json({
+            base: msa, provisions, signature: client.msaSignature || null, version: msa.version,
+            mergedBody: mergeMsa(msa.body, vars), provisionsInBody
+        });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/clients/:id/msa', isAdmin, async (req, res) => {
