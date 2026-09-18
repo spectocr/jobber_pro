@@ -6080,27 +6080,36 @@ app.post('/api/job-desc-templates', isAdmin, async (req, res) => {
     const name = ((req.body && req.body.name) || '').trim();
     const body = ((req.body && req.body.body) || '').trim();
     if (!name || !body) return res.status(400).json({ error: 'Template name and text are required' });
-    const list = (await getOrSeedJobDescTemplates()).slice();
+    await getOrSeedJobDescTemplates(); // ensure the array exists before an atomic $push
     const tmpl = { id: 'jdt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name.slice(0, 80), body: body.slice(0, 20000), createdAt: new Date() };
-    list.push(tmpl);
-    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
-    res.json({ success: true, template: tmpl, templates: list });
+    // Atomic push — two saves landing close together can no longer clobber each other
+    // (the old code read-modified-wrote the whole array with $set, which could race).
+    await db.collection('settings').updateOne({}, { $push: { jobDescTemplates: tmpl } }, { upsert: true });
+    const after = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1 } });
+    res.json({ success: true, template: tmpl, templates: after.jobDescTemplates || [] });
 });
 app.put('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
     const name = ((req.body && req.body.name) || '').trim();
     const body = ((req.body && req.body.body) || '').trim();
     if (!name || !body) return res.status(400).json({ error: 'Template name and text are required' });
-    const list = (await getOrSeedJobDescTemplates()).slice();
-    const idx = list.findIndex(t => t.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Template not found' });
-    list[idx] = { ...list[idx], name: name.slice(0, 80), body: body.slice(0, 20000), updatedAt: new Date() };
-    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
-    res.json({ success: true, templates: list });
+    await getOrSeedJobDescTemplates();
+    // Atomic, targeted update via arrayFilters — only the matching element is touched,
+    // so a concurrent add/delete elsewhere in the array can't be lost.
+    const result = await db.collection('settings').updateOne(
+        { 'jobDescTemplates.id': req.params.id },
+        { $set: { 'jobDescTemplates.$[t].name': name.slice(0, 80), 'jobDescTemplates.$[t].body': body.slice(0, 20000), 'jobDescTemplates.$[t].updatedAt': new Date() } },
+        { arrayFilters: [{ 't.id': req.params.id }] }
+    );
+    if (!result.matchedCount) return res.status(404).json({ error: 'Template not found' });
+    const after = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1 } });
+    res.json({ success: true, templates: after.jobDescTemplates || [] });
 });
 app.delete('/api/job-desc-templates/:id', isAdmin, async (req, res) => {
-    const list = (await getOrSeedJobDescTemplates()).filter(t => t.id !== req.params.id);
-    await db.collection('settings').updateOne({}, { $set: { jobDescTemplates: list } }, { upsert: true });
-    res.json({ success: true, templates: list });
+    await getOrSeedJobDescTemplates();
+    // Atomic $pull — removing one template can't race-erase a different in-flight add.
+    await db.collection('settings').updateOne({}, { $pull: { jobDescTemplates: { id: req.params.id } } });
+    const after = await db.collection('settings').findOne({}, { projection: { jobDescTemplates: 1 } });
+    res.json({ success: true, templates: after.jobDescTemplates || [] });
 });
 
 // ── Tool / task authorization records (per employee paper trail) ──
