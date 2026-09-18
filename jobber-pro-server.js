@@ -3772,6 +3772,30 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             <option value="net_90">Net 90</option>
                         </select>
                     </div>
+                    <details style="margin-top: 1rem;">
+                        <summary style="cursor:pointer;font-weight:600;color:#4a5568;font-size:0.9rem;">💲 Custom Pricing (MSA rate overrides)</summary>
+                        <div style="border-left: 3px solid #667eea; padding-left: 1rem; margin-top: 0.75rem;">
+                            <p style="font-size:0.8rem;color:#718096;margin-bottom:0.75rem;">Leave blank to use the standard rates ($150/hr, $150 min · $225/hr emergency, $225 min). Fills this client's signed MSA.</p>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                                <div class="form-group" style="margin:0;">
+                                    <label style="font-size:0.82rem;">Standard rate ($/hr)</label>
+                                    <input type="number" name="standardRate" min="0" step="5" placeholder="150">
+                                </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label style="font-size:0.82rem;">Standard call minimum ($)</label>
+                                    <input type="number" name="serviceCallMin" min="0" step="5" placeholder="150">
+                                </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label style="font-size:0.82rem;">Emergency rate ($/hr)</label>
+                                    <input type="number" name="emergencyRate" min="0" step="5" placeholder="225">
+                                </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label style="font-size:0.82rem;">Emergency minimum ($)</label>
+                                    <input type="number" name="emergencyMin" min="0" step="5" placeholder="225">
+                                </div>
+                            </div>
+                        </div>
+                    </details>
                     <div class="form-group" style="margin-top: 1rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" name="isPropertyManagement" id="isPropertyManagementCheckbox" onchange="togglePropertyManagementFields()" style="width: auto; cursor: pointer;">

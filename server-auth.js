@@ -6404,6 +6404,13 @@ function mergeMsa(body, vars) {
     return String(body || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
 }
 function fmtMoneyPlain(n) { const v = parseFloat(n); return Number.isFinite(v) && v > 0 ? '$' + v.toFixed(0) : '$500'; }
+// Client-level pricing, with standard fallbacks so clients without an override see the default rates.
+const DEFAULT_RATES = { standardRate: 150, serviceCallMin: 150, emergencyRate: 225, emergencyMin: 225 };
+function fmtRate(n, fallbackKey) {
+    const v = parseFloat(n);
+    const amount = (Number.isFinite(v) && v > 0) ? v : DEFAULT_RATES[fallbackKey];
+    return '$' + amount.toFixed(2);
+}
 
 // Admin: read / edit the base MSA template
 app.get('/api/msa-template', isAdmin, async (req, res) => {
@@ -6518,7 +6525,16 @@ app.get('/api/client-portal/msa', async (req, res) => {
         const companyName = settings.companyName || 'GSD Property Services';
         const msa = await getOrSeedMsa();
         const provisions = (client.msaProvisions || '').trim();
-        const vars = { clientName: client.name, companyName, date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), doNotExceed: fmtMoneyPlain(client.doNotExceed), specialProvisions: provisions || 'None.' };
+        const vars = {
+            clientName: client.name, companyName,
+            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            doNotExceed: fmtMoneyPlain(client.doNotExceed),
+            specialProvisions: provisions || 'None.',
+            standardRate: fmtRate(client.standardRate, 'standardRate'),
+            serviceCallMin: fmtRate(client.serviceCallMin, 'serviceCallMin'),
+            emergencyRate: fmtRate(client.emergencyRate, 'emergencyRate'),
+            emergencyMin: fmtRate(client.emergencyMin, 'emergencyMin')
+        };
         const provisionsInBody = /\{specialProvisions\}/.test(msa.body || '');
         const signed = client.msaSignature && client.msaSignature.version === msa.version ? client.msaSignature : null;
         res.json({ applicable: true, version: msa.version, body: mergeMsa(msa.body, vars), provisions, provisionsInBody, signature: signed });
