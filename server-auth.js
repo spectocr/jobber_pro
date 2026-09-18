@@ -13438,6 +13438,14 @@ async function rebuildHomePage() {
                 `<p class="footer-copy" style="margin-bottom:0.5rem;">NJ Licensed &amp; Insured &nbsp;·&nbsp; HIC Lic# 13VH13491700</p>\n    <p class="footer-copy">`);
         }
 
+        // 2b) Careers link in the footer (→ /apply, routed to the app on the apex)
+        if (!html.includes('>Careers</a>')) {
+            html = html.replace(
+                '<a href="https://app.gsdhandymanservice.com/client-login" target="_blank">Client Portal</a>',
+                '<a href="https://app.gsdhandymanservice.com/client-login" target="_blank">Client Portal</a>\n        <a href="/apply">Careers</a>'
+            );
+        }
+
         // 3) Surface actual review count in hero stat (guard on the old label so an
         //    unrelated "Google Reviews" elsewhere on the page doesn't skip this)
         if (html.includes('<div class="label">Google Rating</div>')) {
