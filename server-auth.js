@@ -5492,10 +5492,10 @@ app.get('/apply', async (req, res) => {
         <label class="fld">Position *</label><select class="txt" id="position"><option value="">Select…</option>${posOpts}</select>
         <label class="fld">Years of Experience</label><input class="txt" type="number" id="experienceYears" min="0" max="60" placeholder="e.g., 5">
         <label class="fld">Skills / Trades</label><div class="chks">${tradeBoxes}</div>
-        <label class="yn"><input type="checkbox" id="hasTransportation"> Reliable transportation</label>
-        <label class="yn"><input type="checkbox" id="hasLicense"> Valid driver's license</label>
-        <label class="yn"><input type="checkbox" id="hasTools"> I have my own tools</label>
-        <label class="yn"><input type="checkbox" id="authorizedToWork"> Authorized to work in the U.S.</label>
+        <label class="fld">Reliable transportation? *</label><select class="txt" id="hasTransportation"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select>
+        <label class="fld">Valid driver's license? *</label><select class="txt" id="hasLicense"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select>
+        <label class="fld">Own your own tools? *</label><select class="txt" id="hasTools"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select>
+        <label class="fld">Authorized to work in the U.S.? *</label><select class="txt" id="authorizedToWork"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select>
         <label class="fld">Availability</label><select class="txt" id="availability"><option value="">Select…</option><option>Full-time</option><option>Part-time</option><option>Weekends</option><option>Flexible</option></select>
         <div style="font-size:0.78rem;color:#94a3b8;margin-top:0.3rem;">Most jobs are scheduled between 8am and 6pm.</div>
         <label class="fld">Why do you want to work with us?</label><textarea class="txt" id="message" rows="3" placeholder="Tell us a bit about yourself…"></textarea>
@@ -5510,13 +5510,15 @@ app.get('/apply', async (req, res) => {
                 var btn=document.getElementById('btn'), err=document.getElementById('err');
                 err.style.display='none';
                 var fn=document.getElementById('firstName').value.trim(), ln=document.getElementById('lastName').value.trim(), ph=document.getElementById('phone').value.trim(), pos=document.getElementById('position').value;
+                var tr=document.getElementById('hasTransportation').value, lic=document.getElementById('hasLicense').value, tools=document.getElementById('hasTools').value, auth=document.getElementById('authorizedToWork').value;
                 if(!fn||!ln||!ph||!pos){ err.textContent='Please fill in your name, phone, and the position.'; err.style.display='block'; return; }
+                if(!tr||!lic||!tools||!auth){ err.textContent='Please answer Yes or No for transportation, license, tools, and work authorization.'; err.style.display='block'; return; }
                 btn.disabled=true; btn.textContent='Submitting…';
                 var trades=[]; document.querySelectorAll('.trade:checked').forEach(function(c){ trades.push(c.value); });
                 var resumeData=null, resumeName=null, rf=document.getElementById('resume').files[0];
                 try{
                     if(rf){ if(rf.size>8*1024*1024){ err.textContent='Résumé is too large (max 8MB).'; err.style.display='block'; btn.disabled=false; btn.textContent='Submit Application'; return; } resumeData=await new Promise(function(rs){var r=new FileReader();r.onload=function(){rs(r.result);};r.readAsDataURL(rf);}); resumeName=rf.name; }
-                    var body={ firstName:fn, lastName:ln, phone:ph, email:document.getElementById('email').value.trim(), position:pos, experienceYears:document.getElementById('experienceYears').value, trades:trades, hasTransportation:document.getElementById('hasTransportation').checked, hasLicense:document.getElementById('hasLicense').checked, hasTools:document.getElementById('hasTools').checked, authorizedToWork:document.getElementById('authorizedToWork').checked, availability:document.getElementById('availability').value, message:document.getElementById('message').value.trim(), resumeData:resumeData, resumeName:resumeName };
+                    var body={ firstName:fn, lastName:ln, phone:ph, email:document.getElementById('email').value.trim(), position:pos, experienceYears:document.getElementById('experienceYears').value, trades:trades, hasTransportation:tr, hasLicense:lic, hasTools:tools, authorizedToWork:auth, availability:document.getElementById('availability').value, message:document.getElementById('message').value.trim(), resumeData:resumeData, resumeName:resumeName };
                     var resp=await fetch('/api/public/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
                     var d=await resp.json();
                     if(!resp.ok){ err.textContent=d.error||'Submission failed'; err.style.display='block'; btn.disabled=false; btn.textContent='Submit Application'; return; }
@@ -5531,7 +5533,10 @@ app.get('/apply', async (req, res) => {
 app.post('/api/public/apply', publicApiLimiter, async (req, res) => {
     try {
         const b = req.body || {};
+        const YN = v => (v === 'yes' ? true : (v === 'no' ? false : null));
+        const yns = { hasTransportation: YN(b.hasTransportation), hasLicense: YN(b.hasLicense), hasTools: YN(b.hasTools), authorizedToWork: YN(b.authorizedToWork) };
         if (!b.firstName || !b.lastName || !b.phone || !b.position) return res.status(400).json({ error: 'Please fill in the required fields.' });
+        if (Object.values(yns).some(v => v === null)) return res.status(400).json({ error: 'Please answer Yes or No for transportation, license, tools, and work authorization.' });
         let resumeKey = null;
         if (b.resumeData && typeof b.resumeData === 'string' && b.resumeData.startsWith('data:') && s3Client) {
             try {
@@ -5549,8 +5554,8 @@ app.post('/api/public/apply', publicApiLimiter, async (req, res) => {
             email: (b.email || '').toLowerCase().trim(), phone: b.phone,
             position: b.position, experienceYears: b.experienceYears || '',
             trades: Array.isArray(b.trades) ? b.trades.slice(0, 20).map(t => String(t).slice(0, 40)) : [],
-            hasTransportation: !!b.hasTransportation, hasLicense: !!b.hasLicense, hasTools: !!b.hasTools,
-            authorizedToWork: !!b.authorizedToWork, availability: b.availability || '',
+            hasTransportation: yns.hasTransportation, hasLicense: yns.hasLicense, hasTools: yns.hasTools,
+            authorizedToWork: yns.authorizedToWork, availability: b.availability || '',
             message: (b.message || '').slice(0, 2000),
             resumeKey, status: 'new', source: 'website', createdAt: new Date()
         };
