@@ -1182,8 +1182,7 @@ async function signPortalMsa() {
         const res = await fetch('/api/client-portal/msa/sign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ signature: sig }) });
         if (!res.ok) throw new Error();
         closeMsaModal();
-        document.getElementById('msaBanner').style.display = 'none';
-        alert('✅ Thank you — your Service Agreement is signed.');
+        alert('✅ Thank you — your Service Agreement is signed. A copy has been emailed to you for your records.');
         checkPortalMsa();
     } catch (e) { err.textContent = 'Could not sign. Please try again.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = '✓ Sign Agreement'; }
 }
