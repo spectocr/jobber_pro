@@ -6543,6 +6543,34 @@ function fmtRate(n, fallbackKey) {
     const amount = (Number.isFinite(v) && v > 0) ? v : DEFAULT_RATES[fallbackKey];
     return '$' + amount.toFixed(2);
 }
+// Email the client a copy of their signed MSA (used right after they sign, and for admin-triggered resends).
+async function sendSignedMsaCopy(client, msa, mergedBody, signature, companyName, sentBy) {
+    if (!client.email) return false;
+    const appUrl = process.env.APP_URL;
+    const portalUrl = `${appUrl}/client-portal`;
+    const subject = `Your signed Service Agreement — ${companyName}`;
+    const signedDate = new Date(signature.signedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const bodyHtml = String(mergedBody || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+            <h2 style="color:#667eea;">Your Service Agreement is signed</h2>
+            <p>Hi ${client.name}, here is a copy of your signed Master Service Agreement with ${companyName}, for your records.</p>
+            <p style="color:#4a5568;font-size:0.9rem;">Signed by <strong>${signature.signature}</strong> on ${signedDate}.</p>
+            <div style="border:1px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;background:#fafafa;font-size:0.86rem;line-height:1.6;color:#2d3748;margin-top:1rem;">${bodyHtml}</div>
+            <p style="margin-top:1.5rem;color:#718096;font-size:0.85rem;">You can also view this anytime by logging into your <a href="${portalUrl}">client portal</a>.</p>
+        </div>`;
+    const _logId = new ObjectId();
+    await emailService.sendEmail({
+        to: client.email, subject, html,
+        text: `Signed by ${signature.signature} on ${signedDate}.\n\n${mergedBody}`
+    });
+    await db.collection('email_logs').insertOne({
+        _id: _logId, type: 'msa_sign', to: client.email, toName: client.name, subject,
+        trigger: `Signed copy sent (v${msa.version})`, relatedId: client._id, relatedTitle: client.name,
+        htmlBody: html, sentBy: sentBy || 'System', sentAt: new Date(), status: 'sent', opened: false,
+        meta: { msaVersion: msa.version }
+    });
+    return true;
+}
 
 // Admin: read / edit the base MSA template
 app.get('/api/msa-template', isAdmin, async (req, res) => {
@@ -6659,6 +6687,34 @@ app.post('/api/clients/:id/msa/send', isAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Admin: email the client a copy of their ALREADY-signed MSA (e.g. they signed before we auto-sent one, or lost it).
+app.post('/api/clients/:id/msa/resend-signed', isAdmin, async (req, res) => {
+    try {
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        if (!client.email) return res.status(400).json({ error: 'No email on file for this client.' });
+        if (!client.msaSignature) return res.status(400).json({ error: 'This client has not signed yet.' });
+        const settings = await db.collection('settings').findOne({}) || {};
+        const companyName = settings.companyName || 'GSD Property Services';
+        const msa = await getOrSeedMsa();
+        const provisions = (client.msaProvisions || '').trim();
+        const vars = {
+            clientName: client.name, companyName,
+            date: new Date(client.msaSignature.signedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            doNotExceed: fmtMoneyPlain(client.doNotExceed),
+            specialProvisions: provisions || 'None.',
+            standardRate: fmtRate(client.standardRate, 'standardRate'),
+            serviceCallMin: fmtRate(client.serviceCallMin, 'serviceCallMin'),
+            emergencyRate: fmtRate(client.emergencyRate, 'emergencyRate'),
+            emergencyMin: fmtRate(client.emergencyMin, 'emergencyMin')
+        };
+        let mergedBody = mergeMsa(msa.body, vars);
+        if (provisions && !/\{specialProvisions\}/.test(msa.body || '')) mergedBody += '\n\n\nSPECIAL PROVISIONS\n\n' + provisions;
+        await sendSignedMsaCopy(client, msa, mergedBody, client.msaSignature, companyName, req.session.userName || 'admin');
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Admin: read the send/open/sign activity trail for a client's MSA.
 app.get('/api/clients/:id/msa/activity', isAdmin, async (req, res) => {
     try {
@@ -6757,18 +6813,39 @@ app.post('/api/client-portal/msa/sign', async (req, res) => {
         if (!req.session.clientId || !req.session.isClientPortal) return res.status(401).json({ error: 'Not authenticated' });
         const sig = ((req.body && req.body.signature) || '').trim();
         if (!sig) return res.status(400).json({ error: 'Signature is required' });
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.session.clientId) });
+        if (!client) return res.status(404).json({ error: 'Not found' });
         const msa = await getOrSeedMsa();
         const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
         const now = new Date();
         const signature = { signature: sig.slice(0, 120), version: msa.version, signedAt: now, ip, userAgent: String(req.headers['user-agent'] || '').slice(0, 300) };
         await db.collection('clients').updateOne(
-            { _id: new ObjectId(req.session.clientId) },
+            { _id: client._id },
             {
                 $set: { msaSignature: signature },
                 $push: { msaAuditLog: { action: 'signed', at: now, version: msa.version, signature: signature.signature, ip } }
             }
         );
         res.json({ success: true });
+        // Best-effort: email the client a copy for their records. Never block the sign response on this.
+        try {
+            const settings = await db.collection('settings').findOne({}) || {};
+            const companyName = settings.companyName || 'GSD Property Services';
+            const provisions = (client.msaProvisions || '').trim();
+            const vars = {
+                clientName: client.name, companyName,
+                date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                doNotExceed: fmtMoneyPlain(client.doNotExceed),
+                specialProvisions: provisions || 'None.',
+                standardRate: fmtRate(client.standardRate, 'standardRate'),
+                serviceCallMin: fmtRate(client.serviceCallMin, 'serviceCallMin'),
+                emergencyRate: fmtRate(client.emergencyRate, 'emergencyRate'),
+                emergencyMin: fmtRate(client.emergencyMin, 'emergencyMin')
+            };
+            let mergedBody = mergeMsa(msa.body, vars);
+            if (provisions && !/\{specialProvisions\}/.test(msa.body || '')) mergedBody += '\n\n\nSPECIAL PROVISIONS\n\n' + provisions;
+            await sendSignedMsaCopy(client, msa, mergedBody, signature, companyName, 'System');
+        } catch (e) { console.error('Signed MSA copy email failed:', e.message); }
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

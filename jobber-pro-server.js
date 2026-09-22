@@ -8864,6 +8864,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
                             '<button class="btn btn-secondary btn-small" onclick="editClientMsaProvisions(\'' + client.id + '\')">✎ Special provisions' + (prov ? ' •' : '') + '</button>' +
                             '<button class="btn btn-secondary btn-small" onclick="viewClientMsa(\'' + client.id + '\')">👁 View MSA</button>' +
+                            (sig && client.email ? '<button class="btn btn-secondary btn-small" onclick="resendSignedMsa(\'' + client.id + '\')">📧 Email signed copy</button>' : '') +
                             (client.email ? '<button class="btn btn-secondary btn-small" onclick="sendClientMsa(\'' + client.id + '\')">📧 Send to sign</button>' : '') +
                         '</div>' +
                     '</div>' +
@@ -8934,6 +8935,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const data = await res.json();
                 if (!res.ok) { alert(data.error || 'Could not send'); return; }
                 alert('✅ Sent — the client can review and sign in their portal.');
+            } catch (e) { alert('Network error'); }
+        }
+        async function resendSignedMsa(clientId) {
+            if (!confirm('Email this client a copy of their already-signed Service Agreement?')) return;
+            try {
+                const res = await fetch('/api/clients/' + clientId + '/msa/resend-signed', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not send'); return; }
+                alert('✅ Sent — a copy of their signed agreement is on its way.');
             } catch (e) { alert('Network error'); }
         }
         async function viewClientMsa(clientId) {

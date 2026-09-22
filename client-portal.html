@@ -270,11 +270,11 @@
         </div>
     </div>
 
-    <!-- MSA sign banner (main clients, unsigned) -->
+    <!-- MSA banner (main clients): sign prompt if unsigned, permanent "view your copy" link once signed -->
     <div id="msaBanner" style="display:none;background:#fffaf0;border:1px solid #fbd38d;border-left:4px solid #ed8936;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
-            <div style="color:#744210;font-size:0.92rem;">📄 Please review and sign your Service Agreement.</div>
-            <button class="btn btn-primary" onclick="openPortalMsa()" style="padding:0.55rem 1.2rem;">Review &amp; Sign</button>
+            <div id="msaBannerText" style="color:#744210;font-size:0.92rem;">📄 Please review and sign your Service Agreement.</div>
+            <button class="btn btn-primary" id="msaBannerBtn" onclick="openPortalMsa()" style="padding:0.55rem 1.2rem;">Review &amp; Sign</button>
         </div>
     </div>
 
@@ -1128,7 +1128,19 @@ async function checkPortalMsa() {
         if (!res.ok) return;
         _msaData = await res.json();
         const banner = document.getElementById('msaBanner');
-        if (banner) banner.style.display = (_msaData.applicable && !_msaData.signature) ? 'block' : 'none';
+        if (!banner) return;
+        if (!_msaData.applicable) { banner.style.display = 'none'; return; }
+        banner.style.display = 'block';
+        const text = document.getElementById('msaBannerText'), btn = document.getElementById('msaBannerBtn');
+        if (_msaData.signature) {
+            banner.style.background = '#f0fff4'; banner.style.borderColor = '#c6f6d5'; banner.style.borderLeftColor = '#38a169';
+            if (text) { text.style.color = '#276749'; text.textContent = '✓ Service Agreement signed ' + new Date(_msaData.signature.signedAt).toLocaleDateString() + '. A copy was emailed to you.'; }
+            if (btn) btn.textContent = 'View Agreement';
+        } else {
+            banner.style.background = '#fffaf0'; banner.style.borderColor = '#fbd38d'; banner.style.borderLeftColor = '#ed8936';
+            if (text) { text.style.color = '#744210'; text.textContent = '📄 Please review and sign your Service Agreement.'; }
+            if (btn) btn.textContent = 'Review & Sign';
+        }
     } catch (e) {}
 }
 function openPortalMsa() {
