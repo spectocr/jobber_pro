@@ -6547,6 +6547,16 @@ function fmtRate(n, fallbackKey) {
     const amount = (Number.isFinite(v) && v > 0) ? v : DEFAULT_RATES[fallbackKey];
     return '$' + amount.toFixed(2);
 }
+// Record a client-facing email in email_logs so it shows on the client card Emails tab and portal Communication History.
+async function logClientEmail(client, { type, to, subject, html, trigger, sentBy }) {
+    try {
+        await db.collection('email_logs').insertOne({
+            type, to, toName: client && client.name, subject, trigger: trigger || '',
+            relatedId: client && client._id, relatedTitle: client && client.name,
+            htmlBody: html || '', sentBy: sentBy || 'System', sentAt: new Date(), status: 'sent', opened: false
+        });
+    } catch (e) { console.error('Email log write failed:', e.message); }
+}
 // Email the client a copy of their signed MSA (used right after they sign, and for admin-triggered resends).
 async function sendSignedMsaCopy(client, msa, mergedBody, signature, companyName, sentBy) {
     if (!client.email) return false;
@@ -9944,17 +9954,14 @@ app.post('/api/client-messages/:id/reply-portal', isAuthenticated, async (req, r
             const to = (client && client.email) || msg.clientEmail;
             if (to && emailService && emailService.sendEmail) {
                 const portalUrl = `${process.env.APP_URL}/client-portal`;
-                await emailService.sendEmail({
-                    to,
-                    subject: `New reply from ${businessName}`,
-                    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                const _replyHtml = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
                         <h2 style="color:#667eea;">You have a new message from ${businessName}</h2>
                         <p style="white-space:pre-wrap;background:#f8f9fa;padding:1rem;border-radius:8px;">${text.replace(/</g, '&lt;')}</p>
                         <p style="margin-top:1.5rem;"><a href="${portalUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">View &amp; reply in your portal →</a></p>
                         <p style="color:#a0aec0;font-size:0.82rem;">Log in to your portal to see the full conversation and reply.</p>
-                    </div>`,
-                    text: `New message from ${businessName}:\n\n${text}\n\nView and reply in your portal: ${portalUrl}`
-                });
+                    </div>`;
+                await emailService.sendEmail({ to, subject: `New reply from ${businessName}`, html: _replyHtml, text: `New message from ${businessName}:\n\n${text}\n\nView and reply in your portal: ${portalUrl}` });
+                if (client) await logClientEmail(client, { type: 'portal', to, subject: `New reply from ${businessName}`, html: _replyHtml, trigger: 'Portal reply', sentBy: req.session.userName || 'admin' });
                 emailed = true;
             }
         } catch (e) { console.error('Portal reply email failed:', e.message); }
@@ -9998,17 +10005,14 @@ app.post('/api/clients/:clientId/portal-message', isAdmin, async (req, res) => {
             const businessName = settings.companyName || 'GSD Property Services';
             if (client.email && emailService && emailService.sendEmail) {
                 const portalUrl = `${process.env.APP_URL}/client-portal`;
-                await emailService.sendEmail({
-                    to: client.email,
-                    subject: `New message from ${businessName}`,
-                    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                const _msgHtml = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
                         <h2 style="color:#667eea;">You have a new message from ${businessName}</h2>
                         ${reference ? `<p style="color:#718096;">Re: ${reference}</p>` : ''}
                         <p style="white-space:pre-wrap;background:#f8f9fa;padding:1rem;border-radius:8px;">${text.replace(/</g, '&lt;')}</p>
                         <p style="margin-top:1.5rem;"><a href="${portalUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">View &amp; reply in your portal →</a></p>
-                    </div>`,
-                    text: `New message from ${businessName}${reference ? ' (Re: ' + reference + ')' : ''}:\n\n${text}\n\nView and reply in your portal: ${portalUrl}`
-                });
+                    </div>`;
+                await emailService.sendEmail({ to: client.email, subject: `New message from ${businessName}`, html: _msgHtml, text: `New message from ${businessName}${reference ? ' (Re: ' + reference + ')' : ''}:\n\n${text}\n\nView and reply in your portal: ${portalUrl}` });
+                await logClientEmail(client, { type: 'portal', to: client.email, subject: `New message from ${businessName}`, html: _msgHtml, trigger: 'Portal message', sentBy: req.session.userName || 'admin' });
                 emailed = true;
             }
         } catch (e) { console.error('Portal message (admin-initiated) email failed:', e.message); }
@@ -11227,6 +11231,27 @@ app.get('/api/clients/:id/texts', isAuthenticated, async (req, res) => {
             const p = (m.clientPhone || m.reference || '').replace(/\D/g, '').slice(-10);
             return norm && p === norm;
         }).map(m => ({ id: m._id.toString(), direction: m.direction || 'inbound', message: m.message, createdAt: m.createdAt, read: m.read }));
+
+        // Automated texts (scheduling, job updates, invoices, reminders…) are written to sms_log by sendSMS(),
+        // not client_messages — merge them in so the card shows everything the client was (or wasn't) sent.
+        // Skip placeholder numbers (e.g. 0000000000) so unrelated clients sharing one don't cross-match.
+        if (norm.length === 10 && !/^(\d)\1+$/.test(norm)) {
+            const typeLabel = { job_scheduled: 'Scheduling', job_update: 'Job update', invoice: 'Invoice', reminder: 'Reminder', incident: 'Incident', system: 'Automated' };
+            const digits = norm.split('').join('\\D*');
+            const logs = await db.collection('sms_log').find({ to: new RegExp(digits + '\\D*$'), type: { $nin: ['inbound', 'reply'] } }).sort({ sentAt: 1 }).toArray();
+            logs.forEach(l => {
+                const t = new Date(l.sentAt).getTime();
+                const dup = messages.some(m => m.direction === 'outbound' && m.message === l.message && Math.abs(new Date(m.createdAt).getTime() - t) < 5 * 60 * 1000);
+                if (dup) return;
+                messages.push({
+                    id: 'log_' + l._id.toString(), direction: 'outbound', message: l.message, createdAt: l.sentAt, read: true,
+                    automated: true, label: typeLabel[l.type] || 'Automated',
+                    status: l.success ? 'sent' : (l.skipped ? 'skipped' : 'failed'),
+                    note: l.success ? '' : (l.error || 'Not sent')
+                });
+            });
+            messages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }
         res.json({ clientId: String(client._id), clientName: client.name, phone: client.phone || '', messages });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

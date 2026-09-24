@@ -15160,7 +15160,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const time = new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                 html += '<div style="display:flex;justify-content:' + (out ? 'flex-end' : 'flex-start') + ';margin-bottom:0.35rem;">' +
                     '<div style="max-width:78%;background:' + (out ? '#3182ce' : '#edf2f7') + ';color:' + (out ? '#fff' : '#1a202c') + ';padding:0.5rem 0.75rem;border-radius:14px;' + (out ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;') + '">' +
+                        (m.automated ? '<div style="font-size:0.66rem;opacity:0.8;font-weight:700;margin-bottom:2px;">🤖 ' + escapeSmsText(m.label || 'Automated') + '</div>' : '') +
                         '<div style="white-space:pre-wrap;line-height:1.4;font-size:0.9rem;">' + escapeSmsText(m.message) + '</div>' +
+                        (m.status && m.status !== 'sent' ? '<div style="font-size:0.7rem;font-weight:700;margin-top:3px;background:#fff5f5;color:#c53030;border-radius:6px;padding:2px 6px;">⚠ Not sent — ' + escapeSmsText(m.note || m.status) + '</div>' : '') +
                         '<div style="font-size:0.66rem;opacity:0.7;text-align:right;margin-top:2px;">' + time + '</div>' +
                     '</div></div>';
             });
