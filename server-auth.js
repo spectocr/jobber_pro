@@ -3701,7 +3701,18 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         const jobTotal = parseFloat(updateData.totalWithTax || updateData.total) || 0;
         const jobPaid = parseFloat(updateData.totalPaid) || 0;
         if (jobTotal > 0 && jobPaid >= jobTotal && updateData.status !== 'completed') {
+            const prevStatus = updateData.status;
             updateData.status = 'completed';
+            job.status = 'completed'; // so the status-change SMS below sees the transition
+            if (oldJob && oldJob.status !== 'completed') {
+                if (!updateData.auditLog) updateData.auditLog = oldJob.auditLog || [];
+                updateData.auditLog.push({
+                    timestamp: new Date(), userName: req.session.userName, userId: new ObjectId(req.session.userId),
+                    action: 'status_change', oldStatus: oldJob.status, newStatus: 'completed',
+                    note: `Auto-completed: paid in full (was ${prevStatus || oldJob.status})`
+                });
+                if (!updateData.completedAt) updateData.completedAt = new Date();
+            }
         }
 
         // Version history: snapshot on save, but only keep it if the billable content
@@ -4057,6 +4068,32 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
 // FINAL saved status and only sends when: status is completed, the client is
 // residential with an email, and no survey has gone out yet. So surveys stop
 // leaking regardless of how a job reached "completed", and never double-send.
+// Text the client "job complete" when a job was auto-completed by a payment (paid in full). The manual
+// status-change path in POST /api/jobs sends its own text; this covers the auto-complete paths, which used
+// to complete the job silently. Claimed atomically so it can only ever send once per job.
+async function sendJobCompletedSms(jobId) {
+    try {
+        const _id = new ObjectId(jobId.toString());
+        const claim = await db.collection('jobs').updateOne(
+            { _id, status: 'completed', completionSmsSentAt: { $exists: false } },
+            { $set: { completionSmsSentAt: new Date() } }
+        );
+        if (!claim.modifiedCount) return;
+        const job = await db.collection('jobs').findOne({ _id });
+        const client = job && job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        if (!client || !client.phone) return;
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Jobber Pro';
+        const smsT = settings?.smsTemplates || {};
+        await sendSMS(client.phone,
+            interpolate(smsT.completed || '{companyName}: Job "{jobTitle}" is complete! Invoice will follow shortly.',
+                { companyName, jobTitle: job.title, title: job.title, total: (job.total || 0).toFixed(2) }),
+            { clientName: client.name, type: 'job_update', trigger: job.title });
+    } catch (e) {
+        console.error('sendJobCompletedSms error:', e.message);
+    }
+}
+
 async function sendSurveyIfCompleted(jobId) {
     try {
         const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId.toString()) });
@@ -11446,6 +11483,7 @@ app.post('/api/client-portal/pay', async (req, res) => {
             { $push: { payments: newPayment }, $set: invoiceSetFields }
         );
         sendSurveyIfCompleted(job._id).catch(() => {});
+        if (invoiceSetFields.status) sendJobCompletedSms(job._id);
 
         // Persist saved card info to client record
         if (cloverCustomerId && savedClientId) {
@@ -11795,6 +11833,7 @@ app.post('/api/deposit/pay', async (req, res) => {
             { $push: { payments: newPayment }, $set: depositSetFields }
         );
         sendSurveyIfCompleted(job._id).catch(() => {});
+        if (depositSetFields.status) sendJobCompletedSms(job._id);
 
         // Log to the payment diagnostics trail (so deposits show up like other payments)
         await db.collection('payment_attempts').insertOne({
@@ -12173,6 +12212,7 @@ app.post('/api/gift-cards/redeem', isAuthenticated, async (req, res) => {
         if (newBalanceOwed <= 0 && job.status !== 'completed') setFields.status = 'completed';
         await db.collection('jobs').updateOne({ _id: job._id }, { $push: { payments: newPayment }, $set: setFields });
         sendSurveyIfCompleted(job._id).catch(() => {});
+        if (setFields.status) sendJobCompletedSms(job._id);
 
         const newCardBalance = Math.round((card.balance - redeemAmt) * 100) / 100;
         await db.collection('gift_cards').updateOne({ _id: card._id }, {
@@ -12289,6 +12329,7 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
             { $push: { payments: newPayment }, $set: setFields }
         );
         sendSurveyIfCompleted(job._id).catch(() => {});
+        if (setFields.status) sendJobCompletedSms(job._id);
 
         if (cloverCustomerId && client) {
             try {
@@ -12387,6 +12428,7 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
             { $push: { payments: newPayment }, $set: setFields }
         );
         sendSurveyIfCompleted(job._id).catch(() => {});
+        if (setFields.status) sendJobCompletedSms(job._id);
 
         res.json({ success: true, chargeId: charge.id, last4, cardBrand });
     } catch (e) {
