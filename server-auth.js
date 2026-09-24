@@ -2234,6 +2234,7 @@ app.delete('/api/leads/:id', isAuthenticated, async (req, res) => {
 
 // Privacy Policy page (public)
 app.get('/privacy', async (req, res) => {
+    const oooBanner = await getOOOBanner();
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.companyName || 'Jobber Pro';
     const companyEmail = settings.companyEmail || 'contact@jobber-pro.com';
@@ -2259,7 +2260,7 @@ app.get('/privacy', async (req, res) => {
         .footer { margin-top: 3em; padding-top: 2em; border-top: 2px solid #e2e8f0; text-align: center; color: #888; }
     </style>
 </head>
-<body>
+<body>${oooBanner}
     <div class="container">
         <h1>Privacy Policy</h1>
         <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
@@ -2362,6 +2363,7 @@ app.get('/privacy', async (req, res) => {
 
 // Conditions page (public)
 app.get('/conditions', async (req, res) => {
+    const oooBanner = await getOOOBanner();
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.companyName || 'Jobber Pro';
     const companyEmail = settings.companyEmail || 'contact@jobber-pro.com';
@@ -2387,7 +2389,7 @@ app.get('/conditions', async (req, res) => {
         .footer { margin-top: 3em; padding-top: 2em; border-top: 2px solid #e2e8f0; text-align: center; color: #888; }
     </style>
 </head>
-<body>
+<body>${oooBanner}
     <div class="container">
         <h1>Conditions</h1>
         <p class="updated">Last Updated: ${new Date().toLocaleDateString()}</p>
@@ -5703,6 +5705,7 @@ app.post('/api/team/:id/onboarding', isAdmin, async (req, res) => {
 
 // Google Ads conversion landing page
 app.get('/thank-you', async (req, res) => {
+    const oooBanner = await getOOOBanner();
     const settings = await db.collection('settings').findOne({}) || {};
     const phone = settings.companyPhone || '';
     const phoneHref = 'tel:+1' + phone.replace(/\D/g, '');
@@ -5727,7 +5730,7 @@ app.get('/thank-you', async (req, res) => {
   .brand strong { color: #667eea; }
 </style>
 </head>
-<body>
+<body>${oooBanner}
 <div class="card">
   <div class="icon">✅</div>
   <h1>We got your request!</h1>
@@ -11857,6 +11860,7 @@ const GIFT_CARD_TERMS = [
 ];
 
 app.get('/gift-cards/terms', async (req, res) => {
+    const oooBanner = await getOOOBanner();
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.appName || settings.companyName || 'GSD Property Services';
     const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -11872,7 +11876,7 @@ app.get('/gift-cards/terms', async (req, res) => {
     } else {
         items = GIFT_CARD_TERMS.map((t, i) => `<li style="margin-bottom:0.9rem;line-height:1.55;"><strong>${i + 1}. ${t[0]}.</strong> ${t[1]}</li>`).join('');
     }
-    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Card Terms — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6fa;color:#2d3748;padding:2rem 1rem;line-height:1.5;}.wrap{max-width:640px;margin:0 auto;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.08);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:1.75rem 2rem;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.25rem;}.body{padding:1.75rem 2rem;}ol{list-style:none;padding-left:0;color:#4a5568;font-size:0.94rem;}.foot{margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e2e8f0;font-size:0.8rem;color:#a0aec0;}a{color:#667eea;}</style></head><body><div class="wrap"><div class="header"><h1>🎁 Gift Card Terms &amp; Conditions</h1><p>${companyName}</p></div><div class="body"><ol>${items}</ol><div style="margin-top:1.5rem;display:flex;gap:0.75rem;flex-wrap:wrap;"><a href="/gift-cards" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:0.65rem 1.3rem;border-radius:8px;font-weight:700;font-size:0.9rem;">← Back to gift cards</a><a href="https://gsdhandymanservice.com/" style="display:inline-block;background:#edf2f7;color:#4a5568;text-decoration:none;padding:0.65rem 1.3rem;border-radius:8px;font-weight:600;font-size:0.9rem;">Our website</a></div><div class="foot">Last updated ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. <a href="/gift-cards/balance">Check a balance</a></div></div></div></body></html>`);
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Card Terms — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6fa;color:#2d3748;padding:2rem 1rem;line-height:1.5;}.wrap{max-width:640px;margin:0 auto;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.08);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:1.75rem 2rem;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.25rem;}.body{padding:1.75rem 2rem;}ol{list-style:none;padding-left:0;color:#4a5568;font-size:0.94rem;}.foot{margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e2e8f0;font-size:0.8rem;color:#a0aec0;}a{color:#667eea;}</style></head><body>${oooBanner}<div class="wrap"><div class="header"><h1>🎁 Gift Card Terms &amp; Conditions</h1><p>${companyName}</p></div><div class="body"><ol>${items}</ol><div style="margin-top:1.5rem;display:flex;gap:0.75rem;flex-wrap:wrap;"><a href="/gift-cards" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:0.65rem 1.3rem;border-radius:8px;font-weight:700;font-size:0.9rem;">← Back to gift cards</a><a href="https://gsdhandymanservice.com/" style="display:inline-block;background:#edf2f7;color:#4a5568;text-decoration:none;padding:0.65rem 1.3rem;border-radius:8px;font-weight:600;font-size:0.9rem;">Our website</a></div><div class="foot">Last updated ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. <a href="/gift-cards/balance">Check a balance</a></div></div></div></body></html>`);
 });
 
 function generateGiftCode() {
@@ -11908,9 +11912,10 @@ async function chargeCloverToken(token, amountCents, description) {
 
 // Public gift-card purchase page
 app.get('/gift-cards', async (req, res) => {
+    const oooBanner = await getOOOBanner();
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.appName || settings.companyName || 'GSD Property Services';
-    const wrap = (inner) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Cards — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;padding:1.5rem 1rem;}.card{background:white;border-radius:16px;max-width:480px;width:100%;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.2rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:0.9rem 0 0.35rem;}input.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.amts{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;}.amt{flex:1;min-width:70px;padding:0.7rem;border:2px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:700;color:#4a5568;cursor:pointer;text-align:center;}.amt.sel{border-color:#667eea;background:#eef0fb;color:#667eea;}.clover-field{height:48px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;overflow:hidden;display:flex;align-items:center;padding:0 0.5rem;margin-bottom:0.6rem;box-sizing:border-box;}.clover-field iframe{width:100%!important;height:100%!important;border:none!important;}.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;}#payError{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin:0.75rem 0;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;cursor:not-allowed;}.secure{text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem;}.roundup{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:0.9rem 1rem;margin-top:1rem;}.rbtns{display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;}.rb{flex:1;min-width:60px;padding:0.5rem;border:1.5px solid #9ae6b4;border-radius:7px;background:#fff;font-weight:700;color:#276749;cursor:pointer;font-size:0.85rem;}.rb.sel{background:#38a169;color:#fff;border-color:#38a169;}</style></head><body><div class="card"><div class="header"><h1>🎁 ${companyName} Gift Card</h1><p>Give the gift of a job well done</p></div><div class="body">${inner}</div></div></body></html>`;
+    const wrap = (inner) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Cards — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;padding:1.5rem 1rem;}.card{background:white;border-radius:16px;max-width:480px;width:100%;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.35rem;}.header p{opacity:0.85;font-size:0.9rem;margin-top:0.2rem;}.body{padding:1.75rem 2rem;}label.fld{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin:0.9rem 0 0.35rem;}input.txt,textarea.txt{width:100%;padding:0.65rem 0.8rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;}.amts{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;}.amt{flex:1;min-width:70px;padding:0.7rem;border:2px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:700;color:#4a5568;cursor:pointer;text-align:center;}.amt.sel{border-color:#667eea;background:#eef0fb;color:#667eea;}.clover-field{height:48px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;overflow:hidden;display:flex;align-items:center;padding:0 0.5rem;margin-bottom:0.6rem;box-sizing:border-box;}.clover-field iframe{width:100%!important;height:100%!important;border:none!important;}.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;}#payError{display:none;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.65rem 0.875rem;border-radius:8px;font-size:0.85rem;margin:0.75rem 0;}.btn{width:100%;height:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;cursor:not-allowed;}.secure{text-align:center;font-size:0.75rem;color:#94a3b8;margin-top:1rem;}.roundup{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:10px;padding:0.9rem 1rem;margin-top:1rem;}.rbtns{display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;}.rb{flex:1;min-width:60px;padding:0.5rem;border:1.5px solid #9ae6b4;border-radius:7px;background:#fff;font-weight:700;color:#276749;cursor:pointer;font-size:0.85rem;}.rb.sel{background:#38a169;color:#fff;border-color:#38a169;}</style></head><body>${oooBanner}<div class="card"><div class="header"><h1>🎁 ${companyName} Gift Card</h1><p>Give the gift of a job well done</p></div><div class="body">${inner}</div></div></body></html>`;
 
     if (!settings.giftCardsEnabled) {
         return res.send(wrap('<div style="text-align:center;padding:1.5rem 0;"><div style="font-size:2.5rem;">🎁</div><h2 style="color:#1a202c;margin:0.75rem 0;">Coming soon</h2><p style="color:#718096;">Gift cards will be available shortly — check back soon!</p><p style="margin-top:1.25rem;"><a href="/gift-cards/balance" style="color:#667eea;font-weight:600;">Check a gift card balance →</a></p></div>'));
@@ -12009,9 +12014,10 @@ app.post('/api/gift-cards/check', publicApiLimiter, async (req, res) => {
 
 // Public: gift card balance-check page (works even when sales are disabled)
 app.get('/gift-cards/balance', async (req, res) => {
+    const oooBanner = await getOOOBanner();
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.appName || settings.companyName || 'GSD Property Services';
-    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Card Balance — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}.card{background:white;border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.25rem;}.body{padding:1.75rem 2rem;}label{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin-bottom:0.4rem;}input{width:100%;padding:0.75rem 0.9rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:1rem;font-family:monospace;letter-spacing:0.06em;text-transform:uppercase;}.btn{width:100%;height:48px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;}#result{margin-top:1.25rem;display:none;}.bal{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:12px;padding:1.5rem;text-align:center;}.bal .amt{font-size:2.5rem;font-weight:800;color:#22543d;}.err{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.75rem;border-radius:8px;font-size:0.9rem;text-align:center;}</style></head><body><div class="card"><div class="header"><h1>🎁 ${companyName}</h1><p style="opacity:0.85;font-size:0.9rem;margin-top:0.2rem;">Gift Card Balance</p></div><div class="body">
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gift Card Balance — ${companyName}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f1c2e,#1a2f4a);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}.card{background:white;border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.3);overflow:hidden;}.header{background:linear-gradient(135deg,#667eea,#764ba2);padding:1.6rem 2rem;color:white;}.header h1{font-size:1.25rem;}.body{padding:1.75rem 2rem;}label{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;display:block;margin-bottom:0.4rem;}input{width:100%;padding:0.75rem 0.9rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:1rem;font-family:monospace;letter-spacing:0.06em;text-transform:uppercase;}.btn{width:100%;height:48px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer;margin-top:1rem;}.btn:disabled{opacity:0.6;}#result{margin-top:1.25rem;display:none;}.bal{background:#f0fff4;border:1.5px solid #9ae6b4;border-radius:12px;padding:1.5rem;text-align:center;}.bal .amt{font-size:2.5rem;font-weight:800;color:#22543d;}.err{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.75rem;border-radius:8px;font-size:0.9rem;text-align:center;}</style></head><body>${oooBanner}<div class="card"><div class="header"><h1>🎁 ${companyName}</h1><p style="opacity:0.85;font-size:0.9rem;margin-top:0.2rem;">Gift Card Balance</p></div><div class="body">
         <label>Gift Card Code</label>
         <input id="code" placeholder="GSD-XXXX-XXXX" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();checkBal();}">
         <button class="btn" id="btn" onclick="checkBal()">Check Balance</button>
