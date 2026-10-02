@@ -10095,7 +10095,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 serviceLocationGroup.style.display = 'block';
                 serviceLocationSelect.innerHTML = '<option value="">Primary address</option>' +
                     client.serviceLocations.map((loc, idx) =>
-                        \`<option value="\${idx}">\${loc.name || 'Location ' + (idx + 1)}</option>\`
+                        \`<option value="\${loc.id}">\${loc.name || 'Location ' + (idx + 1)}</option>\`
                     ).join('');
             } else {
                 serviceLocationGroup.style.display = 'none';
@@ -10695,12 +10695,24 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
 
             const client = findClient(quote.clientId);
-            if (!client || !client.email) {
-                alert('Cannot send quote: Client has no email address.\\n\\nPlease add an email to the client profile first.');
+            if (!client) {
+                alert('Cannot send quote: client not found.');
                 return;
             }
 
-            if (!confirm(\`Send quote to \${client.name} at \${client.email}?\`)) {
+            // Mirror the backend's recipient resolution (POST /api/quotes/send-email) so the
+            // confirm/success text always names who it's actually going to, not just the client's main email.
+            let toEmail = client.email, toName = client.name;
+            if (quote.serviceLocationId) {
+                const loc = (client.serviceLocations || []).find(l => String(l.id) === String(quote.serviceLocationId));
+                if (loc && loc.contactEmail) { toEmail = loc.contactEmail; toName = loc.contact || loc.name || client.name; }
+            }
+            if (!toEmail) {
+                alert('Cannot send quote: no email address on file for ' + (toName || client.name) + '.\\n\\nAdd one on the client profile' + (quote.serviceLocationId ? ' or that service location' : '') + ' first.');
+                return;
+            }
+
+            if (!confirm(\`Send quote to \${toName} at \${toEmail}?\`)) {
                 return;
             }
 
@@ -10714,7 +10726,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const data = await response.json();
 
                 if (response.ok) {
-                    alert(\`✅ Quote sent successfully to \${client.email}!\`);
+                    alert(\`✅ Quote sent successfully to \${toEmail}!\`);
                     await loadQuotes();
                 } else {
                     alert(\`❌ Failed to send quote email:\\n\${data.error || 'Unknown error'}\\n\\nMake sure email is configured in Settings > Email Settings.\`);
