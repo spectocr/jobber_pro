@@ -3829,10 +3829,17 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             }
         }
 
-        // Survey — auto-send once the job is completed, using the FINAL saved status
-        // (covers manual complete, save-path auto-complete-when-paid, etc.). Guarded
-        // + idempotent, so it fires no matter how the job got completed and only once.
-        if (isUpdate) sendSurveyIfCompleted(_id).catch(e => console.error('Survey send error:', e));
+        // Survey — fire the instant THIS save is the one that completes the job (covers manual
+        // complete, save-path auto-complete-when-paid, and brand-new jobs created already completed).
+        // Passes the in-hand job/status so a later, separate save (e.g. immediately invoicing it)
+        // can't race the check out — see claimAndSendSurvey() for why that used to lose surveys.
+        const justCompleted = job.status === 'completed' && (!isUpdate || !oldJob || oldJob.status !== 'completed');
+        if (justCompleted) claimAndSendSurvey(job._id, job).catch(e => console.error('Survey send error:', e));
+
+        // Invoice email — fire the instant this save moves the job into 'invoiced'. Independent of
+        // the phone-gated SMS block above (an invoice email shouldn't depend on having a phone on file).
+        const justInvoiced = job.status === 'invoiced' && (!isUpdate || !oldJob || oldJob.status !== 'invoiced');
+        if (justInvoiced) claimAndSendAutoInvoice(job._id, job).catch(e => console.error('Auto-invoice send error:', e));
     } catch (smsError) {
         console.error('SMS notification error:', smsError);
         // Don't fail the job save if SMS fails
@@ -4000,16 +4007,12 @@ async function sendJobCancellationEmail(job, jobIdStr, sentBy) {
     } catch (e) { console.error('Cancellation email error:', e.message); return false; }
 }
 
-async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = null) {
-    const surveyEmail = toEmail || client?.email;
-    if (!surveyEmail) throw new Error('Client has no email address on file — survey not sent.');
-    const token = crypto.randomBytes(24).toString('hex');
+// Builds and sends the actual survey email + email_log entry. Assumes the caller has already
+// decided the token (and, if relevant, claimed/written it) — this function performs no DB write
+// to the job itself, so it's safe to share between the manual resend path and the auto-claim path.
+async function _sendSurveyEmail(jobId, client, jobTitle, companyName, toEmail, token) {
     const appUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
     const surveyUrl = `${appUrl}/survey/${token}`;
-    await db.collection('jobs').updateOne(
-        { _id: new ObjectId(jobId.toString()) },
-        { $set: { surveyToken: token, surveyTokenSentAt: new Date() } }
-    );
     const clientName = client.contactName || client.name || 'there';
     const surveySettings = await db.collection('settings').findOne({}, { projection: { emailTemplates: 1 } });
     const surveyTpl = surveySettings?.emailTemplates || {};
@@ -4041,7 +4044,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
             </div>
         </div>`;
     await emailService.sendEmail({
-        to: surveyEmail,
+        to: toEmail,
         subject,
         html: _surveyHtml,
         trackingPixelUrl: _surveyTrackUrl
@@ -4049,7 +4052,7 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
     await db.collection('email_logs').insertOne({
         _id: _surveyLogId,
         type: 'survey',
-        to: surveyEmail,
+        to: toEmail,
         toName: client.name || clientName,
         subject,
         trigger: `Survey request for job "${jobTitle}"`,
@@ -4061,6 +4064,19 @@ async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = nul
         status: 'sent',
         opened: false
     });
+}
+
+// Manual "resend survey" path — unconditionally mints a new token and sends. The caller
+// ($unset of any prior token) owns the decision to resend, so no claim guard here.
+async function sendJobSurvey(jobId, client, jobTitle, companyName, toEmail = null) {
+    const surveyEmail = toEmail || client?.email;
+    if (!surveyEmail) throw new Error('Client has no email address on file — survey not sent.');
+    const token = crypto.randomBytes(24).toString('hex');
+    await db.collection('jobs').updateOne(
+        { _id: new ObjectId(jobId.toString()) },
+        { $set: { surveyToken: token, surveyTokenSentAt: new Date() } }
+    );
+    await _sendSurveyEmail(jobId, client, jobTitle, companyName, surveyEmail, token);
 }
 
 // Guarded, idempotent survey trigger — safe to call from ANY path that can
@@ -4094,11 +4110,19 @@ async function sendJobCompletedSms(jobId) {
     }
 }
 
-async function sendSurveyIfCompleted(jobId) {
+// Claim + send the completion survey the moment a job is detected transitioning into 'completed'.
+// Call this inline, in the SAME request that caused the transition, passing the job object you
+// already have in hand (jobHint) — never re-derive "is it completed" from a fresh DB read later.
+// The old version re-read the job's CURRENT status from an async, undispatched callback; if the
+// status moved again (e.g. completed -> invoiced) before that read ran, it silently saw "invoiced"
+// and skipped — losing the survey even though the job genuinely was completed moments earlier.
+// This version trusts the caller's in-hand state for "did this happen," and only uses an atomic
+// claim (surveyToken not already set) to guarantee it can never double-send.
+async function claimAndSendSurvey(jobId, jobHint) {
     try {
-        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId.toString()) });
-        if (!job || job.status !== 'completed') return;
-        if (job.surveyToken || job.surveyTokenSentAt) return; // already surveyed — don't resend
+        const _id = new ObjectId(jobId.toString());
+        const job = jobHint || await db.collection('jobs').findOne({ _id });
+        if (!job) return;
         const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
         if (!client || client.isPropertyManagement || !client.email) return;
         let toEmail = client.email;
@@ -4106,11 +4130,66 @@ async function sendSurveyIfCompleted(jobId) {
             const loc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId));
             if (loc && loc.contactEmail) toEmail = loc.contactEmail;
         }
+        const token = crypto.randomBytes(24).toString('hex');
+        const claim = await db.collection('jobs').updateOne(
+            { _id, surveyToken: { $exists: false }, surveyTokenSentAt: { $exists: false } },
+            { $set: { surveyToken: token, surveyTokenSentAt: new Date() } }
+        );
+        if (!claim.modifiedCount) return; // already sent — never auto-resend
         const settings = await db.collection('settings').findOne({});
         const companyName = settings?.companyName || 'GSD Property Services';
-        await sendJobSurvey(job._id, client, job.title, companyName, toEmail);
+        await _sendSurveyEmail(job._id, client, job.title, companyName, toEmail, token);
     } catch (e) {
-        console.error('sendSurveyIfCompleted error:', e.message);
+        console.error('claimAndSendSurvey error:', e.message);
+    }
+}
+
+// Auto-send the invoice email the moment a job is marked 'invoiced' — mirrors the manual
+// "Send Invoice" button (POST /api/email/send-invoice) but fires on its own. Claimed via
+// invoiceSentAt so it only ever auto-sends once; the manual button still works afterward for
+// a deliberate resend (it doesn't check this guard).
+async function claimAndSendAutoInvoice(jobId, jobHint) {
+    try {
+        const _id = new ObjectId(jobId.toString());
+        const job = jobHint || await db.collection('jobs').findOne({ _id });
+        if (!job) return;
+        const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+        if (!client) return;
+        let invoiceEmail = client.email;
+        if (job.serviceLocationId && client.serviceLocations) {
+            const location = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId));
+            if (location && location.contactEmail) invoiceEmail = location.contactEmail;
+        }
+        if (!invoiceEmail) return;
+        const claim = await db.collection('jobs').updateOne(
+            { _id, invoiceSentAt: { $exists: false } },
+            { $set: { invoiceSentAt: new Date() } }
+        );
+        if (!claim.modifiedCount) return; // already sent (auto or manual) — never auto-resend
+        const settings = await db.collection('settings').findOne({});
+        const companyName = settings?.companyName || 'Your Company';
+        const total = job.total || 0;
+        const invoiceNumber = job.invoiceNumber || `INV-${job._id.toString().slice(-8).toUpperCase()}`;
+        const invoiceUrl = `${process.env.APP_URL}/invoice/${job._id}`;
+        const customSubject = settings?.emailTemplates?.invoiceSubject;
+        const customBody = settings?.emailTemplates?.invoiceBody;
+        const _invLogId = new ObjectId();
+        const _invAppUrl = process.env.APP_URL || 'https://app.gsdhandymanservice.com';
+        await emailService.sendInvoice({
+            to: invoiceEmail, clientName: client.name, invoiceNumber, jobTitle: job.title, total,
+            invoiceUrl, pdfBuffer: null, companyName, customSubject, customBody,
+            trackingPixelUrl: `${_invAppUrl}/api/email-track/${_invLogId}`
+        });
+        await db.collection('email_logs').insertOne({
+            _id: _invLogId, type: 'invoice', to: invoiceEmail, toName: client.name,
+            subject: `Your job summary from ${companyName} — ${job.title}`,
+            trigger: `Invoice #${invoiceNumber} for job "${job.title}" — $${parseFloat(total).toFixed(2)} (auto-sent)`,
+            relatedId: job._id, relatedTitle: job.title,
+            htmlBody: `<p style="font-family:Arial,sans-serif;padding:1rem;color:#4a5568;">Invoice email sent for <strong>${job.title}</strong> — Invoice #${invoiceNumber} — $${parseFloat(total).toFixed(2)}<br><br><a href="${invoiceUrl}" style="color:#667eea;">View full invoice →</a></p>`,
+            sentBy: 'System', sentAt: new Date(), status: 'sent', opened: false
+        });
+    } catch (e) {
+        console.error('claimAndSendAutoInvoice error:', e.message);
     }
 }
 
@@ -11482,7 +11561,7 @@ app.post('/api/client-portal/pay', async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: invoiceSetFields }
         );
-        sendSurveyIfCompleted(job._id).catch(() => {});
+        if (invoiceSetFields.status) claimAndSendSurvey(job._id, { ...job, status: 'completed' }).catch(() => {});
         if (invoiceSetFields.status) sendJobCompletedSms(job._id);
 
         // Persist saved card info to client record
@@ -11832,7 +11911,7 @@ app.post('/api/deposit/pay', async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: depositSetFields }
         );
-        sendSurveyIfCompleted(job._id).catch(() => {});
+        if (depositSetFields.status) claimAndSendSurvey(job._id, { ...job, status: 'completed' }).catch(() => {});
         if (depositSetFields.status) sendJobCompletedSms(job._id);
 
         // Log to the payment diagnostics trail (so deposits show up like other payments)
@@ -12211,7 +12290,7 @@ app.post('/api/gift-cards/redeem', isAuthenticated, async (req, res) => {
         const setFields = { totalPaid: newTotalPaid, balanceOwed: newBalanceOwed, updatedAt: new Date() };
         if (newBalanceOwed <= 0 && job.status !== 'completed') setFields.status = 'completed';
         await db.collection('jobs').updateOne({ _id: job._id }, { $push: { payments: newPayment }, $set: setFields });
-        sendSurveyIfCompleted(job._id).catch(() => {});
+        if (setFields.status) claimAndSendSurvey(job._id, { ...job, status: 'completed' }).catch(() => {});
         if (setFields.status) sendJobCompletedSms(job._id);
 
         const newCardBalance = Math.round((card.balance - redeemAmt) * 100) / 100;
@@ -12328,7 +12407,7 @@ app.post('/api/jobs/:id/manual-charge', isAdmin, async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: setFields }
         );
-        sendSurveyIfCompleted(job._id).catch(() => {});
+        if (setFields.status) claimAndSendSurvey(job._id, { ...job, status: 'completed' }).catch(() => {});
         if (setFields.status) sendJobCompletedSms(job._id);
 
         if (cloverCustomerId && client) {
@@ -12427,7 +12506,7 @@ app.post('/api/jobs/:id/charge-saved-card', isAdmin, async (req, res) => {
             { _id: job._id },
             { $push: { payments: newPayment }, $set: setFields }
         );
-        sendSurveyIfCompleted(job._id).catch(() => {});
+        if (setFields.status) claimAndSendSurvey(job._id, { ...job, status: 'completed' }).catch(() => {});
         if (setFields.status) sendJobCompletedSms(job._id);
 
         res.json({ success: true, chargeId: charge.id, last4, cardBrand });
