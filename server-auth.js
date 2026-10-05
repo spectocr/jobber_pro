@@ -4624,6 +4624,42 @@ app.get('/api/jobs/:id/payment-attempts', isAdmin, async (req, res) => {
     }
 });
 
+// Free, no-key IP → city/state lookup (ip-api.com), cached in Mongo so a repeat IP is instant
+// and we stay well under the free-tier rate limit. Best-effort: returns null on any failure,
+// and callers only use it for real (non-scanner) views — scanner IPs are cloud servers, not people.
+async function geoLookupIP(ip) {
+    try {
+        if (!ip || typeof ip !== 'string') return null;
+        if (/^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|::ffff:127\.)/.test(ip)) return null;
+        const cached = await db.collection('ip_geo_cache').findOne({ _id: ip });
+        if (cached) return cached.label || null;
+        const http = require('http');
+        const data = await new Promise((resolve, reject) => {
+            const req = http.get(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city,region`, { timeout: 4000 }, (r) => {
+                let body = '';
+                r.on('data', chunk => body += chunk);
+                r.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+            });
+            req.on('error', reject);
+            req.on('timeout', () => req.destroy(new Error('geo lookup timeout')));
+        });
+        const label = (data.status === 'success' && data.city) ? [data.city, data.region].filter(Boolean).join(' ') : null;
+        await db.collection('ip_geo_cache').updateOne({ _id: ip }, { $set: { label, fetchedAt: new Date() } }, { upsert: true });
+        return label;
+    } catch (e) {
+        return null;
+    }
+}
+// Attach a {geo: "City, ST"} label to each non-scanner entry in a view log.
+async function annotateViewLogGeo(log) {
+    const entries = Array.isArray(log) ? log : [];
+    return Promise.all(entries.map(async v => {
+        if (v.scan) return v;
+        const label = await geoLookupIP(v.ip);
+        return label ? { ...v, geo: label } : v;
+    }));
+}
+
 app.get('/api/jobs/:id/invoice-view-log', isAdmin, async (req, res) => {
     try {
         const job = await db.collection('jobs').findOne(
@@ -4631,7 +4667,7 @@ app.get('/api/jobs/:id/invoice-view-log', isAdmin, async (req, res) => {
             { projection: { invoiceViewLog: 1, invoiceViewCount: 1 } }
         );
         if (!job) return res.status(404).json({ error: 'Not found' });
-        res.json(job.invoiceViewLog || []);
+        res.json(await annotateViewLogGeo(job.invoiceViewLog || []));
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -5056,7 +5092,7 @@ app.get('/api/quotes/:id/view-log', isAdmin, async (req, res) => {
             { projection: { viewLog: 1, viewCount: 1 } }
         );
         if (!quote) return res.status(404).json({ error: 'Not found' });
-        res.json(quote.viewLog || []);
+        res.json(await annotateViewLogGeo(quote.viewLog || []));
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }

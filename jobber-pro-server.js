@@ -9887,7 +9887,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 return \`<tr style="\${rowStyle}">
                                     <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${isScan ? '—' : humanCount}</td>
                                     <td style="padding:0.6rem 0.75rem;color:\${isScan ? '#9ca3af' : '#2d3748'};">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
-                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
                                     <td style="padding:0.6rem 0.75rem;color:#9ca3af;font-size:0.8rem;">\${isScan ? '📧 Email scanner' : ''}</td>
                                 </tr>\`;
                             }).join('')}
@@ -9923,7 +9923,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <tr style="border-bottom:1px solid #f0f0f0;">
                                     <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${i + 1}</td>
                                     <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
-                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}</td>
+                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
                                 </tr>\`).join('')}
                         </tbody>
                     </table>\`;
