@@ -3970,9 +3970,17 @@ async function sendJobCancellationEmail(job, jobIdStr, sentBy) {
         const cancelClient = cid ? await db.collection('clients').findOne({ _id: cid }) : null;
         const cancelSettings = await db.collection('settings').findOne({});
         const businessName = cancelSettings?.companyName || 'GSD Property Services';
-        const clientEmail = cancelClient?.email;
-        const clientName = cancelClient?.name || 'Valued Client';
+        let clientEmail = cancelClient?.email;
+        let clientName = cancelClient?.name || 'Valued Client';
+        let cancelLoc = null;
+        if (job.serviceLocationId && cancelClient?.serviceLocations) {
+            cancelLoc = cancelClient.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId)) || null;
+            if (cancelLoc?.contactEmail) { clientEmail = cancelLoc.contactEmail; clientName = cancelLoc.contact || cancelLoc.name || clientName; }
+        }
         if (!clientEmail) return false;
+        const cancelPropertyLine = cancelLoc
+            ? `<p style="color:#718096;font-size:0.9rem;">📍 ${[cancelLoc.name, cancelLoc.address].filter(Boolean).join(' — ').replace(/\n/g, ', ')}</p>`
+            : '';
         const cancelDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         const _cancelLogId = new ObjectId();
         await db.collection('email_logs').insertOne({
@@ -3989,6 +3997,7 @@ async function sendJobCancellationEmail(job, jobIdStr, sentBy) {
                 <p>This letter confirms that, by mutual agreement between <strong>${businessName}</strong> and <strong>${clientName}</strong>, the service arrangement for the following has been cancelled effective <strong>${cancelDate}</strong>:</p>
                 <div style="background:#f8fafc;border-left:4px solid #667eea;padding:0.85rem 1.1rem;margin:1.25rem 0;border-radius:0 6px 6px 0;">
                     <strong style="font-size:1rem;">${job.title}</strong>
+                    ${cancelPropertyLine}
                 </div>
                 <p>Both parties acknowledge that this cancellation is final and agreed upon by mutual consent. Neither party shall pursue any claim, dispute, or legal action against the other arising from or related to this service arrangement or its cancellation.</p>
                 <p>We appreciate the opportunity and wish you well.</p>
@@ -4156,9 +4165,10 @@ async function claimAndSendAutoInvoice(jobId, jobHint) {
         const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
         if (!client) return;
         let invoiceEmail = client.email;
+        let invoiceLoc = null;
         if (job.serviceLocationId && client.serviceLocations) {
-            const location = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId));
-            if (location && location.contactEmail) invoiceEmail = location.contactEmail;
+            invoiceLoc = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId)) || null;
+            if (invoiceLoc && invoiceLoc.contactEmail) invoiceEmail = invoiceLoc.contactEmail;
         }
         if (!invoiceEmail) return;
         const claim = await db.collection('jobs').updateOne(
@@ -4178,6 +4188,7 @@ async function claimAndSendAutoInvoice(jobId, jobHint) {
         await emailService.sendInvoice({
             to: invoiceEmail, clientName: client.name, invoiceNumber, jobTitle: job.title, total,
             invoiceUrl, pdfBuffer: null, companyName, customSubject, customBody,
+            propertyName: invoiceLoc?.name, propertyAddress: invoiceLoc?.address,
             trackingPixelUrl: `${_invAppUrl}/api/email-track/${_invLogId}`
         });
         await db.collection('email_logs').insertOne({
@@ -5066,11 +5077,15 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
         // For portal quotes tied to a service location, email the location contact
         let toEmail = client.email;
         let toName  = client.name;
+        let quoteLoc = null;
         if (quote.serviceLocationId) {
-            const loc = (client.serviceLocations || []).find(l => String(l.id) === String(quote.serviceLocationId));
-            if (loc?.contactEmail) { toEmail = loc.contactEmail; toName = loc.contact || loc.name || client.name; }
+            quoteLoc = (client.serviceLocations || []).find(l => String(l.id) === String(quote.serviceLocationId)) || null;
+            if (quoteLoc?.contactEmail) { toEmail = quoteLoc.contactEmail; toName = quoteLoc.contact || quoteLoc.name || client.name; }
         }
         if (!toEmail) return res.status(400).json({ error: 'No email address found for this client' });
+        const propertyLineHtml = quoteLoc
+            ? `<p style="background:#f0f4ff;border-left:3px solid #667eea;padding:8px 14px;margin:0.75rem 0;"><strong>Property:</strong> ${[quoteLoc.name, quoteLoc.address].filter(Boolean).join(' — ').replace(/\n/g, ', ')}</p>`
+            : '';
 
         const settings = await db.collection('settings').findOne({});
         const companyName = settings?.companyName || 'Your Company';
@@ -5106,6 +5121,7 @@ app.post('/api/quotes/send-email', isAuthenticated, async (req, res) => {
                 if (raw) return interpolate(raw, { clientName: toName, jobTitle: quote.title, total: fmt$(parseFloat(quote.total || 0)), validUntil: quote.validUntil, companyName });
                 return (isPortalQuote ? 'Your submission has been reviewed and priced.' : 'Thank you for your interest!') + ' Here is your ' + quoteLabel.toLowerCase() + ' for: <strong>' + quote.title + '</strong>';
             })()}</p>
+            ${propertyLineHtml}
             <p><strong>${quoteLabel} Total:</strong> ${fmt$(parseFloat(quote.total || 0))}</p>
             <p><strong>Valid Until:</strong> ${quote.validUntil}</p>
             <a href="${quoteUrl}" class="button">View ${quoteLabel} & Approve</a>
@@ -7719,10 +7735,11 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
 
         // For PM clients, route invoice to the location's contact email if set
         let invoiceEmail = client.email;
+        let invoiceLoc = null;
         if (job.serviceLocationId && client.serviceLocations) {
-            const location = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId));
-            if (location && location.contactEmail) {
-                invoiceEmail = location.contactEmail;
+            invoiceLoc = client.serviceLocations.find(loc => String(loc.id) === String(job.serviceLocationId)) || null;
+            if (invoiceLoc && invoiceLoc.contactEmail) {
+                invoiceEmail = invoiceLoc.contactEmail;
             }
         }
 
@@ -7760,6 +7777,8 @@ app.post('/api/email/send-invoice', isAuthenticated, async (req, res) => {
             companyName: companyName,
             customSubject: customSubject,
             customBody: customBody,
+            propertyName: invoiceLoc?.name,
+            propertyAddress: invoiceLoc?.address,
             trackingPixelUrl: `${_invAppUrl}/api/email-track/${_invLogId}`
         });
 
@@ -7798,7 +7817,13 @@ app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
         if (!job) return res.status(404).json({ error: 'Job not found' });
         const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
         if (!client) return res.status(400).json({ error: 'This job has no client on file.' });
-        if (!client.email) return res.status(400).json({ error: 'No email on file for this client.' });
+        // Route to the property contact for PM jobs, same as invoices/quotes/deposits
+        let reminderEmail = client.email, reminderToName = client.name, reminderLoc = null;
+        if (job.serviceLocationId && client.serviceLocations) {
+            reminderLoc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId)) || null;
+            if (reminderLoc?.contactEmail) { reminderEmail = reminderLoc.contactEmail; reminderToName = reminderLoc.contact || reminderLoc.name || client.name; }
+        }
+        if (!reminderEmail) return res.status(400).json({ error: 'No email on file for this client.' });
 
         const settings = await db.collection('settings').findOne({}) || {};
         const companyName = settings.companyName || 'GSD Property Services';
@@ -7843,13 +7868,17 @@ app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
                 </td></tr>
             </table>`;
 
+        const reminderPropertyLine = reminderLoc
+            ? `<div style="font-size:0.85rem;color:#718096;margin-top:0.25rem;">📍 ${[reminderLoc.name, reminderLoc.address].filter(Boolean).join(' — ').replace(/\n/g, ', ')}</div>`
+            : '';
         const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1a202c;">
             <h2 style="color:#667eea;">Payment Reminder</h2>
-            <p>Hi ${client.name},</p>
+            <p>Hi ${reminderToName},</p>
             <p>This is a friendly reminder that you have an outstanding balance with ${companyName}${note ? '' : '.'}</p>
             ${note ? `<p style="white-space:pre-wrap;">${note.replace(/</g, '&lt;')}</p>` : ''}
             <div style="background:#fff5f5;border-left:4px solid #e53e3e;border-radius:8px;padding:1rem 1.25rem;margin:1.25rem 0;">
                 <div style="font-size:0.85rem;color:#718096;">Invoice #${invoiceNumber} — ${job.title}</div>
+                ${reminderPropertyLine}
                 <div style="font-size:1.6rem;font-weight:700;color:#c53030;margin:0.25rem 0;">$${balance.toFixed(2)} due</div>
                 ${dueLine ? `<div style="font-size:0.9rem;color:#4a5568;">${dueLine}</div>` : ''}
             </div>
@@ -7861,15 +7890,15 @@ app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
 
         const _logId = new ObjectId();
         await emailService.sendEmail({
-            to: client.email,
+            to: reminderEmail,
             subject: `Payment reminder — Invoice #${invoiceNumber} ($${balance.toFixed(2)} due)`,
             html,
-            text: `Payment Reminder\n\nHi ${client.name},\n\nYou have an outstanding balance of $${balance.toFixed(2)} for Invoice #${invoiceNumber} (${job.title}).\n${dueLine.replace(/<[^>]+>/g, '')}\n\nHow to pay:\n- Online: ${portalUrl}\n${zellePhone ? `- Zelle: ${zellePhone}\n` : ''}- Check payable to ${checkPayableTo}${mailTo ? ' (mail to ' + mailTo.replace(/\n/g, ', ') + ')' : ''}\n\nIf already paid, please disregard.\n\nThank you,\n${companyName}`
+            text: `Payment Reminder\n\nHi ${reminderToName},\n\nYou have an outstanding balance of $${balance.toFixed(2)} for Invoice #${invoiceNumber} (${job.title}).${reminderLoc ? `\nProperty: ${[reminderLoc.name, reminderLoc.address].filter(Boolean).join(' — ').replace(/\n/g, ', ')}` : ''}\n${dueLine.replace(/<[^>]+>/g, '')}\n\nHow to pay:\n- Online: ${portalUrl}\n${zellePhone ? `- Zelle: ${zellePhone}\n` : ''}- Check payable to ${checkPayableTo}${mailTo ? ' (mail to ' + mailTo.replace(/\n/g, ', ') + ')' : ''}\n\nIf already paid, please disregard.\n\nThank you,\n${companyName}`
         });
 
         const now = new Date();
         await db.collection('email_logs').insertOne({
-            _id: _logId, type: 'payment_reminder', to: client.email, toName: client.name,
+            _id: _logId, type: 'payment_reminder', to: reminderEmail, toName: reminderToName,
             subject: `Payment reminder — Invoice #${invoiceNumber} ($${balance.toFixed(2)} due)`,
             trigger: `Payment reminder for "${job.title}" — $${balance.toFixed(2)}`,
             relatedId: job._id, relatedTitle: job.title, htmlBody: html,
@@ -7880,11 +7909,11 @@ app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
             {
                 $set: { paymentReminderSentAt: now },
                 $inc: { paymentReminderCount: 1 },
-                $push: { auditLog: { timestamp: now, userName: req.session.userName || 'admin', action: 'payment_reminder', note: `Payment reminder sent — $${balance.toFixed(2)} to ${client.email}` } }
+                $push: { auditLog: { timestamp: now, userName: req.session.userName || 'admin', action: 'payment_reminder', note: `Payment reminder sent — $${balance.toFixed(2)} to ${reminderEmail}` } }
             }
         );
 
-        res.json({ success: true, balance, sentTo: client.email });
+        res.json({ success: true, balance, sentTo: reminderEmail });
     } catch (error) {
         console.error('Payment reminder error:', error);
         res.status(500).json({ error: error.message || 'Failed to send reminder' });
@@ -9188,6 +9217,10 @@ app.get('/quote-view/:token', async (req, res) => {
         const client = await db.collection('clients').findOne({ _id: quote.clientId });
         const settings = await db.collection('settings').findOne({});
 
+        const quoteViewLoc = (quote.serviceLocationId && client?.serviceLocations)
+            ? client.serviceLocations.find(l => String(l.id) === String(quote.serviceLocationId)) || null
+            : null;
+
         const companyName    = settings?.companyName    || 'Your Company';
         const companyLogo    = settings?.companyLogo    || '';
         const companyAddress = settings?.companyAddress || '';
@@ -9273,7 +9306,7 @@ app.get('/quote-view/:token', async (req, res) => {
                 <p><strong>${client ? client.name : 'Client'}</strong></p>
                 ${client?.email ? `<p>${client.email}</p>` : ''}
                 ${client?.phone ? `<p>${client.phone}</p>` : ''}
-                ${client?.address ? `<p>${client.address}</p>` : ''}
+                ${!quoteViewLoc && client?.address ? `<p>${client.address}</p>` : ''}
             </div>
             <div class="info-section">
                 <h3>${viewLabel} Details:</h3>
@@ -9281,6 +9314,12 @@ app.get('/quote-view/:token', async (req, res) => {
                 <p><strong>Valid Until:</strong> ${validUntil.toLocaleDateString()}</p>
                 ${quote.createdByName ? `<p><strong>Prepared By:</strong> ${quote.createdByName}</p>` : ''}
             </div>
+            ${quoteViewLoc ? `
+            <div class="info-section" style="grid-column:1 / -1;background:#f0f4ff;border-left:3px solid #667eea;padding:0.75rem 1rem;border-radius:0 6px 6px 0;">
+                <h3 style="margin-top:0;">📍 Property:</h3>
+                <p><strong>${quoteViewLoc.name || ''}</strong></p>
+                ${quoteViewLoc.address ? `<p style="white-space:pre-line;">${quoteViewLoc.address.trim()}</p>` : ''}
+            </div>` : ''}
         </div>
 
         <div>
@@ -11626,11 +11665,15 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
 
         // Resolve email same way as invoice
         let toEmail = client?.email;
+        let depositLoc = null;
         if (job.serviceLocationId && client?.serviceLocations) {
-            const loc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId));
-            if (loc?.contactEmail) toEmail = loc.contactEmail;
+            depositLoc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId)) || null;
+            if (depositLoc?.contactEmail) toEmail = depositLoc.contactEmail;
         }
         if (!toEmail) return res.status(400).json({ error: 'No email address for this client' });
+        const depositPropertyRow = depositLoc
+            ? `<tr><td style="padding:0.5rem;font-weight:600;">Property:</td><td style="padding:0.5rem;">${[depositLoc.name, depositLoc.address].filter(Boolean).join(' — ').replace(/\n/g, ', ')}</td></tr>`
+            : '';
 
         const depositToken = crypto.randomUUID();
         const depositAmount = parseFloat(amount);
@@ -11650,6 +11693,7 @@ app.post('/api/jobs/:id/send-deposit', isAuthenticated, async (req, res) => {
                 <p>To secure your upcoming job, a deposit is required:</p>
                 <table style="border-collapse:collapse;margin:1rem 0;width:100%;">
                     <tr><td style="padding:0.5rem;font-weight:600;">Job:</td><td style="padding:0.5rem;">${job.title}</td></tr>
+                    ${depositPropertyRow}
                     <tr><td style="padding:0.5rem;font-weight:600;">Deposit Amount:</td><td style="padding:0.5rem;font-size:1.2rem;font-weight:700;color:#667eea;">$${depositAmount.toFixed(2)}</td></tr>
                 </table>
                 <div style="text-align:center;margin:2rem 0;">
@@ -11695,6 +11739,10 @@ app.get('/deposit/:token', async (req, res) => {
 
     const settings = await db.collection('settings').findOne() || {};
     const companyName = settings.appName || 'GSD Property Services';
+    const depositClient = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
+    const depositViewLoc = (job.serviceLocationId && depositClient?.serviceLocations)
+        ? depositClient.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId)) || null
+        : null;
     const deposit = job.deposit;
     const isPaid = deposit.status === 'paid';
     const oooBanner = await getOOOBanner();
@@ -11733,6 +11781,7 @@ app.get('/deposit/:token', async (req, res) => {
         </div>
         <div class="body">
             <div class="job-name"><strong>${job.title}</strong></div>
+            ${depositViewLoc ? `<div style="text-align:center;color:#718096;font-size:0.85rem;margin-top:-1rem;margin-bottom:1.25rem;">📍 ${[depositViewLoc.name, depositViewLoc.address].filter(Boolean).join(' — ').replace(/\n/g, ', ')}</div>` : ''}
             ${isPaid ? `
             <div class="amount">$${deposit.amount.toFixed(2)}</div>
             <div class="paid-box">

@@ -124,7 +124,7 @@ class EmailService {
         return this.sendEmail({ to, subject, html, text: textBody, trackingPixelUrl });
     }
 
-    async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName, customSubject, customBody, trackingPixelUrl }) {
+    async sendInvoice({ to, clientName, invoiceNumber, jobTitle, total, invoiceUrl, pdfBuffer, companyName, customSubject, customBody, trackingPixelUrl, propertyName, propertyAddress }) {
         const subjectTemplate = customSubject || `Your job summary from {companyName} — {jobTitle}`;
         const bodyTemplate = customBody || `Hi {clientName},\n\nGreat news — your job is complete! Here's a summary of the work done.\n\nJob: {jobTitle}\nAmount due: ${parseFloat(total).toFixed(2)}\nReference: #{invoiceNumber}\n\nYou can view the full details and print a copy here:\n{invoiceUrl}\n\nThanks for choosing {companyName}. We appreciate your business!\n\nIf you have any questions, just reply to this email.`;
 
@@ -150,6 +150,7 @@ class EmailService {
         <p>Your job is complete. Here's a summary of the work done by ${companyName}.</p>
         <div class="summary">
             <p><strong>Job:</strong> ${jobTitle}</p>
+            ${(propertyName || propertyAddress) ? `<p><strong>Property:</strong> ${[propertyName, propertyAddress].filter(Boolean).join(' — ').replace(/\n/g, ', ')}</p>` : ''}
             <p><strong>Amount due:</strong> $${parseFloat(total).toFixed(2)}</p>
             <p><strong>Reference:</strong> #${invoiceNumber}</p>
         </div>
