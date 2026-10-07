@@ -4886,6 +4886,27 @@ app.delete('/api/jobs/:id/attachments/:attId', isAuthenticated, async (req, res)
     }
 });
 
+// Update one attachment's caption after the fact — pairs with "upload first, caption later".
+app.patch('/api/jobs/:id/attachments/:attId', isAuthenticated, async (req, res) => {
+    try {
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(req.params.id) }, { projection: { _id: 1, attachments: 1 } });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const attId = req.params.attId;
+        const match = (job.attachments || []).find(a => String(a.id) === String(attId));
+        if (!match) return res.status(404).json({ error: 'Attachment not found' });
+        const comment = String((req.body && req.body.comment) || '').slice(0, 500);
+        await db.collection('jobs').updateOne(
+            { _id: job._id },
+            { $set: { 'attachments.$[a].comment': comment, updatedAt: new Date() } },
+            { arrayFilters: [{ 'a.id': match.id }] }
+        );
+        res.json({ success: true, comment });
+    } catch (err) {
+        console.error('Update attachment comment error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Debug: inspect the raw shape of a job's stored photos (admin only)
 app.get('/api/jobs/:id/photos-debug', isAuthenticated, async (req, res) => {
     try {

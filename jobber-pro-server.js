@@ -6573,16 +6573,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             event.target.value = '';
             if (!files.length) return;
 
-            // 1) Collect a description for each file up front
-            const items = [];
-            for (const f of files) {
-                const comment = prompt('Add a description for "' + f.name + '":', '');
-                if (comment === null) continue; // cancelled — skip this one
-                items.push({ file: f, comment: comment.trim() });
-            }
-            if (!items.length) return;
+            // Upload immediately, no caption step — captions are optional and added afterward
+            // per-photo via the "+ Add note" button on each attachment (editAttachmentNote()).
+            const items = files.map(f => ({ file: f, comment: '' }));
 
-            // 2) Optimize + upload each, with a live progress popup. Throttled to a few at a time —
+            // Optimize + upload each, with a live progress popup. Throttled to a few at a time —
             // firing 30+ full-size uploads simultaneously overwhelms the single server process
             // (Heroku's 30s request timeout + memory limit), which fails the whole batch at once.
             const failed = [];
@@ -6685,6 +6680,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             \${att.comment ? \`<div style="font-size:0.9rem;color:#4a5568;margin-top:0.25rem;font-style:italic;">"\${att.comment}"</div>\` : ''}
                         </div>
                         \${isImage ? \`<button type="button" class="btn btn-secondary btn-small" onclick="viewAttachment('\${att.id}')">View</button>\` : ''}
+                        <button type="button" class="btn btn-secondary btn-small" onclick="editAttachmentNote('\${att.id}')">\${att.comment ? '✎ Edit note' : '+ Add note'}</button>
                         <button type="button" class="btn btn-secondary btn-small" onclick="downloadAttachment('\${att.id}')">Download</button>
                         <button type="button" class="btn btn-danger btn-small" onclick="removeAttachment('\${att.id}')">Remove</button>
                     </div>
@@ -6749,6 +6745,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     const btn = document.getElementById('jobSignoffBtn');
                     if (btn) btn.innerHTML = '✍️ Sign-Off';
                 }
+            }
+        }
+
+        // Caption one photo on demand — pairs with handleFileSelect() uploading with no caption
+        // step at all, so adding 30 photos is zero clicks, and you only caption the ones that
+        // actually need one.
+        async function editAttachmentNote(id) {
+            const attachment = attachments.find(att => att.id == id);
+            if (!attachment) return;
+            const next = prompt('Note for "' + attachment.name + '":', attachment.comment || '');
+            if (next === null) return; // cancelled
+            attachment.comment = next.trim();
+            renderAttachments();
+            markFormDirty();
+            if (currentEditingJobId) {
+                try {
+                    const res = await fetch('/api/jobs/' + currentEditingJobId + '/attachments/' + id, {
+                        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ comment: attachment.comment })
+                    });
+                    if (!res.ok) throw new Error();
+                } catch (e) { alert('Could not save the note — try again.'); }
             }
         }
 
