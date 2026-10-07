@@ -6573,10 +6573,17 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
             if (!items.length) return;
 
-            // 2) Optimize + upload each, with a live progress popup
+            // 2) Optimize + upload each, with a live progress popup. Throttled to a few at a time —
+            // firing 30+ full-size uploads simultaneously overwhelms the single server process
+            // (Heroku's 30s request timeout + memory limit), which fails the whole batch at once.
             const failed = [];
             photoProgress.open(items.map(function(it){ return it.file; }), 'Uploading attachments');
-            await Promise.all(items.map(async function(it, idx){
+            const UPLOAD_CONCURRENCY = 3;
+            let _nextIdx = 0;
+            await Promise.all(new Array(Math.min(UPLOAD_CONCURRENCY, items.length)).fill(0).map(async function () {
+                while (_nextIdx < items.length) {
+                    const idx = _nextIdx++;
+                    const it = items[idx];
                 let file = it.file;
                 const isImage = file.type.startsWith('image/');
                 try {
@@ -6622,10 +6629,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             if (!pr.ok) throw new Error('save failed');
                             att._saved = true;
                         } catch (persistErr) {
-                            // Reached S3 but not attached to the job — flag it clearly.
+                            // Reached S3 but not attached to the job — flag it clearly, then move on
+                            // to this worker's next file (a bare `return` here would exit the whole
+                            // worker loop instead of just this item).
                             failed.push(file.name + ' (uploaded, but not saved to the job — hit Save)');
                             photoProgress.update(idx, 'Not saved', 'error');
-                            return;
+                            continue;
                         }
                     }
                     photoProgress.update(idx, currentEditingJobId ? 'Saved' : 'Added', 'done');
@@ -6633,6 +6642,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     console.error('Upload error:', err);
                     failed.push(file.name);
                     photoProgress.update(idx, 'Failed', 'error');
+                }
                 }
             }));
             // Keep failures on screen longer, and tell the user plainly.
