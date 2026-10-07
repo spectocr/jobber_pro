@@ -3606,6 +3606,11 @@ function _buildJobVersion(src, userName) {
 
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
+    // Flags a periodic mid-edit autosave tick (as opposed to the Save button or the final save
+    // that fires when the editor closes) — never persisted, only used below to skip snapshotting
+    // a version for pure typing noise. See jobber-pro-server.js saveJob()/runAutoSave().
+    const isAutosave = !!job.isAutosave;
+    delete job.isAutosave;
     let isUpdate = !!job._id;
     let oldJob = null;
 
@@ -3715,8 +3720,13 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
             }
         }
 
-        // Version history: snapshot on save, but only keep it if the billable content
-        // actually changed vs. the most recent version (no duplicate/no-op versions).
+        // Version history: snapshot on EXPLICIT saves only (manual Save, or a real status change
+        // that fires outside autosave), not on every silent autosave tick. Autosave fires 4s after
+        // any form input, so during one active editing session it can legitimately change the
+        // content many times over (each a different fingerprint) — that's normal in-progress
+        // editing, not a milestone worth a permanent version entry. Manual Save is where the user
+        // actually commits their edit, so that's what gets snapshotted; still deduped against the
+        // most recent version so repeated manual saves of unchanged content don't pile up either.
         const jobUpdateOps = { $set: { ...updateData, updatedAt: new Date() } };
         delete jobUpdateOps.$set.versions; // never overwrite the history array via $set
         const prevVersions = Array.isArray(oldJob && oldJob.versions) ? oldJob.versions : [];
@@ -3727,7 +3737,7 @@ app.post('/api/jobs', isAuthenticated, async (req, res) => {
         const lastFp = lastV
             ? _jobVersionFingerprint(lastV.laborItems, lastV.materialItems, lastV.total, lastV.taxWaived, lastV.title)
             : null;
-        if (newFp !== lastFp) {
+        if (!isAutosave && newFp !== lastFp) {
             jobUpdateOps.$push = { versions: _buildJobVersion(
                 { ...oldJob, ...updateData, title: updateData.title != null ? updateData.title : oldJob.title },
                 req.session.userName) };

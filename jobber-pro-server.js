@@ -4874,12 +4874,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             autoSaveTimer = setTimeout(runAutoSave, 4000);
         }
 
-        async function runAutoSave() {
+        async function runAutoSave(opts = {}) {
             if (!autoSaveContext || !hasUnsavedChanges) return;
+            // isClosing = this is the final save as the modal closes (Save button or closing with
+            // unsaved changes), not a periodic mid-edit tick — see saveJob()'s isAutosave flag.
+            const isClosing = opts.isClosing === true;
             try {
                 showAutoSaveStatus('saving');
-                if (autoSaveContext === 'job')   await saveJob({ silent: true });
-                if (autoSaveContext === 'quote') await saveQuote({ silent: true });
+                if (autoSaveContext === 'job')   await saveJob({ silent: true, isClosing });
+                if (autoSaveContext === 'quote') await saveQuote({ silent: true, isClosing });
                 showAutoSaveStatus('saved');
             } catch(e) {
                 showAutoSaveStatus('error');
@@ -6218,7 +6221,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 // Save immediately, then close — no discard prompt needed
                 clearTimeout(autoSaveTimer);
                 showAutoSaveStatus('saving');
-                runAutoSave().finally(() => {
+                runAutoSave({ isClosing: true }).finally(() => {
                     autoSaveContext = null;
                     document.getElementById(modalId).classList.remove('active');
                 });
@@ -7697,6 +7700,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function saveJob(opts = {}) {
             const silent = opts.silent === true;
+            const isClosing = opts.isClosing === true;
+            // Flags this as a periodic mid-edit autosave tick (vs. the Save button or a close-triggered
+            // final save) so the backend can skip snapshotting a version for pure typing noise while
+            // still capturing the version that actually matters — see server-auth.js's isAutosave gate.
+            const isAutosave = silent && !isClosing;
             if (isSavingJob) return; // prevent concurrent saves from racing on new-job ID
             isSavingJob = true;
             const saveBtn = document.querySelector('#jobModal .btn-primary[onclick="saveJob()"]');
@@ -7775,6 +7783,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const paymentTotal = Math.round(paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0) * 100) / 100;
             job.totalPaid = paymentTotal;
             job.balanceOwed = Math.round((job.total - paymentTotal) * 100) / 100;
+            job.isAutosave = isAutosave;
 
             if (!silent) console.log('Saving job with attachments:', job.attachments);
 
