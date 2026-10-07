@@ -16493,6 +16493,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         \${att.comment ? \`<div style="font-size:0.85rem;color:#4a5568;font-style:italic;margin-top:0.1rem;">"\${att.comment}"</div>\` : ''}
                     </div>
                     \${isImg ? \`<button class="btn btn-secondary btn-small" onclick="viewExpenseAttachment('\${att.s3Key}')">View</button>\` : ''}
+                    <button class="btn btn-secondary btn-small" onclick="editExpenseAttachmentNote('\${att.id}')">\${att.comment ? '✎ Edit note' : '+ Add note'}</button>
                     <button class="btn btn-secondary btn-small" onclick="downloadExpenseAttachment('\${att.s3Key}','\${att.name}')">⬇</button>
                     <button class="btn btn-danger btn-small" onclick="deleteExpenseAttachment('\${att.id}')">✕</button>
                 </div>\`;
@@ -16515,20 +16516,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }).join('');
         }
 
+        // Upload immediately, no per-file prompt — caption optionally afterward via the
+        // "+ Add note" button on each receipt (editExpenseAttachmentNote()), same pattern as
+        // job attachments.
         async function handleExpenseFileSelect(event) {
             const files = event.target.files;
             if (!files.length) return;
             for (let file of files) {
                 const isImage = file.type.startsWith('image/');
                 if (isImage) { try { file = await optimizeImage(file); } catch (_) {} }
-                const comment = prompt(\`Description for "\${file.name}" (optional):\`, '') ?? '';
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     try {
                         const res = await fetch(\`/api/expenses/\${currentExpenseId}/attachments\`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: e.target.result, comment })
+                            body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: e.target.result, comment: '' })
                         });
                         if (!res.ok) throw new Error();
                         const { attachment } = await res.json();
@@ -16548,6 +16551,23 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const exp = expenses.find(e => e.id === currentExpenseId);
             if (exp) { exp.attachments = (exp.attachments || []).filter(a => a.id !== attachmentId); renderExpenseAttachments(exp.attachments); }
             loadExpenses();
+        }
+
+        async function editExpenseAttachmentNote(attachmentId) {
+            const exp = expenses.find(e => e.id === currentExpenseId);
+            const att = exp && (exp.attachments || []).find(a => a.id === attachmentId);
+            if (!att) return;
+            const next = prompt('Note for "' + att.name + '":', att.comment || '');
+            if (next === null) return; // cancelled
+            att.comment = next.trim();
+            renderExpenseAttachments(exp.attachments);
+            try {
+                const res = await fetch(\`/api/expenses/\${currentExpenseId}/attachments/\${attachmentId}\`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comment: att.comment })
+                });
+                if (!res.ok) throw new Error();
+            } catch (e) { alert('Could not save the note — try again.'); }
         }
 
         async function viewExpenseAttachment(s3Key) {

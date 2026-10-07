@@ -8604,6 +8604,21 @@ app.delete('/api/expenses/:id/attachments/:attachmentId', isAuthenticated, isAdm
     }
 });
 
+// Update one receipt's caption after the fact — pairs with "upload first, caption later".
+app.patch('/api/expenses/:id/attachments/:attachmentId', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const comment = String((req.body && req.body.comment) || '').slice(0, 500);
+        const result = await db.collection('expenses').updateOne(
+            { _id: new ObjectId(req.params.id), 'attachments.id': req.params.attachmentId },
+            { $set: { 'attachments.$.comment': comment, updatedAt: new Date() } }
+        );
+        if (!result.matchedCount) return res.status(404).json({ error: 'Attachment not found' });
+        res.json({ success: true, comment });
+    } catch (e) {
+        res.status(500).json({ error: 'Update failed' });
+    }
+});
+
 // Expense comments
 app.post('/api/expenses/:id/comments', isAuthenticated, isAdmin, async (req, res) => {
     try {
