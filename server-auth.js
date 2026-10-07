@@ -3603,6 +3603,20 @@ function _buildJobVersion(src, userName) {
         taxWaived: !!src.taxWaived
     };
 }
+// Same edit-history pattern as jobs (_buildJobVersion/_jobVersionFingerprint — the fingerprint fn
+// is generic over {title,taxWaived,total,laborItems,materialItems} so it's shared as-is).
+function _buildQuoteVersion(src, userName) {
+    return {
+        capturedAt: new Date(),
+        capturedBy: userName || 'admin',
+        status: src.status || '',
+        title: src.title || '',
+        laborItems: src.laborItems || [],
+        materialItems: src.materialItems || [],
+        total: parseFloat(src.total) || 0,
+        taxWaived: !!src.taxWaived
+    };
+}
 
 app.post('/api/jobs', isAuthenticated, async (req, res) => {
     const job = req.body;
@@ -4532,6 +4546,9 @@ app.get('/api/quotes', isAuthenticated, async (req, res) => {
 
 app.post('/api/quotes', isAuthenticated, async (req, res) => {
     const quote = req.body;
+    // Same autosave-noise guard as jobs — see POST /api/jobs. Never persisted.
+    const isAutosave = !!quote.isAutosave;
+    delete quote.isAutosave;
     const isUpdate = !!quote._id;
 
     // Generate quote number and token only when creating
@@ -4580,9 +4597,28 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
             updateData.auditLog.push(auditEntry);
         }
 
+        // Edit history: same rule as jobs — snapshot on a real save (Save button or the save
+        // that fires when the editor closes), not on every silent autosave tick, and only when
+        // the billable content actually changed vs. the last snapshot.
+        const quoteUpdateOps = { $set: { ...updateData, updatedAt: new Date() } };
+        delete quoteUpdateOps.$set.versions; // never overwrite the history array via $set
+        const prevQVersions = Array.isArray(existingQuote && existingQuote.versions) ? existingQuote.versions : [];
+        const lastQV = prevQVersions[prevQVersions.length - 1];
+        const newQFp = _jobVersionFingerprint(
+            updateData.laborItems || (existingQuote && existingQuote.laborItems), updateData.materialItems || (existingQuote && existingQuote.materialItems),
+            updateData.total, updateData.taxWaived, updateData.title != null ? updateData.title : (existingQuote && existingQuote.title));
+        const lastQFp = lastQV
+            ? _jobVersionFingerprint(lastQV.laborItems, lastQV.materialItems, lastQV.total, lastQV.taxWaived, lastQV.title)
+            : null;
+        if (!isAutosave && newQFp !== lastQFp) {
+            quoteUpdateOps.$push = { versions: _buildQuoteVersion(
+                { ...existingQuote, ...updateData, title: updateData.title != null ? updateData.title : (existingQuote && existingQuote.title) },
+                req.session.userName) };
+        }
+
         await db.collection('quotes').updateOne(
             { _id: new ObjectId(_id) },
-            { $set: { ...updateData, updatedAt: new Date() } }
+            quoteUpdateOps
         );
         res.json({ success: true, id: _id });
     } else {
@@ -4598,6 +4634,11 @@ app.post('/api/quotes', isAuthenticated, async (req, res) => {
             newStatus: quote.status,
             note: `Quote created with status: ${quote.status}`
         }];
+
+        // Seed version history with the initial state (only if it has any priced content)
+        if ((quote.laborItems && quote.laborItems.length) || (quote.materialItems && quote.materialItems.length)) {
+            quote.versions = [_buildQuoteVersion(quote, req.session.userName)];
+        }
 
         const result = await db.collection('quotes').insertOne(quote);
         res.json({ success: true, id: result.insertedId.toString() });

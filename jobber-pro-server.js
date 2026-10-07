@@ -4354,6 +4354,12 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <div id="quoteAuditLog" style="max-height: 300px; overflow-y: auto;"></div>
                     </div>
 
+                    <!-- Edit History (every meaningfully-saved edit, not every autosave tick) -->
+                    <div id="quoteVersionsSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
+                        <h3 style="margin-bottom: 1rem; color: #667eea;">🕓 Edit History</h3>
+                        <div id="quoteVersionsList"></div>
+                    </div>
+
                     <!-- Sent Version History -->
                     <div id="quoteSentVersionsSection" style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #ddd; display: none;">
                         <h3 style="margin-bottom: 1rem; color: #667eea;">📨 Sent Versions</h3>
@@ -7483,6 +7489,45 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }).join('');
         }
 
+        // ── Quote edit history (every meaningfully-saved edit — see renderJobVersions above) ──
+        function renderQuoteVersions(quote) {
+            const section = document.getElementById('quoteVersionsSection');
+            const list = document.getElementById('quoteVersionsList');
+            if (!section || !list) return;
+            const versions = (quote && quote.versions) || [];
+            if (!versions.length) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+            list.innerHTML = versions.slice().reverse().map((v, i) => {
+                const vNum = versions.length - i;
+                const laborRows = (v.laborItems || []).map(x => \`<tr><td style="padding:0.2rem 0.5rem;color:#4a5568;">\${x.description || '—'}</td><td style="padding:0.2rem 0.5rem;text-align:right;color:#4a5568;">\${x.hours}h × $\${x.rate}</td><td style="padding:0.2rem 0.5rem;text-align:right;color:#4a5568;">$\${(x.hours*x.rate).toFixed(2)}</td></tr>\`).join('');
+                const matRows = (v.materialItems || []).map(x => \`<tr><td style="padding:0.2rem 0.5rem;color:#4a5568;">\${x.description || '—'}</td><td style="padding:0.2rem 0.5rem;text-align:right;color:#4a5568;">\${x.quantity} × $\${x.price}</td><td style="padding:0.2rem 0.5rem;text-align:right;color:#4a5568;">$\${(x.quantity*x.price).toFixed(2)}</td></tr>\`).join('');
+                const uid = \`qev-\${vNum}\`;
+                return \`
+                <div style="border:1.5px solid #e2e8f0;border-radius:8px;margin-bottom:0.75rem;overflow:hidden;">
+                    <div style="background:#f8f9fa;padding:0.65rem 1rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
+                         onclick="var d=document.getElementById('\${uid}');d.style.display=d.style.display==='none'?'block':'none';">
+                        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                            <span style="background:#667eea;color:#fff;border-radius:999px;padding:0.15rem 0.6rem;font-size:0.72rem;font-weight:700;">v\${vNum}</span>
+                            <span style="font-weight:600;color:#2d3748;">\${v.title || 'Edited'}</span>
+                            <span style="color:#718096;font-size:0.82rem;">\${new Date(v.capturedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
+                        </div>
+                        <span style="font-weight:700;color:#2d3748;">$\${parseFloat(v.total||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                    </div>
+                    <div id="\${uid}" style="display:none;padding:0.75rem 1rem;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+                            \${laborRows ? \`<tr><td colspan="3" style="padding:0.3rem 0.5rem;font-weight:700;color:#667eea;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">Labor</td></tr>\${laborRows}\` : ''}
+                            \${matRows ? \`<tr><td colspan="3" style="padding:0.3rem 0.5rem;font-weight:700;color:#667eea;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">Materials</td></tr>\${matRows}\` : ''}
+                            <tr style="border-top:2px solid #e2e8f0;">
+                                <td colspan="2" style="padding:0.4rem 0.5rem;font-weight:700;">Total</td>
+                                <td style="padding:0.4rem 0.5rem;text-align:right;font-weight:700;">$\${parseFloat(v.total||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}\${v.taxWaived?' <span style="font-size:0.72rem;color:#718096;">(tax exempt)</span>':''}</td>
+                            </tr>
+                        </table>
+                        <div style="font-size:0.78rem;color:#a0aec0;margin-top:0.5rem;">captured by \${v.capturedBy || '—'}</div>
+                    </div>
+                </div>\`;
+            }).join('');
+        }
+
         // ── Split job: move selected line items into a new job ──
         function openSplitJobModal() {
             if (!currentEditingJobId) { alert('Save the job first, then split it.'); return; }
@@ -10071,6 +10116,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const _qMsgBtn = document.getElementById('quoteMessageClientBtn');
             if (_qMsgBtn) _qMsgBtn.style.display = 'none';
             document.getElementById('quoteForm').reset();
+            const _qvSection = document.getElementById('quoteVersionsSection');
+            if (_qvSection) _qvSection.style.display = 'none';
 
             // Clear line items
             quoteLaborItems = [];
@@ -10296,6 +10343,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function saveQuote(opts = {}) {
             const silent = opts.silent === true;
+            const isClosing = opts.isClosing === true;
+            // Same distinction as saveJob(): a periodic mid-edit autosave tick vs. the Save button
+            // or the final save that fires when the editor closes — only the latter two snapshot
+            // an edit-history version server-side.
+            const isAutosave = silent && !isClosing;
             if (isSavingQuote) return;
             isSavingQuote = true;
             const saveQuoteBtn = document.querySelector('#quoteModal .btn-primary[onclick="saveQuote()"]');
@@ -10334,6 +10386,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             quote.taxAmount = taxAmount;
             quote.total = subtotal + taxAmount;
             quote.touchPoints = quoteTouchPoints;
+            quote.isAutosave = isAutosave;
 
             try {
                 const result = await postData('/api/quotes', quote, {
@@ -10560,6 +10613,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } else {
                 document.getElementById('quoteAuditLogSection').style.display = 'none';
             }
+
+            renderQuoteVersions(quote);
 
             // Sent version history
             const versions = quote.sentVersions || [];
