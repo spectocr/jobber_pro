@@ -4710,6 +4710,19 @@ async function annotateViewLogGeo(log) {
         return label ? { ...v, geo: label } : v;
     }));
 }
+// Recompute the scan/real split over the COMPLETE, already-written log, rather than trusting the
+// `scan` flag each view-write decided for itself. A security scanner fires many IPs within the
+// same second or two, as near-simultaneous separate requests — each one reads the quote BEFORE
+// any of the others have written their entry back, so each sees an empty/short prior log and
+// concludes "I'm the first viewer," and none end up flagged. By the time someone opens this log,
+// every write has long since landed, so grouping by <90s gaps here is race-free and authoritative.
+function reclassifyViewScans(log) {
+    const arr = (Array.isArray(log) ? log.slice() : []).sort((a, b) => new Date(a.at) - new Date(b.at));
+    return arr.map((v, i) => {
+        const isScan = i > 0 && (new Date(v.at) - new Date(arr[i - 1].at)) < 90000;
+        return { ...v, scan: isScan };
+    });
+}
 
 app.get('/api/jobs/:id/invoice-view-log', isAdmin, async (req, res) => {
     try {
@@ -4718,7 +4731,7 @@ app.get('/api/jobs/:id/invoice-view-log', isAdmin, async (req, res) => {
             { projection: { invoiceViewLog: 1, invoiceViewCount: 1 } }
         );
         if (!job) return res.status(404).json({ error: 'Not found' });
-        res.json(await annotateViewLogGeo(job.invoiceViewLog || []));
+        res.json(await annotateViewLogGeo(reclassifyViewScans(job.invoiceViewLog || [])));
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -5164,7 +5177,7 @@ app.get('/api/quotes/:id/view-log', isAdmin, async (req, res) => {
             { projection: { viewLog: 1, viewCount: 1 } }
         );
         if (!quote) return res.status(404).json({ error: 'Not found' });
-        res.json(await annotateViewLogGeo(quote.viewLog || []));
+        res.json(await annotateViewLogGeo(reclassifyViewScans(quote.viewLog || [])));
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }

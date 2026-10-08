@@ -3661,7 +3661,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div id="viewLogModal" class="modal">
         <div class="modal-content" style="max-width:520px;">
             <div class="modal-header">
-                <h2>Quote View History</h2>
+                <h2 id="viewLogModalTitle">Quote View History</h2>
                 <button class="close-btn" onclick="closeModal('viewLogModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -9939,8 +9939,71 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }
         }
 
+        // Shared by quote and invoice view logs. Collapses RUNS of 3+ consecutive scanner hits
+        // into one expandable summary row instead of flooding the table — a security scanner
+        // typically fires 5-10 IPs within the same minute, which otherwise buries the real
+        // (human) views. Scan grouping itself is computed server-side (reclassifyViewScans), not
+        // here — this just renders whatever `scan` flags the API already settled on.
+        function renderViewLogTable(log) {
+            let humanCount = 0;
+            const fmtWhen = d => new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
+            const fmtTime = d => new Date(d).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+            const scanRow = (v, groupClass) => \`<tr\${groupClass ? ' class="' + groupClass + '"' : ''} style="border-bottom:1px solid #f0f0f0;opacity:0.55;\${groupClass ? 'display:none;' : ''}">
+                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">—</td>
+                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${fmtWhen(v.at)}</td>
+                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
+                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;font-size:0.8rem;">📧 Email scanner</td>
+                </tr>\`;
+            let rowsHtml = '', i = 0, groupN = 0;
+            while (i < log.length) {
+                const v = log[i];
+                if (v.scan === true) {
+                    let j = i;
+                    while (j < log.length && log[j].scan === true) j++;
+                    const run = log.slice(i, j);
+                    if (run.length >= 3) {
+                        const gid = 'scangrp-' + (++groupN);
+                        rowsHtml += \`<tr style="border-bottom:1px solid #f0f0f0;">
+                            <td style="padding:0.6rem 0.75rem;color:#9ca3af;">—</td>
+                            <td colspan="3" style="padding:0.6rem 0.75rem;">
+                                <button type="button" onclick="var g=document.querySelectorAll('.\${gid}'),open=g[0].style.display!=='none';g.forEach(function(r){r.style.display=open?'none':'table-row';});this.textContent=(open?'▸ Show ':'▾ Hide ')+\${run.length}+' email scanner hits (\${fmtTime(run[0].at)}–\${fmtTime(run[run.length-1].at)})';"
+                                    style="background:none;border:none;color:#9ca3af;font-size:0.8rem;cursor:pointer;padding:0;">▸ Show \${run.length} email scanner hits (\${fmtTime(run[0].at)}–\${fmtTime(run[run.length-1].at)})</button>
+                            </td>
+                        </tr>\`;
+                        run.forEach(sv => { rowsHtml += scanRow(sv, gid); });
+                    } else {
+                        run.forEach(sv => { rowsHtml += scanRow(sv); });
+                    }
+                    i = j;
+                } else {
+                    humanCount++;
+                    rowsHtml += \`<tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${humanCount}</td>
+                        <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${fmtWhen(v.at)}</td>
+                        <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
+                        <td style="padding:0.6rem 0.75rem;color:#9ca3af;font-size:0.8rem;"></td>
+                    </tr>\`;
+                    i++;
+                }
+            }
+            return \`
+                <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+                    <thead>
+                        <tr style="border-bottom:2px solid #e2e8f0;">
+                            <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">#</th>
+                            <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Date & Time</th>
+                            <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">IP Address</th>
+                            <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>\${rowsHtml}</tbody>
+                </table>\`;
+        }
+
         async function showQuoteViewLog(quoteId) {
             const content = document.getElementById('viewLogContent');
+            const title = document.getElementById('viewLogModalTitle');
+            if (title) title.textContent = 'Quote View History';
             content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">Loading…</p>';
             openModal('viewLogModal');
             try {
@@ -9950,62 +10013,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">No detailed view history available.<br><small>Views recorded before this feature was added only show a count.</small></p>';
                     return;
                 }
-                let humanCount = 0;
-                const fmtWhen = d => new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
-                const fmtTime = d => new Date(d).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-                const scanRow = (v, groupClass) => \`<tr\${groupClass ? ' class="' + groupClass + '"' : ''} style="border-bottom:1px solid #f0f0f0;opacity:0.55;\${groupClass ? 'display:none;' : ''}">
-                        <td style="padding:0.6rem 0.75rem;color:#9ca3af;">—</td>
-                        <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${fmtWhen(v.at)}</td>
-                        <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
-                        <td style="padding:0.6rem 0.75rem;color:#9ca3af;font-size:0.8rem;">📧 Email scanner</td>
-                    </tr>\`;
-                // Collapse RUNS of consecutive scanner hits into one expandable summary row instead
-                // of flooding the table — a security scanner typically fires 5-10 IPs within the
-                // same minute, which otherwise buries the real (human) views in the list.
-                let rowsHtml = '', i = 0, groupN = 0;
-                while (i < log.length) {
-                    const v = log[i];
-                    if (v.scan === true) {
-                        let j = i;
-                        while (j < log.length && log[j].scan === true) j++;
-                        const run = log.slice(i, j);
-                        if (run.length >= 3) {
-                            const gid = 'scangrp-' + (++groupN);
-                            rowsHtml += \`<tr style="border-bottom:1px solid #f0f0f0;">
-                                <td style="padding:0.6rem 0.75rem;color:#9ca3af;">—</td>
-                                <td colspan="3" style="padding:0.6rem 0.75rem;">
-                                    <button type="button" onclick="var g=document.querySelectorAll('.\${gid}'),open=g[0].style.display!=='none';g.forEach(function(r){r.style.display=open?'none':'table-row';});this.textContent=(open?'▸ Show ':'▾ Hide ')+\${run.length}+' email scanner hits (\${fmtTime(run[0].at)}–\${fmtTime(run[run.length-1].at)})';"
-                                        style="background:none;border:none;color:#9ca3af;font-size:0.8rem;cursor:pointer;padding:0;">▸ Show \${run.length} email scanner hits (\${fmtTime(run[0].at)}–\${fmtTime(run[run.length-1].at)})</button>
-                                </td>
-                            </tr>\`;
-                            run.forEach(sv => { rowsHtml += scanRow(sv, gid); });
-                        } else {
-                            run.forEach(sv => { rowsHtml += scanRow(sv); });
-                        }
-                        i = j;
-                    } else {
-                        humanCount++;
-                        rowsHtml += \`<tr style="border-bottom:1px solid #f0f0f0;">
-                            <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${humanCount}</td>
-                            <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${fmtWhen(v.at)}</td>
-                            <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
-                            <td style="padding:0.6rem 0.75rem;color:#9ca3af;font-size:0.8rem;"></td>
-                        </tr>\`;
-                        i++;
-                    }
-                }
-                content.innerHTML = \`
-                    <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
-                        <thead>
-                            <tr style="border-bottom:2px solid #e2e8f0;">
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">#</th>
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Date & Time</th>
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">IP Address</th>
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Note</th>
-                            </tr>
-                        </thead>
-                        <tbody>\${rowsHtml}</tbody>
-                    </table>\`;
+                content.innerHTML = renderViewLogTable(log);
             } catch (e) {
                 content.innerHTML = '<p style="color:#e53e3e;text-align:center;padding:1rem;">Failed to load view history.</p>';
             }
@@ -10013,6 +10021,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
         async function showInvoiceViewLog(jobId) {
             const content = document.getElementById('viewLogContent');
+            const title = document.getElementById('viewLogModalTitle');
+            if (title) title.textContent = 'Invoice View History';
             content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">Loading…</p>';
             openModal('viewLogModal');
             try {
@@ -10022,24 +10032,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     content.innerHTML = '<p style="color:#718096;text-align:center;padding:1rem;">No detailed view history available.<br><small>Views recorded before this feature was added only show a count.</small></p>';
                     return;
                 }
-                content.innerHTML = \`
-                    <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
-                        <thead>
-                            <tr style="border-bottom:2px solid #e2e8f0;">
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">#</th>
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">Date & Time</th>
-                                <th style="text-align:left;padding:0.5rem 0.75rem;color:#4a5568;">IP Address</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            \${log.map((v, i) => \`
-                                <tr style="border-bottom:1px solid #f0f0f0;">
-                                    <td style="padding:0.6rem 0.75rem;color:#9ca3af;">\${i + 1}</td>
-                                    <td style="padding:0.6rem 0.75rem;color:#2d3748;">\${new Date(v.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})}</td>
-                                    <td style="padding:0.6rem 0.75rem;color:#4a5568;font-family:monospace;">\${v.ip || '—'}\${v.geo ? ' <span style="color:#9ca3af;font-family:inherit;">- ' + v.geo + '</span>' : ''}</td>
-                                </tr>\`).join('')}
-                        </tbody>
-                    </table>\`;
+                content.innerHTML = renderViewLogTable(log);
             } catch (e) {
                 content.innerHTML = '<p style="color:#e53e3e;text-align:center;padding:1rem;">Failed to load view history.</p>';
             }
