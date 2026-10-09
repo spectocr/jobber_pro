@@ -9517,19 +9517,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             // Calculate client stats
             const totalJobs = clientJobs.length;
 
-            // Debug: log jobs data
-            console.log('Client Jobs Data:', clientJobs.map(j => ({
-                title: j.title,
-                total: j.total,
-                laborItems: j.laborItems,
-                materialItems: j.materialItems
-            })));
-
             const totalRevenue = clientJobs.reduce((sum, j) => {
                 // j.total already includes tax (calculated as subtotal + taxAmount when job is saved)
-                const jobTotal = parseFloat(j.total) || 0;
-                console.log('Job revenue:', j.title, jobTotal);
-                return sum + jobTotal;
+                return sum + (parseFloat(j.total) || 0);
             }, 0);
 
             // Calculate net profit (revenue - material costs - labor payments to workers)
@@ -12460,17 +12450,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const memberJobs = jobs.filter(j => isAssignedTo(j, member.id));
             const jobsContainer = document.getElementById('team-detail-jobs');
 
-            console.log('Jobs matching for member:', member.name, 'member.id:', member.id);
-            console.log('Total jobs:', jobs.length);
-            console.log('Sample job assignedTo:', jobs[0]?.assignedTo, 'type:', typeof jobs[0]?.assignedTo);
-            console.log('Matched jobs:', memberJobs.length);
-
             if (memberJobs.length === 0) {
                 jobsContainer.innerHTML = \`
                     <div class="empty-state">
                         <h3>No jobs assigned</h3>
                         <p>Assign jobs to this team member</p>
-                        <small style="color: #718096;">Debug: member.id=\${member.id}, found \${jobs.length} total jobs</small>
                     </div>\`;
             } else {
                 // Calculate total hours and revenue
@@ -12560,11 +12544,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 memberEntries = allEntries.filter(e => e.userName === member.name);
             }
 
-            console.log('Team member:', member.name, 'userId:', member.userId);
-            console.log('Total time entries:', allEntries.length);
-            console.log('Matched entries:', memberEntries.length);
-            console.log('Sample entry:', allEntries[0]);
-
             // Get approved entries
             const approvedEntries = memberEntries.filter(e => e.status === 'approved');
 
@@ -12572,7 +12551,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.getElementById('team-pay-summary').innerHTML = \`
                     <div class="empty-state">
                         <p>No approved time entries yet</p>
-                        <small style="color: #718096;">Debug: Found \${memberEntries.length} total entries, 0 approved</small>
                     </div>\`;
                 document.getElementById('team-pay-history').innerHTML = '';
                 return;
