@@ -8055,9 +8055,21 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             var days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
             return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + 'd ago';
         }
-        function openPaymentReminder(jobId) {
+        async function openPaymentReminder(jobId) {
+            // The Accounts Receivable tile loads from /api/dashboard, which runs on dashboard load —
+            // but the `jobs`/`clients` caches here only populate when you visit the Jobs/Clients tab.
+            // Land on the dashboard straight from login and click a reminder before ever opening
+            // Jobs, and this used to always fail with "Job not found," for every job. Fall back to
+            // fetching directly instead of trusting those caches are warm.
             var job = jobs.find(function (j) { return (j._id || j.id) == jobId; });
+            if (!job) {
+                try {
+                    var jr = await fetch('/api/jobs/' + jobId);
+                    if (jr.ok) job = await jr.json();
+                } catch (e) { /* fall through to the not-found alert below */ }
+            }
             if (!job) { alert('Job not found'); return; }
+            if (!clients.length) { try { await loadClients(); } catch (e) {} }
             var client = findClient(job.clientId);
             var total = job.totalWithTax || parseFloat(job.total) || 0;
             var balance = Math.round((total - (parseFloat(job.totalPaid) || 0)) * 100) / 100;
