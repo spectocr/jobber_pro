@@ -7048,6 +7048,74 @@ app.delete('/api/clients/:id/locations/:locId/tenant-access', isAdmin, async (re
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Named portal users — multiple people sharing one client's FULL portal access, each with ──
+// their own login and tracked separately (unlike the one-login-per-client default, and unlike
+// tenant/location logins which are scoped down to a single property).
+app.post('/api/clients/:id/portal-users', isAdmin, async (req, res) => {
+    try {
+        const { name, email, password, sendInvite } = req.body || {};
+        const em = (email || '').trim().toLowerCase();
+        const nm = (name || '').trim();
+        if (!nm) return res.status(400).json({ error: 'A name is required' });
+        if (!em) return res.status(400).json({ error: 'An email is required' });
+        if (!password) return res.status(400).json({ error: 'A password is required' });
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        if ((client.email || '').toLowerCase() === em) return res.status(400).json({ error: 'That email is already the main client login.' });
+        if ((client.portalUsers || []).some(u => (u.email || '').toLowerCase() === em)) return res.status(400).json({ error: 'That email is already a portal user on this client.' });
+        const user = {
+            id: 'pu_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            name: nm, email: em, password: await bcrypt.hash(password, 10),
+            createdAt: new Date(), createdBy: req.session.userName || 'admin', lastLogin: null
+        };
+        await db.collection('clients').updateOne({ _id: client._id }, { $push: { portalUsers: user } });
+        let emailed = false;
+        if (sendInvite && emailService && emailService.sendEmail) {
+            const settings = await db.collection('settings').findOne({}) || {};
+            const companyName = settings.companyName || 'GSD Property Services';
+            const loginUrl = `${process.env.APP_URL}/client-login`;
+            await emailService.sendEmail({
+                to: em,
+                subject: `Your portal access — ${companyName}`,
+                html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+                    <h2 style="color:#667eea;">Your portal access is ready</h2>
+                    <p>Hi ${nm}, you now have your own login to the ${client.name} portal.</p>
+                    <p><strong>Login:</strong> ${em}<br><strong>Password:</strong> ${password}</p>
+                    <p style="margin-top:1.5rem;"><a href="${loginUrl}" style="background:#667eea;color:white;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Open the portal →</a></p>
+                </div>`,
+                text: `Hi ${nm}, your portal login for ${client.name}:\nLogin: ${em}\nPassword: ${password}\nPortal: ${loginUrl}`
+            });
+            emailed = true;
+        }
+        res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt, lastLogin: null }, emailed });
+    } catch (e) { console.error('Add portal user error:', e); res.status(500).json({ error: e.message }); }
+});
+app.put('/api/clients/:id/portal-users/:userId', isAdmin, async (req, res) => {
+    try {
+        const { name, email, password } = req.body || {};
+        const client = await db.collection('clients').findOne({ _id: new ObjectId(req.params.id) });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        const user = (client.portalUsers || []).find(u => u.id === req.params.userId);
+        if (!user) return res.status(404).json({ error: 'Portal user not found' });
+        const set = {};
+        if (name && name.trim()) set['portalUsers.$[u].name'] = name.trim();
+        if (email && email.trim()) set['portalUsers.$[u].email'] = email.trim().toLowerCase();
+        if (password) set['portalUsers.$[u].password'] = await bcrypt.hash(password, 10);
+        if (!Object.keys(set).length) return res.status(400).json({ error: 'Nothing to update' });
+        await db.collection('clients').updateOne({ _id: client._id }, { $set: set }, { arrayFilters: [{ 'u.id': user.id }] });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/clients/:id/portal-users/:userId', isAdmin, async (req, res) => {
+    try {
+        await db.collection('clients').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $pull: { portalUsers: { id: req.params.userId } } }
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Portal: fetch this client's MSA (base + provisions) and signed status
 app.get('/api/client-portal/msa', async (req, res) => {
     try {
@@ -9862,13 +9930,27 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
             }
         }
 
+        // Still not found — check named additional portal users (full access, own credentials).
+        let matchedPortalUser = null;
+        if (!client) {
+            client = await db.collection('clients').findOne({
+                'portalUsers.email': { $regex: new RegExp(`^${emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+            });
+            if (client) {
+                matchedPortalUser = (client.portalUsers || []).find(u => (u.email || '').toLowerCase() === emailNorm) || null;
+            }
+        }
+
         if (!client) {
             await db.collection('login_logs').insertOne({ type: 'client', email: emailNorm, at: new Date(), ip, success: false, reason: 'Email not found' });
             return res.status(401).json({ error: 'Invalid email or access code' });
         }
 
-        // A tenant (location) uses their own location password if set; otherwise the client's.
-        const effectivePassword = (matchedLoc && matchedLoc.portalPassword) ? matchedLoc.portalPassword : client.portalPassword;
+        // A tenant (location) uses their own location password; a named portal user uses their
+        // own password; otherwise fall back to the main client password.
+        const effectivePassword = matchedPortalUser ? matchedPortalUser.password
+            : (matchedLoc && matchedLoc.portalPassword) ? matchedLoc.portalPassword
+            : client.portalPassword;
         if (!effectivePassword) {
             await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: false, reason: 'Portal access not set up' });
             return res.status(401).json({ error: 'Portal access not set up. Contact us to enable portal access.' });
@@ -9880,14 +9962,23 @@ app.post('/api/client-portal/login', loginLimiter, async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or access code' });
         }
 
-        await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: true, reason: null });
+        await db.collection('login_logs').insertOne({ type: 'client', targetId: client._id, email: emailNorm, at: new Date(), ip, success: true, reason: null, portalUserName: matchedPortalUser ? matchedPortalUser.name : null });
 
         req.session.clientId = client._id.toString();
         req.session.clientName = client.name;
         req.session.isClientPortal = true;
         req.session.portalLocationId = matchedLocationId; // null = full access, string = location-scoped
+        req.session.portalUserName = matchedPortalUser ? matchedPortalUser.name : null; // who, specifically, is logged in
 
-        await db.collection('clients').updateOne({ _id: client._id }, { $set: { lastPortalLogin: new Date() } });
+        if (matchedPortalUser) {
+            await db.collection('clients').updateOne(
+                { _id: client._id },
+                { $set: { 'portalUsers.$[u].lastLogin': new Date() } },
+                { arrayFilters: [{ 'u.id': matchedPortalUser.id }] }
+            );
+        } else {
+            await db.collection('clients').updateOne({ _id: client._id }, { $set: { lastPortalLogin: new Date() } });
+        }
 
         res.json({ success: true });
     } catch (error) {
@@ -9997,7 +10088,8 @@ app.get('/api/client-portal/me', async (req, res) => {
                 phone: client.phone,
                 isLocationScoped: !!locationId,
                 locationAddress: matchedLocation?.address || '',
-                isPropertyManagement: !!client.isPropertyManagement
+                isPropertyManagement: !!client.isPropertyManagement,
+                portalUserName: req.session.portalUserName || null
             },
             quotes: outQuotes,
             jobs: outJobs,

@@ -811,7 +811,11 @@ async function loadClientData() {
         const welcomeName = clientData.client.isLocationScoped
             ? `${clientData.client.name}${clientData.client.locationAddress ? ' — ' + clientData.client.locationAddress : ''}`
             : clientData.client.name;
-        document.getElementById('clientName').textContent = `Welcome, ${welcomeName}`;
+        // Logged in as a named additional portal user (e.g. a second contact at a PM client) —
+        // greet them by name, not just the account name, since several people may share this login.
+        document.getElementById('clientName').textContent = clientData.client.portalUserName
+            ? `Welcome, ${clientData.client.portalUserName} (${welcomeName})`
+            : `Welcome, ${welcomeName}`;
 
         if (clientData.settings.appName) {
             document.getElementById('portalTitle').textContent = clientData.settings.appName + ' Portal';

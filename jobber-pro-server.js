@@ -1635,6 +1635,8 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 <div id="client-maintenance-section" style="display:none;margin-bottom:1.5rem;"></div>
                 <!-- Tenant sub-portals (PM clients) -->
                 <div id="client-tenants-section" style="display:none;margin-bottom:1.5rem;"></div>
+                <!-- Additional named portal users (full access, separate logins) -->
+                <div id="client-portal-users-section" style="margin-bottom:1.5rem;"></div>
                 <!-- Client Relationship Stats -->
                 <div id="client-stats-section" style="margin-bottom: 2rem;">
                     <h3 style="margin-bottom: 1rem; color: #667eea;">📊 Client Relationship Overview</h3>
@@ -9490,6 +9492,72 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             } catch (e) { alert('Network error'); }
         }
 
+        // Multiple people sharing one client's FULL portal access, each with their own login —
+        // e.g. a property manager and their maintenance contact both need to see/submit everything,
+        // not just one scoped-down property like a tenant login would give them.
+        function renderClientPortalUsers(client) {
+            var box = document.getElementById('client-portal-users-section');
+            if (!box) return;
+            var users = client.portalUsers || [];
+            var rows = users.map(function (u) {
+                var last = u.lastLogin ? ('last login ' + new Date(u.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) : 'never logged in';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border-top:1px solid #edf2f7;padding:0.5rem 0;flex-wrap:wrap;">' +
+                    '<div><strong style="color:#2d3748;">' + escapeAuthText(u.name) + '</strong> · <span style="color:#718096;font-size:0.85rem;">' + escapeAuthText(u.email) + '</span> &nbsp;<span style="color:#a0aec0;font-size:0.78rem;">' + last + '</span></div>' +
+                    '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;flex-shrink:0;">' +
+                        '<button class="btn btn-secondary btn-small" onclick="resetPortalUserPassword(\'' + client.id + '\',\'' + u.id + '\')">Reset password</button>' +
+                        '<button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="removePortalUser(\'' + client.id + '\',\'' + u.id + '\')">Remove</button>' +
+                    '</div></div>';
+            }).join('');
+            box.innerHTML = '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;background:#fafafa;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.4rem;">' +
+                    '<div><strong style="color:#2d3748;">👥 Additional Portal Users</strong> <span style="color:#a0aec0;font-size:0.82rem;">— same full access as the main login, their own email/password</span></div>' +
+                    '<button class="btn btn-secondary btn-small" onclick="addPortalUser(\'' + client.id + '\')">+ Add person</button>' +
+                '</div>' +
+                (rows || '<div style="color:#a0aec0;font-size:0.85rem;padding-top:0.3rem;">No additional portal users yet.</div>') +
+                '</div>';
+        }
+        async function addPortalUser(clientId) {
+            var name = prompt('Name of the person getting their own login:');
+            if (name === null) return; name = name.trim();
+            if (!name) { alert('Name required.'); return; }
+            var email = prompt('Their email (they log in with this):');
+            if (email === null) return; email = email.trim();
+            if (!email) { alert('Email required.'); return; }
+            var pw = prompt('Set a password for them:');
+            if (pw === null) return; pw = pw.trim();
+            if (pw.length < 4) { alert('Password must be at least 4 characters.'); return; }
+            var invite = confirm('Email them their login details now?');
+            try {
+                var res = await fetch('/api/clients/' + clientId + '/portal-users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, email: email, password: pw, sendInvite: invite }) });
+                var data = await res.json();
+                if (!res.ok) { alert(data.error || 'Could not add'); return; }
+                alert('✅ Portal login created for ' + name + '.' + (data.emailed ? ' Invite emailed.' : ''));
+                var client = clients.find(function (c) { return c.id == clientId; });
+                if (client) { client.portalUsers = client.portalUsers || []; client.portalUsers.push(data.user); }
+                if (_currentClientId == clientId && client) renderClientPortalUsers(client);
+            } catch (e) { alert('Network error'); }
+        }
+        async function resetPortalUserPassword(clientId, userId) {
+            var pw = prompt('New password for this person:');
+            if (pw === null) return; pw = pw.trim();
+            if (pw.length < 4) { alert('Password must be at least 4 characters.'); return; }
+            try {
+                var res = await fetch('/api/clients/' + clientId + '/portal-users/' + userId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+                if (!res.ok) { alert('Could not reset'); return; }
+                alert('✅ Password reset.');
+            } catch (e) { alert('Network error'); }
+        }
+        async function removePortalUser(clientId, userId) {
+            if (!confirm('Remove this person\'s portal login? They will no longer be able to log in.')) return;
+            try {
+                var res = await fetch('/api/clients/' + clientId + '/portal-users/' + userId, { method: 'DELETE' });
+                if (!res.ok) { alert('Could not remove'); return; }
+                var client = clients.find(function (c) { return c.id == clientId; });
+                if (client && client.portalUsers) client.portalUsers = client.portalUsers.filter(function (u) { return u.id !== userId; });
+                if (_currentClientId == clientId && client) renderClientPortalUsers(client);
+            } catch (e) { alert('Network error'); }
+        }
+
         async function viewClientDetail(clientId) {
             const client = clients.find(c => c.id == clientId);
             if (!client) return;
@@ -9508,6 +9576,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             renderClientMsaSection(client);
             renderClientMaintenance(client);
             renderClientTenants(client);
+            renderClientPortalUsers(client);
             document.getElementById('client-detail-info').innerHTML = \`
                 <p style="margin-bottom: 0.75rem;"><strong>Email:</strong> \${client.email || 'N/A'}</p>
                 <p style="margin-bottom: 0.75rem;"><strong>Phone:</strong> \${formatPhoneNumber(client.phone) || 'N/A'}</p>
