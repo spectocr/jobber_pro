@@ -7784,6 +7784,22 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 return;
             }
 
+            // Guard against the client picker silently attaching the wrong client — confirmed to
+            // have happened repeatedly (a job ends up tied to a totally unrelated client, no name
+            // resemblance, generally right after a new client was created). Whatever the exact
+            // click/race is, this closes the hole: refuse to save if the selected clientId doesn't
+            // actually match the name typed into the client field.
+            const _jobClientTypedName = (document.getElementById('jobClientInput')?.value || '').trim().toLowerCase();
+            if (job.clientId) {
+                const _jobClientMatch = clients.find(c => (c.id || c._id) == job.clientId);
+                if (!_jobClientMatch || (_jobClientMatch.name || '').trim().toLowerCase() !== _jobClientTypedName) {
+                    if (!silent) alert('The selected client doesn\'t match what\'s typed in the Client field. Please re-select the client from the dropdown before saving — this check exists because jobs have silently attached to the wrong client before.');
+                    isSavingJob = false;
+                    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Job'; }
+                    return;
+                }
+            }
+
             // If editing, include the _id
             if (currentEditingJobId) {
                 job._id = currentEditingJobId;
@@ -10406,6 +10422,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 isSavingQuote = false;
                 if (saveQuoteBtn) { saveQuoteBtn.disabled = false; saveQuoteBtn.textContent = 'Save Quote'; }
                 return;
+            }
+
+            // Guard against the client picker silently attaching the wrong client — same check as
+            // saveJob(), see its comment for why this exists.
+            const _quoteClientTypedName = (document.getElementById('quoteClientInput')?.value || '').trim().toLowerCase();
+            if (quote.clientId) {
+                const _quoteClientMatch = clients.find(c => (c.id || c._id) == quote.clientId);
+                if (!_quoteClientMatch || (_quoteClientMatch.name || '').trim().toLowerCase() !== _quoteClientTypedName) {
+                    if (!silent) alert('The selected client doesn\'t match what\'s typed in the Client field. Please re-select the client from the dropdown before saving — this check exists because jobs/quotes have silently attached to the wrong client before.');
+                    isSavingQuote = false;
+                    if (saveQuoteBtn) { saveQuoteBtn.disabled = false; saveQuoteBtn.textContent = 'Save Quote'; }
+                    return;
+                }
             }
 
             if (currentEditingQuoteId) {
