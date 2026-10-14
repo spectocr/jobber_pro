@@ -8010,11 +8010,26 @@ app.post('/api/jobs/:id/payment-reminder', isAdmin, async (req, res) => {
         if (!job) return res.status(404).json({ error: 'Job not found' });
         const client = job.clientId ? await db.collection('clients').findOne({ _id: job.clientId }) : null;
         if (!client) return res.status(400).json({ error: 'This job has no client on file.' });
-        // Route to the property contact for PM jobs, same as invoices/quotes/deposits
+        // Route to the property contact for PM jobs, same as invoices/quotes/deposits — this is
+        // the default; the admin can override it with any other address on file for this client
+        // (see /api/jobs/:id/payment-reminder-recipients below for the full list).
         let reminderEmail = client.email, reminderToName = client.name, reminderLoc = null;
         if (job.serviceLocationId && client.serviceLocations) {
             reminderLoc = client.serviceLocations.find(l => String(l.id) === String(job.serviceLocationId)) || null;
             if (reminderLoc?.contactEmail) { reminderEmail = reminderLoc.contactEmail; reminderToName = reminderLoc.contact || reminderLoc.name || client.name; }
+        }
+        // Explicit override from the "send to" dropdown — only honored if it actually matches a
+        // known address for this client (main, any property contact, or any named portal user),
+        // so this can't be hijacked into emailing someone unrelated.
+        const requestedEmail = ((req.body && req.body.toEmail) || '').trim().toLowerCase();
+        if (requestedEmail) {
+            const known = [];
+            if (client.email) known.push({ email: client.email, name: client.name });
+            (client.serviceLocations || []).forEach(l => { if (l.contactEmail) known.push({ email: l.contactEmail, name: l.contact || l.name || client.name }); });
+            (client.portalUsers || []).forEach(u => { if (u.email) known.push({ email: u.email, name: u.name }); });
+            const match = known.find(k => k.email.toLowerCase() === requestedEmail);
+            if (!match) return res.status(400).json({ error: 'That address isn\'t on file for this client.' });
+            reminderEmail = match.email; reminderToName = match.name;
         }
         if (!reminderEmail) return res.status(400).json({ error: 'No email on file for this client.' });
 

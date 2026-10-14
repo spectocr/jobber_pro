@@ -8102,6 +8102,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     '<div style="padding:1.5rem;">' +
                         '<div id="prInfo" style="margin-bottom:1rem;"></div>' +
                         '<input type="hidden" id="prJobId">' +
+                        '<div id="prToGroup" style="margin-bottom:1rem;display:none;">' +
+                            '<label style="display:block;font-weight:600;font-size:0.85rem;color:#4a5568;margin-bottom:0.3rem;">Send to</label>' +
+                            '<select id="prToEmail" class="form-input" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;"></select>' +
+                        '</div>' +
                         '<label style="display:block;font-weight:600;font-size:0.85rem;color:#4a5568;margin-bottom:0.3rem;">Optional note (added to the email)</label>' +
                         '<textarea id="prNote" rows="2" placeholder="e.g. Thanks again for your business!" style="width:100%;padding:0.6rem;border:2px solid #e2e8f0;border-radius:8px;font-family:inherit;"></textarea>' +
                         '<div style="font-size:0.8rem;color:#718096;margin-top:0.5rem;">The email includes the balance, the due date, and how to pay — portal, Zelle, and check.</div>' +
@@ -8114,14 +8118,59 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 document.body.appendChild(modal);
             }
             document.getElementById('prJobId').value = jobId;
-            var noEmail = !client || !client.email;
+
+            // Every address on file for this client: main login, each property's contact (for PM
+            // jobs), and any named portal users — deduped by email. Defaults to whichever one the
+            // reminder would use automatically (the job's property contact if it has one, else the
+            // main email) — same resolution the backend falls back to when no override is sent.
+            var recipients = [];
+            var seen = {};
+            var addRecip = function (email, label, isDefault) {
+                if (!email) return;
+                var key = email.toLowerCase();
+                if (seen[key]) return;
+                seen[key] = true;
+                recipients.push({ email: email, label: label, isDefault: !!isDefault });
+            };
+            var jobLoc = (client && job.serviceLocationId && client.serviceLocations)
+                ? client.serviceLocations.find(function (l) { return String(l.id) === String(job.serviceLocationId); })
+                : null;
+            if (jobLoc && jobLoc.contactEmail) {
+                addRecip(jobLoc.contactEmail, (jobLoc.contact || jobLoc.name || 'Property contact') + ' — ' + jobLoc.contactEmail, true);
+            }
+            if (client && client.email) {
+                addRecip(client.email, (client.contactName || client.name) + ' (Main) — ' + client.email, !(jobLoc && jobLoc.contactEmail));
+            }
+            if (client && Array.isArray(client.serviceLocations)) {
+                client.serviceLocations.forEach(function (l) {
+                    if (l.contactEmail && (!jobLoc || l.id !== jobLoc.id)) addRecip(l.contactEmail, (l.contact || l.name || 'Property') + ' — ' + l.contactEmail, false);
+                });
+            }
+            if (client && Array.isArray(client.portalUsers)) {
+                client.portalUsers.forEach(function (u) { addRecip(u.email, u.name + ' — ' + u.email, false); });
+            }
+
+            var noEmail = recipients.length === 0;
             document.getElementById('prInfo').innerHTML =
                 '<div style="background:#f8fafc;border-radius:8px;padding:0.85rem 1rem;">' +
                 '<div style="font-weight:600;color:#2d3748;">' + escapeAuthText(job.title) + '</div>' +
-                '<div style="font-size:0.85rem;color:#718096;">' + escapeAuthText(client ? client.name : 'Unknown') + (client && client.email ? ' · ' + escapeAuthText(client.email) : '') + '</div>' +
+                '<div style="font-size:0.85rem;color:#718096;">' + escapeAuthText(client ? client.name : 'Unknown') + '</div>' +
                 '<div style="font-size:1.3rem;font-weight:700;color:#c53030;margin-top:0.3rem;">' + formatMoney(balance) + ' due</div>' +
                 '</div>' +
                 (noEmail ? '<div style="color:#c53030;font-size:0.82rem;margin-top:0.5rem;">⚠️ No email on file for this client — add one on their card first.</div>' : '');
+
+            // Only bother showing the picker when there's actually a choice to make.
+            var toGroup = document.getElementById('prToGroup');
+            if (recipients.length > 1) {
+                var sel = document.getElementById('prToEmail');
+                sel.innerHTML = recipients.map(function (r) {
+                    return '<option value="' + escapeAuthText(r.email) + '"' + (r.isDefault ? ' selected' : '') + '>' + escapeAuthText(r.label) + (r.isDefault ? ' (default)' : '') + '</option>';
+                }).join('');
+                toGroup.style.display = 'block';
+            } else {
+                toGroup.style.display = 'none';
+            }
+
             document.getElementById('prNote').value = '';
             document.getElementById('prErr').style.display = 'none';
             var btn = document.getElementById('prSendBtn'); btn.disabled = noEmail; btn.textContent = 'Send reminder';
@@ -8130,11 +8179,13 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         async function sendPaymentReminder() {
             var jobId = document.getElementById('prJobId').value;
             var note = document.getElementById('prNote').value.trim();
+            var toGroup = document.getElementById('prToGroup');
+            var toEmail = (toGroup && toGroup.style.display !== 'none') ? document.getElementById('prToEmail').value : '';
             var err = document.getElementById('prErr');
             var btn = document.getElementById('prSendBtn'); btn.disabled = true; btn.textContent = 'Sending…';
             var reset = function () { btn.disabled = false; btn.textContent = 'Send reminder'; };
             try {
-                var res = await fetch('/api/jobs/' + jobId + '/payment-reminder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: note }) });
+                var res = await fetch('/api/jobs/' + jobId + '/payment-reminder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: note, toEmail: toEmail }) });
                 var data = await res.json();
                 if (!res.ok) { err.textContent = data.error || 'Could not send'; err.style.display = 'block'; reset(); return; }
                 closeModal('paymentReminderModal');
