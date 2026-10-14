@@ -14674,7 +14674,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-secondary btn-small" onclick="showLoginLog('\${user._id || user.id}','business','\${user.name}')" style="margin-right:0.5rem;" title="Sign-in history">📋 Log</button>
+                            <button class="btn btn-secondary btn-small" onclick="showLoginLog('\${user._id || user.id}','business','\${(user.name||'').replace(/'/g,'\\\\\'')}')" style="margin-right:0.5rem;" title="Sign-in history">📋 Log</button>
                             <button class="btn btn-secondary btn-small" onclick="emailUserCredentials('\${user._id || user.id}')" style="margin-right: 0.5rem;" title="Email login credentials">📧 Email Login</button>
                             <button class="btn btn-primary btn-small" onclick="editUser('\${user._id || user.id}')" style="margin-right: 0.5rem;">Edit</button>
                             <button class="btn btn-danger btn-small" onclick="deleteUser('\${user._id || user.id}')">Delete</button>
@@ -14742,10 +14742,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <td style="padding:0.85rem 1rem;color:#718096;">\${c.phone || '—'}</td>
                                 <td style="padding:0.85rem 1rem;color:#4a5568;font-size:0.9rem;">\${lastLogin}</td>
                                 <td style="padding:0.85rem 1rem;text-align:right;">
-                                    <button class="btn btn-secondary btn-small" onclick="showLoginLog('\${c.id}','client','\${c.name}')" style="margin-right:0.5rem;" title="Sign-in history">📋 Log</button>
+                                    <button class="btn btn-secondary btn-small" onclick="showLoginLog('\${c.id}','client','\${c.name.replace(/'/g,'\\\\\'')}')" style="margin-right:0.5rem;" title="Sign-in history">📋 Log</button>
                                     <button class="btn btn-primary btn-small" onclick="showPortalPwModal('\${c.id}','\${c.name.replace(/'/g,'\\\\\'')}')" style="margin-right:0.5rem;" title="Change access code">✏️ Password</button>
                                     \${c.email ? \`<button class="btn btn-secondary btn-small" onclick="sendPortalInfo('\${c.id}')" style="margin-right:0.5rem;" title="Resend portal access email">📧 Email</button>\` : ''}
-                                    <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name}')" title="Remove portal access">Revoke</button>
+                                    <button class="btn btn-danger btn-small" onclick="revokePortalAccess('\${c.id}', '\${c.name.replace(/'/g,'\\\\\'')}')" title="Remove portal access">Revoke</button>
                                 </td>
                             </tr>\`;
                         }).join('')}
@@ -16625,7 +16625,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     </div>
                     \${isImg ? \`<button class="btn btn-secondary btn-small" onclick="viewExpenseAttachment('\${att.s3Key}')">View</button>\` : ''}
                     <button class="btn btn-secondary btn-small" onclick="editExpenseAttachmentNote('\${att.id}')">\${att.comment ? '✎ Edit note' : '+ Add note'}</button>
-                    <button class="btn btn-secondary btn-small" onclick="downloadExpenseAttachment('\${att.s3Key}','\${att.name}')">⬇</button>
+                    <button class="btn btn-secondary btn-small" onclick="downloadExpenseAttachment('\${att.s3Key}','\${(att.name||'').replace(/'/g,'\\\\\'')}')">⬇</button>
                     <button class="btn btn-danger btn-small" onclick="deleteExpenseAttachment('\${att.id}')">✕</button>
                 </div>\`;
             }).join('');
