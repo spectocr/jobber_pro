@@ -3140,7 +3140,11 @@ app.post('/api/clients', isAuthenticated, async (req, res) => {
 
     // Normalize email so login lookup always matches
     if (client.email) client.email = client.email.toLowerCase().trim();
-    client.taxExempt = client.taxExempt === true || client.taxExempt === 'on' || client.taxExempt === 'true';
+    // Only touch taxExempt if the caller actually sent it — a partial-payload save (e.g. resetting
+    // just the portal password) must never silently flip a tax-exempt client back to taxable.
+    if ('taxExempt' in client) {
+        client.taxExempt = client.taxExempt === true || client.taxExempt === 'on' || client.taxExempt === 'true';
+    }
 
     // Hash portal password if provided
     if (client.portalPassword) {

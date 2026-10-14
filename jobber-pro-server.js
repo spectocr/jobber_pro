@@ -9498,11 +9498,19 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         function renderClientPortalUsers(client) {
             var box = document.getElementById('client-portal-users-section');
             if (!box) return;
+            var fmtLast = function (d) { return d ? ('last login ' + new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) : 'never logged in'; };
+            var mainRow = '';
+            if (client.email) {
+                mainRow = '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border-top:1px solid #edf2f7;padding:0.5rem 0;flex-wrap:wrap;">' +
+                    '<div><strong style="color:#2d3748;">' + escapeAuthText(client.contactName || client.name) + '</strong> · <span style="color:#718096;font-size:0.85rem;">' + escapeAuthText(client.email) + '</span> &nbsp;<span style="background:#e9d8fd;color:#553c9a;font-size:0.68rem;font-weight:700;padding:1px 7px;border-radius:9px;">MAIN</span> &nbsp;<span style="color:#a0aec0;font-size:0.78rem;">' + fmtLast(client.lastPortalLogin) + '</span></div>' +
+                    '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;flex-shrink:0;">' +
+                        '<button class="btn btn-secondary btn-small" onclick="resetMainPortalPassword(\'' + client.id + '\')">Reset password</button>' +
+                    '</div></div>';
+            }
             var users = client.portalUsers || [];
             var rows = users.map(function (u) {
-                var last = u.lastLogin ? ('last login ' + new Date(u.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) : 'never logged in';
                 return '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;border-top:1px solid #edf2f7;padding:0.5rem 0;flex-wrap:wrap;">' +
-                    '<div><strong style="color:#2d3748;">' + escapeAuthText(u.name) + '</strong> · <span style="color:#718096;font-size:0.85rem;">' + escapeAuthText(u.email) + '</span> &nbsp;<span style="color:#a0aec0;font-size:0.78rem;">' + last + '</span></div>' +
+                    '<div><strong style="color:#2d3748;">' + escapeAuthText(u.name) + '</strong> · <span style="color:#718096;font-size:0.85rem;">' + escapeAuthText(u.email) + '</span> &nbsp;<span style="color:#a0aec0;font-size:0.78rem;">' + fmtLast(u.lastLogin) + '</span></div>' +
                     '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;flex-shrink:0;">' +
                         '<button class="btn btn-secondary btn-small" onclick="resetPortalUserPassword(\'' + client.id + '\',\'' + u.id + '\')">Reset password</button>' +
                         '<button class="btn btn-small" style="background:#fed7d7;color:#c53030;" onclick="removePortalUser(\'' + client.id + '\',\'' + u.id + '\')">Remove</button>' +
@@ -9510,10 +9518,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             }).join('');
             box.innerHTML = '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;background:#fafafa;">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.4rem;">' +
-                    '<div><strong style="color:#2d3748;">👥 Additional Portal Users</strong> <span style="color:#a0aec0;font-size:0.82rem;">— same full access as the main login, their own email/password</span></div>' +
+                    '<div><strong style="color:#2d3748;">👥 Portal Users</strong> <span style="color:#a0aec0;font-size:0.82rem;">— everyone who can log in; added people get the same full access as the main login</span></div>' +
                     '<button class="btn btn-secondary btn-small" onclick="addPortalUser(\'' + client.id + '\')">+ Add person</button>' +
                 '</div>' +
-                (rows || '<div style="color:#a0aec0;font-size:0.85rem;padding-top:0.3rem;">No additional portal users yet.</div>') +
+                (mainRow || '<div style="color:#a0aec0;font-size:0.85rem;padding-top:0.3rem;">No main login — add an email to this client to enable one.</div>') +
+                rows +
                 '</div>';
         }
         async function addPortalUser(clientId) {
@@ -9535,6 +9544,16 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 var client = clients.find(function (c) { return c.id == clientId; });
                 if (client) { client.portalUsers = client.portalUsers || []; client.portalUsers.push(data.user); }
                 if (_currentClientId == clientId && client) renderClientPortalUsers(client);
+            } catch (e) { alert('Network error'); }
+        }
+        async function resetMainPortalPassword(clientId) {
+            var pw = prompt('New password for the main portal login:');
+            if (pw === null) return; pw = pw.trim();
+            if (pw.length < 4) { alert('Password must be at least 4 characters.'); return; }
+            try {
+                var res = await fetch('/api/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _id: clientId, portalPassword: pw }) });
+                if (!res.ok) { alert('Could not reset'); return; }
+                alert('✅ Password reset.');
             } catch (e) { alert('Network error'); }
         }
         async function resetPortalUserPassword(clientId, userId) {
