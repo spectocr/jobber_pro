@@ -3067,6 +3067,60 @@ app.post('/api/payments/refund', isAdmin, async (req, res) => {
     }
 });
 
+// Log a refund for a payment that wasn't a Clover card charge (check, cash, Venmo, etc.) — no
+// gateway call, just a clean bookkeeping entry so money given back outside the app isn't silently
+// lost by editing/deleting the original payment row. Mirrors /api/payments/refund's record-keeping
+// (annotate the original payment, push a negative refund row, recompute totals) without the Clover step.
+app.post('/api/payments/manual-refund', isAdmin, async (req, res) => {
+    try {
+        const { jobId, paymentId, amount, method, note } = req.body;
+        if (!jobId || paymentId == null) return res.status(400).json({ error: 'jobId and paymentId are required' });
+        const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        const payments = Array.isArray(job.payments) ? job.payments : [];
+        const idx = payments.findIndex(p => String(p.id) === String(paymentId));
+        if (idx === -1) return res.status(404).json({ error: 'Payment not found on this job' });
+        const pay = payments[idx];
+
+        const paidAmt = parseFloat(pay.amount) || 0;
+        const alreadyRefunded = parseFloat(pay.refundedAmount) || 0;
+        const maxRefund = Math.round((paidAmt - alreadyRefunded) * 100) / 100;
+        if (maxRefund <= 0) return res.status(400).json({ error: 'This payment is already fully refunded.' });
+        let refundAmt = amount != null && amount !== '' ? Math.round(parseFloat(amount) * 100) / 100 : maxRefund;
+        if (!Number.isFinite(refundAmt) || refundAmt <= 0) return res.status(400).json({ error: 'Invalid refund amount.' });
+        if (refundAmt > maxRefund + 0.001) return res.status(400).json({ error: `Refund exceeds refundable amount ($${maxRefund.toFixed(2)}).` });
+        const refundMethod = (method || pay.method || 'check').trim();
+
+        const now = new Date();
+        pay.refundedAmount = Math.round((alreadyRefunded + refundAmt) * 100) / 100;
+        pay.refundedAt = now;
+        pay.notes = (pay.notes || '') + ` · Refunded $${refundAmt.toFixed(2)} (${refundMethod}, logged manually)`;
+        payments[idx] = pay;
+        payments.push({
+            id: Date.now(),
+            date: now.toISOString().split('T')[0],
+            amount: -refundAmt,
+            method: 'refund',
+            refundMethod,
+            manualRefund: true,
+            notes: `Refund — ${refundMethod}${note ? ': ' + String(note).slice(0, 300) : ''}`
+        });
+
+        const jobTotal = parseFloat(job.totalWithTax || job.total) || 0;
+        const newTotalPaid = Math.round(Math.max(0, (parseFloat(job.totalPaid) || 0) - refundAmt) * 100) / 100;
+        const newBalance = Math.round((jobTotal - newTotalPaid) * 100) / 100;
+        const auditLog = Array.isArray(job.auditLog) ? job.auditLog : [];
+        auditLog.push({ timestamp: now, userName: req.session.userName, action: 'refund', note: `Refunded $${refundAmt.toFixed(2)} via ${refundMethod} (logged manually, not a Clover refund)${note ? ' — ' + note : ''}` });
+
+        await db.collection('jobs').updateOne({ _id: job._id }, { $set: { payments, totalPaid: newTotalPaid, balanceOwed: newBalance, auditLog } });
+
+        res.json({ success: true, refundAmount: refundAmt, totalPaid: newTotalPaid, balanceOwed: newBalance });
+    } catch (err) {
+        console.error('Manual refund error:', err);
+        res.status(500).json({ error: 'Server error logging the refund' });
+    }
+});
+
 // Cancel a job in one clean action: status → cancelled, balance zeroed off the
 // books, reason logged, and a cancellation letter sent to the client.
 app.post('/api/jobs/:id/cancel', isAdmin, async (req, res) => {

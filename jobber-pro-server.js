@@ -7159,21 +7159,28 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 
             paymentContainer.innerHTML = paymentItems.map(item => {
                 const isCardCharge = item.last4 != null || item.cardBrand != null;
-                const isLocked = isCardCharge && !_unlockedPaymentIds.has(item.id);
+                const _amtNumPre = parseFloat(item.amount || 0);
+                const _isRefundRowPre = item.method === 'refund' || _amtNumPre < 0;
+                // Refund rows are always locked, card or not — a logged refund (Clover or manual)
+                // must not be silently editable/deletable via the plain inputs below, same reasoning
+                // as why card charges themselves are locked.
+                const isLocked = (isCardCharge || _isRefundRowPre) && !_unlockedPaymentIds.has(item.id);
                 const methodLabel = { cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' }[item.method] || item.method;
                 if (isLocked) {
-                    const amtNum = parseFloat(item.amount || 0);
-                    const isRefundRow = item.method === 'refund' || amtNum < 0;
+                    const amtNum = _amtNumPre;
+                    const isRefundRow = _isRefundRowPre;
                     const refundedAmt = parseFloat(item.refundedAmount) || 0;
                     const refundable = isAdmin && !isRefundRow && (amtNum - refundedAmt) > 0.001;
                     const amtColor = isRefundRow ? '#c53030' : '#15803d';
                     const refundBtn = refundable
-                        ? \`<button type="button" onclick="refundPayment(\${item.id}, \${amtNum}, \${refundedAmt})" style="background:#fed7d7;color:#c53030;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">↩ Refund</button>\`
+                        ? (isCardCharge
+                            ? \`<button type="button" onclick="refundPayment(\${item.id}, \${amtNum}, \${refundedAmt})" style="background:#fed7d7;color:#c53030;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">↩ Refund</button>\`
+                            : \`<button type="button" onclick="manualRefundPayment(\${item.id}, \${amtNum}, \${refundedAmt}, '\${item.method || 'check'}')" style="background:#fed7d7;color:#c53030;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">↩ Log refund</button>\`)
                         : '';
                     return \`<div class="line-item" style="display:grid;grid-template-columns:1fr 1fr 1.5fr 2fr auto;gap:0.5rem;margin-bottom:0.5rem;align-items:center;background:\${isRefundRow ? '#fff5f5' : '#f0fdf4'};border:1.5px solid \${isRefundRow ? '#feb2b2' : '#bbf7d0'};border-radius:8px;padding:0.5rem 0.75rem;">
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Date</div><div style="font-size:0.9rem;">\${item.date || '—'}</div></div>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">\${isRefundRow ? 'Refund' : 'Amount'}</div><div style="font-size:0.9rem;font-weight:700;color:\${amtColor};">\$\${amtNum.toFixed(2)}\${refundedAmt > 0 && !isRefundRow ? \` <span style="font-size:0.72rem;color:#c05621;">(−\$\${refundedAmt.toFixed(2)} refunded)</span>\` : ''}</div></div>
-                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Method</div><div style="font-size:0.9rem;">\${methodLabel}\${item.last4 ? \` ••••\${item.last4}\` : ''}</div></div>
+                        <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Method</div><div style="font-size:0.9rem;">\${isRefundRow ? 'Refund' + (item.refundMethod ? ' (' + ({ cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' }[item.refundMethod] || item.refundMethod) + ')' : (item.cloverRefundId ? ' (card)' : '')) : methodLabel}\${item.last4 ? \` ••••\${item.last4}\` : ''}</div></div>
                         <div><div style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:2px;">Notes</div><div style="font-size:0.85rem;color:#4b5563;">\${item.notes || '—'}</div></div>
                         <div class="pay-row-actions" style="display:flex;flex-direction:column;gap:4px;">
                             <button type="button" onclick="unlockPaymentItem(\${item.id})" style="background:#e2e8f0;color:#374151;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">🔒 Edit</button>
@@ -7181,6 +7188,9 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         </div>
                     </div>\`;
                 }
+                const manualAmtNum = parseFloat(item.amount || 0);
+                const manualRefundedAmt = parseFloat(item.refundedAmount) || 0;
+                const manualRefundable = isAdmin && !isCardCharge && item.method !== 'refund' && manualAmtNum > 0 && (manualAmtNum - manualRefundedAmt) > 0.001;
                 return \`<div class="line-item" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr 2fr 40px; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;\${isCardCharge ? 'border:1.5px solid #fbd38d;border-radius:8px;padding:0.5rem;background:#fffbeb;' : ''}">
                     \${isCardCharge ? \`<div style="grid-column:1/-1;font-size:0.75rem;color:#d97706;font-weight:600;margin-bottom:0.25rem;">⚠️ Card payment unlocked for editing</div>\` : ''}
                     <div class="form-group" style="margin: 0;">
@@ -7190,6 +7200,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.85rem;">Amount ($)</label>
                         <input type="number" value="\${item.amount}" onchange="updatePaymentItem(\${item.id}, 'amount', this.value)" step="0.01" min="0">
+                        \${manualRefundedAmt > 0 ? \`<div style="font-size:0.72rem;color:#c05621;margin-top:2px;">−\$\${manualRefundedAmt.toFixed(2)} refunded</div>\` : ''}
                     </div>
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.85rem;">Method</label>
@@ -7205,7 +7216,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label style="font-size: 0.85rem;">Notes\${item.method === 'other' ? ' *' : ''}</label>
                         <input type="text" value="\${item.notes || ''}" onchange="updatePaymentItem(\${item.id}, 'notes', this.value)" placeholder="\${item.method === 'other' ? 'Required for Other' : 'Optional notes'}">
                     </div>
-                    <button type="button" onclick="removePaymentItem(\${item.id})" style="background: #dc3545; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; height: 38px;">×</button>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <button type="button" onclick="removePaymentItem(\${item.id})" style="background: #dc3545; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; height: 38px;">×</button>
+                        \${manualRefundable ? \`<button type="button" onclick="manualRefundPayment(\${item.id}, \${manualAmtNum}, \${manualRefundedAmt}, '\${item.method || 'check'}')" style="background:#fed7d7;color:#c53030;border:none;padding:0.3rem 0.4rem;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;">↩ Log refund</button>\` : ''}
+                    </div>
                 </div>\`;
             }).join('');
 
@@ -7407,6 +7421,41 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                 const j = jobs.find(x => (x._id || x.id) == jid);
                 if (j) openJobModal(j);
             } catch (e) { /* refund is done; refresh is cosmetic */ }
+        }
+
+        // Log a refund given OUTSIDE Clover — check, cash, Venmo, etc. No gateway call; this just
+        // records it cleanly (locked refund row, audit log entry) instead of the only alternative
+        // being to quietly edit or delete the original payment and lose the history of what happened.
+        async function manualRefundPayment(paymentId, amount, alreadyRefunded, currentMethod) {
+            if (!currentEditingJobId) { alert('Save the job first.'); return; }
+            const maxRefund = Math.round((amount - (alreadyRefunded || 0)) * 100) / 100;
+            if (maxRefund <= 0) { alert('This payment is already fully refunded.'); return; }
+            const input = prompt('Refund amount (up to $' + maxRefund.toFixed(2) + '):', maxRefund.toFixed(2));
+            if (input === null) return;
+            const refundAmt = Math.round(parseFloat(input) * 100) / 100;
+            if (!Number.isFinite(refundAmt) || refundAmt <= 0) { alert('Enter a valid amount.'); return; }
+            if (refundAmt > maxRefund + 0.001) { alert('That is more than the refundable amount ($' + maxRefund.toFixed(2) + ').'); return; }
+            const methodLabels = { cash: 'Cash', check: 'Check', venmo: 'Venmo', credit_card: 'Credit Card', other: 'Other' };
+            const method = prompt('How did you refund this (cash / check / venmo / other)?', methodLabels[currentMethod] || 'Check');
+            if (method === null) return;
+            const note = prompt('Optional note (e.g. check #):', '') || '';
+            if (!confirm('Log a $' + refundAmt.toFixed(2) + ' refund via ' + method + '? This records it but does not move any money, it is just a record of what you already did.')) return;
+            const jid = currentEditingJobId;
+            let data;
+            try {
+                const res = await fetch('/api/payments/manual-refund', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: jid, paymentId: paymentId, amount: refundAmt, method: method, note: note })
+                });
+                data = await res.json().catch(() => null);
+                if (!res.ok) { alert((data && data.error) || 'Could not log the refund.'); return; }
+            } catch (e) { alert('Network error — the refund was not logged. Try again.'); return; }
+            alert('✅ Logged $' + data.refundAmount.toFixed(2) + ' refund. New balance owed: $' + data.balanceOwed.toFixed(2) + '.');
+            try {
+                await loadJobs();
+                const j = jobs.find(x => (x._id || x.id) == jid);
+                if (j) openJobModal(j);
+            } catch (e) { /* logged; refresh is cosmetic */ }
         }
 
         function toggleFollowUpFields() {
