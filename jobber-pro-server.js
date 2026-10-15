@@ -11456,6 +11456,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                                 <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:7px;padding:0.45rem 0.65rem;font-size:0.85rem;">
                                     💰 <strong style="color:#15803d;">\${formatMoney(earnings)}</strong>
                                     <span style="color:#4b5563;"> · \${laborHours}hr @ \$\${parseFloat(currentTeamMember.hourlyRate).toFixed(2)}/hr</span>
+                                    <div style="font-size:0.7rem;color:#4b5563;font-style:italic;margin-top:0.25rem;">Estimate only, based on the job's total estimated hours — not a guarantee. Actual pay is based on the hours you clock and get approved.</div>
                                 </div>
                             </div>\`;
                         }
