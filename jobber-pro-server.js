@@ -1487,10 +1487,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <h3>Profit This Month</h3>
                     <div class="value" id="stat-profit">$0</div>
                 </div>
-                <div class="stat-card">
-                    <h3>Jobs Today</h3>
-                    <div class="value" id="stat-jobs-today">0</div>
-                </div>
                 <div class="stat-card" style="border-left-color: #e53e3e;">
                     <h3>Accounts Receivable</h3>
                     <div class="value" id="stat-ar">$0</div>
@@ -8398,7 +8394,6 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             document.getElementById('stat-jobs-month').textContent = stats.jobsThisMonth;
             document.getElementById('stat-revenue').textContent = formatMoney(stats.revenueThisMonth || 0);
             document.getElementById('stat-profit').textContent = formatMoney(stats.profitThisMonth || 0);
-            document.getElementById('stat-jobs-today').textContent = stats.jobsToday;
 
             // Month-over-month deltas
             (function() {
