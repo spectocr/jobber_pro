@@ -12342,7 +12342,7 @@ app.post('/api/deposit/pay', async (req, res) => {
 
 // ═══════════════════════ Gift Cards ═══════════════════════
 const GIFT_CARD_TERMS = [
-    ['Redemption', 'This gift card is redeemable toward labor and services provided by GSD Property Services (GSD Home Improvement &amp; Property Services) within our South Jersey service area. Provide your gift card code when you book or pay.'],
+    ['Redemption', 'This gift card is redeemable toward labor and services provided by GSD Property Services (GSD Home Improvement &amp; Property Services). We generally serve locations within approximately 10 miles of Marlton, NJ 08053. Larger projects outside this radius may be accommodated on request and may involve additional travel charges. Provide your gift card code when you book or pay.'],
     ['No expiration, no fees', 'Your gift card balance never expires and is never subject to any dormancy, inactivity, or service fees.'],
     ['Unused balance', 'Any remaining balance stays on the card for future services. You can check your balance anytime at gsdhandymanservice.com/gift-cards/balance.'],
     ['Not for cash', 'Gift cards are not redeemable or refundable for cash except where required by law, and cannot be used to purchase other gift cards.'],
